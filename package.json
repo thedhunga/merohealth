@@ -1,0 +1,35 @@
+{
+  "name": "swasthya-sathi",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.10.0",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev --parallel",
+    "dev:mobile": "pnpm --filter @swasthya/mobile start",
+    "dev:api": "pnpm --filter @swasthya/api start:dev",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "format:check": "prettier --check .",
+    "db:generate": "pnpm --filter @swasthya/database generate",
+    "db:migrate": "pnpm --filter @swasthya/database migrate",
+    "db:seed": "pnpm --filter @swasthya/database seed"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.32.0",
+    "@types/node": "24.1.0",
+    "eslint": "9.32.0",
+    "prettier": "3.6.2",
+    "turbo": "2.10.8",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.38.0",
+    "tsx": "4.23.9",
+    "vitest": "4.1.10",
+    "zod": "4.4.3"
+  }
+}
+

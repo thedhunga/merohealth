@@ -1,0 +1,11 @@
+node_modules/
+.turbo/
+.expo/
+dist/
+coverage/
+.env
+.env.local
+*.log
+apps/mobile/.expo/
+packages/database/generated/
+

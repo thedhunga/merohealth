@@ -1,0 +1,788 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  PATIENT
+  GUARDIAN
+  CAREGIVER
+  DOCTOR
+  NURSE
+  PHARMACIST
+  LAB_PROVIDER
+  DELIVERY_PARTNER
+  ORG_ADMIN
+  CLINICAL_REVIEWER
+  SUPPORT
+  SUPER_ADMIN
+}
+
+enum VerificationStatus {
+  CLAIMED
+  IMPORTED
+  REVIEWED
+  VERIFIED
+  SUSPENDED
+  RETIRED
+}
+
+enum ConsentStatus {
+  DRAFT
+  GRANTED
+  REVOKED
+  EXPIRED
+}
+
+enum AppointmentStatus {
+  REQUESTED
+  CONFIRMED
+  CHECKED_IN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum PrescriptionStatus {
+  DRAFT
+  READY_FOR_SIGNATURE
+  SIGNED
+  TRANSMITTED
+  CANCELLED
+  AMENDED
+  EXPIRED
+}
+
+enum PharmacyOrderStatus {
+  REQUESTED
+  AWAITING_PRESCRIPTION_VALIDATION
+  QUOTED
+  AWAITING_PATIENT_APPROVAL
+  ACCEPTED
+  PHARMACIST_REVIEW
+  CLARIFICATION_REQUIRED
+  PREPARING
+  READY_FOR_PICKUP
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+model User {
+  id         String    @id @default(uuid()) @db.Uuid
+  email      String?   @unique
+  phone      String?   @unique
+  role       UserRole
+  locale     String    @default("ne")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  disabledAt DateTime?
+  version    Int       @default(1)
+}
+
+model PatientProfile {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @unique @db.Uuid
+  displayName   String
+  demographics  Json?
+  accessibility Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  version       Int      @default(1)
+}
+
+model CaregiverRelationship {
+  id              String    @id @default(uuid()) @db.Uuid
+  patientId       String    @db.Uuid
+  caregiverUserId String    @db.Uuid
+  relationship    String
+  permissions     Json
+  startsAt        DateTime  @default(now())
+  endsAt          DateTime?
+  version         Int       @default(1)
+}
+
+model Practitioner {
+  id           String             @id @default(uuid()) @db.Uuid
+  userId       String?            @unique @db.Uuid
+  displayName  String
+  languages    String[]
+  verification VerificationStatus @default(CLAIMED)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  version      Int                @default(1)
+}
+
+model PractitionerCredential {
+  id                   String             @id @default(uuid()) @db.Uuid
+  practitionerId       String             @db.Uuid
+  credentialType       String
+  issuer               String
+  identifierCiphertext String
+  status               VerificationStatus @default(CLAIMED)
+  expiresAt            DateTime?
+  createdAt            DateTime           @default(now())
+  version              Int                @default(1)
+}
+
+model PractitionerRole {
+  id             String   @id @default(uuid()) @db.Uuid
+  practitionerId String   @db.Uuid
+  organizationId String   @db.Uuid
+  specialtyCode  String
+  serviceModes   String[]
+  active         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  version        Int      @default(1)
+}
+
+model Organization {
+  id              String             @id @default(uuid()) @db.Uuid
+  type            String
+  name            String
+  nameNe          String?
+  verification    VerificationStatus @default(CLAIMED)
+  isFictionalDemo Boolean            @default(false)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  version         Int                @default(1)
+}
+
+model OrganizationLocation {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  district       String
+  municipality   String
+  address        Json
+  serviceArea    Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  version        Int      @default(1)
+}
+
+model Pharmacy {
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @unique @db.Uuid
+  verification   VerificationStatus @default(CLAIMED)
+  policy         Json?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  version        Int                @default(1)
+}
+
+model Laboratory {
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @unique @db.Uuid
+  verification   VerificationStatus @default(CLAIMED)
+  policy         Json?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  version        Int                @default(1)
+}
+
+model Consent {
+  id            String        @id @default(uuid()) @db.Uuid
+  patientId     String        @db.Uuid
+  purpose       String
+  policyVersion String
+  status        ConsentStatus @default(DRAFT)
+  evidence      Json
+  grantedAt     DateTime?
+  revokedAt     DateTime?
+  createdAt     DateTime      @default(now())
+  version       Int           @default(1)
+}
+
+model AccessGrant {
+  id        String    @id @default(uuid()) @db.Uuid
+  patientId String    @db.Uuid
+  granteeId String    @db.Uuid
+  scopes    String[]
+  purpose   String
+  consentId String    @db.Uuid
+  expiresAt DateTime?
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  version   Int       @default(1)
+}
+
+model Appointment {
+  id                 String            @id @default(uuid()) @db.Uuid
+  patientId          String            @db.Uuid
+  practitionerRoleId String            @db.Uuid
+  status             AppointmentStatus @default(REQUESTED)
+  consultationType   String
+  startsAt           DateTime
+  endsAt             DateTime
+  idempotencyKey     String            @unique
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  version            Int               @default(1)
+}
+
+model Encounter {
+  id                 String    @id @default(uuid()) @db.Uuid
+  appointmentId      String?   @unique @db.Uuid
+  patientId          String    @db.Uuid
+  practitionerRoleId String    @db.Uuid
+  status             String
+  startedAt          DateTime?
+  endedAt            DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  version            Int       @default(1)
+}
+
+model ConsultationNote {
+  id                   String    @id @default(uuid()) @db.Uuid
+  encounterId          String    @db.Uuid
+  authorPractitionerId String    @db.Uuid
+  structuredContent    Json
+  status               String
+  signedAt             DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  version              Int       @default(1)
+}
+
+model AiConversation {
+  id        String    @id @default(uuid()) @db.Uuid
+  patientId String?   @db.Uuid
+  language  String
+  purpose   String
+  status    String
+  createdAt DateTime  @default(now())
+  endedAt   DateTime?
+  version   Int       @default(1)
+}
+
+model AiMessage {
+  id                  String   @id @default(uuid()) @db.Uuid
+  conversationId      String   @db.Uuid
+  role                String
+  encryptedContentRef String
+  modelVersion        String?
+  policyVersion       String
+  createdAt           DateTime @default(now())
+}
+
+model AiSafetyAssessment {
+  id             String   @id @default(uuid()) @db.Uuid
+  conversationId String   @db.Uuid
+  messageId      String?  @db.Uuid
+  riskLevel      String
+  matchedRuleIds String[]
+  interrupted    Boolean
+  templateId     String?
+  createdAt      DateTime @default(now())
+}
+
+model IntakeSummary {
+  id                  String    @id @default(uuid()) @db.Uuid
+  conversationId      String    @db.Uuid
+  patientId           String    @db.Uuid
+  content             Json
+  machineGenerated    Boolean   @default(true)
+  patientConsentedAt  DateTime?
+  clinicianVerifiedAt DateTime?
+  createdAt           DateTime  @default(now())
+  version             Int       @default(1)
+}
+
+model TwinFact {
+  id             String   @id @default(uuid()) @db.Uuid
+  patientId      String   @db.Uuid
+  kind           String
+  value          Json
+  provenance     String
+  verification   String
+  sensitivity    String
+  recordedAt     DateTime @default(now())
+  supersededById String?  @db.Uuid
+  version        Int      @default(1)
+}
+
+model TwinFactRevision {
+  id              String   @id @default(uuid()) @db.Uuid
+  twinFactId      String   @db.Uuid
+  revision        Int
+  value           Json
+  changedByUserId String   @db.Uuid
+  reason          String
+  createdAt       DateTime @default(now())
+
+  @@unique([twinFactId, revision])
+}
+
+model Condition {
+  id           String   @id @default(uuid()) @db.Uuid
+  patientId    String   @db.Uuid
+  code         Json
+  status       String
+  recordedById String   @db.Uuid
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  version      Int      @default(1)
+}
+
+model Allergy {
+  id           String   @id @default(uuid()) @db.Uuid
+  patientId    String   @db.Uuid
+  substance    Json
+  reaction     Json?
+  status       String
+  recordedById String   @db.Uuid
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  version      Int      @default(1)
+}
+
+model Medication {
+  id           String   @id @default(uuid()) @db.Uuid
+  genericName  String
+  brandNames   String[]
+  code         Json
+  presentation Json?
+  restrictions Json?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  version      Int      @default(1)
+}
+
+model PatientMedication {
+  id           String    @id @default(uuid()) @db.Uuid
+  patientId    String    @db.Uuid
+  medicationId String    @db.Uuid
+  status       String
+  instructions Json?
+  source       String
+  startedAt    DateTime?
+  endedAt      DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  version      Int       @default(1)
+}
+
+model Prescription {
+  id              String             @id @default(uuid()) @db.Uuid
+  patientId       String             @db.Uuid
+  encounterId     String             @db.Uuid
+  prescriberId    String             @db.Uuid
+  status          PrescriptionStatus @default(DRAFT)
+  signatureStatus String             @default("UNSIGNED")
+  signedAt        DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  version         Int                @default(1)
+}
+
+model PrescriptionItem {
+  id                  String   @id @default(uuid()) @db.Uuid
+  prescriptionId      String   @db.Uuid
+  medicationId        String   @db.Uuid
+  dosing              Json
+  quantity            Decimal  @db.Decimal(12, 3)
+  refills             Int      @default(0)
+  patientInstructions String
+  createdAt           DateTime @default(now())
+  version             Int      @default(1)
+}
+
+model PharmacyQuote {
+  id             String   @id @default(uuid()) @db.Uuid
+  prescriptionId String   @db.Uuid
+  pharmacyId     String   @db.Uuid
+  status         String
+  items          Json
+  grossAmount    Decimal  @db.Decimal(14, 2)
+  currency       String
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  version        Int      @default(1)
+}
+
+model PharmacyOrder {
+  id              String              @id @default(uuid()) @db.Uuid
+  patientId       String              @db.Uuid
+  pharmacyId      String              @db.Uuid
+  prescriptionId  String              @db.Uuid
+  quoteId         String              @db.Uuid
+  status          PharmacyOrderStatus @default(REQUESTED)
+  fulfillmentMode String
+  idempotencyKey  String              @unique
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  version         Int                 @default(1)
+}
+
+model PharmacyOrderItem {
+  id                 String   @id @default(uuid()) @db.Uuid
+  pharmacyOrderId    String   @db.Uuid
+  prescriptionItemId String   @db.Uuid
+  medicationId       String   @db.Uuid
+  quantity           Decimal  @db.Decimal(12, 3)
+  unitPrice          Decimal  @db.Decimal(14, 2)
+  substitution       Json?
+  createdAt          DateTime @default(now())
+}
+
+model Delivery {
+  id                    String    @id @default(uuid()) @db.Uuid
+  pharmacyOrderId       String    @unique @db.Uuid
+  partnerOrganizationId String?   @db.Uuid
+  status                String
+  trackingReference     String?
+  deliveredAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  version               Int       @default(1)
+}
+
+model LaboratoryTest {
+  id                  String   @id @default(uuid()) @db.Uuid
+  laboratoryId        String?  @db.Uuid
+  code                Json
+  name                String
+  nameNe              String?
+  instructions        Json?
+  selfRequestEligible Boolean  @default(false)
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  version             Int      @default(1)
+}
+
+model LaboratoryOrder {
+  id             String    @id @default(uuid()) @db.Uuid
+  patientId      String    @db.Uuid
+  laboratoryId   String    @db.Uuid
+  orderedById    String?   @db.Uuid
+  status         String
+  tests          Json
+  homeCollection Boolean   @default(false)
+  scheduledAt    DateTime?
+  idempotencyKey String    @unique
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  version        Int       @default(1)
+}
+
+model LaboratoryResult {
+  id                    String   @id @default(uuid()) @db.Uuid
+  laboratoryOrderId     String   @db.Uuid
+  status                String
+  structuredData        Json?
+  documentId            String?  @db.Uuid
+  abnormalFlag          String?
+  clinicianReviewStatus String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  version               Int      @default(1)
+}
+
+model Observation {
+  id          String   @id @default(uuid()) @db.Uuid
+  patientId   String   @db.Uuid
+  encounterId String?  @db.Uuid
+  code        Json
+  value       Json
+  source      String
+  status      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  version     Int      @default(1)
+}
+
+model Document {
+  id               String   @id @default(uuid()) @db.Uuid
+  patientId        String   @db.Uuid
+  category         String
+  objectKey        String
+  mimeType         String
+  sizeBytes        BigInt
+  sha256           String
+  scanStatus       String
+  uploadedByUserId String   @db.Uuid
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  version          Int      @default(1)
+}
+
+model Immunization {
+  id           String    @id @default(uuid()) @db.Uuid
+  patientId    String    @db.Uuid
+  vaccineCode  Json
+  occurrenceAt DateTime?
+  source       String
+  status       String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  version      Int       @default(1)
+}
+
+model CarePlan {
+  id          String   @id @default(uuid()) @db.Uuid
+  patientId   String   @db.Uuid
+  encounterId String?  @db.Uuid
+  authorId    String   @db.Uuid
+  status      String
+  title       String
+  activities  Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  version     Int      @default(1)
+}
+
+model Referral {
+  id              String   @id @default(uuid()) @db.Uuid
+  patientId       String   @db.Uuid
+  encounterId     String   @db.Uuid
+  requesterId     String   @db.Uuid
+  targetSpecialty String
+  reason          String
+  status          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  version         Int      @default(1)
+}
+
+model Notification {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  channel     String
+  templateId  String
+  payload     Json
+  sensitivity String
+  status      String
+  sentAt      DateTime?
+  createdAt   DateTime  @default(now())
+  version     Int       @default(1)
+}
+
+model Payment {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  purpose        String
+  referenceId    String   @db.Uuid
+  provider       String
+  status         String
+  grossAmount    Decimal  @db.Decimal(14, 2)
+  currency       String
+  idempotencyKey String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  version        Int      @default(1)
+}
+
+model LedgerEntry {
+  id           String   @id @default(uuid()) @db.Uuid
+  paymentId    String   @db.Uuid
+  entryType    String
+  amounts      Json
+  currency     String
+  payoutStatus String
+  createdAt    DateTime @default(now())
+}
+
+model Subscription {
+  id             String    @id @default(uuid()) @db.Uuid
+  subscriberType String
+  subscriberId   String    @db.Uuid
+  planId         String    @db.Uuid
+  status         String
+  startsAt       DateTime
+  endsAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  version        Int       @default(1)
+}
+
+model Plan {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique
+  name      String
+  audience  String
+  pricing   Json
+  active    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  version   Int      @default(1)
+}
+
+model Entitlement {
+  id            String   @id @default(uuid()) @db.Uuid
+  planId        String   @db.Uuid
+  code          String
+  limitValue    Int?
+  configuration Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([planId, code])
+}
+
+model Review {
+  id                String   @id @default(uuid()) @db.Uuid
+  patientId         String   @db.Uuid
+  subjectType       String
+  subjectId         String   @db.Uuid
+  operationalRating Int
+  comments          String?
+  moderationStatus  String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  version           Int      @default(1)
+}
+
+model Complaint {
+  id                    String   @id @default(uuid()) @db.Uuid
+  reporterUserId        String   @db.Uuid
+  subjectType           String
+  subjectId             String?  @db.Uuid
+  category              String
+  descriptionCiphertext String
+  severity              String
+  status                String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  version               Int      @default(1)
+}
+
+model SafetyIncident {
+  id               String   @id @default(uuid()) @db.Uuid
+  reporterUserId   String?  @db.Uuid
+  severity         String
+  category         String
+  correlationId    String
+  evidenceRef      String?
+  status           String
+  correctiveAction Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  version          Int      @default(1)
+}
+
+model KnowledgeSource {
+  id              String   @id @default(uuid()) @db.Uuid
+  organization    String
+  title           String
+  jurisdiction    String
+  publicationDate DateTime
+  reviewDate      DateTime
+  versionLabel    String
+  topicCodes      String[]
+  language        String
+  url             String?
+  approvalStatus  String
+  expiresAt       DateTime
+  current         Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  version         Int      @default(1)
+}
+
+model KnowledgeDocument {
+  id                String   @id @default(uuid()) @db.Uuid
+  knowledgeSourceId String   @db.Uuid
+  objectKey         String
+  sha256            String
+  chunkingVersion   String
+  ingestionStatus   String
+  createdAt         DateTime @default(now())
+  version           Int      @default(1)
+}
+
+model Citation {
+  id                String   @id @default(uuid()) @db.Uuid
+  aiMessageId       String   @db.Uuid
+  knowledgeSourceId String   @db.Uuid
+  locator           String?
+  claimHash         String
+  validationStatus  String
+  createdAt         DateTime @default(now())
+}
+
+model TranslationTerm {
+  id             String    @id @default(uuid()) @db.Uuid
+  conceptCode    String
+  sourceLanguage String
+  targetLanguage String
+  sourceText     String
+  targetText     String
+  domain         String
+  reviewStatus   String
+  effectiveAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  version        Int       @default(1)
+
+  @@unique([conceptCode, targetLanguage, version])
+}
+
+model DirectoryEntity {
+  id              String             @id @default(uuid()) @db.Uuid
+  type            String
+  name            String
+  nameNe          String?
+  verification    VerificationStatus @default(IMPORTED)
+  district        String
+  municipality    String
+  serviceData     Json
+  sourceLabel     String
+  dataAsOf        DateTime
+  isFictionalDemo Boolean            @default(false)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  version         Int                @default(1)
+}
+
+model TrainingLesson {
+  id              String   @id @default(uuid()) @db.Uuid
+  slug            String
+  title           Json
+  durationSeconds Int
+  mediaManifest   Json?
+  transcript      Json
+  reviewStatus    String
+  version         Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([slug, version])
+}
+
+model AuditEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  actorUserId   String?  @db.Uuid
+  actorRole     String?
+  action        String
+  subjectType   String
+  subjectId     String?  @db.Uuid
+  purpose       String?
+  outcome       String
+  correlationId String
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  @@index([subjectType, subjectId, createdAt])
+}
+
+model FeatureFlag {
+  id           String   @id @default(uuid()) @db.Uuid
+  key          String   @unique
+  description  String
+  enabled      Boolean  @default(false)
+  rules        Json?
+  jurisdiction String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  version      Int      @default(1)
+}

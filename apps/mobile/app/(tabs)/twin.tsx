@@ -1,0 +1,30 @@
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View, type DimensionValue } from 'react-native';
+import { Check, LockKeyhole, Sparkles } from 'lucide-react-native';
+import { calculateContextualProgress, getNextPrompt } from '@swasthya/digital-twin';
+import { colors, radii, spacing } from '@swasthya/configuration';
+import { Screen, SectionTitle, uiStyles } from '@/components/ui';
+import { useAppState } from '@/state/app-state';
+export default function TwinScreen() {
+  const { facts, addFact, skippedPrompts, skipPrompt, language } = useAppState();
+  const [answer, setAnswer] = useState('');
+  const prompt = getNextPrompt(facts, skippedPrompts);
+  const progress = calculateContextualProgress(facts);
+  const save = () => {
+    if (!prompt || !answer.trim()) return;
+    addFact({ id: 'local-' + prompt.id, kind: prompt.kind, label: language === 'en' ? prompt.questionEn : prompt.questionNe, value: answer.trim(), provenance: 'PATIENT_REPORTED', verification: 'PATIENT_CONFIRMED', sensitivity: 'SENSITIVE', recordedAt: new Date().toISOString(), version: 1 });
+    setAnswer('');
+  };
+  return <Screen>
+    <SectionTitle eyebrow="PATIENT-CONTROLLED" title="मेरो स्वास्थ्य चित्र" body="तथ्यहरूको पारदर्शी चित्र—निदान, भविष्यवाणी वा पूर्णताको दाबी होइन।" />
+    <View style={styles.progress}><View style={styles.progressHead}><Text style={styles.progressTitle}>आजका उपयोगी आधारहरू</Text><Text style={styles.progressValue}>{progress}%</Text></View><View style={styles.track}><View style={[styles.fill, { width: (progress + '%') as DimensionValue }]} /></View><Text style={styles.hint}>यो उपचारको स्कोर होइन। कुनै प्रश्न छोड्न सक्नुहुन्छ।</Text></View>
+    {prompt ? <View style={styles.card}><View style={styles.icon}><Sparkles color={colors.primary} /></View><Text style={styles.question}>{language === 'en' ? prompt.questionEn : prompt.questionNe}</Text><View style={styles.why}><Text style={styles.whyLabel}>किन सोधिएको?</Text><Text style={styles.whyText}>{language === 'en' ? prompt.whyEn : prompt.whyNe}</Text></View><TextInput value={answer} onChangeText={setAnswer} placeholder="यहाँ लेख्नुहोस्…" placeholderTextColor="#82918E" style={styles.input} /><Pressable disabled={!answer.trim()} onPress={save} style={[uiStyles.primaryButton, !answer.trim() && { opacity: 0.38 }]}><Text style={uiStyles.primaryButtonText}>मेरो चित्रमा राख्नुहोस्</Text></Pressable><Pressable onPress={() => skipPrompt(prompt.id)} style={styles.skip}><Text style={styles.skipText}>अहिले छोड्नुहोस्</Text></Pressable><View style={styles.consent}><LockKeyhole color={colors.muted} size={16} /><Text style={styles.hint}>यो उत्तर अहिले कसैसँग साझा हुँदैन।</Text></View></View> : null}
+    <Text style={styles.factHeading}>तपाईंले पुष्टि गरेका तथ्य</Text>
+    {facts.length === 0 ? <Text style={styles.empty}>अहिलेसम्म कुनै तथ्य राखिएको छैन। एउटा सजिलो कदमबाट सुरु गर्नुहोस्।</Text> : facts.map((fact) => <View key={fact.id} style={styles.fact}><View style={styles.check}><Check color="white" size={14} /></View><View style={{ flex: 1 }}><Text style={styles.factLabel}>{fact.label}</Text><Text style={styles.factValue}>{fact.value}</Text><Text style={styles.factMeta}>तपाईंले बताउनुभएको · पुष्टि गरिएको</Text></View></View>)}
+  </Screen>;
+}
+const styles = StyleSheet.create({
+  progress: { backgroundColor: colors.primaryDark, borderRadius: radii.lg, gap: spacing.md, padding: spacing.lg }, progressHead: { flexDirection: 'row', justifyContent: 'space-between' }, progressTitle: { color: 'white', fontWeight: '800' }, progressValue: { color: colors.mintStrong, fontSize: 18, fontWeight: '900' }, track: { backgroundColor: 'rgba(255,255,255,.18)', borderRadius: 5, height: 9, overflow: 'hidden' }, fill: { backgroundColor: colors.saffron, height: 9 }, hint: { color: colors.muted, flex: 1, fontSize: 11, lineHeight: 16 },
+  card: { ...uiStyles.card, gap: spacing.lg }, icon: { alignItems: 'center', backgroundColor: colors.mint, borderRadius: 22, height: 44, justifyContent: 'center', width: 44 }, question: { color: colors.ink, fontSize: 22, fontWeight: '900', lineHeight: 30 }, why: { backgroundColor: colors.saffronSoft, borderRadius: radii.md, padding: spacing.md }, whyLabel: { color: '#735000', fontSize: 11, fontWeight: '900' }, whyText: { color: '#735000', fontSize: 13, marginTop: 4 }, input: { borderColor: colors.line, borderRadius: radii.md, borderWidth: 1, color: colors.ink, fontSize: 16, minHeight: 52, paddingHorizontal: spacing.lg }, skip: { alignItems: 'center', minHeight: 44, justifyContent: 'center' }, skipText: { color: colors.muted, fontWeight: '800' }, consent: { flexDirection: 'row', gap: spacing.sm },
+  factHeading: { color: colors.ink, fontSize: 18, fontWeight: '900' }, empty: { color: colors.muted, fontSize: 14 }, fact: { backgroundColor: colors.surface, borderRadius: radii.md, flexDirection: 'row', gap: spacing.md, padding: spacing.md }, check: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: 14, height: 28, justifyContent: 'center', width: 28 }, factLabel: { color: colors.muted, fontSize: 11 }, factValue: { color: colors.ink, fontSize: 15, fontWeight: '800' }, factMeta: { color: colors.primary, fontSize: 10, marginTop: 4 },
+});

@@ -1,0 +1,24 @@
+{
+  "name": "@swasthya/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "prisma generate",
+    "generate": "prisma generate",
+    "validate": "prisma validate",
+    "migrate": "prisma migrate dev",
+    "seed": "prisma db execute --file prisma/seed.sql",
+    "lint": "prisma format --check",
+    "typecheck": "prisma validate",
+    "test": "prisma validate"
+  },
+  "dependencies": {
+    "@prisma/client": "7.9.1"
+  },
+  "devDependencies": {
+    "prisma": "7.9.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "name": "@swasthya/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "build": "expo export --platform web",
+    "lint": "eslint app src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run app src --passWithNoTests"
+  },
+  "dependencies": {
+    "@swasthya/care-directory": "workspace:*",
+    "@swasthya/clinical-safety": "workspace:*",
+    "@swasthya/configuration": "workspace:*",
+    "@swasthya/digital-twin": "workspace:*",
+    "@swasthya/localization": "workspace:*",
+    "@swasthya/shared-types": "workspace:*",
+    "@swasthya/training-content": "workspace:*",
+    "expo": "~57.0.11",
+    "expo-haptics": "~57.0.1",
+    "expo-linear-gradient": "~57.0.1",
+    "expo-linking": "~57.0.5",
+    "expo-router": "~57.0.11",
+    "expo-splash-screen": "~57.0.5",
+    "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.2",
+    "lucide-react-native": "1.29.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.2",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-reanimated": "4.5.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-svg": "15.15.3",
+    "react-native-web": "~0.21.0",
+    "react-native-worklets": "0.10.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3",
+    "vitest": "4.1.10"
+  }
+}
