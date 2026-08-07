@@ -1,6 +1,6 @@
-# Swasthya Sathi · स्वास्थ्य साथी
+# Mero Health · मेरो स्वास्थ्य
 
-Production-oriented MVP foundation for a Nepali-first digital-health companion on Android and iOS. It contains an Expo mobile vertical slice, NestJS API, extraction-ready domain packages, Prisma/PostgreSQL schema, fictional seed content, safety tests, and architecture/security/compliance documentation.
+Production-oriented foundation for a Nepali-first digital-health companion on Android, iOS, and the web. It contains a responsive Expo experience, local voice-note capture, spoken guidance, a camera-enabled consultation preview, an interactive narrated walkthrough, a NestJS API, extraction-ready domain packages, Prisma/PostgreSQL schema, fictional seed content, safety tests, and architecture/security/compliance documentation.
 
 > **Demonstration only.** This is not a medical device, emergency service, diagnostic system, or prescribing system. Current providers, facilities, sources, and external integrations are fictional or mocks. Medical/legal translations and policies require qualified Nepal review before production.
 
@@ -44,7 +44,7 @@ Docker is not installed in this authoring environment, so Compose is provided bu
 
 ## Demo path
 
-Choose a language, submit “मलाई सास फेर्न गाह्रो छ” to see the hard safety interruption, add a health-twin fact one step at a time, search the fictional care directory, and inspect lesson transcripts. Do not enter real patient data.
+Open the responsive landing experience, try the private local voice-note control, enter the dashboard, submit “मलाई सास फेर्न गाह्रो छ” to see the hard safety interruption, preview the camera room, build a health-twin fact one step at a time, search the fictional care directory, and play the narrated learning walkthrough. Do not enter real patient data.
 
 ## Staging and promotion
 
@@ -54,4 +54,4 @@ See `docs/deployment/staging-and-domain.md` for Vercel and Namecheap setup. See 
 
 ## Current limitations
 
-Authentication, provider/admin web, real telehealth, prescriptions, pharmacy/lab fulfillment, payments, authoritative nationwide directory ingestion, production videos, and real AI generation are planned modules—not operational integrations. See docs/product/implementation-backlog.md.
+Authentication, provider/admin web, real clinician-to-patient WebRTC, prescriptions, pharmacy/lab fulfillment, payments, authoritative nationwide directory ingestion, human-reviewed production video assets, and real AI generation are planned modules—not operational integrations. The current voice recorder, speech playback, camera room, and narrated walkthrough run as transparent demonstrations without transmitting health data. See docs/product/implementation-backlog.md.
