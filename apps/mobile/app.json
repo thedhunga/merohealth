@@ -1,11 +1,49 @@
 {
   "expo": {
-    "name": "Swasthya Sathi", "slug": "swasthya-sathi", "version": "0.1.0",
-    "orientation": "portrait", "scheme": "swasthyasathi", "userInterfaceStyle": "light",
-    "ios": { "supportsTablet": true, "bundleIdentifier": "health.mero.swasthyasathi" },
-    "android": { "package": "health.mero.swasthyasathi", "predictiveBackGestureEnabled": true },
-    "web": { "output": "static" },
-    "plugins": ["expo-router", ["expo-splash-screen", { "backgroundColor": "#0B685C" }]],
-    "experiments": { "typedRoutes": true, "reactCompiler": true }
+    "name": "Mero Health",
+    "slug": "mero-health",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "merohealth",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "online.merohealth.app"
+    },
+    "android": {
+      "package": "online.merohealth.app",
+      "predictiveBackGestureEnabled": true
+    },
+    "web": {
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0B685C"
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Mero Health to record a private voice note when you choose voice input."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Mero Health to show your camera in a private consultation preview.",
+          "microphonePermission": "Allow Mero Health to use your microphone during a private consultation.",
+          "recordAudioAndroid": true
+        }
+      ],
+      "expo-video"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
   }
 }
