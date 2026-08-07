@@ -15,7 +15,7 @@ This runbook deliberately separates a public, fictional-data demonstration from 
 1. Push the repository's `main` branch to GitHub.
 2. In Vercel, create a project by importing `thedhunga/merohealth`.
 3. Keep the repository root as the project root. `vercel.json` supplies the install, build, and output settings.
-4. Deploy. Vercel runs `pnpm install --frozen-lockfile`, exports the Expo web app, and serves `apps/mobile/dist`.
+4. Deploy. Vercel runs the locked install and the full Turbo build graph, exports the Expo web app, and serves `apps/mobile/dist`.
 5. Test `/`, `/companion`, `/twin`, `/care`, and `/learn` on phone and desktop widths.
 6. Keep demonstration data fictional. Do not add production secrets to preview environments.
 7. Require successful GitHub checks and Vercel previews before merging future work to `main`.

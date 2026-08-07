@@ -6,7 +6,7 @@ Production-oriented MVP foundation for a Nepali-first digital-health companion o
 
 ## Prerequisites
 
-- Node.js 22.13+ (Node 24 is supported)
+- Node.js 24 LTS
 - pnpm 10.10.0
 - Android Studio/device or compatible Expo development client
 - macOS with Xcode or EAS for native iOS compilation

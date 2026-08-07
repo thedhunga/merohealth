@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm --filter @swasthya/mobile build",
+  "buildCommand": "pnpm build",
   "outputDirectory": "apps/mobile/dist",
   "cleanUrls": true,
   "trailingSlash": false,

@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@10.10.0",
   "engines": {
-    "node": ">=22.13.0"
+    "node": "24.x"
   },
   "scripts": {
     "build": "turbo build",
@@ -32,4 +32,3 @@
     "zod": "4.4.3"
   }
 }
-
