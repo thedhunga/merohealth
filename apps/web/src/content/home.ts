@@ -1,20 +1,18 @@
-import {
-  Activity,
-  Brain,
-  HeartPulse,
-  Salad,
-  ScanLine,
-  Stethoscope,
-  type LucideIcon,
-} from 'lucide-react';
+import type { ComponentType } from 'react';
+
+import { AroundTheClockCare } from '@/components/art/AroundTheClockCare';
+import { CalmMind } from '@/components/art/CalmMind';
+import { DiagnosticFocus } from '@/components/art/DiagnosticFocus';
+import { HabitSprout } from '@/components/art/HabitSprout';
+import { HomeFirstVisit } from '@/components/art/HomeFirstVisit';
+import { VitalsTrend } from '@/components/art/VitalsTrend';
 
 export interface ServiceCard {
   /** Key into `home.services.items` */
   key: string;
   href: string;
-  Icon: LucideIcon;
-  /** Tailwind classes for the card's icon chip. */
-  tone: string;
+  /** Editorial SVG composition for the card, aria-hidden. */
+  Art: ComponentType<{ className?: string }>;
   /** Optional sub-links, keyed into `nav.items`. */
   links?: Array<{ key: string; href: string }>;
 }
@@ -23,26 +21,22 @@ export const serviceCards: readonly ServiceCard[] = [
   {
     key: 'care247',
     href: '/individuals/24-7-care',
-    Icon: Stethoscope,
-    tone: 'bg-jade-100 text-forest-700',
+    Art: AroundTheClockCare,
   },
   {
     key: 'primaryCare',
     href: '/individuals/primary-care',
-    Icon: HeartPulse,
-    tone: 'bg-forest-700 text-marigold-300',
+    Art: HomeFirstVisit,
   },
   {
     key: 'mentalHealth',
     href: '/individuals/mental-health',
-    Icon: Brain,
-    tone: 'bg-marigold-100 text-marigold-700',
+    Art: CalmMind,
   },
   {
     key: 'conditionManagement',
     href: '/individuals/diabetes-management',
-    Icon: Activity,
-    tone: 'bg-jade-100 text-forest-700',
+    Art: VitalsTrend,
     links: [
       { key: 'diabetesManagement', href: '/individuals/diabetes-management' },
       { key: 'weightManagement', href: '/individuals/weight-management' },
@@ -52,8 +46,7 @@ export const serviceCards: readonly ServiceCard[] = [
   {
     key: 'specialtyCare',
     href: '/individuals/specialty-wellness',
-    Icon: ScanLine,
-    tone: 'bg-forest-700 text-marigold-300',
+    Art: DiagnosticFocus,
     links: [
       { key: 'dermatology', href: '/individuals/specialty-wellness/dermatology' },
       {
@@ -65,8 +58,7 @@ export const serviceCards: readonly ServiceCard[] = [
   {
     key: 'healthyHabits',
     href: '/individuals/weight-management/nutrition',
-    Icon: Salad,
-    tone: 'bg-marigold-100 text-marigold-700',
+    Art: HabitSprout,
     links: [
       { key: 'nutrition', href: '/individuals/weight-management/nutrition' },
       { key: 'sleep', href: '/individuals/specialty-wellness/sleep' },

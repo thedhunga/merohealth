@@ -4,7 +4,6 @@ import { ArrowRight } from 'lucide-react';
 import { serviceCards } from '@/content/home';
 import { Link } from '@/i18n/navigation';
 import { Section, SectionHeading } from '@/components/ui/Section';
-import { cn } from '@/lib/cn';
 
 export function ServiceCards() {
   const t = useTranslations('home.services');
@@ -21,12 +20,10 @@ export function ServiceCards() {
       />
 
       <ul className="reveal-stagger mt-14 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {serviceCards.map(({ key, href, Icon, tone, links }) => (
+        {serviceCards.map(({ key, href, Art, links }) => (
           <li key={key}>
             <article className="group relative flex h-full flex-col gap-4 rounded-card border border-line bg-white p-7 transition-all duration-200 hover:-translate-y-1 hover:border-jade-200 hover:shadow-card">
-              <span className={cn('grid size-12 place-items-center rounded-2xl', tone)}>
-                <Icon aria-hidden className="size-6" />
-              </span>
+              <Art className="aspect-[3/2] w-full rounded-2xl" />
 
               <h3 className="text-xl font-bold text-ink">
                 {/*

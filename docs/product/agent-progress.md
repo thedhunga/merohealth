@@ -98,7 +98,7 @@ tasks extend that identity to everything else. **Do these before adding new
 routes** — new pages built on a half-finished visual system just multiply the
 work.
 
-- [ ] Editorial SVG artwork for all six service cards in
+- [x] Editorial SVG artwork for all six service cards in
       `apps/web/src/components/art/`, replacing the small lucide icon chips.
       Each should be a distinct small composition in the brand palette, not a
       recoloured icon. This is the single biggest visual upgrade left.
@@ -169,6 +169,27 @@ work.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-08 — Built editorial SVG artwork for all six service cards
+  (`AroundTheClockCare`, `HomeFirstVisit`, `CalmMind`, `VitalsTrend`,
+  `DiagnosticFocus`, `HabitSprout` in `apps/web/src/components/art/`),
+  replacing the recoloured lucide icon chips in `ServiceCards.tsx`. Each is a
+  distinct small composition built only from brand tokens (forest/jade/
+  marigold on paper), matching the `RecordTransform` convention: functional
+  component, `aria-hidden`, `className` passthrough, no fake lettering.
+  `ServiceCard.Icon`/`tone` in `content/home.ts` were replaced with a single
+  `Art: ComponentType` field since each composition now carries its own
+  colouring — the six lucide icon imports there are gone. No new copy, so no
+  message-file changes were needed. Followed existing precedent and left
+  these components untested like `RecordTransform`: `apps/web` has no test
+  files at all (`vitest run src --passWithNoTests`), and there is no
+  branching logic in a static SVG worth asserting on. All green
+  (install/lint/typecheck/test/build).
+
+  **For the next run:** the queue's next unchecked item is the organisation
+  section rework (full-bleed forest ground, artwork per tab). The photography
+  blocker noted below still applies — keep using SVG artwork, not fabricated
+  photos.
 
 - 2026-08-08 — Visual identity rebuilt after the owner rejected the first
   pass as generic. New palette (forest/jade/marigold on warm paper), new type
