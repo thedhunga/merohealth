@@ -124,7 +124,7 @@ work.
       `weight-management`, `diabetes-management`, `hypertension-management`,
       `specialty-wellness`, plus the nested `nutrition`,
       `diabetes-prevention`, `dermatology`, `expert-medical-opinion`, `sleep`.
-- [ ] Individuals utility routes: `how-it-works`, `without-insurance`, `faqs`
+- [x] Individuals utility routes: `how-it-works`, `without-insurance`, `faqs`
       (with FAQ schema.org markup).
 - [ ] Organizations routes: `employers`, `health-plans`,
       `hospitals-health-systems`, `our-approach`, `partners`,
@@ -169,6 +169,109 @@ work.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-08 — Built the three Individuals utility routes: `how-it-works`,
+  `without-insurance`, `faqs`. First consumers of a real content shape other
+  than `IndividualsPageView`'s condition/segment pair, per the previous run's
+  note that these three don't fit that shape.
+  Each got its own view component (`HowItWorksView`, `WithoutInsuranceView`,
+  `FaqsView` in `components/individuals/`) composed from `PageTemplate` +
+  `SectionIntro`, rather than forcing them into `content/individuals.ts`'s
+  `ConditionPage`/`SegmentPage` union, which has no shape for "ordered steps"
+  or "a Q&A list." All three skip the hero CTA (same as the segment pages) —
+  they explain the product rather than routing straight into care, so the
+  closing shared CTA band carries the one action instead of duplicating it in
+  the hero.
+  `howItWorks` reuses `Highlights` for four *ordered* steps rather than
+  building a separate "steps" component — `Highlights` already renders a
+  numbered 01/02/03 list with no assumption about count, so a sequence of
+  four reads identically to the existing three-item "what this includes"
+  usage; a bespoke `Steps` component would have duplicated it for no visual
+  difference. `withoutInsurance` reuses the same component for three
+  highlights and the existing `sectionHeadings.highlights` copy key ("What
+  this includes"), consistent with the condition pages.
+  `faqs` needed a new component, `FaqList` (`components/ui/FaqList.tsx`):
+  native `<details>/<summary>` disclosures (no JS required to expand one) and
+  a `FAQPage` JSON-LD `<script>` block built from the *same* `items` array
+  the visible list renders from, per the task's "with FAQ schema.org
+  markup" — one source, so the structured data can't drift from the visible
+  copy. Verified the emitted JSON-LD by curling the built page and confirming
+  `@type: FAQPage` with all six `mainEntity` question/answer pairs present.
+  Art: reused three existing SVGs rather than commissioning new ones, since
+  each already fit without recoloring — `MemberRouting` (a route to a
+  destination) for how-it-works, `HospitalReach` (capability reaching
+  outward) for without-insurance, `DiagnosticFocus` (a closer look at
+  something specific) for faqs. `DiagnosticFocus` is now on its fourth route
+  (three specialty-wellness children plus this), same reuse pattern already
+  established for `VitalsTrend`.
+  **Content grounding, the part of this task most at risk of "invent no
+  facts":** `without-insurance` and three of the six FAQ answers describe the
+  entitlements/pricing model. Checked `packages/entitlements/src/index.ts`
+  before writing a word of copy — the FREE tier genuinely is
+  `monthlyPricePaisa: 0` with `ASSISTANT`/`HEALTH_RECORD`/
+  `BRING_YOUR_OWN_STORAGE`/`CARE_DIRECTORY`, and `HOSTED_STORAGE`/
+  `DOCUMENT_EXTRACTION`/`DEVICE_SYNC`/`RECORD_SHARING`/`TELECONSULTATION` are
+  genuinely separate higher-tier modules — so "start free" and "pay only for
+  what you add" are real facts, not marketing invention. Deliberately used no
+  numbers: the queue's own Pricing-page item says prices come from the
+  catalogue and are "never duplicated into copy," so this run's copy names
+  what's free and what's paid without a single rupee figure, leaving actual
+  numbers for that later page. The FAQ on emergencies paraphrases the
+  standing constraint text directly ("does not diagnose," "deterministic
+  safety check before every answer"); the FAQ on automatic reading paraphrases
+  the CONFIRMED/CORRECTED-only constraint just as directly. Left out two
+  vision-doc pillars that would have been easy FAQ material —Tier 3 wearables
+  and Tier 4 provider export/share links — because both are explicitly listed
+  as *not yet built* in the queue's "Platform core" section; answering "can I
+  connect a wearable?" affirmatively on a live FAQ page would misrepresent
+  current capability even though the roadmap document mentions it, which is
+  a different kind of invention than a fabricated statistic but still one
+  the standing constraints are there to prevent.
+  One real bug caught only by browser verification, not by the type
+  checker or build: `FaqList`'s open/close "+" → "×" indicator
+  (`group-open:rotate-45`) initially appeared inert under a naive test —
+  setting `details.setAttribute('open', '')` via `page.evaluate` and reading
+  `getComputedStyle` back in a *separate* `evaluate` call consistently showed
+  `rotate: 0deg` even though the CSS rule was confirmed present and matching
+  via `element.matches(rule.selectorText)`. Added `inline-block` to the
+  icon span on the theory that `rotate`/`transform` has no effect on
+  inline-level boxes — correct as a rule, but as it turned out not the actual
+  cause here (the span was already a flex item of the `flex` `<summary>`,
+  and flex items are blockified regardless of their own `display` value, so
+  it was never truly inline in the way that matters). Kept the class anyway
+  since it's accurate and harmless. The real fix was methodological, not a
+  code change: a genuine mouse `.click()` on `<summary>` (rather than
+  programmatically toggling the `open` attribute) showed `rotate: 45deg`
+  immediately, and a cropped screenshot of the icon confirmed the visible ×.
+  Recording this because it's a trap worth naming for a future run: verifying
+  a `:hover`/`:open`/`:focus`-driven CSS effect by programmatically setting
+  the DOM attribute/pseudo-state and reading `getComputedStyle` back in a
+  separate `page.evaluate` call is not equivalent to a real interaction and
+  can report a false negative — drive it with an actual `click()`/`hover()`
+  and re-check before concluding a style rule doesn't work.
+  Verified end to end: `pnpm build` lists all three routes as SSG for both
+  locales (40 pages total site-wide now, up from 34). Served the production
+  build and checked with headless Chromium (system Playwright, same approach
+  as every prior visual run): `scrollWidth`/`clientWidth` equal at 375px and
+  1280px on both locales for all three routes (no overflow); confirmed the
+  homepage hero's secondary CTA (`Hero.tsx`, already linked to
+  `/individuals/without-insurance` before this run) now resolves instead of
+  404ing — a real, previously-broken link this task closes, not just a new
+  route added in isolation. All green
+  (install/lint/typecheck/test/build).
+
+  **For the next run:** the queue's next unchecked item is the Organizations
+  routes (`employers`, `health-plans`, `hospitals-health-systems`,
+  `our-approach`, `partners`, `resource-center`, `events`). Note
+  `content/home.ts`'s `organizationTabs` and `OrganizationTabs.tsx` already
+  have art (`MemberRouting`, `WorkplaceInvestment`, `HospitalReach`) and
+  stats-as-em-dash for `healthPlans`/`employers`/`hospitals` specifically —
+  those three routes in particular should probably draw on that existing
+  section rather than starting from nothing, the way this run's utility pages
+  drew on `home.ts`'s FREE-tier facts instead of re-deriving them. `events`,
+  `our-approach`, `partners` and `resource-center` have no existing content
+  to lean on and will need new copy, same "invent no facts" care as this run
+  and the condition-pages run before it.
 
 - 2026-08-08 — Built the twelve Individuals routes, the first content
   consumer of `PageTemplate`/`SectionIntro`/`FeatureGrid`/`CtaBand`:

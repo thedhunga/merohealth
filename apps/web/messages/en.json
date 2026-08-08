@@ -489,6 +489,86 @@
           }
         }
       }
+    },
+    "howItWorks": {
+      "hero": {
+        "title": "Four steps, start to care",
+        "body": "From creating an account to talking with a clinician, here's exactly what happens along the way."
+      },
+      "stepsHeading": "Step by step",
+      "steps": {
+        "one": {
+          "title": "Create your account",
+          "body": "Sign up in Nepali or English — Nepali is the default, and you can switch at any time."
+        },
+        "two": {
+          "title": "Add your health record",
+          "body": "Capture photos of lab reports, prescriptions and discharge summaries, kept in your own Google Drive or in Mero Health's storage — your choice."
+        },
+        "three": {
+          "title": "Ask the Nepali assistant",
+          "body": "Ask about your own results in Nepali. A deterministic safety check runs before every answer, so anything urgent is caught first."
+        },
+        "four": {
+          "title": "Reach a clinician when it matters",
+          "body": "Request a voice or video call, day or night, and the notes join your record for next time."
+        }
+      }
+    },
+    "withoutInsurance": {
+      "hero": {
+        "title": "No insurance required to start",
+        "body": "Create an account and use Mero Health directly — no insurer approval, referral or employer plan needed to begin."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Direct, self-service access",
+            "body": "Create your account and start straight away — no referral or insurer sign-off stands between you and the app."
+          },
+          "two": {
+            "title": "Start on the free plan",
+            "body": "The Nepali assistant, a health record kept in your own storage, and care search are available at no cost to begin with."
+          },
+          "three": {
+            "title": "Pay only for what you add",
+            "body": "Hosted storage, automatic document extraction, device sync and clinician consultations are separate modules you add only when you need them."
+          }
+        }
+      }
+    },
+    "faqs": {
+      "hero": {
+        "title": "Questions people ask before they start",
+        "body": "Straight answers about language, cost, storage and safety — the things people usually want to know first."
+      },
+      "heading": "Frequently asked questions",
+      "items": {
+        "one": {
+          "question": "Is Mero Health available in Nepali?",
+          "answer": "Yes. Nepali is the default language across the site and the assistant; switch to English at any time from the language toggle."
+        },
+        "two": {
+          "question": "Do I need health insurance to use it?",
+          "answer": "No. You can create an account and start on the free plan directly, without an insurer, referral or employer plan."
+        },
+        "three": {
+          "question": "Where is my health record stored?",
+          "answer": "Wherever you choose — your own Google Drive, kept client-encrypted so only you can read it, or Mero Health's hosted storage. You can change this later."
+        },
+        "four": {
+          "question": "Can the assistant handle a medical emergency?",
+          "answer": "The assistant does not diagnose. A deterministic safety check runs before every answer, and anything that looks like an emergency is intercepted first and pointed to appropriate care."
+        },
+        "five": {
+          "question": "Does the assistant read everything I upload automatically?",
+          "answer": "Extraction produces a draft first. Only observations you've confirmed or corrected are ever used by the assistant, a share link or an export — a draft never reaches any of those on its own."
+        },
+        "six": {
+          "question": "What if the free plan isn't enough?",
+          "answer": "Add hosted storage, automatic document extraction, device sync or clinician consultations as separate modules whenever you need them — an upgrade only adds what you choose."
+        }
+      }
     }
   }
 }
