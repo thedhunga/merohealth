@@ -735,5 +735,99 @@
         }
       }
     }
+  },
+  "company": {
+    "cta": {
+      "heading": "Ready to bring Mero Health into your life?",
+      "body": "Whether you're looking for care, considering a partnership, or curious about joining the team, we're here to help you find where to start.",
+      "primaryCta": "Talk to our team",
+      "secondaryCta": "See open roles"
+    },
+    "about": {
+      "hero": {
+        "title": "A personal health platform, built for Nepal",
+        "body": "Mero Health is a personal health record and a Nepali-first assistant together — not a telehealth website. A photograph of a lab report becomes part of a record you keep, in a language you speak, with safety checked before any answer."
+      },
+      "highlightsHeading": "What Mero Health is built on",
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Your record, not ours",
+            "body": "Photographs of lab reports, prescriptions, discharge summaries and imaging become one structured, searchable health record — captured once, kept for as long as you need it."
+          },
+          "two": {
+            "title": "Your storage, your choice",
+            "body": "Every health document belongs to the person it's about, stored in their own Google Drive or in Mero Health's storage — their choice, and changeable."
+          },
+          "three": {
+            "title": "Nepali first, safety before the model",
+            "body": "The assistant defaults to Nepali, and a deterministic safety check runs ahead of every response — so urgent situations are caught by rules, not a language model's judgement."
+          }
+        }
+      }
+    },
+    "impact": {
+      "hero": {
+        "title": "The impact we'll report, once there's real usage to report",
+        "body": "Mero Health hasn't reached real patients yet. Once it has, the figures shown here will be real and verifiable — not projections."
+      },
+      "emptyState": {
+        "heading": "No figures to report yet",
+        "body": "We publish impact numbers once care has actually happened and they can be verified — not before. Check back as the platform reaches real patients."
+      }
+    },
+    "leadership": {
+      "hero": {
+        "title": "Leadership",
+        "body": "The people leading Mero Health will be introduced here — with their names and roles — once those positions are filled and confirmed."
+      },
+      "emptyState": {
+        "heading": "Not yet announced",
+        "body": "Check back soon, or get in touch if you'd like to be part of building Mero Health's leadership team."
+      }
+    },
+    "careers": {
+      "hero": {
+        "title": "Build Mero Health with us",
+        "body": "We're building a personal health platform for Nepal, from engineering and design to clinical safety. Open roles will be listed here as they become available."
+      },
+      "emptyState": {
+        "heading": "No open roles right now",
+        "body": "Check back soon, or get in touch if you'd like to be considered when roles open up across the team."
+      }
+    },
+    "newsroom": {
+      "hero": {
+        "title": "Newsroom",
+        "body": "Announcements, press coverage and company news will appear here as they happen. Nothing has been published yet."
+      },
+      "emptyState": {
+        "heading": "Nothing published yet",
+        "body": "Check back soon, or get in touch if you're a journalist looking for information about Mero Health."
+      }
+    },
+    "contact": {
+      "hero": {
+        "title": "Get in touch",
+        "body": "This demonstration build doesn't have a live contact channel configured yet. Here's where to go depending on why you're reaching out."
+      },
+      "routesHeading": "Where to go depending on why you're here",
+      "routes": {
+        "items": {
+          "careers": {
+            "title": "Looking for a role?",
+            "body": "Open roles for the team and for clinicians are listed on our Careers pages."
+          },
+          "partnerships": {
+            "title": "Exploring a partnership?",
+            "body": "See how Mero Health works with employers, health plans, and hospitals and health systems."
+          },
+          "press": {
+            "title": "Writing about Mero Health?",
+            "body": "Newsroom is where announcements and press information will appear."
+          }
+        }
+      }
+    }
   }
 }

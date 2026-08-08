@@ -131,7 +131,7 @@ work.
       `resource-center`, `events`.
 - [x] Clinicians routes: `our-providers`, `clinical-leadership`, `careers`,
       `commitment-to-quality`.
-- [ ] Company routes: `about`, `about/impact`, `about/leadership`, `careers`,
+- [x] Company routes: `about`, `about/impact`, `about/leadership`, `careers`,
       `newsroom`, `contact`.
 - [ ] Legal routes: `legal`, `legal/privacy`, `legal/community-guidelines`,
       `accessibility`, `help`.
@@ -252,6 +252,121 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-08 — Built the six Company routes: `about`, `about/impact`,
+  `about/leadership`, `careers`, `newsroom`, `contact`. This clears the
+  "Marketing site" section's last item that had no dedicated content shape
+  yet, and — per the previous run's own note — `/contact` was the
+  highest-value single link to fix: nearly every CTA band built across every
+  prior run points at it, and it 404'd until now.
+
+  No `content/company.ts` typed array (unlike `individuals.ts`/
+  `organizations.ts`): six genuinely different content shapes — a hero+
+  highlights mission page, three honest empty states, and a bespoke
+  contact-routing page — didn't justify one, the same call the clinicians
+  run made for its four routes. Six new bespoke `View` components in
+  `components/company/`, one `company` namespace added to both message
+  files (mirrors the existing `clinicians`/`organizations` namespace shape:
+  a shared `company.cta` band plus a `hero`/`emptyState`-or-`highlights`
+  block per route). No new `nav.items` keys were needed — `aboutUs`,
+  `ourImpact`, `leadership`, `careers`, `newsroom`, `contactUs` all already
+  existed (mega-menu `explore` columns and the footer's `whoWeAre`/
+  `helpfulLinks` columns already referenced every one of these six hrefs;
+  none of the six resolved before this run).
+
+  **Content grounding, checked before writing a word — the same instinct as
+  every prior content run:**
+  - `about` is the one page here with real facts to draw on: restates
+    `platform-vision.md` §1's own three pillars (personal EHR, storage
+    choice, Nepali-first assistant with safety ahead of the model) in
+    company-facing voice. The storage-choice highlight reuses
+    `organizations.ourApproach`'s own sentence near-verbatim, since it's
+    the identical standing fact already established there — same precedent
+    as `commitment-to-quality` reusing the safety-check sentence for a
+    different audience two runs ago.
+  - `about/impact`, `about/leadership`, `careers` (company-wide) and
+    `newsroom` have zero source material — no usage figures, no leadership
+    roster, no job listings, no press coverage exist anywhere in the repo —
+    so all four are honest empty states (`clinical-leadership`/
+    `clinicians-careers`/`events`' pattern: a heading like "Not yet
+    announced" plus a body naming what happens next), not fabricated
+    figures or listings. `impact` in particular says plainly that Mero
+    Health hasn't reached real patients yet rather than implying otherwise.
+  - **`careers` (`/careers`) vs `clinicians/careers` (`/clinicians/careers`)
+    — flagged explicitly by the last run's note not to collapse these.**
+    They stay two separate pages with separate copy: this one is
+    company-wide hiring (engineering, design, clinical safety — named
+    because those are real, already-built areas of the repo, not invented
+    departments), the existing one is clinical hiring specifically. Its CTA
+    band overrides the secondary link to `/about` (not the shared
+    `company.cta` default of `/careers`, which would point at itself) —
+    same self-link guard `clinicians/careers` already established.
+  - **`contact` had no existing content to restate and could not invent
+    any** — no real email, phone or address exists in the repo
+    (`packages/configuration`'s `support@example.invalid` and the footer's
+    `addressPlaceholder`/`demoNotice` are explicit placeholders marked
+    "configure before launch"). A contact *form* was also ruled out: nothing
+    in `apps/web` calls any backend, so a form would submit nowhere. Instead
+    `ContactView` is a bespoke routing page — no existing shape fit, the
+    same reasoning that gave `faqs` its own `FaqList` component — with three
+    cards sending "why are you here" traffic to the page that actually
+    answers it (`/careers`, `/organizations/our-approach`, `/newsroom`).
+    Deliberately has **no closing `CtaBand`**: this page already *is* "talk
+    to our team," so a band pointing back at `/contact` from `/contact`
+    would be circular — the one page in this run that omits the shared
+    `company.cta`, matching `PageTemplate`'s own documented "omit for pages
+    that shouldn't end on a CTA band."
+
+  **Art:** one new-to-this-page reuse worth flagging — `about` reuses
+  `RecordTransform`, the homepage hero's signature illustration and (per
+  the last art-focused run's note) the least-reused piece in the library.
+  Breaking from "least-reused first": `RecordTransform` depicts "a lab
+  report becoming a structured record" — literally what `/about` exists to
+  explain — and no other composition matches that specific idea, so
+  thematic fit won over reuse-avoidance here. The other five: `VitalsTrend`
+  (a trend line standing in for "the impact we'll eventually measure," no
+  real data shown) for `impact`; `HabitSprout` for `leadership`, deliberately
+  the *same* choice `clinical-leadership` already made for the identical
+  "team still forming" metaphor; `WorkplaceInvestment` for `careers`
+  despite already being on its third use (`clinicians/careers`,
+  `organizations/events`) — no other composition fits "careers" as well as
+  its "investment that compounds" framing, so this is a flagged repeat, not
+  an oversight; `HospitalReach` for `newsroom` ("signal reaching outward"
+  extended from facilities to press); `MemberRouting` for `contact` (a
+  routing metaphor, and this page's entire job is routing the visitor
+  onward).
+
+  Verified end to end: `pnpm build` lists all 6 new routes as SSG for both
+  locales (68 pages site-wide now, up from 62). Served the production build
+  (`pnpm build && pnpm start`) and drove it with headless Chromium (system
+  Playwright at `/opt/node22/lib/node_modules`, binary at
+  `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`, same approach as
+  every prior visual run). All 6 routes × both locales × 375/768/1280px:
+  `scrollWidth`/`clientWidth` equal everywhere, no overflow. Confirmed with
+  real navigation (not just static hrefs) that the previously-404ing footer
+  `whoWeAre` links (`/about`, `/about/impact`, `/about/leadership`,
+  `/careers`, `/newsroom`) and the mega-menu's `aboutUs`/`ourImpact`/
+  `contactUs` entries across all three segments now resolve to 200;
+  confirmed `/careers`'s CTA correctly points its secondary link at `/about`
+  rather than itself; confirmed `/contact`'s three routing cards resolve to
+  `/careers`, `/organizations/our-approach` and `/newsroom` respectively.
+  All green (install/lint/typecheck/test/build).
+
+  **For the next run:** the queue's next unchecked item is the Legal routes
+  (`legal`, `legal/privacy`, `legal/community-guidelines`, `accessibility`,
+  `help`). Like this run and the clinicians run, expect no single typed
+  content array to fit — legal text, an accessibility statement and a help
+  page are three different shapes. Check `packages/configuration`'s
+  `legalEntity: { displayName: 'Demonstration entity — configure before
+  launch', ... }` before writing anything: these pages will be the most
+  exposed to the "invent no facts" rule yet, since legal/privacy copy
+  usually implies a real registered entity, real data-processing terms and
+  a real jurisdiction contact, none of which exist here. `SectionIntro`'s
+  `paper` tone (used nowhere yet — every route so far has used the default
+  `forest` tone) was flagged as the intended fit for legal/utility pages
+  back when `SectionIntro` was first built ("stacking another full-bleed
+  dark block... would read as too heavy") and still hasn't been exercised;
+  this is likely the first section where it actually belongs.
 
 - 2026-08-08 — Built the four Clinicians routes: `our-providers`,
   `clinical-leadership`, `careers`, `commitment-to-quality`. Unlike the
