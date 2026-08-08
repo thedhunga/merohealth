@@ -196,6 +196,9 @@ importers:
       '@swasthya/configuration':
         specifier: workspace:*
         version: link:../../packages/configuration
+      '@swasthya/entitlements':
+        specifier: workspace:*
+        version: link:../../packages/entitlements
       '@swasthya/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types

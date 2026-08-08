@@ -35,6 +35,7 @@
       "withoutInsurance": "Care Without Insurance",
       "howItWorks": "How It Works",
       "faqs": "FAQs",
+      "pricing": "Pricing",
       "aboutUs": "About Us",
       "ourImpact": "Our Impact",
       "healthLibrary": "Health Library",
@@ -991,6 +992,45 @@
           "body": "This safety check is one part of how Mero Health approaches clinical quality — read more on the Commitment to Quality page."
         }
       }
+    }
+  },
+  "pricing": {
+    "hero": {
+      "title": "One record. Modules you add when you need them.",
+      "body": "The Nepali assistant, a health record in your own storage and care search are free to start. Hosted storage, automatic extraction, device sync and consultations are separate modules you add as you go."
+    },
+    "gridHeading": "Compare plans",
+    "gridBody": "Every price and module below comes straight from the plan catalogue — nothing here is written by hand.",
+    "perMonth": "/month",
+    "cardCta": "Get started",
+    "includedHeading": "What's included",
+    "limitsHeading": "Usage limits",
+    "unlimited": "Unlimited",
+    "footnote": "Bring-your-own storage stays free on every plan — hosted storage, extraction, device sync, sharing, provider export and teleconsultation are the modules that separate the tiers.",
+    "modules": {
+      "ASSISTANT": { "label": "Nepali assistant" },
+      "HEALTH_RECORD": { "label": "Health record" },
+      "BRING_YOUR_OWN_STORAGE": { "label": "Bring your own storage" },
+      "CARE_DIRECTORY": { "label": "Care search" },
+      "HOSTED_STORAGE": { "label": "Hosted storage" },
+      "DOCUMENT_EXTRACTION": { "label": "Automatic document extraction" },
+      "DEVICE_SYNC": { "label": "Device sync" },
+      "RECORD_SHARING": { "label": "Record sharing" },
+      "PROVIDER_EXPORT": { "label": "Provider-ready export" },
+      "TELECONSULTATION": { "label": "Teleconsultation" }
+    },
+    "quotas": {
+      "DOCUMENTS_STORED": { "label": "Documents stored" },
+      "EXTRACTION_PAGES_PER_MONTH": { "label": "Extraction pages / month" },
+      "ASSISTANT_MESSAGES_PER_MONTH": { "label": "Assistant messages / month" },
+      "ACTIVE_SHARE_LINKS": { "label": "Active share links" },
+      "CONNECTED_DEVICES": { "label": "Connected devices" }
+    },
+    "cta": {
+      "heading": "Ready to start on the free plan?",
+      "body": "Create an account and reach the assistant or a clinician whenever you need to. Add a paid module later, only if you need it.",
+      "primaryCta": "Get started",
+      "secondaryCta": "See FAQs"
     }
   }
 }

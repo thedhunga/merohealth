@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // The shared workspace packages ship TypeScript sources for the React Native
   // condition, so Next has to compile them rather than treat them as external.
-  transpilePackages: ['@swasthya/configuration', '@swasthya/shared-types'],
+  transpilePackages: ['@swasthya/configuration', '@swasthya/entitlements', '@swasthya/shared-types'],
   images: {
     formats: ['image/avif', 'image/webp'],
   },

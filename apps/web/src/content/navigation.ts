@@ -83,6 +83,7 @@ export const navSegments: NavSegment[] = [
           { key: 'withoutInsurance', href: '/individuals/without-insurance' },
           { key: 'howItWorks', href: '/individuals/how-it-works' },
           { key: 'faqs', href: '/individuals/faqs' },
+          { key: 'pricing', href: '/pricing' },
           { key: 'aboutUs', href: '/about' },
           { key: 'ourImpact', href: '/about/impact' },
           { key: 'healthLibrary', href: '/health-library' },
@@ -228,6 +229,7 @@ export const footerColumns: FooterColumn[] = [
     headingKey: 'helpfulLinks',
     links: [
       { key: 'contactUs', href: '/contact' },
+      { key: 'pricing', href: '/pricing' },
       { key: 'healthLibrary', href: '/health-library' },
       { key: 'helpCenter', href: '/help' },
       { key: 'legal', href: '/legal' },

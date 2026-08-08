@@ -136,7 +136,7 @@ work.
 - [x] Legal routes: `legal`, `legal/privacy`, `legal/community-guidelines`,
       `accessibility`, `help`.
 - [x] Health library: index plus article route, with a typed content model.
-- [ ] Pricing page driven by `packages/entitlements` — the catalogue is the
+- [x] Pricing page driven by `packages/entitlements` — the catalogue is the
       source of truth, so prices are never duplicated into copy.
 - [ ] `sitemap.ts`, `robots.ts`, per-route `generateMetadata`, and
       `Organization` + `WebSite` structured data. Keep `robots` set to
@@ -252,6 +252,136 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-08 — Built the Pricing page (`/pricing`), driven end to end by
+  `@swasthya/entitlements`'s `plans` array — the first marketing route in
+  `apps/web` that pulls real values out of a domain package rather than
+  writing them as copy, and the first task in the "Marketing site" section
+  where a wrong *number* was the specific risk rather than a wrong claim.
+
+  **Wiring the package in, not just reading it:** `apps/web` had never
+  depended on `@swasthya/entitlements` before this run (only
+  `@swasthya/configuration` and `@swasthya/shared-types` were wired in).
+  Added it to `apps/web/package.json` dependencies, added it to
+  `next.config.ts`'s `transpilePackages` (it ships TS source under the
+  `react-native`/`types` export conditions the same way `configuration` and
+  `shared-types` already do, so it needs the same transpile treatment), and
+  ran a plain `pnpm install` (not `--frozen-lockfile`) once to update
+  `pnpm-lock.yaml` for the new workspace edge — confirmed
+  `--frozen-lockfile` passes clean afterward.
+
+  **What's actually on the page:** hero, then a three-card comparison grid
+  (`components/pricing/PricingView.tsx`) — one card per `plans` entry,
+  reading `nameNe`/`nameEn`, `descriptionNe`/`descriptionEn`, and
+  `monthlyPricePaisa` (through the package's own `formatPrice`) directly off
+  each `PlanDefinition`. Every card lists all ten `ModuleKey`s with a
+  check/dash per plan (`plan.modules.includes(moduleKey)`) and all five
+  quota dimensions with their actual limit or "Unlimited" for a `null`
+  limit, then closes on the shared CTA band. Nothing about a price, a
+  module's inclusion, or a limit is hand-typed anywhere in this component —
+  changing what a plan costs or includes means editing the catalogue, and
+  the page picks it up automatically.
+
+  **New typed helper, `content/pricing.ts`, and the first `index.test.ts`
+  this run wrote for `apps/web` itself** (every prior marketing run relied
+  on manual browser verification only, since `apps/web`'s `test` script has
+  always run with `--passWithNoTests` and no `.test.tsx` file exists
+  anywhere else in the app — this is the first page with real data-shaping
+  logic worth a unit test, not just static copy). `PRICING_MODULE_ORDER` is
+  deliberately *not* a second hand-maintained list of the ten module keys —
+  it's read straight off `getPlan('PRO').modules`, since `entitlements`'s
+  own test suite (`never removes a module as the tier goes up`) already
+  guarantees PRO is the superset of every lower tier, so PRO's own order is
+  a safe canonical order for the comparison grid. `PRICING_QUOTA_ORDER` is
+  the one array in this file that *isn't* derived from the catalogue (
+  `QuotaDimension` is a union, not something iterable) — flagged as such in
+  its own comment so a future reader doesn't assume every constant here is
+  catalogue-sourced. `formatQuotaValue` mirrors `formatPrice`'s own
+  `ne-NP`/`en-NP` locale mapping for consistency. `content/pricing.test.ts`
+  checks the module-order list actually contains every module any plan
+  offers (would catch it silently dropping one if PRO's list ever
+  regressed) and that `formatQuotaValue` defers to the real `Intl` grouping
+  for both locales rather than asserting a hardcoded digit string (Nepali
+  locale formatting isn't something to guess at in a test).
+
+  **Content grounding — labels only, no new facts:** the ten module labels
+  and five quota labels needed for the comparison grid don't exist as
+  phrases anywhere yet, so each was checked against existing vetted
+  copy before being written rather than invented fresh: `HOSTED_STORAGE`,
+  `DOCUMENT_EXTRACTION`, `DEVICE_SYNC` and `TELECONSULTATION`'s English
+  labels ("hosted storage", "automatic document extraction", "device
+  sync", "clinician consultations") come straight from
+  `individuals.faqs.items.six.answer` (already-shipped copy on what the
+  free plan doesn't include); their Nepali counterparts ("सुरक्षित
+  भण्डारण", "स्वतः कागजात विवरण झिक्ने सुविधा", "उपकरण सिंक") likewise reuse
+  that answer's exact wording. `ASSISTANT`, `HEALTH_RECORD`,
+  `BRING_YOUR_OWN_STORAGE`, `CARE_DIRECTORY`, `RECORD_SHARING` and
+  `PROVIDER_EXPORT` reuse the phrasing already sitting in each
+  `PlanDefinition`'s own `descriptionNe`/`descriptionEn` in
+  `packages/entitlements/src/index.ts` (e.g. PRO's descriptionNe literally
+  ends "...भिडियो परामर्श", reused verbatim for `TELECONSULTATION`'s
+  label). The footnote restates the tier-boundary fact from the package's
+  own doc comment ("bring-your-own storage is free, hosted storage is
+  paid") rather than paraphrasing it fresh a second way. No "most popular"
+  or "recommended" badge on any tier — the impact page this run's
+  predecessors built already states plainly that Mero Health hasn't
+  reached real patients yet, so a popularity claim would be fabricated;
+  the only visual distinction between cards is that the Free plan's button
+  uses the `accent` (marigold) variant as the page's one highlighted
+  action, which is a design choice about the lowest-friction path, not a
+  claim about other users' behavior.
+
+  **Nav wiring:** added `pricing` to `nav.items` (both locales) and wired
+  the route into two places it was missing from — the individuals
+  mega-menu's `explore` column (right after `faqs`) and the footer's
+  `helpfulLinks` column (right after `contactUs`) — via `content/navigation.ts`.
+  Ran the full key-parity check (recursive leaf-path diff) between
+  `messages/en.json` and `messages/ne.json` before committing; both files
+  have exactly the same key set, zero drift either direction.
+
+  **Art:** `WorkplaceInvestment` (an office window with a rising bar series,
+  "investment that compounds" — previously only used for
+  `organizations/employers`, `clinicians/careers` and company `careers`)
+  for the hero. Flagging this one honestly as a fit-over-reuse call, same
+  as the `about`/`RecordTransform` precedent: `CalmMind` and `VitalsTrend`
+  were tied for least-reused (3 each) going into this run, but neither's
+  established metaphor ("calm ripples", "a tracked value over time") maps
+  onto pricing/plans the way "investment that compounds" does, so thematic
+  fit won over reuse-avoidance here, making this `WorkplaceInvestment`'s
+  fourth use.
+
+  Verified end to end: `pnpm build` lists `/[locale]/pricing` as SSG for
+  both locales (`/pricing` bare for Nepali, `/en/pricing` for English —
+  matching every other route's convention). Served the production build
+  (`pnpm build && pnpm start`)
+  and drove it with headless Chromium (`/opt/node22/lib/node_modules/playwright`,
+  binary at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`, `args:
+  ['--no-sandbox']`, `waitUntil: 'load'` for `goto` — same working recipe
+  the last two runs' notes recorded). Confirmed the rendered prices exactly
+  match the catalogue: Free → "निःशुल्क"/"Free", Plus → "रु ४९९"/"Rs 499"
+  (49,900 paisa), Pro → "रु १,४९९"/"Rs 1,499" (149,900 paisa). Confirmed
+  every module row and every quota row for all three cards against the
+  actual `plans` array values (25/500/unlimited documents, 10/150/1,000
+  extraction pages, 50/500/unlimited assistant messages, 1/5/25 share
+  links, 1/3/10 devices — all present, all correct, "Unlimited" rendering
+  only where the limit is genuinely `null`). `scrollWidth`/`clientWidth`
+  equal at 375/768/1280px on both locales (no overflow). Confirmed real
+  navigation: clicking the footer's `pricing` link (matched by `href`, not
+  link text, same reasoning prior runs recorded for a bare-Nepali default
+  locale) from `/individuals/faqs` lands on `/pricing`; each plan card's
+  "Get started" button resolves to `/register`. All green
+  (install/lint/typecheck/test/build — `pnpm test` includes the four new
+  `content/pricing.test.ts` cases, all passing).
+
+  **For the next run:** the queue's next unchecked item is
+  `sitemap.ts`/`robots.ts`/per-route `generateMetadata` +
+  `Organization`/`WebSite` structured data, with `robots` kept `noindex`
+  while the demonstration notice is still shown. `/pricing` (this run) and
+  every route built in prior runs still have no `generateMetadata` at all —
+  that item covers the whole site retroactively, not just new pages, so
+  expect it to touch nearly every `page.tsx` rather than add a new route.
+  Check `packages/configuration` for what "the demonstration notice" refers
+  to concretely before writing the `robots.ts` logic gating on it.
 
 - 2026-08-08 — Built the Health library: `/health-library` (index) and
   `/health-library/[slug]` (article), the first genuinely dynamic route in
