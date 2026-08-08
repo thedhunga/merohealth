@@ -1,10 +1,19 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   AlertTriangle,
   ArrowLeft,
   BookOpen,
+  ExternalLink,
   Mic,
   MicOff,
   Send,
@@ -22,6 +31,15 @@ import { assessSafety, getSafetyTemplate } from '@swasthya/clinical-safety';
 import { colors, radii, spacing } from '@swasthya/configuration';
 import { Screen, SathiOrb, uiStyles } from '@/components/ui';
 import { useAppState } from '@/state/app-state';
+interface ResearchResult {
+  provider: 'perplexity-sonar';
+  status: 'complete' | 'setup-required' | 'unavailable';
+  answer: string | null;
+  citations: Array<{ title: string; url: string; snippet?: string; date?: string }>;
+  relatedQuestions: string[];
+  disclaimer: string;
+  externalHealthHubUrl: string;
+}
 
 export default function CompanionScreen() {
   const params = useLocalSearchParams<{ demo?: string }>();
@@ -30,6 +48,8 @@ export default function CompanionScreen() {
     params.demo === 'emergency' ? 'मलाई सास फेर्न गाह्रो छ' : '',
   );
   const [submitted, setSubmitted] = useState(false);
+  const [research, setResearch] = useState<ResearchResult | null>(null);
+  const [isResearching, setIsResearching] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<string | null>(null);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 200);
@@ -71,6 +91,43 @@ export default function CompanionScreen() {
           ? 'Voice recording is unavailable on this device.'
           : 'यस उपकरणमा आवाज रेकर्ड उपलब्ध छैन।',
       );
+    }
+  };
+
+  const submitQuestion = async () => {
+    setSubmitted(true);
+    setResearch(null);
+    const safety = assessSafety(message);
+    if (safety.interruptConversation) return;
+    setIsResearching(true);
+    try {
+      const configuredApiUrl = process.env['EXPO_PUBLIC_API_URL']?.replace(/\/$/, '');
+      const researchEndpoint = configuredApiUrl
+        ? `${configuredApiUrl}/v1/companion/research`
+        : '/api/companion/research';
+      const response = await fetch(researchEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, language }),
+      });
+      if (!response.ok) throw new Error('Research request failed');
+      const payload = (await response.json()) as { research: ResearchResult | null };
+      setResearch(payload.research);
+    } catch {
+      setResearch({
+        provider: 'perplexity-sonar',
+        status: 'unavailable',
+        answer: null,
+        citations: [],
+        relatedQuestions: [],
+        disclaimer:
+          language === 'en'
+            ? 'General health information only. This is not a diagnosis or treatment recommendation.'
+            : 'General health information only. This is not a diagnosis or treatment recommendation.',
+        externalHealthHubUrl: 'https://www.perplexity.ai/health',
+      });
+    } finally {
+      setIsResearching(false);
     }
   };
 
@@ -184,7 +241,7 @@ export default function CompanionScreen() {
 
             <Pressable
               disabled={message.trim().length < 3}
-              onPress={() => setSubmitted(true)}
+              onPress={() => void submitQuestion()}
               style={[styles.send, message.trim().length < 3 && styles.disabled]}
             >
               <Text style={styles.sendText}>सुरक्षित रूपमा जाँच्नुहोस्</Text>
@@ -230,17 +287,62 @@ export default function CompanionScreen() {
                 <Volume2 color={colors.primaryDark} size={19} />
               </Pressable>
             </View>
-            <Text style={styles.question}>सामान्य जानकारी</Text>
-            <Text style={styles.answer}>
-              लक्षणका धेरै कारण हुन सक्छन्। यहाँको जानकारीले निदान गर्दैन। अवधि, गम्भीरता र अरू
-              संकेत बुझेर सुरक्षित अर्को कदम छान्न मद्दत गर्न सक्छ।
-            </Text>
-            <View style={styles.warning}>
-              <AlertTriangle color="#8A5A00" size={18} />
-              <Text style={styles.warningText}>
-                सास फेर्न गाह्रो, बेहोस वा कडा छाती दुखाइ भए तुरुन्त आपतकालीन सहायता लिनुहोस्।
-              </Text>
-            </View>
+            {isResearching ? (
+              <View accessibilityLiveRegion="polite" style={styles.researching}>
+                <ActivityIndicator color={colors.primary} />
+                <Text style={styles.researchingText}>Searching trusted sources…</Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.question}>
+                  {research?.status === 'complete'
+                    ? 'Evidence-backed information'
+                    : 'General information'}
+                </Text>
+                <Text style={styles.answer}>
+                  {research?.answer ??
+                    'Symptoms can have many causes. Consider duration, severity, and other signs with a qualified health professional.'}
+                </Text>
+                {research?.citations.length ? (
+                  <View style={styles.citationList}>
+                    <Text style={styles.citationHeading}>Sources</Text>
+                    {research.citations.map((citation, index) => (
+                      <Pressable
+                        key={citation.url}
+                        onPress={() => void Linking.openURL(citation.url)}
+                        style={styles.citation}
+                      >
+                        <BookOpen color={colors.info} size={17} />
+                        <Text numberOfLines={2} style={styles.citationText}>
+                          {index + 1}. {citation.title}
+                        </Text>
+                        <ExternalLink color={colors.info} size={15} />
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={() =>
+                      void Linking.openURL(
+                        research?.externalHealthHubUrl ?? 'https://www.perplexity.ai/health',
+                      )
+                    }
+                    style={styles.perplexityButton}
+                  >
+                    <BookOpen color="white" size={18} />
+                    <Text style={styles.perplexityButtonText}>Open Perplexity Health</Text>
+                    <ExternalLink color="white" size={16} />
+                  </Pressable>
+                )}
+                <View style={styles.warning}>
+                  <AlertTriangle color="#8A5A00" size={18} />
+                  <Text style={styles.warningText}>
+                    {research?.disclaimer ??
+                      'General information only—not a diagnosis or treatment recommendation. See a qualified clinician for new or worsening symptoms.'}
+                  </Text>
+                </View>
+              </>
+            )}
           </View>
           <View style={styles.source}>
             <BookOpen color={colors.info} size={20} />
@@ -253,6 +355,7 @@ export default function CompanionScreen() {
               setSubmitted(false);
               setMessage('');
               setVoiceStatus(null);
+              setResearch(null);
             }}
             style={uiStyles.primaryButton}
           >
@@ -385,4 +488,38 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   sourceText: { color: colors.info, flex: 1, fontSize: 12 },
+  researching: {
+    alignItems: 'center',
+    backgroundColor: colors.mint,
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    gap: spacing.md,
+    minHeight: 86,
+    padding: spacing.lg,
+  },
+  researchingText: { color: colors.primaryDark, fontSize: 13, fontWeight: '800' },
+  researchLabel: { color: colors.primary, fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
+  citationList: { gap: spacing.sm },
+  citationHeading: { color: colors.ink, fontSize: 13, fontWeight: '900' },
+  citation: {
+    alignItems: 'center',
+    backgroundColor: '#F4F8FC',
+    borderRadius: 13,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    minHeight: 50,
+    paddingHorizontal: spacing.md,
+  },
+  citationText: { color: colors.info, flex: 1, fontSize: 12, fontWeight: '700', lineHeight: 17 },
+  perplexityButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#194F4C',
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    minHeight: 50,
+    paddingHorizontal: spacing.lg,
+  },
+  perplexityButtonText: { color: 'white', fontSize: 13, fontWeight: '900' },
 });

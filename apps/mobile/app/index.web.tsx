@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   ArrowRight,
   BadgeCheck,
+  BookOpen,
   BrainCircuit,
   Building2,
   Camera,
@@ -141,6 +142,16 @@ export default function WebWelcomeScreen() {
     >
       <View style={styles.auroraOne} />
       <View style={styles.auroraTwo} />
+
+      <View style={styles.announcement}>
+        <Text style={styles.announcementText}>
+          New: Evidence-backed health research is now available in Mero Health
+        </Text>
+        <Pressable onPress={() => router.push('/(tabs)/companion')} style={styles.announcementLink}>
+          <Text style={styles.announcementLinkText}>Try it now</Text>
+          <ArrowRight color="#072F38" size={15} />
+        </Pressable>
+      </View>
 
       <View style={styles.nav}>
         <Pressable
@@ -316,6 +327,51 @@ export default function WebWelcomeScreen() {
           <Text style={styles.signalLabel}>स्वचालित निदान</Text>
         </View>
       </View>
+      <View style={styles.careOverview}>
+        <View style={styles.careOverviewHead}>
+          <Text style={styles.careKicker}>CARE, ALL IN ONE PLACE</Text>
+          <Text style={styles.careTitle}>The care you need, all in one place.</Text>
+          <Text style={styles.careBody}>
+            From a health question to finding the right care, every step stays clear, safe, and
+            under your control.
+          </Text>
+        </View>
+        <View style={[styles.careGrid, !wide && styles.stack]}>
+          {services.map((service, index) => {
+            const Icon = service.icon;
+            return (
+              <Pressable
+                key={service.label}
+                onPress={() =>
+                  router.push(
+                    index === 0
+                      ? '/(tabs)/companion'
+                      : index === 1
+                        ? '/(tabs)/care'
+                        : index === 2
+                          ? '/(tabs)/twin'
+                          : '/consultation',
+                  )
+                }
+                style={({ pressed }) => [
+                  styles.careCard,
+                  { backgroundColor: service.tone, opacity: pressed ? 0.82 : 1 },
+                ]}
+              >
+                <View style={styles.careCardTop}>
+                  <View style={styles.careIcon}>
+                    <Icon color={colors.primaryDark} size={24} />
+                  </View>
+                  <ArrowRight color={colors.primaryDark} size={19} />
+                </View>
+                <Text style={styles.careCardTitle}>{service.label}</Text>
+                <Text style={styles.careCardBody}>{service.detail}</Text>
+                <Text style={styles.careCardLink}>Get started</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
 
       <View style={styles.section}>
         <View style={styles.sectionHeading}>
@@ -437,6 +493,53 @@ export default function WebWelcomeScreen() {
         </View>
       </View>
 
+      <View style={[styles.perplexityBand, !wide && styles.stack]}>
+        <View style={styles.perplexityCopy}>
+          <View style={styles.perplexityBadge}>
+            <Sparkles color="#B8F1E2" size={16} />
+            <Text style={styles.perplexityBadgeText}>MERO HEALTH × PERPLEXITY</Text>
+          </View>
+          <Text style={styles.perplexityTitle}>Not just search. Health answers with sources.</Text>
+          <Text style={styles.perplexityBody}>
+            Mero Health screens urgent warning signs first. For safe questions, Perplexity Sonar
+            finds current sources and returns an answer with citations. Records, wearables, and
+            personal health trends hand off to Perplexity Health.
+          </Text>
+          <Pressable onPress={() => router.push('/(tabs)/companion')} style={styles.perplexityCta}>
+            <Sparkles color="#073B3C" size={18} />
+            <Text style={styles.perplexityCtaText}>Ask with cited research</Text>
+            <ArrowRight color="#073B3C" size={17} />
+          </Pressable>
+        </View>
+        <View style={styles.perplexityFeatures}>
+          <View style={styles.perplexityFeature}>
+            <ShieldCheck color="#8FE1CC" size={22} />
+            <View style={styles.perplexityFeatureCopy}>
+              <Text style={styles.perplexityFeatureTitle}>Safety before AI</Text>
+              <Text style={styles.perplexityFeatureBody}>
+                Urgent signals stop the normal answer flow.
+              </Text>
+            </View>
+          </View>
+          <View style={styles.perplexityFeature}>
+            <BookOpen color="#8FE1CC" size={22} />
+            <View style={styles.perplexityFeatureCopy}>
+              <Text style={styles.perplexityFeatureTitle}>Citations you can open</Text>
+              <Text style={styles.perplexityFeatureBody}>Inspect every source for yourself.</Text>
+            </View>
+          </View>
+          <View style={styles.perplexityFeature}>
+            <FileHeart color="#8FE1CC" size={22} />
+            <View style={styles.perplexityFeatureCopy}>
+              <Text style={styles.perplexityFeatureTitle}>Personal health handoff</Text>
+              <Text style={styles.perplexityFeatureBody}>
+                Records and wearables continue in Perplexity Health.
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
       <View style={[styles.finalCta, wide && styles.finalCtaWide]}>
         <View style={styles.finalOrb}>
           <HeartPulse color="white" size={31} />
@@ -539,19 +642,26 @@ const styles = StyleSheet.create({
   },
   navButtonText: { color: 'white', fontSize: 13, fontWeight: '800' },
   hero: {
+    backgroundColor: '#0A4B48',
+    borderRadius: 36,
+    marginTop: 12,
+    overflow: 'hidden',
+    paddingBottom: 34,
+    paddingLeft: 18,
+    paddingRight: 18,
     gap: 38,
     maxWidth: 1240,
     paddingHorizontal: 24,
     paddingTop: 48,
     width: '100%',
   },
-  heroWide: { alignItems: 'center', flexDirection: 'row', minHeight: 620, paddingTop: 20 },
+  heroWide: { alignItems: 'center', flexDirection: 'row', minHeight: 650, paddingTop: 34 },
   heroCopy: { flex: 1, minWidth: 0 },
   eyebrow: {
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,.76)',
-    borderColor: '#D9E8E2',
+    backgroundColor: 'rgba(255,255,255,.10)',
+    borderColor: 'rgba(255,255,255,.18)',
     borderRadius: 999,
     borderWidth: 1,
     flexDirection: 'row',
@@ -561,18 +671,18 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   liveDot: { backgroundColor: '#14A78F', borderRadius: 5, height: 8, width: 8 },
-  eyebrowText: { color: '#35605B', fontSize: 10, fontWeight: '900', letterSpacing: 1.15 },
+  eyebrowText: { color: '#E0F5EF', fontSize: 10, fontWeight: '900', letterSpacing: 1.15 },
   heroTitle: {
-    color: '#0A302F',
+    color: '#FFFFFF',
     fontSize: 58,
     fontWeight: '900',
     letterSpacing: -2,
     lineHeight: 68,
   },
   heroTitleCompact: { fontSize: 43, letterSpacing: -1.3, lineHeight: 54 },
-  heroAccent: { color: '#0B7668' },
-  heroNepali: { color: '#1B514C', fontSize: 24, fontWeight: '800', marginTop: 19 },
-  heroBody: { color: '#5D706D', fontSize: 18, lineHeight: 29, marginTop: 20, maxWidth: 590 },
+  heroAccent: { color: '#BDEEDF' },
+  heroNepali: { color: '#FFFFFF', fontSize: 24, fontWeight: '800', marginTop: 19 },
+  heroBody: { color: '#D4EAE5', fontSize: 18, lineHeight: 29, marginTop: 20, maxWidth: 590 },
   heroActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 30 },
   heroActionsCompact: { alignItems: 'stretch', flexDirection: 'column' },
   primaryCta: {
@@ -605,7 +715,7 @@ const styles = StyleSheet.create({
   secondaryCtaText: { color: colors.primaryDark, fontSize: 14, fontWeight: '900' },
   trustRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 18, marginTop: 28 },
   trustItem: { alignItems: 'center', flexDirection: 'row', gap: 7 },
-  trustText: { color: '#496461', fontSize: 12, fontWeight: '700' },
+  trustText: { color: '#D7EBE7', fontSize: 12, fontWeight: '700' },
   heroVisual: { flex: 0.93, minWidth: 0 },
   heroVisualNarrow: { minHeight: 500 },
   visualCanvas: {
@@ -963,5 +1073,113 @@ const styles = StyleSheet.create({
   },
   footerBrand: { color: '#173E3B', fontSize: 16, fontWeight: '900' },
   footerNote: { color: '#657875', fontSize: 11, textAlign: 'center' },
+  announcement: {
+    alignItems: 'center',
+    backgroundColor: '#082F3D',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    minHeight: 43,
+    paddingHorizontal: 18,
+    width: '100%',
+    zIndex: 3,
+  },
+  announcementText: { color: '#E8F7F3', fontSize: 11, fontWeight: '800', textAlign: 'center' },
+  announcementLink: {
+    alignItems: 'center',
+    backgroundColor: '#BDEEDF',
+    borderRadius: 999,
+    flexDirection: 'row',
+    gap: 6,
+    marginLeft: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  announcementLinkText: { color: '#072F38', fontSize: 10, fontWeight: '900' },
+  careOverview: { maxWidth: 1240, paddingHorizontal: 24, paddingTop: 105, width: '100%' },
+  careOverviewHead: { maxWidth: 740 },
+  careKicker: { color: '#0B7668', fontSize: 10, fontWeight: '900', letterSpacing: 1.4 },
+  careTitle: {
+    color: '#0A302F',
+    fontSize: 44,
+    fontWeight: '900',
+    letterSpacing: -1.5,
+    lineHeight: 51,
+    marginTop: 14,
+  },
+  careBody: { color: '#637774', fontSize: 16, lineHeight: 25, marginTop: 14, maxWidth: 660 },
+  careGrid: { flexDirection: 'row', gap: 14, marginTop: 38 },
+  careCard: { borderRadius: 24, flex: 1, minHeight: 270, padding: 23 },
+  careCardTop: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  careIcon: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,.72)',
+    borderRadius: 18,
+    height: 52,
+    justifyContent: 'center',
+    width: 52,
+  },
+  careCardTitle: { color: '#103735', fontSize: 20, fontWeight: '900', marginTop: 32 },
+  careCardBody: { color: '#526B67', fontSize: 13, lineHeight: 20, marginTop: 9 },
+  careCardLink: { color: '#0B6C61', fontSize: 12, fontWeight: '900', marginTop: 24 },
+  perplexityBand: {
+    backgroundColor: '#092E36',
+    borderRadius: 32,
+    flexDirection: 'row',
+    gap: 34,
+    marginTop: 110,
+    maxWidth: 1192,
+    overflow: 'hidden',
+    padding: 38,
+    width: '88%',
+  },
+  perplexityCopy: { flex: 1.15 },
+  perplexityBadge: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(130,220,196,.12)',
+    borderColor: 'rgba(143,225,204,.22)',
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  perplexityBadgeText: { color: '#B8F1E2', fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
+  perplexityTitle: {
+    color: 'white',
+    fontSize: 39,
+    fontWeight: '900',
+    letterSpacing: -1.2,
+    lineHeight: 46,
+    marginTop: 22,
+  },
+  perplexityBody: { color: '#CDE2DF', fontSize: 14, lineHeight: 23, marginTop: 16 },
+  perplexityCta: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#BDEEDF',
+    borderRadius: 15,
+    flexDirection: 'row',
+    gap: 9,
+    marginTop: 26,
+    minHeight: 52,
+    paddingHorizontal: 17,
+  },
+  perplexityCtaText: { color: '#073B3C', fontSize: 13, fontWeight: '900' },
+  perplexityFeatures: { flex: 0.85, gap: 13, justifyContent: 'center' },
+  perplexityFeature: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,.07)',
+    borderColor: 'rgba(255,255,255,.09)',
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 13,
+    padding: 16,
+  },
+  perplexityFeatureCopy: { flex: 1 },
+  perplexityFeatureTitle: { color: 'white', fontSize: 13, fontWeight: '900' },
+  perplexityFeatureBody: { color: '#BFD4D1', fontSize: 11, lineHeight: 17, marginTop: 3 },
   footerLegal: { color: '#8A9997', fontSize: 10, fontWeight: '700' },
 });
