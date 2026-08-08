@@ -5,10 +5,10 @@ import { cn } from '@/lib/cn';
 type Tone = 'surface' | 'canvas' | 'mint' | 'deep';
 
 const tones: Record<Tone, string> = {
-  surface: 'bg-white text-ink',
-  canvas: 'bg-canvas text-ink',
-  mint: 'bg-primary-50 text-ink',
-  deep: 'bg-primary-700 text-white',
+  surface: 'bg-paper text-ink',
+  canvas: 'bg-sand text-ink',
+  mint: 'bg-jade-50 text-ink',
+  deep: 'bg-forest-800 text-white',
 };
 
 interface SectionProps {
@@ -64,7 +64,7 @@ export function SectionHeading({
         <span
           className={cn(
             'text-sm font-semibold tracking-wide uppercase',
-            tone === 'dark' ? 'text-primary-500' : 'text-primary-200',
+            tone === 'dark' ? 'text-jade-500' : 'text-jade-200',
           )}
         >
           {eyebrow}
@@ -80,7 +80,7 @@ export function SectionHeading({
         {title}
       </h2>
       {body ? (
-        <p className={cn('text-lg', tone === 'dark' ? 'text-muted' : 'text-primary-100')}>{body}</p>
+        <p className={cn('text-lg', tone === 'dark' ? 'text-ink-soft' : 'text-jade-100')}>{body}</p>
       ) : null}
     </div>
   );

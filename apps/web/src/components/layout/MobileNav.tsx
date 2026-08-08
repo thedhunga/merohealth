@@ -37,7 +37,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
                   <ChevronDown
                     aria-hidden
                     className={cn(
-                      'size-5 shrink-0 text-muted transition-transform',
+                      'size-5 shrink-0 text-ink-soft transition-transform',
                       expanded && 'rotate-180',
                     )}
                   />
@@ -46,7 +46,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
                 <div className={cn('pb-4', !expanded && 'hidden')} id={panelId}>
                   {segment.columns.map((column) => (
                     <div className="mb-5 last:mb-0" key={column.headingKey}>
-                      <h3 className="mb-2 text-xs font-bold tracking-[0.12em] text-muted uppercase">
+                      <h3 className="mb-2 text-xs font-bold tracking-[0.12em] text-ink-soft uppercase">
                         {t(`headings.${column.headingKey}`)}
                       </h3>
                       <ul className="flex flex-col">
@@ -64,7 +64,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
                                 {item.children.map((child) => (
                                   <li key={`${child.key}-${child.href}`}>
                                     <Link
-                                      className="block py-1.5 text-sm text-muted"
+                                      className="block py-1.5 text-sm text-ink-soft"
                                       href={child.href}
                                       onClick={onNavigate}
                                     >

@@ -26,7 +26,7 @@ export function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="bg-primary-800 text-primary-100">
+    <footer className="bg-forest-800 text-jade-100">
       <div className="container-site py-16 md:py-20">
         <div className="grid gap-12 lg:grid-cols-12">
           <div className="flex flex-col gap-6 lg:col-span-3">
@@ -34,7 +34,7 @@ export function Footer() {
               <span className="text-sm font-bold tracking-[0.14em] text-white">
                 {brand('nameLatin')}
               </span>
-              <span className="text-lg font-semibold text-primary-200">मेरो स्वास्थ्य</span>
+              <span className="text-lg font-semibold text-jade-200">मेरो स्वास्थ्य</span>
             </div>
             <p className="text-sm leading-relaxed text-balance">{brand('tagline')}</p>
 
@@ -42,7 +42,7 @@ export function Footer() {
               <span className="text-xs font-bold tracking-[0.12em] text-white uppercase">
                 {t('headquarters')}
               </span>
-              <p className="text-sm text-primary-200">{t('addressPlaceholder')}</p>
+              <p className="text-sm text-jade-200">{t('addressPlaceholder')}</p>
             </div>
 
             <LocaleSwitcher tone="light" />
@@ -58,7 +58,7 @@ export function Footer() {
                   {column.links.map((link) => (
                     <li key={`${link.key}-${link.href}`}>
                       <Link
-                        className="text-sm text-primary-100 transition-colors hover:text-white"
+                        className="text-sm text-jade-100 transition-colors hover:text-white"
                         href={link.href}
                       >
                         {nav(`items.${link.key}`)}
@@ -119,11 +119,11 @@ export function Footer() {
             </div>
           </div>
 
-          <p className="rounded-xl bg-white/10 p-4 text-xs leading-relaxed text-primary-100">
+          <p className="rounded-xl bg-white/10 p-4 text-xs leading-relaxed text-jade-100">
             {t('demoNotice')}
           </p>
 
-          <p className="text-xs text-primary-200">{t('copyright', { year })}</p>
+          <p className="text-xs text-jade-200">{t('copyright', { year })}</p>
         </div>
       </div>
     </footer>

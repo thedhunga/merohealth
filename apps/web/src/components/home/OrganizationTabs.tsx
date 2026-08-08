@@ -20,7 +20,7 @@ export function OrganizationTabs() {
   if (!current) return null;
 
   return (
-    <section aria-labelledby="orgs-heading" className="bg-canvas py-16 md:py-24">
+    <section aria-labelledby="orgs-heading" className="bg-sand py-16 md:py-24">
       <div className="container-site">
         <SectionHeading
           body={t('body')}
@@ -43,8 +43,8 @@ export function OrganizationTabs() {
                 className={cn(
                   'rounded-pill px-5 py-2.5 text-[0.9375rem] font-semibold transition-colors',
                   selected
-                    ? 'bg-primary-700 text-white'
-                    : 'bg-white text-ink ring-1 ring-line hover:bg-primary-50',
+                    ? 'bg-forest-700 text-white'
+                    : 'bg-white text-ink ring-1 ring-line hover:bg-jade-50',
                 )}
                 id={`${baseId}-tab-${tab.key}`}
                 key={tab.key}
@@ -71,13 +71,13 @@ export function OrganizationTabs() {
             <h3 className="text-2xl font-bold text-balance text-ink md:text-3xl">
               {t(`tabs.${current.key}.title`)}
             </h3>
-            <p className="text-lg leading-relaxed text-muted">{t(`tabs.${current.key}.body`)}</p>
+            <p className="text-lg leading-relaxed text-ink-soft">{t(`tabs.${current.key}.body`)}</p>
 
             <dl className="grid gap-6 sm:grid-cols-2">
               {current.stats.map((stat) => (
                 <div className="flex flex-col gap-1" key={stat.labelEn}>
-                  <dt className="text-4xl font-bold text-primary-600">{stat.value}</dt>
-                  <dd className="text-sm text-muted">
+                  <dt className="text-4xl font-bold text-forest-600">{stat.value}</dt>
+                  <dd className="text-sm text-ink-soft">
                     {locale === 'ne' ? stat.labelNe : stat.labelEn}
                   </dd>
                 </div>
@@ -85,7 +85,7 @@ export function OrganizationTabs() {
             </dl>
 
             <Link
-              className="group inline-flex items-center gap-2 font-semibold text-primary-700"
+              className="group inline-flex items-center gap-2 font-semibold text-forest-700"
               href={current.href}
             >
               {t('learnMore')}

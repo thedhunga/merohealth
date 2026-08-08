@@ -10,7 +10,7 @@ export function FinalCta() {
   return (
     <section
       aria-labelledby="final-cta-heading"
-      className="relative overflow-hidden bg-linear-to-br from-primary-600 to-primary-800 py-20 md:py-28"
+      className="relative overflow-hidden bg-linear-to-br from-forest-600 to-forest-800 py-20 md:py-28"
     >
       <PulseLine className="absolute inset-x-0 top-10 h-24 text-white/15" />
       <PulseLine className="absolute inset-x-0 bottom-10 h-24 text-white/10" />
@@ -22,7 +22,7 @@ export function FinalCta() {
         >
           {t('heading')}
         </h2>
-        <p className="max-w-2xl text-lg text-primary-100">{t('body')}</p>
+        <p className="max-w-2xl text-lg text-jade-100">{t('body')}</p>
 
         <div className="mt-2 flex flex-wrap justify-center gap-3">
           <ButtonLink href="/register" size="lg" variant="inverse">

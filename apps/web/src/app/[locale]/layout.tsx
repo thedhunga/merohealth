@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
-import { Inter, Noto_Sans_Devanagari } from 'next/font/google';
+import { Martel, Mukta } from 'next/font/google';
 import { NextIntlClientProvider, hasLocale } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
@@ -11,15 +11,19 @@ import { routing } from '@/i18n/routing';
 
 import '@/styles/globals.css';
 
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
+// Both faces carry Devanagari and Latin, so Nepali and English share one type
+// system rather than switching families mid-page.
+const martel = Martel({
+  subsets: ['devanagari', 'latin'],
+  weight: ['400', '700', '800', '900'],
+  variable: '--font-martel',
   display: 'swap',
 });
 
-const notoDevanagari = Noto_Sans_Devanagari({
+const mukta = Mukta({
   subsets: ['devanagari', 'latin'],
-  variable: '--font-noto-devanagari',
+  weight: ['300', '400', '500', '600', '700'],
+  variable: '--font-mukta',
   display: 'swap',
 });
 
@@ -75,8 +79,8 @@ export default async function LocaleLayout({
   setRequestLocale(locale);
 
   return (
-    <html className={`${inter.variable} ${notoDevanagari.variable}`} lang={locale}>
-      <body className="flex min-h-dvh flex-col bg-white">
+    <html className={`${martel.variable} ${mukta.variable}`} lang={locale}>
+      <body className="flex min-h-dvh flex-col bg-paper">
         <NextIntlClientProvider>
           <Header />
           <main className="flex-1" id="main">

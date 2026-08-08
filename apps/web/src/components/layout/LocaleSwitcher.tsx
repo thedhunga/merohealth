@@ -34,14 +34,14 @@ export function LocaleSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
       aria-label={t('languageLabel')}
       className={cn(
         'flex items-center gap-1 rounded-pill p-1',
-        tone === 'dark' ? 'bg-canvas' : 'bg-white/10',
+        tone === 'dark' ? 'bg-sand' : 'bg-white/10',
         pending && 'opacity-70',
       )}
       role="group"
     >
       <Globe
         aria-hidden
-        className={cn('ms-2 size-4', tone === 'dark' ? 'text-muted' : 'text-primary-100')}
+        className={cn('ms-2 size-4', tone === 'dark' ? 'text-ink-soft' : 'text-jade-100')}
       />
       {locales.map((locale) => (
         <button
@@ -50,11 +50,11 @@ export function LocaleSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
             'rounded-pill px-3 py-1.5 text-sm font-semibold transition-colors',
             locale === active
               ? tone === 'dark'
-                ? 'bg-white text-primary-700 shadow-sm'
-                : 'bg-white text-primary-700'
+                ? 'bg-white text-forest-700 shadow-sm'
+                : 'bg-white text-forest-700'
               : tone === 'dark'
-                ? 'text-muted hover:text-ink'
-                : 'text-primary-100 hover:text-white',
+                ? 'text-ink-soft hover:text-ink'
+                : 'text-jade-100 hover:text-white',
           )}
           key={locale}
           onClick={() => {

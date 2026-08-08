@@ -11,8 +11,8 @@ export function PartnerMarquee() {
         <h2 className="text-lg font-semibold text-ink" id="partners-heading">
           {t('heading')}
         </h2>
-        <p className="max-w-2xl text-sm text-muted">{t('body')}</p>
-        <span className="rounded-pill bg-saffron-100 px-3 py-1 text-xs font-bold tracking-wide text-saffron-600 uppercase">
+        <p className="max-w-2xl text-sm text-ink-soft">{t('body')}</p>
+        <span className="rounded-pill bg-marigold-100 px-3 py-1 text-xs font-bold tracking-wide text-marigold-600 uppercase">
           {t('placeholderNote')}
         </span>
       </div>
@@ -28,7 +28,7 @@ export function PartnerMarquee() {
             <ul aria-hidden={copy === 1} className="flex gap-4" key={copy}>
               {partnerPlaceholders.map((name) => (
                 <li
-                  className="grid h-16 w-52 place-items-center rounded-xl border border-line bg-canvas px-5 text-sm font-semibold text-muted"
+                  className="grid h-16 w-52 place-items-center rounded-xl border border-line bg-sand px-5 text-sm font-semibold text-ink-soft"
                   key={`${copy}-${name}`}
                 >
                   {name}

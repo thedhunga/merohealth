@@ -23,7 +23,7 @@ export function ServiceCards() {
       <ul className="reveal-stagger mt-14 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {serviceCards.map(({ key, href, Icon, tone, links }) => (
           <li key={key}>
-            <article className="group relative flex h-full flex-col gap-4 rounded-card border border-line bg-white p-7 transition-all duration-200 hover:-translate-y-1 hover:border-primary-200 hover:shadow-card">
+            <article className="group relative flex h-full flex-col gap-4 rounded-card border border-line bg-white p-7 transition-all duration-200 hover:-translate-y-1 hover:border-jade-200 hover:shadow-card">
               <span className={cn('grid size-12 place-items-center rounded-2xl', tone)}>
                 <Icon aria-hidden className="size-6" />
               </span>
@@ -38,7 +38,7 @@ export function ServiceCards() {
                 </Link>
               </h3>
 
-              <p className="flex-1 leading-relaxed text-muted">{t(`items.${key}.body`)}</p>
+              <p className="flex-1 leading-relaxed text-ink-soft">{t(`items.${key}.body`)}</p>
 
               {links ? (
                 // Nested links sit above the stretched overlay so they stay
@@ -47,7 +47,7 @@ export function ServiceCards() {
                   {links.map((link) => (
                     <li key={`${link.key}-${link.href}`}>
                       <Link
-                        className="inline-block rounded-pill bg-canvas px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-primary-100 hover:text-primary-700"
+                        className="inline-block rounded-pill bg-sand px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-jade-100 hover:text-forest-700"
                         href={link.href}
                       >
                         {nav(link.key)}
@@ -57,7 +57,7 @@ export function ServiceCards() {
                 </ul>
               ) : null}
 
-              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-600">
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-forest-600">
                 {t('learnMore')}
                 <ArrowRight
                   aria-hidden

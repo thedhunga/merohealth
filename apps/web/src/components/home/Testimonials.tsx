@@ -16,7 +16,7 @@ export function Testimonials() {
   const t = useTranslations('home.testimonials');
 
   return (
-    <section aria-labelledby="testimonials-heading" className="bg-primary-800 py-16 md:py-24">
+    <section aria-labelledby="testimonials-heading" className="bg-forest-800 py-16 md:py-24">
       <div className="container-site">
         <SectionHeading
           align="center"
@@ -32,7 +32,7 @@ export function Testimonials() {
               Video slot. `poster` renders until real footage is supplied, so
               the section is complete-looking without shipping a fake video.
             */}
-            <div className="group relative aspect-video overflow-hidden rounded-card bg-primary-900 shadow-menu">
+            <div className="group relative aspect-video overflow-hidden rounded-card bg-forest-900 shadow-menu">
               <video
                 aria-label={t('watchVideo')}
                 className="size-full object-cover"
@@ -47,12 +47,12 @@ export function Testimonials() {
                 aria-hidden
                 className="pointer-events-none absolute inset-0 grid place-items-center"
               >
-                <span className="grid size-16 place-items-center rounded-full bg-white/90 text-primary-700 transition-transform group-hover:scale-110">
+                <span className="grid size-16 place-items-center rounded-full bg-white/90 text-forest-700 transition-transform group-hover:scale-110">
                   <Play className="size-6 translate-x-0.5 fill-current" />
                 </span>
               </span>
             </div>
-            <p className="mt-3 text-sm text-primary-200">{t('watchVideo')}</p>
+            <p className="mt-3 text-sm text-jade-200">{t('watchVideo')}</p>
           </div>
 
           <div className="lg:col-span-7">
@@ -65,11 +65,11 @@ export function Testimonials() {
                   className="w-[min(21rem,80vw)] shrink-0 snap-start rounded-card bg-white/10 p-7 backdrop-blur-sm"
                   key={key}
                 >
-                  <Quote aria-hidden className="size-7 text-primary-300" />
+                  <Quote aria-hidden className="size-7 text-jade-200" />
                   <blockquote className="mt-4 text-lg leading-relaxed text-white text-pretty">
                     {t(`items.${key}.quote`)}
                   </blockquote>
-                  <footer className="mt-5 text-sm text-primary-200">
+                  <footer className="mt-5 text-sm text-jade-200">
                     <span className="font-semibold text-white">{t(`items.${key}.name`)}</span>
                     <span aria-hidden> · </span>
                     {t(`items.${key}.context`)}
@@ -80,7 +80,7 @@ export function Testimonials() {
           </div>
         </div>
 
-        <p className="mt-8 max-w-3xl text-xs leading-relaxed text-primary-200">
+        <p className="mt-8 max-w-3xl text-xs leading-relaxed text-jade-200">
           {t('disclaimer')}
         </p>
       </div>

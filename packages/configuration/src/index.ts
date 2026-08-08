@@ -11,21 +11,32 @@ export const brandConfig = {
     jurisdiction: 'NP',
   },
 } as const;
+/**
+ * Brand palette, shared by the Expo app and the marketing site.
+ *
+ * Warm and Nepali rather than clinical: deep forest as a confident ground and
+ * सयपत्री marigold as the accent, on a warm paper base. The previous deep-teal
+ * on greenish-white read grey and institutional. Deliberately avoids the
+ * teal/blue every competitor in this category uses.
+ *
+ * Keys are unchanged so existing consumers keep compiling; only the values
+ * moved. `apps/web/src/styles/globals.css` mirrors these.
+ */
 export const colors = {
-  ink: '#102B2B',
-  muted: '#5F7370',
-  canvas: '#F6F8F4',
-  surface: '#FFFFFF',
-  primary: '#0B685C',
-  primaryDark: '#074E47',
-  mint: '#DDF3EB',
-  mintStrong: '#A8DBC9',
-  saffron: '#F2B84B',
-  saffronSoft: '#FFF1CE',
+  ink: '#132A21',
+  muted: '#465B51',
+  canvas: '#F6F0E5',
+  surface: '#FFFCF7',
+  primary: '#0B4F3A',
+  primaryDark: '#07231A',
+  mint: '#D8F0E5',
+  mintStrong: '#A9DFC9',
+  saffron: '#F4A62A',
+  saffronSoft: '#FDF0D8',
   danger: '#B42318',
   dangerSoft: '#FEE4E2',
-  info: '#285D9A',
-  line: '#DCE6E2',
+  info: '#17916B',
+  line: '#E4DDD0',
 } as const;
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
 export const radii = { sm: 10, md: 16, lg: 24, pill: 999 } as const;

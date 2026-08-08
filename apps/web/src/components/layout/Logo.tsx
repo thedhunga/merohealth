@@ -18,7 +18,7 @@ export function Logo({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     >
       <span
         aria-hidden
-        className="grid size-11 place-items-center rounded-[0.875rem] bg-linear-to-br from-primary-400 to-primary-700 text-xl font-bold text-white shadow-sm"
+        className="grid size-11 place-items-center rounded-[0.875rem] bg-linear-to-br from-jade-400 to-forest-700 text-xl font-bold text-white shadow-sm"
       >
         म
       </span>
@@ -34,7 +34,7 @@ export function Logo({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
         <span
           className={cn(
             'mt-1 text-sm font-medium',
-            tone === 'dark' ? 'text-primary-500' : 'text-primary-200',
+            tone === 'dark' ? 'text-jade-500' : 'text-jade-200',
           )}
         >
           मेरो स्वास्थ्य

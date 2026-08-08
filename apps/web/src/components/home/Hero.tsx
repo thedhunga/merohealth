@@ -1,9 +1,8 @@
-import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { ArrowRight, LockKeyhole, ShieldCheck } from 'lucide-react';
 
 import { ButtonLink } from '@/components/ui/Button';
-import { PulseLine } from '@/components/ui/PulseLine';
+import { RecordTransform } from '@/components/art/RecordTransform';
 import { Link } from '@/i18n/navigation';
 
 export function Hero() {
@@ -12,11 +11,11 @@ export function Hero() {
 
   return (
     <>
-      <div className="bg-primary-800 text-white">
-        <div className="container-site flex flex-wrap items-center justify-center gap-x-4 gap-y-1 py-2.5 text-center text-sm">
-          <span className="text-primary-100">{announcement('text')}</span>
+      <div className="bg-forest-900 text-white">
+        <div className="container-site flex flex-wrap items-center justify-center gap-x-4 gap-y-1 py-3 text-center text-sm">
+          <span className="text-jade-100">{announcement('text')}</span>
           <Link
-            className="inline-flex items-center gap-1 font-semibold text-white underline-offset-4 hover:underline"
+            className="inline-flex items-center gap-1 font-semibold text-marigold-500 underline-offset-4 hover:underline"
             href="/health-library"
           >
             {announcement('cta')}
@@ -25,74 +24,76 @@ export function Hero() {
         </div>
       </div>
 
-      <section className="relative overflow-hidden bg-primary-50">
-        <div
+      <section className="relative overflow-hidden bg-forest-700 text-white">
+        {/*
+          The signature: मेरो set as artwork, bled off the edge. It is a
+          graphic, not a heading — the real <h1> sits below and this is
+          hidden from assistive technology.
+        */}
+        <span
           aria-hidden
-          className="pointer-events-none absolute -top-32 -end-24 size-[32rem] rounded-full bg-primary-200/50 blur-3xl"
-        />
+          className="script-mark pointer-events-none absolute -top-10 -start-6 text-[26rem] text-white/[0.05] sm:text-[34rem]"
+        >
+          मेरो
+        </span>
 
-        <div className="container-site relative grid items-center gap-12 py-16 md:py-24 lg:grid-cols-2 lg:gap-16">
-          <div className="flex flex-col items-start gap-6">
-            <span className="inline-flex items-center gap-2 rounded-pill bg-white px-4 py-2 text-sm font-semibold text-primary-700 shadow-sm">
-              <span aria-hidden className="size-2 rounded-full bg-primary-400" />
+        <div className="container-site relative grid items-center gap-14 py-20 md:py-28 lg:grid-cols-[1.05fr_1fr] lg:gap-20">
+          <div className="flex flex-col items-start gap-7">
+            <span className="inline-flex items-center gap-2.5 rounded-pill bg-white/10 py-2 ps-2.5 pe-4 text-sm font-medium text-jade-100 ring-1 ring-white/15">
+              <span className="rounded-pill bg-marigold-500 px-2.5 py-0.5 text-xs font-bold text-forest-900">
+                {announcement('badge')}
+              </span>
               {t('eyebrow')}
             </span>
 
-            <h1 className="text-4xl leading-[1.1] font-bold text-balance text-ink md:text-5xl lg:text-[3.5rem]">
+            {/*
+              No leading utility here on purpose. The base layer sets 1.12 for
+              Latin and 1.34 for :lang(ne); a utility class would win over both
+              and clip Devanagari matras at display sizes.
+            */}
+            <h1 className="text-[2.75rem] text-balance text-white sm:text-6xl lg:text-[4.25rem]">
               {t('title')}
             </h1>
 
-            <p className="max-w-xl text-lg leading-relaxed text-muted">{t('body')}</p>
+            <p className="max-w-lg text-lg leading-relaxed text-jade-100 sm:text-xl">
+              {t('body')}
+            </p>
 
-            <div className="flex flex-wrap gap-3">
-              <ButtonLink href="/get-care" size="lg" variant="primary">
+            <div className="flex flex-wrap gap-3 pt-1">
+              <ButtonLink href="/get-care" size="lg" variant="accent">
                 {t('primaryCta')}
-                <ArrowRight aria-hidden className="size-4.5" />
+                <ArrowRight aria-hidden className="size-5" />
               </ButtonLink>
-              <ButtonLink href="/individuals/without-insurance" size="lg" variant="secondary">
+              <ButtonLink href="/individuals/without-insurance" size="lg" variant="onDark">
                 {t('secondaryCta')}
               </ButtonLink>
             </div>
 
-            <ul className="flex flex-wrap gap-x-6 gap-y-2 pt-2">
-              <li className="inline-flex items-center gap-2 text-sm font-medium text-primary-700">
-                <ShieldCheck aria-hidden className="size-4.5" />
+            <ul className="flex flex-wrap gap-x-7 gap-y-2 pt-3">
+              <li className="inline-flex items-center gap-2 text-sm text-jade-200">
+                <ShieldCheck aria-hidden className="size-5 text-marigold-500" />
                 {t('trustOne')}
               </li>
-              <li className="inline-flex items-center gap-2 text-sm font-medium text-primary-700">
-                <LockKeyhole aria-hidden className="size-4.5" />
+              <li className="inline-flex items-center gap-2 text-sm text-jade-200">
+                <LockKeyhole aria-hidden className="size-5 text-marigold-500" />
                 {t('trustTwo')}
               </li>
             </ul>
           </div>
 
           <div className="relative">
-            <div className="relative aspect-4/3 overflow-hidden rounded-card shadow-card lg:aspect-square">
-              <Image
-                alt=""
-                className="object-cover"
-                fill
-                priority
-                sizes="(max-width: 1024px) 100vw, 50vw"
-                src="/imagery/mero-health-companion.webp"
-              />
-
-              {/* Live-vitals card, floated over the lower edge of the image. */}
-              <div className="absolute inset-x-4 bottom-4 rounded-2xl bg-white/92 p-4 backdrop-blur-md">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs font-bold tracking-[0.12em] text-muted uppercase">
-                    {t('liveLabel')}
-                  </span>
-                  <span
-                    aria-hidden
-                    className="size-2 animate-pulse rounded-full bg-primary-400"
-                  />
-                </div>
-                <PulseLine className="mt-1 text-primary-500" />
-              </div>
-            </div>
+            <RecordTransform className="w-full drop-shadow-2xl" />
+            <p className="mt-5 max-w-sm text-sm leading-relaxed text-jade-200">
+              {t('artCaption')}
+            </p>
           </div>
         </div>
+
+        {/* Curved lip into the next section, so the ground ends deliberately. */}
+        <div
+          aria-hidden
+          className="h-10 rounded-t-[2.5rem] bg-paper md:h-14 md:rounded-t-[4rem]"
+        />
       </section>
     </>
   );

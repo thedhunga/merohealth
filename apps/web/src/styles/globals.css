@@ -3,55 +3,62 @@
 /*
  * Design tokens.
  *
- * The base palette mirrors `packages/configuration` so the marketing site and
- * the Expo product surface stay visually identical. Values that only the web
- * site needs (tint ramps, elevation, container widths) are defined here.
+ * Direction: warm, human and Nepali, not clinical. The palette is built from
+ * Nepali material life rather than health-tech convention — deep forest as a
+ * confident ground, and सयपत्री marigold (in every festival doorway) as the
+ * accent. The base is a warm paper white; the previous greenish-white made
+ * every surface read grey.
+ *
+ * Deliberately NOT the health-tech teal/blue that every competitor uses.
  */
 @theme {
-  /* Brand — shared with @swasthya/configuration */
-  --color-ink: #102b2b;
-  --color-muted: #5f7370;
-  --color-canvas: #f6f8f4;
-  --color-surface: #ffffff;
-  --color-line: #dce6e2;
+  /* Ink and ground */
+  --color-ink: #132a21;
+  --color-ink-soft: #465b51;
+  --color-paper: #fffcf7;
+  --color-sand: #f6f0e5;
+  --color-line: #e4ddd0;
 
-  --color-primary-50: #f0faf6;
-  --color-primary-100: #ddf3eb;
-  --color-primary-200: #a8dbc9;
-  --color-primary-300: #6fc4ab;
-  --color-primary-400: #2e9b85;
-  --color-primary-500: #0b685c;
-  --color-primary-600: #095a50;
-  --color-primary-700: #074e47;
-  --color-primary-800: #053a35;
-  --color-primary-900: #042b28;
+  /* Forest — the brand ground, used full-bleed */
+  --color-forest-900: #07231a;
+  --color-forest-800: #0a3628;
+  --color-forest-700: #0b4f3a;
+  --color-forest-600: #0f6a4d;
 
-  --color-saffron-100: #fff1ce;
-  --color-saffron-400: #f2b84b;
-  --color-saffron-600: #a46008;
+  /* Jade — interaction and action */
+  --color-jade-500: #17916b;
+  --color-jade-400: #2fb287;
+  --color-jade-200: #a9dfc9;
+  --color-jade-100: #d8f0e5;
+  --color-jade-50: #eefaf4;
 
-  --color-info-100: #e8eeff;
-  --color-info-500: #285d9a;
-  --color-info-700: #1c4270;
+  /* Marigold — the accent. Used sparingly and never for body text. */
+  --color-marigold-700: #9a5c08;
+  --color-marigold-600: #c97a12;
+  --color-marigold-500: #f4a62a;
+  --color-marigold-300: #fbd08a;
+  --color-marigold-100: #fdf0d8;
 
-  --color-danger-100: #fee4e2;
+  /* Support */
+  --color-clay-500: #c4573a;
   --color-danger-500: #b42318;
+  --color-danger-100: #fee4e2;
 
-  /* Type */
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-devanagari:
-    var(--font-noto-devanagari), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /*
+   * Type. Martel and Mukta are both Devanagari-native, so Nepali leads the
+   * type system instead of being bolted onto a Latin face as an afterthought.
+   */
+  --font-display: var(--font-martel), Georgia, serif;
+  --font-sans: var(--font-mukta), ui-sans-serif, system-ui, sans-serif;
 
-  /* Shape */
-  --radius-card: 1.5rem;
+  --radius-card: 1.25rem;
   --radius-pill: 999px;
 
-  /* Elevation */
-  --shadow-card: 0 1px 2px rgb(16 43 43 / 0.04), 0 12px 32px -12px rgb(16 43 43 / 0.14);
-  --shadow-menu: 0 24px 56px -20px rgb(16 43 43 / 0.28);
+  --shadow-card: 0 1px 2px rgb(19 42 33 / 0.05), 0 18px 40px -18px rgb(19 42 33 / 0.22);
+  --shadow-menu: 0 28px 64px -24px rgb(19 42 33 / 0.34);
+  --shadow-lift: 0 2px 4px rgb(19 42 33 / 0.06), 0 28px 56px -20px rgb(19 42 33 / 0.3);
 
-  /* Layout */
-  --container-site: 78rem;
+  --container-site: 80rem;
 }
 
 @layer base {
@@ -75,27 +82,43 @@
   }
 
   body {
-    background-color: var(--color-surface);
+    background-color: var(--color-paper);
     color: var(--color-ink);
-    font-family: var(--font-devanagari);
+    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
 
   /*
-   * Devanagari sits lower and taller than Latin at the same font-size, so
-   * Nepali headlines need extra leading to avoid clipped matras.
+   * Devanagari sits lower and taller than Latin at the same size, so Nepali
+   * display type needs extra leading or the matras clip. Latin headings can
+   * run tighter, which is why the two are set separately.
    */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.015em;
+    line-height: 1.12;
+  }
+
   :lang(ne) h1,
   :lang(ne) h2,
   :lang(ne) h3 {
-    line-height: 1.32;
+    line-height: 1.34;
+    letter-spacing: 0;
   }
 
   :focus-visible {
-    outline: 3px solid var(--color-primary-400);
-    outline-offset: 2px;
+    outline: 3px solid var(--color-marigold-500);
+    outline-offset: 3px;
     border-radius: 4px;
+  }
+
+  ::selection {
+    background-color: var(--color-marigold-300);
+    color: var(--color-ink);
   }
 }
 
@@ -106,44 +129,48 @@
   padding-inline: 1.25rem;
 
   @media (width >= 48rem) {
-    padding-inline: 2rem;
+    padding-inline: 2.5rem;
   }
 }
 
 /*
- * Scroll reveals.
- *
- * Progressive enhancement: scroll-driven animations are unsupported in
- * Firefox, so the effect is wrapped in @supports and content renders fully
- * visible everywhere else. Only `opacity` and `transform` are animated, both
- * of which stay on the compositor.
+ * Signature: oversized Devanagari set as artwork rather than as reading text.
+ * Always paired with a real heading elsewhere in the section, and hidden from
+ * assistive technology, because it is a graphic — not a duplicate heading.
  */
+@utility script-mark {
+  font-family: var(--font-display);
+  font-weight: 900;
+  line-height: 0.82;
+  letter-spacing: -0.02em;
+  user-select: none;
+}
+
+/* Scroll reveals — progressive enhancement, unsupported in Firefox. */
 @media (prefers-reduced-motion: no-preference) {
   @supports ((animation-timeline: view()) and (animation-range: entry)) {
     @keyframes reveal-rise {
       from {
         opacity: 0;
-        transform: translateY(2rem);
+        transform: translateY(2.25rem);
       }
     }
 
     .reveal {
       animation: reveal-rise linear backwards;
       animation-timeline: view();
-      /* Finish well before the element centres, so it is settled while read. */
-      animation-range: entry 10% cover 32%;
+      animation-range: entry 10% cover 34%;
     }
 
-    /* Staggers a grid: each child trails the one before it. */
     .reveal-stagger > * {
       animation: reveal-rise linear backwards;
       animation-timeline: view();
-      animation-range: entry 5% cover 30%;
+      animation-range: entry 5% cover 32%;
     }
   }
 }
 
-/* ECG trace for PulseLine. Uses pathLength=1 so the dash values are ratios. */
+/* ECG trace for PulseLine. pathLength=1 makes the dash values ratios. */
 @keyframes pulse-trace {
   from {
     stroke-dashoffset: 1;
@@ -160,7 +187,7 @@
   }
 }
 
-/* Continuous partner-logo marquee. Pauses on hover and for reduced motion. */
+/* Continuous partner marquee. Pauses on hover and for reduced motion. */
 @keyframes marquee-scroll {
   from {
     transform: translateX(0);
@@ -171,7 +198,7 @@
 }
 
 .marquee-track {
-  animation: marquee-scroll 42s linear infinite;
+  animation: marquee-scroll 48s linear infinite;
 }
 
 .marquee:hover .marquee-track,

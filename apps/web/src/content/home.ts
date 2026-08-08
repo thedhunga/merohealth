@@ -24,25 +24,25 @@ export const serviceCards: readonly ServiceCard[] = [
     key: 'care247',
     href: '/individuals/24-7-care',
     Icon: Stethoscope,
-    tone: 'bg-primary-100 text-primary-700',
+    tone: 'bg-jade-100 text-forest-700',
   },
   {
     key: 'primaryCare',
     href: '/individuals/primary-care',
     Icon: HeartPulse,
-    tone: 'bg-info-100 text-info-700',
+    tone: 'bg-forest-700 text-marigold-300',
   },
   {
     key: 'mentalHealth',
     href: '/individuals/mental-health',
     Icon: Brain,
-    tone: 'bg-saffron-100 text-saffron-600',
+    tone: 'bg-marigold-100 text-marigold-700',
   },
   {
     key: 'conditionManagement',
     href: '/individuals/diabetes-management',
     Icon: Activity,
-    tone: 'bg-primary-100 text-primary-700',
+    tone: 'bg-jade-100 text-forest-700',
     links: [
       { key: 'diabetesManagement', href: '/individuals/diabetes-management' },
       { key: 'weightManagement', href: '/individuals/weight-management' },
@@ -53,7 +53,7 @@ export const serviceCards: readonly ServiceCard[] = [
     key: 'specialtyCare',
     href: '/individuals/specialty-wellness',
     Icon: ScanLine,
-    tone: 'bg-info-100 text-info-700',
+    tone: 'bg-forest-700 text-marigold-300',
     links: [
       { key: 'dermatology', href: '/individuals/specialty-wellness/dermatology' },
       {
@@ -66,7 +66,7 @@ export const serviceCards: readonly ServiceCard[] = [
     key: 'healthyHabits',
     href: '/individuals/weight-management/nutrition',
     Icon: Salad,
-    tone: 'bg-saffron-100 text-saffron-600',
+    tone: 'bg-marigold-100 text-marigold-700',
     links: [
       { key: 'nutrition', href: '/individuals/weight-management/nutrition' },
       { key: 'sleep', href: '/individuals/specialty-wellness/sleep' },

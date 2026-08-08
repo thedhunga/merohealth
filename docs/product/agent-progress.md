@@ -41,6 +41,39 @@ These hold for every task and override any instinct to the contrary.
 - Match the surrounding code: dense TypeScript, colocated `index.test.ts`,
   comments that explain *why* rather than restating the code.
 
+## Art direction — do not drift from this
+
+The visual identity was set deliberately. Every new page inherits it.
+
+- **Palette:** deep forest (`forest-700` `#0B4F3A`) as a confident full-bleed
+  ground, jade for interaction, **marigold `#F4A62A`** as the accent — सयपत्री,
+  in every Nepali festival doorway. Warm paper `#FFFCF7` base, never a grey or
+  greenish white. Tokens live in `apps/web/src/styles/globals.css` and are
+  mirrored in `packages/configuration`. **Never reintroduce the old teal
+  `#0B685C`, and never add a health-tech blue** — every competitor uses one,
+  which is the reason we do not.
+- **Marigold is for one action per screen.** It is the loudest thing in the
+  palette; spend it once. Never on body text.
+- **Type:** Martel (display, 800/900) and Mukta (body). Both Devanagari-native
+  so Nepali leads the type system. Do not add Inter, Noto Sans, or a third
+  family.
+- **Never set a `leading-*` utility on a heading.** The base layer sets 1.12
+  for Latin and 1.34 for `:lang(ne)`; a utility wins over both and clips
+  Devanagari matras at display sizes.
+- **Show, don't tell.** Prefer artwork, diagram or photograph over another
+  paragraph. Copy should be short; the page should carry meaning visually.
+  Aim for at most one short paragraph per section.
+- **Never render text as an image.** It is invisible to search, unreadable by
+  screen readers and untranslatable, which would break the ne/en toggle.
+  Visual weight comes from artwork *around* the text, not from replacing it.
+- **The signature** is oversized Devanagari set as artwork (`.script-mark`),
+  always `aria-hidden` and always paired with a real heading elsewhere in the
+  section. Use it sparingly — roughly one per page, or it stops being a
+  signature.
+- SVG artwork lives in `apps/web/src/components/art/`. See `RecordTransform`
+  for the standard: `aria-hidden`, no fake lettering, and it must survive
+  being scaled down to a phone.
+
 ## Context
 
 Mero Health is a personal health platform, not a telehealth website. The
@@ -56,6 +89,31 @@ read that before the first task.
 ## Task queue
 
 Tasks are ordered. Later ones assume earlier ones are done.
+
+### Visual system — highest priority
+
+The owner's verdict on the first pass was that it looked terrible and generic.
+The palette, type and hero have since been rebuilt (see Art direction). These
+tasks extend that identity to everything else. **Do these before adding new
+routes** — new pages built on a half-finished visual system just multiply the
+work.
+
+- [ ] Editorial SVG artwork for all six service cards in
+      `apps/web/src/components/art/`, replacing the small lucide icon chips.
+      Each should be a distinct small composition in the brand palette, not a
+      recoloured icon. This is the single biggest visual upgrade left.
+- [ ] Rework the organisation section: full-bleed forest ground, artwork per
+      tab, and stat slots that look deliberate while the figures are still
+      em-dashes.
+- [ ] Give the header and mega-menu the new identity — the panel is still
+      styled from the old system and now feels bolted on.
+- [ ] A reusable `SectionIntro` + artwork layout so every inner page opens with
+      a visual rather than a wall of text.
+- [ ] Responsive audit at 375px, 768px and 1280px. The oversized `.script-mark`
+      and the hero grid are the likely breakages.
+- [ ] Sync the Expo app to the new palette: `apps/mobile/app/index.web.tsx` and
+      the tab screens still use the old teal styling directly rather than
+      `@swasthya/configuration` tokens.
 
 ### Marketing site
 
@@ -112,6 +170,22 @@ Tasks are ordered. Later ones assume earlier ones are done.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-08 — Visual identity rebuilt after the owner rejected the first
+  pass as generic. New palette (forest/jade/marigold on warm paper), new type
+  (Martel + Mukta, both Devanagari-native), and a new hero built around
+  `RecordTransform` artwork instead of a stock photo. `packages/configuration`
+  and the Expo splash colour follow. Fixed a real bug found by inspecting
+  computed styles: a `leading-[1.06]` utility on the hero `h1` was overriding
+  the `:lang(ne)` rule and would have clipped Devanagari matras at 68px.
+  All green. Queue now leads with the visual system.
+
+  **Blocker for the next run:** photographic imagery could not be generated —
+  the Higgsfield MCP connector's session has expired and re-authorising needs
+  an interactive session. Do not fabricate photographs of patients or
+  clinicians as a workaround. Build SVG artwork instead, which is the
+  documented direction anyway, and leave clearly-marked slots where real
+  photography should later drop in.
+
 - 2026-08-08 — Ledger created. Homepage, navigation shell, and the
   `health-records` / `storage-adapters` / `entitlements` packages are in place
-  and green. Queue starts at the shared page templates.
+  and green.

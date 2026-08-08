@@ -3,18 +3,27 @@ import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 import { Link } from '@/i18n/navigation';
 import { cn } from '@/lib/cn';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'inverse' | 'ghost';
+export type ButtonVariant =
+  | 'primary'
+  | 'accent'
+  | 'secondary'
+  | 'inverse'
+  | 'onDark'
+  | 'ghost';
 export type ButtonSize = 'md' | 'lg';
 
 const base =
-  'inline-flex items-center justify-center gap-2 rounded-pill font-semibold whitespace-nowrap transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60';
+  'inline-flex items-center justify-center gap-2 rounded-pill font-semibold whitespace-nowrap transition-[background-color,color,transform] duration-150 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60';
 
 const variants: Record<ButtonVariant, string> = {
-  primary: 'bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700',
-  secondary:
-    'bg-white text-primary-700 ring-1 ring-inset ring-primary-200 hover:bg-primary-50 active:bg-primary-100',
-  inverse: 'bg-white text-primary-700 hover:bg-primary-50 active:bg-primary-100',
-  ghost: 'text-primary-700 hover:bg-primary-50 active:bg-primary-100',
+  primary: 'bg-forest-700 text-white hover:bg-forest-600',
+  // Marigold on deep forest is the highest-contrast pairing in the palette,
+  // so it is reserved for the single most important action on a screen.
+  accent: 'bg-marigold-500 text-forest-900 hover:bg-marigold-300',
+  secondary: 'bg-white text-forest-700 ring-1 ring-inset ring-line hover:bg-jade-50',
+  inverse: 'bg-white text-forest-700 hover:bg-jade-50',
+  onDark: 'bg-white/10 text-white ring-1 ring-inset ring-white/25 hover:bg-white/20',
+  ghost: 'text-forest-700 hover:bg-jade-50',
 };
 
 const sizes: Record<ButtonSize, string> = {

@@ -91,7 +91,7 @@ export function Header() {
       ref={headerRef}
     >
       <a
-        className="sr-only rounded-md bg-primary-700 px-4 py-2 text-white focus:not-sr-only focus:absolute focus:start-4 focus:top-3 focus:z-10"
+        className="sr-only rounded-md bg-forest-700 px-4 py-2 text-white focus:not-sr-only focus:absolute focus:start-4 focus:top-3 focus:z-10"
         href="#main"
       >
         {t('skipToContent')}
@@ -113,7 +113,7 @@ export function Header() {
                     aria-expanded={expanded}
                     className={cn(
                       'inline-flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-[0.9375rem] font-semibold transition-colors',
-                      expanded ? 'bg-primary-50 text-primary-700' : 'text-ink hover:bg-canvas',
+                      expanded ? 'bg-jade-50 text-forest-700' : 'text-ink hover:bg-sand',
                     )}
                     onClick={() => {
                       cancelClose();
@@ -155,7 +155,7 @@ export function Header() {
           aria-controls="mobile-drawer"
           aria-expanded={mobileOpen}
           aria-label={mobileOpen ? t('actions.closeMenu') : t('actions.openMenu')}
-          className="grid size-11 place-items-center rounded-lg text-ink hover:bg-canvas lg:hidden"
+          className="grid size-11 place-items-center rounded-lg text-ink hover:bg-sand lg:hidden"
           onClick={() => {
             setMobileOpen((value) => !value);
           }}
