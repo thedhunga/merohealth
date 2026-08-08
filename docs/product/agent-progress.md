@@ -165,6 +165,65 @@ work.
 - [ ] `apps/mobile`: document capture flow — camera, review, upload, and the
       confirmation queue driven by `pendingConfirmations`.
 
+### Identity and professional credentialing
+
+Design in
+[`docs/architecture/identity-and-credentialing.md`](../architecture/identity-and-credentialing.md).
+Read it first — it contains one decision that must not be quietly reversed:
+**a national ID is never required to sign up.** Identity is verified at the
+point it is actually needed, and the person is told why at that moment.
+Patients are the primary interface; clinicians are a clearly-marked tab.
+
+- [ ] `packages/identity`: assurance levels
+      (`ANONYMOUS` → `REGISTERED` → `IDENTITY_VERIFIED`), the verification
+      state machine, and the evidence lifecycle — including deletion of the
+      document image once the decision is recorded.
+- [ ] `packages/credentialing`: Nepali council registry (NMC, NNC, NHPC,
+      Pharmacy, Ayurvedic), application state machine, review queue and badge
+      rules. **No automatic approval** — there is no public council API, so a
+      human reads the register. Never render "verified" for a submission no
+      person has reviewed.
+- [ ] Clinician registration flow on `apps/web`: council selection,
+      registration number, certificate and ID capture, and a clear status
+      screen while the application is pending.
+- [ ] Reviewer queue: a distinct role, not a general admin power, with every
+      evidence-image read logged and every decision attributed.
+- [ ] Verified badge component stating **which council, which number, when
+      last checked** — never "trusted doctor". Must render from the persisted
+      badge, never computed live from a service that can fail.
+
+### Clinical suite — eClinicalWorks parity
+
+Full capability map and the fault-isolation contract are in
+[`docs/architecture/clinical-suite.md`](../architecture/clinical-suite.md).
+Read it before starting anything in this section. Build strictly in order.
+
+**Every module here ships with three things or it is not done:** its
+`ModuleDescriptor`, a health endpoint, and a test that forces the module
+`DOWN` and asserts the rest of the system still works. That last test is the
+deliverable — it is the only thing keeping the isolation property true as the
+suite grows. A module that "works" but has no outage test is not finished.
+
+- [ ] `packages/module-registry`: the `ModuleDescriptor` / `Degradation`
+      contract, a registry, and a resolver computing what is available given a
+      set of module health states. Build this first — everything below plugs
+      into it, and retrofitting it later means touching every module.
+- [ ] `patient-registry`: demographics and identity. Owns patient identity;
+      every other module references by opaque id, never by foreign key.
+- [ ] `scheduling`: appointments and resource calendars. Degrades to
+      `READ_ONLY` when the registry is unavailable rather than failing.
+- [ ] `clinical-charting`: encounters, SOAP notes, templates.
+- [ ] `clinical-summary`: problem list, allergies, medications — extending
+      `digital-twin` with clinician-authored provenance.
+- [ ] `medication-safety`: interaction and allergy checking. Built **before**
+      prescribing, so prescribing degrades to `MANUAL` against it rather than
+      depending on it.
+- [ ] `prescribing`: Nepali formulary. Safety-critical — `docs/compliance/`
+      must lead this module, not trail it.
+
+Stop after prescribing and reassess. Modules 7-20 in the capability map are
+sequenced but must not be started while anything above is unfinished.
+
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
