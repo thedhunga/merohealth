@@ -102,7 +102,7 @@ work.
       `apps/web/src/components/art/`, replacing the small lucide icon chips.
       Each should be a distinct small composition in the brand palette, not a
       recoloured icon. This is the single biggest visual upgrade left.
-- [ ] Rework the organisation section: full-bleed forest ground, artwork per
+- [x] Rework the organisation section: full-bleed forest ground, artwork per
       tab, and stat slots that look deliberate while the figures are still
       em-dashes.
 - [ ] Give the header and mega-menu the new identity — the panel is still
@@ -169,6 +169,36 @@ work.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-08 — Reworked the organisation section (`OrganizationTabs.tsx`) onto
+  a full-bleed forest ground (`bg-forest-700`, matching `Hero`'s panel), with
+  the tab pills restyled for a dark ground using the same white/`white-10`
+  pairing `Button`'s `inverse`/`onDark` variants already establish. Replaced
+  the three old AI-generated stock photos (`mero-health-companion.webp`,
+  `nepali-care-team.webp`'s sibling `digital-health-body.webp`, both teal —
+  exactly what the art direction forbids) with three new SVG compositions —
+  `MemberRouting`, `WorkplaceInvestment`, `HospitalReach` in
+  `apps/web/src/components/art/` — following the `AroundTheClockCare`
+  convention. `OrganizationTab.image: string` became `Art: ComponentType`,
+  mirroring `ServiceCard`. The stat slots (still legitimately em-dashes; no
+  figures exist to substantiate) moved from a bare `<dt>` number into a
+  badge-and-label card so the placeholder reads as a deliberate component, not
+  an unstyled leftover. Deleted the two now-unreferenced old photos from
+  `apps/web/public/imagery/`; left their same-named siblings in
+  `apps/mobile/assets/imagery/` untouched since the mobile palette sync is a
+  separate, later queue item and out of scope here. Removed the now-dead
+  `imageAlt` keys from both message files since the art is `aria-hidden`. No
+  other new copy, so no other message-file changes. Verified visually with a
+  headless Chromium screenshot (system Playwright at
+  `/opt/node22/lib/node_modules`, since this repo has no Playwright
+  dependency) in both locales, tab-switched, and at a 375px viewport — no
+  clipped Devanagari, tabs wrap cleanly. All green
+  (install/lint/typecheck/test/build).
+
+  **For the next run:** the queue's next unchecked item is giving the header
+  and mega-menu the new identity. The `apps/mobile` imagery duplicates noted
+  above are also still waiting on the "sync Expo to the new palette" item
+  further down the queue — don't forget those when that task comes up.
 
 - 2026-08-08 — Built editorial SVG artwork for all six service cards
   (`AroundTheClockCare`, `HomeFirstVisit`, `CalmMind`, `VitalsTrend`,

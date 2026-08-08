@@ -165,20 +165,17 @@
         "healthPlans": {
           "label": "Health Plans",
           "title": "Get members to the right care sooner",
-          "body": "Simplify the member journey, reduce avoidable visits and improve outcomes.",
-          "imageAlt": "A person talking to a care provider on a mobile phone"
+          "body": "Simplify the member journey, reduce avoidable visits and improve outcomes."
         },
         "employers": {
           "label": "Employers",
           "title": "A real investment in employee health",
-          "body": "Give your team care without leaving work — from the office, from home, or from the district.",
-          "imageAlt": "Two colleagues reviewing a tablet in an office"
+          "body": "Give your team care without leaving work — from the office, from home, or from the district."
         },
         "hospitals": {
           "label": "Hospitals & Health Systems",
           "title": "Extend your own service with virtual reach",
-          "body": "Bring your team's capability to places where specialists are scarce.",
-          "imageAlt": "A patient in a hospital bed speaking with a virtual provider"
+          "body": "Bring your team's capability to places where specialists are scarce."
         }
       }
     },

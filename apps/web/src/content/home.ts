@@ -5,7 +5,10 @@ import { CalmMind } from '@/components/art/CalmMind';
 import { DiagnosticFocus } from '@/components/art/DiagnosticFocus';
 import { HabitSprout } from '@/components/art/HabitSprout';
 import { HomeFirstVisit } from '@/components/art/HomeFirstVisit';
+import { HospitalReach } from '@/components/art/HospitalReach';
+import { MemberRouting } from '@/components/art/MemberRouting';
 import { VitalsTrend } from '@/components/art/VitalsTrend';
+import { WorkplaceInvestment } from '@/components/art/WorkplaceInvestment';
 
 export interface ServiceCard {
   /** Key into `home.services.items` */
@@ -70,7 +73,8 @@ export interface OrganizationTab {
   /** Key into `home.organizations.tabs` */
   key: string;
   href: string;
-  image: string;
+  /** Editorial SVG composition for the tab panel, aria-hidden. */
+  Art: ComponentType<{ className?: string }>;
   /**
    * Illustrative figures for the demonstration build.
    *
@@ -85,7 +89,7 @@ export const organizationTabs: readonly OrganizationTab[] = [
   {
     key: 'healthPlans',
     href: '/organizations/health-plans',
-    image: '/imagery/mero-health-companion.webp',
+    Art: MemberRouting,
     stats: [
       {
         value: '—',
@@ -102,7 +106,7 @@ export const organizationTabs: readonly OrganizationTab[] = [
   {
     key: 'employers',
     href: '/organizations/employers',
-    image: '/imagery/nepali-care-team.webp',
+    Art: WorkplaceInvestment,
     stats: [
       {
         value: '—',
@@ -119,7 +123,7 @@ export const organizationTabs: readonly OrganizationTab[] = [
   {
     key: 'hospitals',
     href: '/organizations/hospitals-health-systems',
-    image: '/imagery/digital-health-body.webp',
+    Art: HospitalReach,
     stats: [
       {
         value: '—',

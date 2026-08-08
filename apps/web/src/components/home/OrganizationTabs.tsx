@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { useId, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { ArrowRight } from 'lucide-react';
@@ -20,13 +19,14 @@ export function OrganizationTabs() {
   if (!current) return null;
 
   return (
-    <section aria-labelledby="orgs-heading" className="bg-sand py-16 md:py-24">
+    <section aria-labelledby="orgs-heading" className="bg-forest-700 py-16 text-white md:py-24">
       <div className="container-site">
         <SectionHeading
           body={t('body')}
           className="reveal"
           id="orgs-heading"
           title={t('heading')}
+          tone="light"
         />
 
         <div
@@ -43,8 +43,8 @@ export function OrganizationTabs() {
                 className={cn(
                   'rounded-pill px-5 py-2.5 text-[0.9375rem] font-semibold transition-colors',
                   selected
-                    ? 'bg-forest-700 text-white'
-                    : 'bg-white text-ink ring-1 ring-line hover:bg-jade-50',
+                    ? 'bg-white text-forest-700'
+                    : 'bg-white/10 text-white ring-1 ring-inset ring-white/25 hover:bg-white/20',
                 )}
                 id={`${baseId}-tab-${tab.key}`}
                 key={tab.key}
@@ -62,7 +62,7 @@ export function OrganizationTabs() {
 
         <div
           aria-labelledby={`${baseId}-tab-${current.key}`}
-          className="mt-8 grid gap-10 rounded-card bg-white p-8 shadow-card md:p-10 lg:grid-cols-2 lg:items-center lg:gap-14"
+          className="mt-8 grid gap-10 rounded-card bg-white p-8 text-ink shadow-menu md:p-10 lg:grid-cols-2 lg:items-center lg:gap-14"
           id={`${baseId}-panel-${current.key}`}
           role="tabpanel"
           tabIndex={0}
@@ -73,11 +73,22 @@ export function OrganizationTabs() {
             </h3>
             <p className="text-lg leading-relaxed text-ink-soft">{t(`tabs.${current.key}.body`)}</p>
 
-            <dl className="grid gap-6 sm:grid-cols-2">
+            {/*
+              The figures are em-dashes until substantiated (see the field
+              comment on `OrganizationTab.stats`), so each slot is built to
+              look deliberate as a badge-and-label pairing rather than a bare
+              number, instead of leaning on a large digit to carry the design.
+            */}
+            <dl className="grid gap-4 sm:grid-cols-2">
               {current.stats.map((stat) => (
-                <div className="flex flex-col gap-1" key={stat.labelEn}>
-                  <dt className="text-4xl font-bold text-forest-600">{stat.value}</dt>
-                  <dd className="text-sm text-ink-soft">
+                <div
+                  className="flex items-center gap-3 rounded-2xl bg-sand/70 p-4 ring-1 ring-line"
+                  key={stat.labelEn}
+                >
+                  <dt className="grid size-11 shrink-0 place-items-center rounded-full bg-jade-50 text-lg font-bold text-forest-600">
+                    {stat.value}
+                  </dt>
+                  <dd className="text-sm leading-snug text-ink-soft">
                     {locale === 'ne' ? stat.labelNe : stat.labelEn}
                   </dd>
                 </div>
@@ -96,15 +107,7 @@ export function OrganizationTabs() {
             </Link>
           </div>
 
-          <div className="relative aspect-4/3 overflow-hidden rounded-card">
-            <Image
-              alt={t(`tabs.${current.key}.imageAlt`)}
-              className="object-cover"
-              fill
-              sizes="(max-width: 1024px) 100vw, 45vw"
-              src={current.image}
-            />
-          </div>
+          <current.Art className="aspect-[3/2] w-full rounded-card" />
         </div>
       </div>
     </section>
