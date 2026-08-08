@@ -107,7 +107,7 @@ work.
       em-dashes.
 - [x] Give the header and mega-menu the new identity — the panel is still
       styled from the old system and now feels bolted on.
-- [ ] A reusable `SectionIntro` + artwork layout so every inner page opens with
+- [x] A reusable `SectionIntro` + artwork layout so every inner page opens with
       a visual rather than a wall of text.
 - [ ] Responsive audit at 375px, 768px and 1280px. The oversized `.script-mark`
       and the hero grid are the likely breakages.
@@ -169,6 +169,49 @@ work.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-08 — Built `SectionIntro` (`apps/web/src/components/ui/SectionIntro.tsx`),
+  the reusable opening layout the queue called for: a title/body column next
+  to a required `Art` slot, so an inner page structurally cannot skip the
+  visual and fall back to a wall of text. It takes two tones. `forest`
+  (default) reproduces the layered-depth stack the homepage `Hero` already
+  established — dark header into a dark opener, then the same curved-lip
+  transition down to paper — for pages that want a strong opening. `paper`
+  is a plain light section for routes (legal, utility) where stacking a
+  second full-bleed dark block directly under the now-permanent dark header
+  would read as too heavy; this is exactly the risk flagged in the previous
+  run's log. `artPosition` (`start`/`end`) flips which side the artwork sits
+  on via `lg:order-first` so later pages get visual rhythm instead of every
+  route looking identical. All copy is passed in as props (`eyebrow`,
+  `title`, `body`, `cta.label`) — the component itself has zero hardcoded
+  strings, consistent with the Nepali-first rule — so no message-file changes
+  were needed for the component itself. No inner pages exist yet to wire it
+  into (`apps/web/src/app/[locale]` currently only has the homepage route),
+  so it isn't consumed anywhere yet; that's expected; the queue's next
+  section ("Individuals routes", etc.) is what will consume it.
+  Left it untested like every other presentational component in `apps/web`
+  (`Section.tsx`, `Hero.tsx` etc. have no test files either, and `apps/web`
+  has zero test files project-wide — `packages/*` is where colocated
+  `index.test.ts` applies).
+  Verified visually rather than just by build: temporarily mounted both tone
+  variants with both `artPosition` values on a throwaway route, ran the dev
+  server, and screenshot both locales at 1280px and 375px with headless
+  Chromium (system Playwright at `/opt/node22/lib/node_modules`, same
+  approach as prior runs — this repo still has no Playwright dependency of
+  its own). No clipped Devanagari, both tones and both artwork positions lay
+  out correctly, CTA variant switches correctly (marigold `accent` on
+  forest, solid `primary` on paper, so a future page doesn't spend the one
+  marigold action twice). Deleted the throwaway route before committing —
+  nothing under `apps/web/src/app` changed. `next dev` also regenerated
+  `apps/web/AGENTS.md` and `CLAUDE.md` as a side effect (a Next.js 16
+  built-in that writes agent-rule files reading `node_modules/next/dist/docs`
+  on every `next dev`); those aren't part of this task and were deleted
+  rather than committed. All green (install/lint/typecheck/test/build).
+
+  **For the next run:** the queue's next unchecked item is a responsive audit
+  at 375px/768px/1280px focused on `.script-mark` and the hero grid. Separately,
+  once real inner-page content exists, `SectionIntro` is ready to be the
+  opening section for it — no further plumbing needed.
 
 - 2026-08-08 — Gave the header (`Header.tsx`) and mega-menu (`MegaMenu.tsx`)
   the new identity, replacing the old `bg-white/95 backdrop-blur-sm` bar and
