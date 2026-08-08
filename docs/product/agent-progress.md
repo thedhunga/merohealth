@@ -109,7 +109,7 @@ work.
       styled from the old system and now feels bolted on.
 - [x] A reusable `SectionIntro` + artwork layout so every inner page opens with
       a visual rather than a wall of text.
-- [ ] Responsive audit at 375px, 768px and 1280px. The oversized `.script-mark`
+- [x] Responsive audit at 375px, 768px and 1280px. The oversized `.script-mark`
       and the hero grid are the likely breakages.
 - [ ] Sync the Expo app to the new palette: `apps/mobile/app/index.web.tsx` and
       the tab screens still use the old teal styling directly rather than
@@ -169,6 +169,68 @@ work.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-08 — Responsive audit at 375px, 768px and 1280px, both locales.
+  Found one real horizontal-overflow bug and confirmed the two components the
+  queue flagged as *likely* culprits were actually fine.
+
+  **The real bug:** `Testimonials.tsx`'s layout grid was `grid gap-8
+  lg:grid-cols-12 lg:items-center` — no `grid-cols-*` below `lg`, so below
+  1024px the grid fell back to implicit column sizing instead of an explicit
+  `minmax(0, 1fr)` track. Grid items get an implicit `min-width: auto`, and
+  the `<video>` element in that section has no intrinsic width until its
+  metadata loads (`preload="none"`, only a `poster`), so its min-content size
+  won under that layout and pushed the whole column — and with it
+  `document.documentElement`, since nothing upstream constrains a grid
+  container's own size — out to what turned out to be exactly the poster
+  image's rendered width. Confirmed with `getBoundingClientRect` on every
+  element plus `scrollWidth` vs `clientWidth` at each breakpoint: 375px and
+  768px both showed `scrollWidth` stuck at desktop widths (1280/1444) in both
+  locales; 1280px was clean since `lg:grid-cols-12` applies there. Isolated
+  the cause by toggling `display:none` on candidate sections one at a time
+  before touching code, rather than guessing — hiding the testimonials
+  section alone took `scrollWidth` straight back to `clientWidth`. Fix: added
+  an explicit `grid-cols-1` on the same `div` (`Testimonials.tsx`), which is
+  Tailwind's `minmax(0, 1fr)` and caps the track at the container width
+  regardless of a child's intrinsic size. Verified the fix with the same
+  `scrollWidth`/`clientWidth` probe (clean at 375/768/1280, both locales) and
+  visually with full-page screenshots.
+  Same bare-`grid`-without-a-base-`grid-cols` pattern exists in `Hero.tsx`,
+  `Footer.tsx`, `MegaMenu.tsx` and `OrganizationTabs.tsx`, but none of them
+  currently overflow — their content shrinks (text wraps, the hero's
+  `RecordTransform` SVG has no fixed intrinsic width) rather than forcing a
+  min-content width past the container, so nothing there needed changing.
+  Flagging it here rather than pre-emptively touching working code: if any of
+  those ever gain an unconstrained media element the same way, this is the
+  failure mode to check for first.
+
+  **The two suspects named in the queue turned out fine, not broken:**
+  `.script-mark` (`Hero.tsx`) sits inside a `relative overflow-hidden`
+  section, so although its own `getBoundingClientRect` extends well past a
+  375px viewport, that section's `overflow-hidden` clips it before it can
+  affect `document.documentElement.scrollWidth` — confirmed by hiding
+  everything else and checking it contributed zero page-level overflow on
+  its own. No Devanagari clipping either; the base layer's `:lang(ne)`
+  leading is respected (`Hero.tsx` still carries no `leading-*` utility on
+  the `h1`, per the existing rule). The hero's own `grid
+  items-center ... lg:grid-cols-[1.05fr_1fr]` has the same "no base
+  `grid-cols`" shape as the real bug above, but never overflowed in testing
+  because `RecordTransform` is a `viewBox`-only SVG with `className="w-full"`
+  and so has no non-shrinkable intrinsic width — left untouched, since it
+  isn't actually broken and the task is an audit, not a rewrite.
+  Also checked: the mobile drawer open state, and both locales' full-page
+  layouts at all three widths — no other overflow, no clipped headings, no
+  broken wraps.
+  Verification: `pnpm install --frozen-lockfile`, `pnpm lint`,
+  `pnpm typecheck`, `pnpm test`, `pnpm build` all green. No message-file
+  changes — no copy changed, purely a layout-class fix.
+
+  **For the next run:** the queue's next unchecked item is syncing
+  `apps/mobile` to the new palette (`apps/mobile/app/index.web.tsx` and the
+  tab screens still reference the old teal directly instead of
+  `@swasthya/configuration` tokens) — this is also the last item under
+  "Visual system," so after it the queue moves into "Marketing site" and the
+  shared page-template work.
 
 - 2026-08-08 — Built `SectionIntro` (`apps/web/src/components/ui/SectionIntro.tsx`),
   the reusable opening layout the queue called for: a title/body column next

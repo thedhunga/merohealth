@@ -26,7 +26,15 @@ export function Testimonials() {
           tone="light"
         />
 
-        <div className="mt-12 grid gap-8 lg:grid-cols-12 lg:items-center">
+        {/*
+          `grid-cols-1` explicitly, not just the bare `grid` utility: without
+          it there is no defined track below `lg`, so the grid falls back to
+          content-based sizing and the unconstrained <video> (which has no
+          intrinsic width until metadata loads) pushes its column — and the
+          whole page — wider than the viewport. `grid-cols-1` uses
+          `minmax(0, 1fr)`, which caps the track at the container width.
+        */}
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-center">
           <div className="lg:col-span-5">
             {/*
               Video slot. `poster` renders until real footage is supplied, so
