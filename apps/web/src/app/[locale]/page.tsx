@@ -6,6 +6,9 @@ import { OrganizationTabs } from '@/components/home/OrganizationTabs';
 import { Testimonials } from '@/components/home/Testimonials';
 import { PartnerMarquee } from '@/components/home/PartnerMarquee';
 import { FinalCta } from '@/components/home/FinalCta';
+import { createRouteMetadata } from '@/lib/seo';
+
+export const generateMetadata = createRouteMetadata('/');
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;

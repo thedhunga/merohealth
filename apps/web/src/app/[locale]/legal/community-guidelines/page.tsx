@@ -1,6 +1,9 @@
 import { setRequestLocale } from 'next-intl/server';
 
 import { CommunityGuidelinesView } from '@/components/legal/CommunityGuidelinesView';
+import { createRouteMetadata } from '@/lib/seo';
+
+export const generateMetadata = createRouteMetadata('/legal/community-guidelines');
 
 export default async function CommunityGuidelinesPage({
   params,

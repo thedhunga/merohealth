@@ -138,7 +138,7 @@ work.
 - [x] Health library: index plus article route, with a typed content model.
 - [x] Pricing page driven by `packages/entitlements` — the catalogue is the
       source of truth, so prices are never duplicated into copy.
-- [ ] `sitemap.ts`, `robots.ts`, per-route `generateMetadata`, and
+- [x] `sitemap.ts`, `robots.ts`, per-route `generateMetadata`, and
       `Organization` + `WebSite` structured data. Keep `robots` set to
       noindex while the demonstration notice is still shown.
 - [ ] Accessibility pass: heading order, landmarks, focus traps in the mobile
@@ -252,6 +252,162 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-08 — Built `sitemap.ts`, `robots.ts`, per-route `generateMetadata`
+  and `Organization`/`WebSite` structured data. This is a retroactive item —
+  it had to touch all 40 existing static routes plus the one dynamic
+  health-library route, not add a new one, per the previous run's own note.
+
+  **Single source of truth, not 40 hand-written metadata blocks:** new
+  `content/routes.ts` is one `RouteEntry[]` — `{ pathname, titleKey,
+  descriptionKey }` — that both `sitemap.ts` and every page's
+  `generateMetadata` read from. It's assembled from the shared content
+  arrays that already exist rather than re-listing the same routes a second
+  time: `individualsPages` (15 routes), `organizationPartnerPages` (3
+  routes, keyed to `home.organizations.tabs.<key>` since that's where their
+  hero copy actually lives — see `content/organizations.ts`'s own doc
+  comment) and `healthLibraryArticles` (3 slugs), plus 22 bespoke entries
+  for every route with no shared array (home, pricing, the clinicians/
+  company/legal pages, individuals utility pages). Every `titleKey`/
+  `descriptionKey` points at a `hero.title`/`hero.body` pair the page
+  already renders — checked namespace-by-namespace against both message
+  files before writing the registry — so there is no second, SEO-only
+  sentence anywhere that could drift from what the page actually says.
+  `getRouteEntry(pathname)` throws on an unknown pathname rather than
+  silently returning nothing, so a typo'd route in a future page.tsx fails
+  loudly instead of shipping with no metadata.
+
+  **New `lib/seo.ts`:** `siteUrl` falls back to `https://example.invalid`
+  (no production domain configured anywhere in the repo — reusing the same
+  reserved-for-documentation placeholder pattern `packages/configuration`
+  already uses for the support email, rather than inventing a real-looking
+  domain). `isDemonstrationBuild` is `brandConfig.legalEntity.registrationId
+  === null` — deliberately not a new standalone flag: it's the same concrete
+  fact `legal/privacy` already keys its own copy off ("no registered legal
+  entity yet"), so registering a real entity is the one change that reopens
+  indexing everywhere at once, with nothing to remember to edit by hand in a
+  second place. `absoluteUrl`/`alternateLanguages` hand-roll the
+  `localePrefix: 'as-needed'` rule (bare path for `ne`, `/en` prefix for
+  everything else) instead of going through `next-intl/navigation`'s
+  `getPathname` — that pulls in Next's client-router bindings, which choked
+  vitest's module resolution when a plain test tried to import it (see
+  below); the rule itself is three lines, not worth the dependency here.
+  `createRouteMetadata(pathname)` is the one line every page.tsx needed:
+  looks the route up in the registry and returns a ready-to-export
+  `generateMetadata`. The health-library `[slug]` route is the one page that
+  couldn't use it directly (the pathname isn't known until `params`
+  resolves), so it calls `buildPageMetadata` itself after looking the
+  article up — same registry, same helper, just not the same one-liner.
+
+  **`robots.ts` blocks crawling outright while `isDemonstrationBuild` holds**
+  (`Disallow: /`), rather than relying on the per-page `noindex` meta tag
+  alone — a crawler that never fetches a page never has a reason to index
+  it. The existing per-page `robots` meta in `[locale]/layout.tsx` (already
+  `index:false, follow:false` from an earlier run, hardcoded) now reads
+  `isDemonstrationBuild` too, so both mechanisms key off the same field
+  instead of one being a hardcoded literal that silently drifts from the
+  other. `sitemap.ts` still advertises `sitemap.xml` in `robots.txt`
+  regardless — Google explicitly treats the sitemap directive as independent
+  of disallow rules, and it costs nothing to have ready for when indexing
+  turns on.
+
+  **Structured data — new `components/seo/OrganizationJsonLd.tsx`,** an
+  `Organization` + `WebSite` `@graph` rendered once in `[locale]/layout.tsx`
+  (site-wide, not per-page). Deliberately minimal: `name`/`alternateName`
+  from `brand.name`/`brand.nameLatin` (copy already shown in the page
+  `<title>` and header), `url`, and `logo`. No `sameAs`, no `contactPoint`,
+  no address. The footer's social icons link to generic platform homepages
+  (`facebook.com`, not an actual Mero Health profile) and
+  `brandConfig.contact.supportEmail` is an explicit `.invalid` placeholder
+  that isn't rendered anywhere in the UI yet — surfacing either to a search
+  engine as if it were real would be exactly the fabrication the standing
+  constraint rules out, so both are left out entirely rather than included
+  with caveats.
+
+  **The one real asset in the repo got wired up as a side effect:**
+  `public/mero-health-social.png` existed, unused, since before this run.
+  New `socialImageUrl()` in `lib/seo.ts` points every page's `openGraph`/
+  `twitter` image and the JSON-LD `logo` at it. Caught two locale bugs while
+  wiring this in, both from the same wrong assumption (that a public asset
+  needs the same locale-prefixing a route does): first pass ran it through
+  `absoluteUrl`, which happily produced `/en/mero-health-social.png` for
+  English pages — a URL that 404s, since `proxy.ts`'s own matcher
+  (`'/((?!api|_next|_expo|app|.*\\..*).*)'`) explicitly excludes any path
+  with a file extension from locale rewriting; static files are always
+  served at the same bare path no matter which locale is rendering the
+  page. Fixed by dropping the `locale` parameter entirely — `socialImageUrl`
+  takes none, on purpose, and a doc comment on it explains why so the next
+  run doesn't reintroduce the same bug reaching for consistency with
+  `absoluteUrl`. Second bug was a stale dev-server false negative during
+  verification, not a code bug: a `pnpm start` from an earlier `pnpm build`
+  was still bound to :3000 from a previous shell in this same run, so
+  curling "after the fix" was silently hitting the pre-fix build the whole
+  time. `kill %1` didn't touch it — background jobs don't carry across
+  separate Bash tool calls in this environment — `fuser -k 3000/tcp` did.
+  Worth recording for a future run doing its own local server verification:
+  confirm the port is actually free (or the response content actually
+  changed) before trusting a "looks fixed" curl.
+
+  **Also fixed one unrelated lint error surfaced while adding the JSON-LD
+  component:** `@typescript-eslint/no-unnecessary-type-assertion` on `locale
+  as (typeof routing.locales)[number]` inside the page body — `hasLocale()`
+  a few lines above is a type guard, so by the time that line runs `locale`
+  is already narrowed to `Locale` and the cast was dead weight. The
+  identical-looking cast a few lines up inside `generateMetadata` is still
+  required there — different function, `locale` there is a plain
+  `params`-sourced `string`, never run through `hasLocale`.
+
+  **New `apps/web/vitest.config.ts`, the first one this app has needed:**
+  every test file up to now only imported plain content/data modules with no
+  `@/` alias and no `.tsx` in their import graph, so nothing ever exercised
+  vitest's module resolution against this app's actual `@/*` → `./src/*`
+  tsconfig path or against a React component. `lib/seo.test.ts` and
+  `content/routes.test.ts` (both new — the working agreement's "colocated
+  test beside the source" applies here the same as it did for
+  `content/pricing.test.ts`) are the first to do either, since `routes.ts`
+  transitively imports the art `.tsx` components through
+  `individualsPages`/`healthLibraryArticles`. Two real fixes were needed:
+  the `@` alias needs to be configured by hand (`resolve.alias`, mirroring
+  `tsconfig.json`'s path exactly — Vite does not read tsconfig paths on its
+  own), and `tsconfig.json`'s `"jsx": "preserve"` (correct for Next's own
+  compiler, which does its own JSX transform downstream) makes Vite's
+  default oxc transformer refuse to touch JSX at all when read verbatim —
+  fixed by setting `oxc: false` and `esbuild: { jsx: 'automatic' }` to fall
+  back to the esbuild transform path for the test run specifically; the app
+  build itself is untouched. `getPathname` from `next-intl/navigation` hit a
+  *third*, harder problem in this same investigation — Node ESM resolving it
+  to the `react-client` condition and failing to resolve `next/navigation`
+  from there — which is what led to hand-rolling `localizedPathname`
+  instead of fighting a fourth layer of module-resolution configuration for
+  a three-line rule.
+
+  Verified end to end: `pnpm build` lists `/robots.txt` and `/sitemap.xml`
+  as static routes alongside every existing page. Served the production
+  build and confirmed with `curl`: `robots.txt` is `Disallow: /` site-wide
+  (matches `isDemonstrationBuild === true` today); `sitemap.xml` lists every
+  route twice (bare `ne`, prefixed `en`) with correct `hreflang` alternates
+  pointing at each other; `/pricing` and `/en/pricing` each render their own
+  `<title>`, meta description, canonical and `og:`/`twitter:` tags in the
+  right language (checked against the actual catalogue-driven copy from the
+  Pricing run, not re-typed by eye); an unknown health-library slug still
+  404s and carries no metadata (`generateMetadata` returns `{}` for it,
+  falling through to the page's own `notFound()`); the JSON-LD `@graph` on
+  every page contains only `brand.name`/`brand.nameLatin`/`brand.tagline`
+  and the real social image URL, checked against both locales' rendered
+  HTML; `og:image`/`twitter:image` resolve to `/mero-health-social.png`
+  unprefixed on *both* `/pricing` and `/en/pricing` (this is the specific
+  regression the locale-prefixing bug above would have shipped silently —
+  confirmed by curling both after killing the stale server). All green
+  (install/lint/typecheck/test/build — `pnpm test` includes the ten new
+  cases across `lib/seo.test.ts` and `content/routes.test.ts`).
+
+  **For the next run:** the queue's next unchecked item is the
+  Accessibility pass — heading order, landmarks, focus traps in the mobile
+  drawer, contrast, and a keyboard walkthrough of the mega-menu. That closes
+  out "Marketing site" entirely; the queue after it moves into "Platform
+  core" (the `apps/api` records module), a different kind of task than any
+  run so far has done — read `docs/architecture/platform-vision.md` §3.2 and
+  `packages/health-records` before starting it, not just this file.
 
 - 2026-08-08 — Built the Pricing page (`/pricing`), driven end to end by
   `@swasthya/entitlements`'s `plans` array — the first marketing route in

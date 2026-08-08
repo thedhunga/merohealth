@@ -1,6 +1,9 @@
 import { setRequestLocale } from 'next-intl/server';
 
 import { WithoutInsuranceView } from '@/components/individuals/WithoutInsuranceView';
+import { createRouteMetadata } from '@/lib/seo';
+
+export const generateMetadata = createRouteMetadata('/individuals/without-insurance');
 
 export default async function WithoutInsurancePage({
   params,

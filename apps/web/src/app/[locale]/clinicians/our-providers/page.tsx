@@ -1,6 +1,9 @@
 import { setRequestLocale } from 'next-intl/server';
 
 import { OurProvidersView } from '@/components/clinicians/OurProvidersView';
+import { createRouteMetadata } from '@/lib/seo';
+
+export const generateMetadata = createRouteMetadata('/clinicians/our-providers');
 
 export default async function OurProvidersPage({
   params,

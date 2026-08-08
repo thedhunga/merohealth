@@ -7,7 +7,9 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
+import { OrganizationJsonLd } from '@/components/seo/OrganizationJsonLd';
 import { routing } from '@/i18n/routing';
+import { isDemonstrationBuild, siteUrl, socialImageUrl } from '@/lib/seo';
 
 import '@/styles/globals.css';
 
@@ -39,8 +41,10 @@ export async function generateMetadata({
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'brand' });
   const home = await getTranslations({ locale, namespace: 'home.hero' });
+  const socialImage = socialImageUrl();
 
   return {
+    metadataBase: new URL(siteUrl),
     title: {
       default: `${t('name')} · ${home('title')}`,
       template: `%s · ${t('name')}`,
@@ -53,12 +57,20 @@ export async function generateMetadata({
       title: `${t('name')} · ${home('title')}`,
       description: home('body'),
       locale: locale === 'ne' ? 'ne_NP' : 'en_US',
+      images: [{ url: socialImage }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${t('name')} · ${home('title')}`,
+      description: home('body'),
+      images: [socialImage],
     },
     robots: {
       // The demonstration build should not be indexed until real content and
-      // qualified clinical review are in place.
-      index: false,
-      follow: false,
+      // qualified clinical review are in place — same fact `robots.ts` keys
+      // off, see `lib/seo.ts`.
+      index: !isDemonstrationBuild,
+      follow: !isDemonstrationBuild,
     },
   };
 }
@@ -81,6 +93,7 @@ export default async function LocaleLayout({
   return (
     <html className={`${martel.variable} ${mukta.variable}`} lang={locale}>
       <body className="flex min-h-dvh flex-col bg-paper">
+        <OrganizationJsonLd locale={locale} />
         <NextIntlClientProvider>
           <Header />
           <main className="flex-1" id="main">

@@ -1,6 +1,9 @@
 import { setRequestLocale } from 'next-intl/server';
 
 import { EventsView } from '@/components/organizations/EventsView';
+import { createRouteMetadata } from '@/lib/seo';
+
+export const generateMetadata = createRouteMetadata('/organizations/events');
 
 export default async function EventsPage({
   params,
