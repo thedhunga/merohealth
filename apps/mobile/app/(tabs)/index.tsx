@@ -30,7 +30,7 @@ export default function HomeScreen() {
     <Screen>
       <View style={styles.header}>
         <View style={styles.brandLockup}>
-          <LinearGradient colors={['#0C7C6E', '#07534C']} style={styles.mark}>
+          <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.mark}>
             <Text style={styles.markText}>म</Text>
           </LinearGradient>
           <View>
@@ -49,7 +49,7 @@ export default function HomeScreen() {
       </View>
 
       <LinearGradient
-        colors={['#0B7668', '#07514B', '#14384A']}
+        colors={[colors.primary, colors.primaryDeep, colors.primaryDark]}
         end={{ x: 1, y: 1 }}
         style={[styles.hero, wide && styles.heroWide]}
       >
@@ -93,8 +93,8 @@ export default function HomeScreen() {
           </View>
         </View>
         <View style={styles.contextCard}>
-          <View style={[styles.contextIcon, styles.contextIconBlue]}>
-            <MapPin color="#315D9D" size={19} />
+          <View style={[styles.contextIcon, styles.contextIconAlt]}>
+            <MapPin color={colors.info} size={19} />
           </View>
           <View style={styles.contextCopy}>
             <Text style={styles.contextLabel}>CARE NETWORK</Text>
@@ -126,7 +126,7 @@ export default function HomeScreen() {
             onPress={() => router.push('/(tabs)/twin')}
             subtitle="एक–एक कदममा आफ्नो स्वास्थ्य चित्र"
             title={t(language, 'record')}
-            tone="violet"
+            tone="jade"
           />
           <ActionCard
             badge="GUIDED PREVIEW"
@@ -134,7 +134,7 @@ export default function HomeScreen() {
             onPress={() => router.push('/(tabs)/learn')}
             subtitle="जाँच, तयारी र नतिजा बुझ्ने पाठ"
             title={t(language, 'lab')}
-            tone="blue"
+            tone="forest"
           />
         </View>
         <View style={styles.actionColumn}>
@@ -144,7 +144,7 @@ export default function HomeScreen() {
             onPress={() => router.push('/consultation')}
             subtitle="क्यामेरा र कल नियन्त्रण हेर्नुहोस्"
             title="भिडियोमा कुरा गर्नुहोस्"
-            tone="blue"
+            tone="forest"
           />
           <ActionCard
             badge="WORKFLOW PREVIEW"
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
   },
   heroWide: { alignItems: 'center', flexDirection: 'row', minHeight: 330, padding: spacing.xxl },
   heroRingOne: {
-    borderColor: 'rgba(181,235,220,.16)',
+    borderColor: 'rgba(169,223,201,.16)',
     borderRadius: 170,
     borderWidth: 1,
     height: 340,
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
     width: 340,
   },
   heroRingTwo: {
-    borderColor: 'rgba(255,226,170,.12)',
+    borderColor: 'rgba(244,166,42,.12)',
     borderRadius: 110,
     borderWidth: 1,
     height: 220,
@@ -259,13 +259,13 @@ const styles = StyleSheet.create({
     width: 220,
   },
   copy: { flex: 1, gap: spacing.sm, zIndex: 1 },
-  label: { color: '#9FDDCE', fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
+  label: { color: colors.mintStrong, fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
   title: { color: 'white', fontSize: 31, fontWeight: '900', letterSpacing: -0.8, lineHeight: 38 },
-  body: { color: '#D7ECE7', fontSize: 13, lineHeight: 21, maxWidth: 600 },
+  body: { color: colors.mint, fontSize: 13, lineHeight: 21, maxWidth: 600 },
   heroActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: spacing.sm },
   ask: {
     alignItems: 'center',
-    backgroundColor: '#DDF5EC',
+    backgroundColor: colors.mint,
     borderRadius: 15,
     flexDirection: 'row',
     gap: spacing.sm,
@@ -295,8 +295,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     paddingVertical: 7,
   },
-  voicePulse: { backgroundColor: '#7DE0C6', borderRadius: 4, height: 7, width: 7 },
-  voiceChipText: { color: '#DFF7F0', fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
+  voicePulse: { backgroundColor: colors.jadeBright, borderRadius: 4, height: 7, width: 7 },
+  voiceChipText: { color: colors.mint, fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
   contextRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   contextCard: {
     alignItems: 'center',
@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 44,
   },
-  contextIconBlue: { backgroundColor: '#E7EFFD' },
+  contextIconAlt: { backgroundColor: colors.mintFaint },
   contextCopy: { flex: 1 },
   contextLabel: { color: colors.muted, fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
   contextTitle: { color: colors.ink, fontSize: 12, fontWeight: '800', marginTop: 3 },
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
   actionsWide: { flexDirection: 'row' },
   actionColumn: { flex: 1, gap: spacing.md },
   healthStory: {
-    backgroundColor: '#EDE7F7',
+    backgroundColor: colors.mintFaint,
     borderRadius: radii.lg,
     gap: spacing.md,
     padding: spacing.xl,
@@ -338,16 +338,16 @@ const styles = StyleSheet.create({
   healthStoryWide: { alignItems: 'center', flexDirection: 'row' },
   healthStoryIcon: {
     alignItems: 'center',
-    backgroundColor: '#684092',
+    backgroundColor: colors.primary,
     borderRadius: 22,
     height: 60,
     justifyContent: 'center',
     width: 60,
   },
   healthStoryCopy: { flex: 1 },
-  healthStoryKicker: { color: '#684092', fontSize: 9, fontWeight: '900', letterSpacing: 1 },
-  healthStoryTitle: { color: '#352245', fontSize: 18, fontWeight: '900', marginTop: 5 },
-  healthStoryBody: { color: '#675A70', fontSize: 12, lineHeight: 18, marginTop: 6 },
+  healthStoryKicker: { color: colors.info, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  healthStoryTitle: { color: colors.ink, fontSize: 18, fontWeight: '900', marginTop: 5 },
+  healthStoryBody: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 6 },
   storyButton: {
     alignItems: 'center',
     backgroundColor: 'white',

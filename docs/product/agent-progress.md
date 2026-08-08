@@ -111,7 +111,7 @@ work.
       a visual rather than a wall of text.
 - [x] Responsive audit at 375px, 768px and 1280px. The oversized `.script-mark`
       and the hero grid are the likely breakages.
-- [ ] Sync the Expo app to the new palette: `apps/mobile/app/index.web.tsx` and
+- [x] Sync the Expo app to the new palette: `apps/mobile/app/index.web.tsx` and
       the tab screens still use the old teal styling directly rather than
       `@swasthya/configuration` tokens.
 
@@ -169,6 +169,70 @@ work.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-08 — Synced the Expo app to the new forest/jade/marigold identity,
+  the last item under "Visual system." This was the biggest single-task diff
+  so far: `apps/mobile/app/index.web.tsx` (the Expo Router web landing page,
+  served at `/` on web builds since it's a `.web.tsx` override of `index.tsx`)
+  had never been touched by the rebrand — over 100 hardcoded hex values, plus
+  a `#3659A8` blue and an `#EDE7F7`/`#684092` violet card scattered across it
+  and the tab screens, none routed through `@swasthya/configuration`.
+  Extended `colors` in `packages/configuration` with six new tokens
+  (`primaryDeep`, `primarySoft`, `mintFaint`, `jadeBright`, `saffronStrong`,
+  `saffronDeep`) that mirror shades already in `apps/web/src/styles/
+  globals.css` (forest-800/600, jade-50/400, marigold-600/700) but had no
+  mobile-side equivalent — the doc comment on `colors` already promises the
+  two stay mirrored. Every hardcoded hex in `index.web.tsx`, `src/components/
+  ui.tsx`, and all five `app/(tabs)/*.tsx` screens plus `consultation.tsx`
+  was replaced with a token; the only hex left are two identical neutral
+  greys (`#82918E` placeholder text, `#AAB8B5` a toggle-off track) that
+  aren't brand hues and were already consistent across files.
+  Three decisions worth recording:
+  1. **Marigold, spent once.** `index.web.tsx`'s hero CTA was solid teal
+     (`#0B6C61`) — under the new system that's the one marigold moment on the
+     screen (mirroring `apps/web`'s Hero CTA), so it's now `colors.saffron`
+     with dark text, and the nav's own CTA stays a solid forest pill so
+     marigold isn't spent twice in one viewport, same reasoning as the
+     header/mega-menu run's `inverse`-vs-`accent` call.
+  2. **Off-brand accent tones got renamed, not just recolored.**
+     `ui.tsx`'s `ActionCard` had `tone="blue"` and `tone="violet"` mapped to
+     literal blue/violet hex — recoloring the values to jade/forest tones
+     while keeping the names `blue`/`violet` would leave the prop lying
+     about what it renders, so they're renamed to `forest`/`jade` and the
+     one call site (`app/(tabs)/index.tsx`) updated to match.
+  3. **The three stock photos are gone, not recolored.** `companionImage`,
+     `bodyImage`, `careTeamImage` (`apps/mobile/assets/imagery/*.webp`) were
+     the exact same AI-generated, teal-styled photos the organisation-section
+     run already rejected and deleted from `apps/web` — a previous log entry
+     flagged these mobile-side duplicates as still pending. Recoloring a
+     photo isn't possible, and generating new photography of a "companion,"
+     a body, or a "Nepali doctor with patient and family" would mean
+     fabricating imagery of a person, which risks reading as a real
+     clinician or patient portrayal. Removed the `<Image>` elements and the
+     three files entirely; the hero visual and the two lower story panels
+     now use plain `LinearGradient` panels in forest tones instead — the
+     same treatment `index.web.tsx`'s own `bentoLead` panel already used
+     successfully with no photo at all. Confirmed no other file referenced
+     the three images before deleting them.
+  Verified with the full pipeline (install/lint/typecheck/test/build all
+  green, including `expo export --platform web`), then visually: served the
+  static export locally and drove it with headless Chromium (system
+  Playwright at `/opt/node22/lib/node_modules`, same approach as prior visual
+  runs) at 375px and 1280px. Checked the homepage hero (marigold CTA reads
+  correctly, gradient hero panel with floating voice/AI/doctor cards has no
+  leftover photo), the service-card grid (four light tones — mint, a faint
+  jade, warm paper, soft marigold — no blue or violet), the consultation
+  preview room (fully forest/jade now, no navy-blue gradient), and — most
+  importantly — the emergency safety-interrupt screen in the companion tab,
+  which still renders correctly in `colors.danger` red and was completely
+  unaffected by this change, confirming `clinical-safety`'s interception
+  wasn't touched.
+
+  **For the next run:** the Visual system section is now fully checked. The
+  queue moves into "Marketing site," starting with shared page templates
+  (hero/section/CTA pair for condition and segment pages) — `SectionIntro`
+  from two runs ago is the opening-section half of that; the template pair
+  still needs building before the ~35 remaining routes can be content-only.
 
 - 2026-08-08 — Responsive audit at 375px, 768px and 1280px, both locales.
   Found one real horizontal-overflow bug and confirmed the two components the

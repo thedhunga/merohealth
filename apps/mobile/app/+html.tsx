@@ -1,5 +1,6 @@
 import { ScrollViewStyleReset } from 'expo-router/html';
 import type { PropsWithChildren } from 'react';
+import { colors } from '@swasthya/configuration';
 
 const description =
   'A calm, multilingual health companion for asking questions, understanding health information, and finding the right care.';
@@ -13,7 +14,7 @@ export default function Root({ children }: PropsWithChildren) {
           name="viewport"
           content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover"
         />
-        <meta name="theme-color" content="#083F3B" />
+        <meta name="theme-color" content={colors.primary} />
         <meta name="description" content={description} />
         <meta property="og:type" content="website" />
         <meta property="og:title" content="Mero Health - Your health, in your language" />

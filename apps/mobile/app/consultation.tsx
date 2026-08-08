@@ -58,7 +58,10 @@ export default function ConsultationPreviewScreen() {
   };
 
   return (
-    <LinearGradient colors={['#071F25', '#0B3136', '#112B42']} style={styles.background}>
+    <LinearGradient
+      colors={[colors.primaryDark, colors.primaryDeep, colors.primaryDark]}
+      style={styles.background}
+    >
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <View style={styles.topbar}>
           <Pressable accessibilityLabel="Go back" onPress={() => router.back()} style={styles.back}>
@@ -69,18 +72,21 @@ export default function ConsultationPreviewScreen() {
             <Text style={styles.roomTitle}>Consultation experience</Text>
           </View>
           <View style={styles.secure}>
-            <LockKeyhole color="#8CE3CF" size={15} />
+            <LockKeyhole color={colors.jadeBright} size={15} />
             <Text style={styles.secureText}>No call is connected</Text>
           </View>
         </View>
 
         <View style={[styles.stage, wide && styles.stageWide]}>
           <View style={styles.remoteTile}>
-            <LinearGradient colors={['#164B4A', '#183856']} style={styles.remoteGradient}>
+            <LinearGradient
+              colors={[colors.primary, colors.primaryDeep]}
+              style={styles.remoteGradient}
+            >
               <View style={styles.constellationOne} />
               <View style={styles.constellationTwo} />
               <View style={styles.clinicianAvatar}>
-                <Stethoscope color="#083F3B" size={46} strokeWidth={1.7} />
+                <Stethoscope color={colors.primaryDark} size={46} strokeWidth={1.7} />
               </View>
               <Text style={styles.remoteKicker}>CLINICIAN PARTICIPANT</Text>
               <Text style={styles.remoteTitle}>A verified professional would appear here.</Text>
@@ -89,7 +95,7 @@ export default function ConsultationPreviewScreen() {
                 contact a clinician, or transmit health information.
               </Text>
               <View style={styles.waitingChip}>
-                <Users color="#B9ECDF" size={16} />
+                <Users color={colors.mintStrong} size={16} />
                 <Text style={styles.waitingText}>
                   {started ? 'Preview session active' : 'Ready when you are'}
                 </Text>
@@ -101,7 +107,10 @@ export default function ConsultationPreviewScreen() {
             {cameraOn && permission?.granted ? (
               <CameraView active={cameraOn} facing="front" mirror style={StyleSheet.absoluteFill} />
             ) : (
-              <LinearGradient colors={['#DFF4ED', '#B7DCD5']} style={styles.cameraPlaceholder}>
+              <LinearGradient
+                colors={[colors.mint, colors.mintStrong]}
+                style={styles.cameraPlaceholder}
+              >
                 <View style={styles.cameraIcon}>
                   <CameraOff color={colors.primaryDark} size={30} />
                 </View>
@@ -117,7 +126,7 @@ export default function ConsultationPreviewScreen() {
 
         {captionsOn ? (
           <View accessibilityLiveRegion="polite" style={styles.captionBar}>
-            <Captions color="#8CE3CF" size={18} />
+            <Captions color={colors.jadeBright} size={18} />
             <Text style={styles.captionText}>
               Live captions will appear here when a secure video provider is configured.
             </Text>
@@ -126,7 +135,7 @@ export default function ConsultationPreviewScreen() {
 
         <View style={styles.statusRow}>
           <View style={styles.safetyStatus}>
-            <ShieldCheck color="#8CE3CF" size={18} />
+            <ShieldCheck color={colors.jadeBright} size={18} />
             <Text style={styles.safetyText}>Consent and participant authorization required</Text>
           </View>
           <Text style={styles.timer}>{started ? timerLabel : 'PREVIEW'}</Text>
@@ -161,7 +170,7 @@ export default function ConsultationPreviewScreen() {
 
           {!started ? (
             <Pressable onPress={() => setStarted(true)} style={styles.startButton}>
-              <Camera color="#083F3B" size={20} />
+              <Camera color={colors.primaryDark} size={20} />
               <Text style={styles.startText}>Start private preview</Text>
             </Pressable>
           ) : (
@@ -204,7 +213,7 @@ const styles = StyleSheet.create({
     width: 48,
   },
   roomMeta: { flex: 1 },
-  roomEyebrow: { color: '#8BCDC0', fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  roomEyebrow: { color: colors.mintStrong, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
   roomTitle: { color: 'white', fontSize: 19, fontWeight: '900', marginTop: 3 },
   secure: {
     alignItems: 'center',
@@ -215,7 +224,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 9,
   },
-  secureText: { color: '#D9F3EC', fontSize: 10, fontWeight: '800' },
+  secureText: { color: colors.mint, fontSize: 10, fontWeight: '800' },
   stage: { alignSelf: 'center', flex: 1, gap: spacing.md, maxWidth: 1200, width: '100%' },
   stageWide: { flexDirection: 'row' },
   remoteTile: { borderRadius: 28, flex: 1.7, minHeight: 430, overflow: 'hidden' },
@@ -228,7 +237,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   constellationOne: {
-    borderColor: 'rgba(174,232,218,.12)',
+    borderColor: 'rgba(169,223,201,.12)',
     borderRadius: 200,
     borderWidth: 1,
     height: 400,
@@ -238,7 +247,7 @@ const styles = StyleSheet.create({
     width: 400,
   },
   constellationTwo: {
-    borderColor: 'rgba(255,223,161,.1)',
+    borderColor: 'rgba(244,166,42,.1)',
     borderRadius: 150,
     borderWidth: 1,
     bottom: -130,
@@ -249,7 +258,7 @@ const styles = StyleSheet.create({
   },
   clinicianAvatar: {
     alignItems: 'center',
-    backgroundColor: '#C7EFE4',
+    backgroundColor: colors.mintStrong,
     borderColor: 'rgba(255,255,255,.8)',
     borderRadius: 48,
     borderWidth: 5,
@@ -258,7 +267,7 @@ const styles = StyleSheet.create({
     width: 96,
   },
   remoteKicker: {
-    color: '#8ED8C7',
+    color: colors.mintStrong,
     fontSize: 9,
     fontWeight: '900',
     letterSpacing: 1.2,
@@ -273,7 +282,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   remoteBody: {
-    color: '#CAE1DF',
+    color: colors.mint,
     fontSize: 13,
     lineHeight: 20,
     marginTop: 12,
@@ -283,7 +292,7 @@ const styles = StyleSheet.create({
   waitingChip: {
     alignItems: 'center',
     backgroundColor: 'rgba(6,38,40,.68)',
-    borderColor: 'rgba(185,236,223,.18)',
+    borderColor: 'rgba(169,223,201,.18)',
     borderRadius: 999,
     borderWidth: 1,
     flexDirection: 'row',
@@ -292,9 +301,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     paddingVertical: 9,
   },
-  waitingText: { color: '#DDF6EF', fontSize: 10, fontWeight: '800' },
+  waitingText: { color: colors.mint, fontSize: 10, fontWeight: '800' },
   localTile: {
-    backgroundColor: '#DFF4ED',
+    backgroundColor: colors.mint,
     borderColor: 'rgba(255,255,255,.15)',
     borderRadius: 28,
     borderWidth: 1,
@@ -313,8 +322,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 74,
   },
-  cameraTitle: { color: '#123C39', fontSize: 17, fontWeight: '900', marginTop: 16 },
-  cameraBody: { color: '#5B7470', fontSize: 11, marginTop: 5 },
+  cameraTitle: { color: colors.ink, fontSize: 17, fontWeight: '900', marginTop: 16 },
+  cameraBody: { color: colors.muted, fontSize: 11, marginTop: 5 },
   youBadge: {
     backgroundColor: 'rgba(5,33,36,.78)',
     borderRadius: 999,
@@ -348,8 +357,8 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   safetyStatus: { alignItems: 'center', flexDirection: 'row', gap: 8 },
-  safetyText: { color: '#B9D7D3', fontSize: 10, fontWeight: '700' },
-  timer: { color: '#B9D7D3', fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
+  safetyText: { color: colors.mintStrong, fontSize: 10, fontWeight: '700' },
+  timer: { color: colors.mintStrong, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
   controls: {
     alignItems: 'center',
     alignSelf: 'center',
@@ -370,21 +379,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 52,
   },
-  controlOff: { backgroundColor: '#4D5960' },
-  controlSelected: { backgroundColor: '#0A7B6D' },
+  controlOff: { backgroundColor: colors.primaryDeep },
+  controlSelected: { backgroundColor: colors.primary },
   startButton: {
     alignItems: 'center',
-    backgroundColor: '#BFEBDD',
+    backgroundColor: colors.mintStrong,
     borderRadius: 20,
     flexDirection: 'row',
     gap: 9,
     minHeight: 52,
     paddingHorizontal: 18,
   },
-  startText: { color: '#083F3B', fontSize: 12, fontWeight: '900' },
+  startText: { color: colors.primaryDark, fontSize: 12, fontWeight: '900' },
   endButton: {
     alignItems: 'center',
-    backgroundColor: '#D4483F',
+    backgroundColor: colors.danger,
     borderRadius: 20,
     flexDirection: 'row',
     gap: 8,
@@ -392,5 +401,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 19,
   },
   endText: { color: 'white', fontSize: 12, fontWeight: '900' },
-  disclaimer: { color: '#7EA09E', fontSize: 9, marginTop: spacing.md, textAlign: 'center' },
+  disclaimer: { color: colors.mint, fontSize: 9, marginTop: spacing.md, textAlign: 'center' },
 });

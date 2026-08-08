@@ -23,19 +23,19 @@ const walkthroughSteps = [
     eyebrow: 'STEP 1 · ASK',
     title: 'आफ्नो कुरा आवाज वा शब्दमा भन्नुहोस्',
     body: 'मुख्य कुरा मात्र सुरुमा भन्नुहोस्। साथीले आवश्यक परे एक–एक छोटो प्रश्न सोध्छ।',
-    accent: '#8FE0CA',
+    accent: colors.jadeBright,
   },
   {
     eyebrow: 'STEP 2 · UNDERSTAND',
     title: 'सुरक्षा संकेत पहिले हेरिन्छ',
     body: 'गम्भीर संकेत भेटिए सामान्य कुराकानी रोकिन्छ र तुरुन्त सहायता खोज्ने बाटो देखाइन्छ।',
-    accent: '#FFD78A',
+    accent: colors.saffron,
   },
   {
     eyebrow: 'STEP 3 · CONNECT',
     title: 'उपयुक्त सेवा रोज्नुहोस्',
     body: 'डाक्टर, अस्पताल, ल्याब वा घरमै सेवा—स्रोत र ताजापन देखिने गरी खोज्नुहोस्।',
-    accent: '#AFC8FF',
+    accent: colors.mintStrong,
   },
 ];
 
@@ -84,7 +84,11 @@ export default function LearnScreen() {
         title="एप कसरी चलाउने"
       />
 
-      <LinearGradient colors={['#0C5E57', '#12344A']} end={{ x: 1, y: 1 }} style={styles.player}>
+      <LinearGradient
+        colors={[colors.primary, colors.primaryDark]}
+        end={{ x: 1, y: 1 }}
+        style={styles.player}
+      >
         <View style={styles.playerGlow} />
         <View style={styles.playerHeader}>
           <View style={styles.playerBadge}>
@@ -183,7 +187,7 @@ export default function LearnScreen() {
                 onPress={() => setExpanded(open ? null : lesson.id)}
                 style={styles.lessonTop}
               >
-                <LinearGradient colors={['#0B7668', '#123B4B']} style={styles.poster}>
+                <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.poster}>
                   <Text style={styles.number}>{index + 1}</Text>
                   <View style={styles.lessonPlay}>
                     {open ? (
@@ -249,7 +253,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   playerGlow: {
-    backgroundColor: 'rgba(129,226,201,.11)',
+    backgroundColor: 'rgba(169,223,201,.11)',
     borderRadius: 190,
     height: 380,
     position: 'absolute',
@@ -268,8 +272,8 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   playerDot: { borderRadius: 4, height: 7, width: 7 },
-  playerBadgeText: { color: '#DFF6EF', fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
-  playerCounter: { color: '#A8C9C5', fontSize: 10, fontWeight: '900' },
+  playerBadgeText: { color: colors.mint, fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
+  playerCounter: { color: colors.mintStrong, fontSize: 10, fontWeight: '900' },
   playerStage: {
     alignItems: 'center',
     flex: 1,
@@ -289,7 +293,7 @@ const styles = StyleSheet.create({
   stepEyebrow: { fontSize: 9, fontWeight: '900', letterSpacing: 1, marginTop: 20 },
   stepTitle: { color: 'white', fontSize: 24, fontWeight: '900', marginTop: 9, textAlign: 'center' },
   stepBody: {
-    color: '#CDE2DF',
+    color: colors.mint,
     fontSize: 13,
     lineHeight: 20,
     marginTop: 10,
@@ -302,11 +306,11 @@ const styles = StyleSheet.create({
     height: 6,
     overflow: 'hidden',
   },
-  progressFill: { backgroundColor: '#8FE0CA', height: 6 },
+  progressFill: { backgroundColor: colors.jadeBright, height: 6 },
   playerControls: { alignItems: 'center', flexDirection: 'row', gap: 9, marginTop: spacing.lg },
   playButton: {
     alignItems: 'center',
-    backgroundColor: '#DDF5EC',
+    backgroundColor: colors.mint,
     borderRadius: 15,
     flexDirection: 'row',
     gap: 8,
@@ -341,7 +345,7 @@ const styles = StyleSheet.create({
   knob: { backgroundColor: 'white', borderRadius: 11, height: 22, width: 22 },
   knobOn: { marginLeft: 20 },
   notice: {
-    backgroundColor: '#EAF2FB',
+    backgroundColor: colors.mintFaint,
     borderRadius: radii.lg,
     flexDirection: 'row',
     gap: spacing.md,

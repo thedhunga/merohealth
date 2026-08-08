@@ -29,10 +29,26 @@ export const colors = {
   surface: '#FFFCF7',
   primary: '#0B4F3A',
   primaryDark: '#07231A',
+  // forest-800: one shade darker than `primary`, for chrome (headers, dark
+  // bands, nested panels) that sits under a `primary` surface — mirrors
+  // apps/web's bg-forest-800 header treatment.
+  primaryDeep: '#0A3628',
+  // forest-600: a shade lighter than `primary`, for hover/active states on a
+  // paper ground where `primary` itself would be too close to unstyled.
+  primarySoft: '#0F6A4D',
   mint: '#D8F0E5',
   mintStrong: '#A9DFC9',
+  // jade-50: near-white jade tint, for text that must read almost white but
+  // still carry the brand hue.
+  mintFaint: '#EEFAF4',
+  // jade-400: a punchier jade than `info`, for icons and status dots that
+  // need to read clearly against a dark forest ground.
+  jadeBright: '#2FB287',
   saffron: '#F4A62A',
   saffronSoft: '#FDF0D8',
+  // marigold-700: dark marigold for labels on a light ground, where
+  // `saffron` itself would fail contrast.
+  saffronDeep: '#9A5C08',
   danger: '#B42318',
   dangerSoft: '#FEE4E2',
   info: '#17916B',

@@ -335,7 +335,7 @@ export default function CompanionScreen() {
                   </Pressable>
                 )}
                 <View style={styles.warning}>
-                  <AlertTriangle color="#8A5A00" size={18} />
+                  <AlertTriangle color={colors.saffronDeep} size={18} />
                   <Text style={styles.warningText}>
                     {research?.disclaimer ??
                       'General information only—not a diagnosis or treatment recommendation. See a qualified clinician for new or worsening symptoms.'}
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
   stepLabel: { color: colors.primary, fontSize: 9, fontWeight: '900', letterSpacing: 0.9 },
   question: { color: colors.ink, fontSize: 24, fontWeight: '900', marginTop: 5 },
   input: {
-    backgroundColor: '#FAFCF9',
+    backgroundColor: colors.surface,
     borderColor: colors.line,
     borderRadius: radii.md,
     borderWidth: 1,
@@ -457,7 +457,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.xl,
   },
-  emergencyKicker: { color: '#FFD7D3', fontSize: 11, fontWeight: '900' },
+  emergencyKicker: { color: colors.dangerSoft, fontSize: 11, fontWeight: '900' },
   emergencyTitle: { color: 'white', fontSize: 30, fontWeight: '900' },
   emergencyBody: { color: 'white', fontSize: 16, lineHeight: 25 },
   emergencyButton: {
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
     minHeight: 52,
   },
   emergencyButtonText: { color: colors.danger, fontWeight: '900' },
-  emergencyNote: { color: '#FFD7D3', fontSize: 11 },
+  emergencyNote: { color: colors.dangerSoft, fontSize: 11 },
   answerHead: { alignItems: 'center', flexDirection: 'row', gap: spacing.md },
   answerHeadCopy: { flex: 1 },
   answer: { color: colors.ink, fontSize: 15, lineHeight: 24 },
@@ -479,9 +479,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.md,
   },
-  warningText: { color: '#6F4800', flex: 1, fontSize: 13, lineHeight: 20 },
+  warningText: { color: colors.saffronDeep, flex: 1, fontSize: 13, lineHeight: 20 },
   source: {
-    backgroundColor: '#EAF2FB',
+    backgroundColor: colors.mintFaint,
     borderRadius: radii.md,
     flexDirection: 'row',
     gap: spacing.md,
@@ -503,7 +503,7 @@ const styles = StyleSheet.create({
   citationHeading: { color: colors.ink, fontSize: 13, fontWeight: '900' },
   citation: {
     alignItems: 'center',
-    backgroundColor: '#F4F8FC',
+    backgroundColor: colors.mintFaint,
     borderRadius: 13,
     flexDirection: 'row',
     gap: spacing.sm,
@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
   perplexityButton: {
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: '#194F4C',
+    backgroundColor: colors.primaryDark,
     borderRadius: radii.md,
     flexDirection: 'row',
     gap: spacing.sm,
