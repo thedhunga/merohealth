@@ -83,7 +83,10 @@ export function Header() {
 
   return (
     <header
-      className="sticky top-0 z-50 border-b border-line bg-white/95 backdrop-blur-sm"
+      // Forest chrome book-ends the paper content: the footer is already
+      // `bg-forest-800`, so the header matches it rather than the paler
+      // `forest-700` Hero panel underneath, keeping the two distinct.
+      className="sticky top-0 z-50 bg-forest-800 text-white"
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node)) closeAll();
       }}
@@ -91,14 +94,14 @@ export function Header() {
       ref={headerRef}
     >
       <a
-        className="sr-only rounded-md bg-forest-700 px-4 py-2 text-white focus:not-sr-only focus:absolute focus:start-4 focus:top-3 focus:z-10"
+        className="sr-only rounded-md bg-white px-4 py-2 font-semibold text-forest-700 focus:not-sr-only focus:absolute focus:start-4 focus:top-3 focus:z-10"
         href="#main"
       >
         {t('skipToContent')}
       </a>
 
       <div className="container-site flex h-20 items-center justify-between gap-4">
-        <Logo />
+        <Logo tone="light" />
 
         <nav aria-label={t('primaryLabel')} className="hidden lg:block">
           <ul className="flex items-center gap-1">
@@ -113,7 +116,9 @@ export function Header() {
                     aria-expanded={expanded}
                     className={cn(
                       'inline-flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-[0.9375rem] font-semibold transition-colors',
-                      expanded ? 'bg-jade-50 text-forest-700' : 'text-ink hover:bg-sand',
+                      expanded
+                        ? 'bg-white text-forest-700'
+                        : 'text-jade-100 hover:bg-white/10 hover:text-white',
                     )}
                     onClick={() => {
                       cancelClose();
@@ -142,11 +147,16 @@ export function Header() {
         </nav>
 
         <div className="hidden items-center gap-3 lg:flex">
-          <LocaleSwitcher />
-          <ButtonLink href="/signin" variant="ghost">
+          <LocaleSwitcher tone="light" />
+          <ButtonLink href="/signin" variant="ghostOnDark">
             {t('actions.signIn')}
           </ButtonLink>
-          <ButtonLink href="/register" variant="primary">
+          {/*
+            `inverse`, not `accent`: Hero's primary CTA is already marigold
+            and sits in the same viewport on the homepage, so a second
+            marigold button here would spend the accent twice on one screen.
+          */}
+          <ButtonLink href="/register" variant="inverse">
             {t('actions.register')}
           </ButtonLink>
         </div>
@@ -155,7 +165,7 @@ export function Header() {
           aria-controls="mobile-drawer"
           aria-expanded={mobileOpen}
           aria-label={mobileOpen ? t('actions.closeMenu') : t('actions.openMenu')}
-          className="grid size-11 place-items-center rounded-lg text-ink hover:bg-sand lg:hidden"
+          className="grid size-11 place-items-center rounded-lg text-white hover:bg-white/10 lg:hidden"
           onClick={() => {
             setMobileOpen((value) => !value);
           }}
@@ -181,7 +191,7 @@ export function Header() {
 
       {mobileOpen ? (
         <div
-          className="fixed inset-x-0 top-20 bottom-0 z-40 overflow-y-auto border-t border-line bg-white lg:hidden"
+          className="fixed inset-x-0 top-20 bottom-0 z-40 overflow-y-auto bg-paper shadow-menu lg:hidden"
           id="mobile-drawer"
         >
           <div className="container-site pt-4">

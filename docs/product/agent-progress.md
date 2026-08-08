@@ -105,7 +105,7 @@ work.
 - [x] Rework the organisation section: full-bleed forest ground, artwork per
       tab, and stat slots that look deliberate while the figures are still
       em-dashes.
-- [ ] Give the header and mega-menu the new identity — the panel is still
+- [x] Give the header and mega-menu the new identity — the panel is still
       styled from the old system and now feels bolted on.
 - [ ] A reusable `SectionIntro` + artwork layout so every inner page opens with
       a visual rather than a wall of text.
@@ -169,6 +169,53 @@ work.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-08 — Gave the header (`Header.tsx`) and mega-menu (`MegaMenu.tsx`)
+  the new identity, replacing the old `bg-white/95 backdrop-blur-sm` bar and
+  its flat `border-t border-line bg-white` dropdown. `Footer.tsx` was already
+  `bg-forest-800`, so the header now matches it — the two dark chrome pieces
+  book-end the paper content, rather than a plain white bar sitting on top of
+  a page that no longer looks like it. `Header` is `bg-forest-800`, one shade
+  darker than `Hero`'s `forest-700` panel and matching `Hero`'s own
+  `forest-900` announcement strip immediately below it, so the stack reads as
+  deliberate layered depth instead of a flat wall of one green. `Logo` and
+  `LocaleSwitcher` already had a `tone` prop from an earlier pass and just
+  needed `tone="light"` wired through — no changes needed inside either
+  component. The mega-menu panel dropped its `border-t border-line` (the
+  exact "bolted on" hairline the task called out) and now reads as a white
+  card popped forward off the forest header, the same language
+  `OrganizationTabs`'s white content card already established; `shadow-menu`
+  alone carries the elevation, no border needed since the colour change from
+  the header is the boundary.
+  One real decision, not just restyling: the header's "Register" CTA was
+  `variant="primary"` (`bg-forest-700 text-white`), which is invisible against
+  a forest ground — it needed a dark-ground variant regardless. It would have
+  been easy to reach for `accent` (marigold) since that's the "primary
+  button" instinct, but Hero's own CTA is already marigold and sits in the
+  same viewport as the header on the homepage, so a second marigold button
+  would spend the accent twice on one screen, against the explicit "spend it
+  once" rule. Used `variant="inverse"` (solid white pill) instead. "Sign in"
+  needed a text-only style for a dark ground that didn't exist yet —
+  `ghost` (`text-forest-700 hover:bg-jade-50`) only works on paper — so added
+  one new `Button` variant, `ghostOnDark`
+  (`text-jade-100 hover:bg-white/10 hover:text-white`), mirroring the
+  existing `ghost`/`onDark` pairing rather than inlining one-off classes.
+  Verified with headless Chromium (system Playwright, same approach as the
+  organisation-section run) against the production build on both locales: the
+  header, an open mega-menu (hover, not click — clicking a second time closes
+  it, which is correct existing behaviour, not a regression), the mobile
+  drawer, and the 375px viewport all render correctly with no clipped
+  Devanagari or layout breaks. No copy changed, so no message-file edits.
+  `MobileNav.tsx`'s own content was left untouched — it already sits on a
+  paper ground inside the drawer and already uses current-system tokens
+  (`primary`/`secondary` buttons, default-tone `LocaleSwitcher`), so nothing
+  there was "bolted on." All green (install/lint/typecheck/test/build).
+
+  **For the next run:** the queue's next unchecked item is a reusable
+  `SectionIntro` + artwork layout for inner pages. Note for whoever picks
+  that up: inner pages will land under a header that's now a solid forest
+  bar on every route, not just the homepage — plan each page's opening
+  section (or lack of a forest hero) with that fixed dark chrome in mind.
 
 - 2026-08-08 — Reworked the organisation section (`OrganizationTabs.tsx`) onto
   a full-bleed forest ground (`bg-forest-700`, matching `Hero`'s panel), with

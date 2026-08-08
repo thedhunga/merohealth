@@ -23,7 +23,10 @@ export function MegaMenu({ segment, onNavigate, panelId }: MegaMenuProps) {
 
   return (
     <div
-      className="border-t border-line bg-white shadow-menu"
+      // Popped forward off the forest header, the same "white card on a dark
+      // ground" language `OrganizationTabs` uses — no hairline border needed
+      // since the colour change from the header is already the boundary.
+      className="bg-white shadow-menu"
       id={panelId}
       // The panel is a region rather than a menu: it holds links, not commands.
       role="region"

@@ -9,7 +9,8 @@ export type ButtonVariant =
   | 'secondary'
   | 'inverse'
   | 'onDark'
-  | 'ghost';
+  | 'ghost'
+  | 'ghostOnDark';
 export type ButtonSize = 'md' | 'lg';
 
 const base =
@@ -24,6 +25,7 @@ const variants: Record<ButtonVariant, string> = {
   inverse: 'bg-white text-forest-700 hover:bg-jade-50',
   onDark: 'bg-white/10 text-white ring-1 ring-inset ring-white/25 hover:bg-white/20',
   ghost: 'text-forest-700 hover:bg-jade-50',
+  ghostOnDark: 'text-jade-100 hover:bg-white/10 hover:text-white',
 };
 
 const sizes: Record<ButtonSize, string> = {
