@@ -570,5 +570,96 @@
         }
       }
     }
+  },
+  "organizations": {
+    "contactCta": "Talk to our team",
+    "cta": {
+      "heading": "Ready to bring Mero Health to your organisation?",
+      "body": "Tell us about your members, employees or patients, and we'll help you figure out where to start.",
+      "primaryCta": "Talk to our team",
+      "secondaryCta": "Explore the resource center"
+    },
+    "employers": {
+      "sections": {
+        "integratedCare": {
+          "body": "Employees reach primary care, mental health support and chronic condition management in one Nepali-first place, instead of juggling a separate provider for each."
+        },
+        "care247Org": {
+          "body": "Whether it's a night shift or a weekend, employees can reach a clinician or the Nepali assistant without waiting for the next working day."
+        },
+        "chronicCare": {
+          "body": "Ongoing conditions like diabetes and hypertension get continuous support between visits, not just a once-a-year check-up."
+        }
+      }
+    },
+    "healthPlans": {
+      "sections": {
+        "integratedCare": {
+          "body": "Members reach primary care, mental health support and chronic condition management in one Nepali-first place, so fewer visits get routed to the wrong service."
+        },
+        "chronicCare": {
+          "body": "Members managing diabetes, hypertension or their weight get continuous support between visits — where most avoidable complications start."
+        }
+      }
+    },
+    "hospitals": {
+      "sections": {
+        "virtualCarePlatform": {
+          "body": "Your team's own capability extends beyond your walls — a Nepali-first virtual visit and assistant platform reaches patients wherever they are."
+        },
+        "emergencyServices": {
+          "body": "A deterministic safety layer runs ahead of every assistant response and recognises signs of an emergency, directing the person toward urgent care immediately rather than waiting on a model to decide."
+        },
+        "inpatientOutpatient": {
+          "body": "Discharge summaries and follow-up plans stay in a record the patient controls, so outpatient follow-up after a stay doesn't start from zero."
+        }
+      }
+    },
+    "ourApproach": {
+      "hero": {
+        "title": "Nepali-first, not Nepali-translated",
+        "body": "We build for the language, the record-keeping habits and the storage choices that make sense here, rather than adapting a platform built for somewhere else."
+      },
+      "highlightsHeading": "How we work with you",
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Nepali by default, not an afterthought",
+            "body": "The assistant and the entire experience default to Nepali. English is a toggle away, not the other way around."
+          },
+          "two": {
+            "title": "The person keeps their own record",
+            "body": "Every health document belongs to the person it's about, stored in their own Google Drive or in Mero Health's storage — their choice, and changeable."
+          },
+          "three": {
+            "title": "Safety runs before the model, every time",
+            "body": "A deterministic safety check intercepts every assistant response before it's shown, so urgent situations are caught by rules, not by a language model's judgement."
+          }
+        }
+      }
+    },
+    "partners": {
+      "hero": {
+        "title": "Partnerships in progress",
+        "body": "We're building relationships with health plans, employers, hospitals and clinics across Nepal — each shown here only once a real agreement is signed and confirmed."
+      }
+    },
+    "resourceCenter": {
+      "hero": {
+        "title": "Resources by organisation type",
+        "body": "Explore what Mero Health offers health plans, employers, and hospitals and health systems — pick where you fit to see the details."
+      },
+      "gridHeading": "Explore by organisation type"
+    },
+    "events": {
+      "hero": {
+        "title": "Where we'll be next",
+        "body": "Webinars, briefings and in-person sessions for health plans, employers and hospital partners — announced here as they're scheduled."
+      },
+      "emptyState": {
+        "heading": "Nothing scheduled yet",
+        "body": "Check back soon, or talk to our team if you'd like to host or co-host a session with us."
+      }
+    }
   }
 }

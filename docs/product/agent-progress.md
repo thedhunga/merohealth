@@ -126,7 +126,7 @@ work.
       `diabetes-prevention`, `dermatology`, `expert-medical-opinion`, `sleep`.
 - [x] Individuals utility routes: `how-it-works`, `without-insurance`, `faqs`
       (with FAQ schema.org markup).
-- [ ] Organizations routes: `employers`, `health-plans`,
+- [x] Organizations routes: `employers`, `health-plans`,
       `hospitals-health-systems`, `our-approach`, `partners`,
       `resource-center`, `events`.
 - [ ] Clinicians routes: `our-providers`, `clinical-leadership`, `careers`,
@@ -169,6 +169,118 @@ work.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-08 — Built the seven Organizations routes: `employers`,
+  `health-plans`, `hospitals-health-systems`, `our-approach`, `partners`,
+  `resource-center`, `events`. Three different content shapes, not one,
+  because the routes genuinely aren't the same kind of page:
+
+  **`employers`/`health-plans`/`hospitals-health-systems` (new `kind:
+  'partner'` in `content/organizations.ts`).** These three already had art
+  and hero copy — `organizationTabs` in `content/home.ts` (used by the
+  homepage `OrganizationTabs` tab panel) already carries each type's `Art`,
+  `title` and `body`. Per the previous run's note, this run's
+  `OrganizationPartnerView` pulls the hero straight from
+  `home.organizations.tabs.<key>` instead of writing a second, competing
+  hero — the homepage teaser and the dedicated page describe the same
+  organisation type and must not drift apart. The genuinely new work is the
+  anchored capability sections: `content/navigation.ts`'s mega-menu already
+  links to `#integrated-care`, `#always-on-care`, `#chronic-care` (employers),
+  `#integrated-care`, `#chronic-care` (health plans), and `#platform`,
+  `#emergency`, `#inpatient-outpatient` (hospitals) — all of which 404'd
+  past the hash before this run since the pages themselves didn't exist.
+  Each section is a `Section` with `id={anchorId}` so those links now
+  actually land, headed by the same `nav.items.<key>` string the mega-menu
+  already uses (no duplicate heading copy), with new section body copy
+  added under `organizations.<key>.sections.<navKey>.body`.
+  **Content grounding for these six section bodies, the highest-risk copy
+  in this run:** each one restates a fact already established elsewhere
+  rather than describing new capability. "Integrated Care" and "Chronic
+  Care" just point at the already-built individuals condition pages
+  (primary care, mental health, chronic condition management). "24/7 Care"
+  restates `home.services.care247`. "Virtual Care Platform" restates the
+  hospitals tab's own existing body ("extend your own service with virtual
+  reach"). "Emergency Services" describes `clinical-safety`'s actual,
+  already-standing behaviour — a deterministic check ahead of every
+  assistant response — not a claim of ER/hospital-system integration, which
+  doesn't exist. "Inpatient & Outpatient Services" restates the
+  `health-records` capture pillar (discharge summaries specifically, which
+  `platform-vision.md` §3.2 already names) rather than inventing a
+  discharge-integration feature. None of the six describe FHIR interop or
+  hospital system integration (Tier 4, explicitly not yet built) as live.
+
+  **`our-approach` (new `OurApproachView`).** Single-topic, so it reuses the
+  Individuals condition-page shape: hero + a three-item `Highlights` list,
+  same component `IndividualsPageView` already uses. All three highlights
+  restate standing constraints verbatim in marketing voice (Nepali-by-
+  default, the person keeps their own record via BYO storage, the
+  deterministic safety check ahead of the model) — deliberately the
+  safest copy in this run, since it's paraphrasing the constraints file
+  itself rather than deriving anything new.
+
+  **`partners` (new `PartnersView`).** Reuses `partnerPlaceholders` and the
+  entire `home.partners` namespace (`heading`, `body`, `placeholderNote`)
+  verbatim rather than writing a second disclaimer — the homepage marquee
+  and this dedicated directory describe the exact same "no signed partners
+  yet" state, and a second copy of that disclaimer risks drifting from the
+  first. New copy is only the hero, and it was deliberately written to not
+  imply live partnerships ("Partnerships in progress" / "each shown here
+  only once a real agreement is signed and confirmed") rather than
+  "Our partners," which the actual state (zero signed agreements, per
+  `home.partners.body`) would make false.
+
+  **`resource-center` (new `ResourceCenterView`).** No resource library
+  exists — the separate, consumer-facing "Health library" queue item is
+  further down and unbuilt — so rather than inventing articles this routes
+  to the three organisation-type pages via `FeatureGrid`, reusing
+  `organizationTabs`' `label`/`body` translations again rather than a third
+  copy of the same three descriptions.
+
+  **`events` (new `EventsView`).** No events exist, so this is an honest
+  empty state ("Nothing scheduled yet") rather than fabricated listings —
+  the same instinct behind `organizationTabs`'s em-dash stats, applied to a
+  page instead of a stat slot.
+
+  All seven share one `organizations.cta` CTA band (`primaryCta` → `/contact`,
+  `secondaryCta` → `/organizations/resource-center`, except
+  `resource-center`'s own band, which points its secondary link at
+  `/organizations/our-approach` instead of itself). `/contact` is not yet
+  built — tracked under the still-unchecked "Company routes" item — but it's
+  already referenced by the footer and mega-menu today, so this isn't a new
+  gap, matching the precedent already set for `/register`/`/app`/`/get-care`
+  in earlier runs.
+  Art: no new SVGs commissioned. The three partner pages reuse
+  `organizationTabs`' existing `MemberRouting`/`WorkplaceInvestment`/
+  `HospitalReach`. The four simple pages reuse thematically:
+  `MemberRouting` (routing to the right care) for `our-approach`,
+  `HospitalReach` (signal reaching outward) for `partners`, `DiagnosticFocus`
+  ("a closer look") for `resource-center`, `WorkplaceInvestment` (investment
+  in the relationship) for `events` — all a stretch for the last one in
+  particular; flagging it in case a future art pass wants a purpose-built
+  events composition instead.
+  Verified end to end: `pnpm build` lists all 7 routes as SSG for both
+  locales (54 pages site-wide now, up from 40). Served the production build
+  and drove it with headless Chromium (system Playwright at
+  `/opt/node22/lib/node_modules`, same approach as every prior visual run):
+  `scrollWidth`/`clientWidth` equal at 375px and 1280px on both locales for
+  all 7 routes (no overflow), and separately confirmed all eight `#anchor`
+  links from `content/navigation.ts` resolve to the correct section on the
+  correct page with the correct heading text (e.g.
+  `/organizations/hospitals-health-systems#emergency` → "आपतकालीन सेवा" /
+  "Emergency Services") — these were dead hash fragments before this run.
+  All green (install/lint/typecheck/test/build).
+
+  **For the next run:** the queue's next unchecked item is the Clinicians
+  routes (`our-providers`, `clinical-leadership`, `careers`,
+  `commitment-to-quality`). No existing content to lean on for these (unlike
+  this run's partner pages) — `content/navigation.ts`'s clinicians segment
+  has no anchor children, so a simpler hero + `Highlights` shape per route
+  (like this run's `our-approach`) likely fits better than the anchored
+  `OrganizationPartnerView` pattern. Watch the "board-certified providers" /
+  "licensed therapists and psychiatrists" language already in
+  `home.services` — `our-providers`/`clinical-leadership` copy needs to stay
+  within what's already established there and not invent named clinicians,
+  credentials or headcounts.
 
 - 2026-08-08 — Built the three Individuals utility routes: `how-it-works`,
   `without-insurance`, `faqs`. First consumers of a real content shape other
