@@ -119,6 +119,7 @@
       "body": "Mero Health connects patients and care providers for medical care, mental health, chronic condition management and more.",
       "primaryCta": "Get care now",
       "secondaryCta": "No insurance needed",
+      "liveLabel": "Health companion · live",
       "trustOne": "Safety checks before any answer",
       "trustTwo": "Your consent before anything is shared"
     },
@@ -184,6 +185,28 @@
       "watchVideo": "Watch the short video",
       "previous": "Previous",
       "next": "Next",
+      "items": {
+        "sabina": {
+          "quote": "I photographed the report and understood the result in Nepali straight away. I no longer have to ask a doctor every time.",
+          "name": "Sabina (fictional example)",
+          "context": "Lalitpur"
+        },
+        "raju": {
+          "quote": "All of my father's old reports are in one place. We don't carry a folder to the hospital any more.",
+          "name": "Raju (fictional example)",
+          "context": "Morang"
+        },
+        "mina": {
+          "quote": "Asking in my own language made it far less daunting. The answer shows its sources too.",
+          "name": "Mina (fictional example)",
+          "context": "Pokhara"
+        },
+        "prakash": {
+          "quote": "I can finally see what my sugar levels have done over months, all in one place.",
+          "name": "Prakash (fictional example)",
+          "context": "Kathmandu"
+        }
+      },
       "disclaimer": "These experiences, opinions and statements are fictional examples prepared for demonstration. They are not statements from real patients and do not guarantee any outcome."
     },
     "partners": {

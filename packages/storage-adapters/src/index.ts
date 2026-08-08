@@ -159,10 +159,14 @@ export class InMemoryDocumentStore implements HealthDocumentStore {
     return backendCapabilities[this.#backend];
   }
 
-  // Async so a policy violation surfaces as a rejected promise rather than a
-  // synchronous throw, which callers of the port would not expect.
-  async put(request: PutRequest): Promise<StoredRef> {
-    assertPlacementAllowed(this.#backend, request.blob);
+  put(request: PutRequest): Promise<StoredRef> {
+    // A policy violation has to surface as a rejected promise: callers of an
+    // async port do not expect `put` to throw synchronously.
+    try {
+      assertPlacementAllowed(this.#backend, request.blob);
+    } catch (error) {
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+    }
 
     this.#counter += 1;
     const externalId = `${this.#backend.toLowerCase()}-${this.#counter}`;
@@ -176,7 +180,7 @@ export class InMemoryDocumentStore implements HealthDocumentStore {
     };
 
     this.#objects.set(externalId, { ownerId: request.ownerId, blob: request.blob, ref });
-    return ref;
+    return Promise.resolve(ref);
   }
 
   get(ref: StoredRef): Promise<DocumentBlob> {

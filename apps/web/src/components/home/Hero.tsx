@@ -3,6 +3,7 @@ import { useTranslations } from 'next-intl';
 import { ArrowRight, LockKeyhole, ShieldCheck } from 'lucide-react';
 
 import { ButtonLink } from '@/components/ui/Button';
+import { PulseLine } from '@/components/ui/PulseLine';
 import { Link } from '@/i18n/navigation';
 
 export function Hero() {
@@ -75,6 +76,20 @@ export function Hero() {
                 sizes="(max-width: 1024px) 100vw, 50vw"
                 src="/imagery/mero-health-companion.webp"
               />
+
+              {/* Live-vitals card, floated over the lower edge of the image. */}
+              <div className="absolute inset-x-4 bottom-4 rounded-2xl bg-white/92 p-4 backdrop-blur-md">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-bold tracking-[0.12em] text-muted uppercase">
+                    {t('liveLabel')}
+                  </span>
+                  <span
+                    aria-hidden
+                    className="size-2 animate-pulse rounded-full bg-primary-400"
+                  />
+                </div>
+                <PulseLine className="mt-1 text-primary-500" />
+              </div>
             </div>
           </div>
         </div>

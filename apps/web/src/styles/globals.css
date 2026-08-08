@@ -110,6 +110,56 @@
   }
 }
 
+/*
+ * Scroll reveals.
+ *
+ * Progressive enhancement: scroll-driven animations are unsupported in
+ * Firefox, so the effect is wrapped in @supports and content renders fully
+ * visible everywhere else. Only `opacity` and `transform` are animated, both
+ * of which stay on the compositor.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @supports ((animation-timeline: view()) and (animation-range: entry)) {
+    @keyframes reveal-rise {
+      from {
+        opacity: 0;
+        transform: translateY(2rem);
+      }
+    }
+
+    .reveal {
+      animation: reveal-rise linear backwards;
+      animation-timeline: view();
+      /* Finish well before the element centres, so it is settled while read. */
+      animation-range: entry 10% cover 32%;
+    }
+
+    /* Staggers a grid: each child trails the one before it. */
+    .reveal-stagger > * {
+      animation: reveal-rise linear backwards;
+      animation-timeline: view();
+      animation-range: entry 5% cover 30%;
+    }
+  }
+}
+
+/* ECG trace for PulseLine. Uses pathLength=1 so the dash values are ratios. */
+@keyframes pulse-trace {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [style*='pulse-trace'] {
+    animation: none !important;
+    stroke-dasharray: none !important;
+  }
+}
+
 /* Continuous partner-logo marquee. Pauses on hover and for reduced motion. */
 @keyframes marquee-scroll {
   from {
