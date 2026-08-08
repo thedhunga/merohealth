@@ -117,7 +117,7 @@ work.
 
 ### Marketing site
 
-- [ ] Shared page templates: a hero/section/CTA template pair for condition
+- [x] Shared page templates: a hero/section/CTA template pair for condition
       pages and segment pages, so the ~35 remaining routes are content, not
       bespoke layout.
 - [ ] Individuals routes: `24-7-care`, `primary-care`, `mental-health`,
@@ -169,6 +169,105 @@ work.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-08 — Built the shared hero/section/CTA template pair, the first
+  item under "Marketing site" and the queue's first unchecked task now that
+  "Visual system" is fully checked. Three new components in
+  `apps/web/src/components/ui/`:
+  - `CtaBand.tsx` — the closing call-to-action band, extracted from
+    `home/FinalCta.tsx` verbatim (same markup, same classes) so both the
+    homepage and future inner pages render an identical band from one
+    implementation. All copy and links arrive as props; the component holds
+    no i18n namespace of its own.
+  - `FeatureGrid.tsx` — the card-grid section body, extracted from
+    `home/ServiceCards.tsx` the same way. Takes pre-resolved `items` (title,
+    body, art, optional sub-links already translated by the caller) rather
+    than reading any translation namespace itself, so it isn't coupled to
+    `home.services` or `nav.items`.
+  - `PageTemplate.tsx` — the shell that actually answers the task: hero via
+    `SectionIntro` (built two runs ago), an arbitrary `children` body, and an
+    optional closing `CtaBand`. `children` is deliberately untyped rather
+    than a fixed array of "sections" — a condition page (single topic, a
+    `FeatureGrid` or two) and a segment index (routes out to many sub-pages)
+    need different bodies, and no real page content exists yet to justify
+    guessing one shape for both. Forcing that guess now would just be
+    inventing a layout to work around later, against the "don't design for
+    hypothetical requirements" rule. The doc comment states explicitly that
+    this one shell serves both condition and segment pages per the queue
+    wording — the "pair" is hero+CTA reused across page *types*, not two
+    divergent template components.
+  Proved both extractions in production rather than leaving them
+  theoretical: `home/FinalCta.tsx` now renders `<CtaBand>` with
+  `home.finalCta` content, and `home/ServiceCards.tsx` resolves
+  `home.services`/`nav.items` translations into plain data and renders
+  `<FeatureGrid>`. Byte-for-byte same output — confirmed by diffing rendered
+  markup expectations against the pre-refactor JSX before editing, and then
+  visually. `PageTemplate` itself has no consumer yet (still no inner routes
+  under `apps/web/src/app/[locale]` besides the homepage), same position
+  `SectionIntro` was in two runs ago.
+  One real bug surfaced by `tsc`, not by inspection: `exactOptionalPropertyTypes`
+  (set repo-wide in `tsconfig.base.json`) rejected passing a `boolean |
+  undefined` value through to `ButtonLink`'s `external?: boolean` prop and an
+  `X[] | undefined` value through to `FeatureGridItem.links?` — both arose
+  from deriving new objects from optional source fields (`primaryCta.external`,
+  `links?.map(...)`) rather than a literal that's simply present-or-absent.
+  Fixed with the narrowest correct change at each site: `external={... ??
+  false}` at the two `CtaBand` call sites into `ButtonLink` (coalesce to a
+  real boolean, since `ButtonLink` already defaults `external` to `false`
+  anyway), and widened `FeatureGridItem.links` to `Array<...> | undefined`
+  explicitly (its value is genuinely produced as `X[] | undefined` by a
+  `.map` on an optional array, so the type should say so) rather than
+  loosening anything on the `Button.tsx` side, which needed no change and
+  every other caller of it still type-checks under the strict flag exactly
+  as before.
+  Verified visually, not just by build: mounted `PageTemplate` on a
+  throwaway routable page (`app/[locale]/template-preview`, plain name, no
+  leading underscore — Next.js treats a `_`-prefixed segment as a private,
+  unroutable folder, so an early `_template-preview` attempt never served)
+  composing a real `SectionIntro` hero, a `Section`/`FeatureGrid` body reusing
+  existing art (`AroundTheClockCare`, `CalmMind`, `HomeFirstVisit`) and
+  existing `common`/`home` copy (no new message keys — the route was never
+  committed), and a `CtaBand` close. Screenshot with headless Chromium (system
+  Playwright at `/opt/node22/lib/node_modules`, `PLAYWRIGHT_BROWSERS_PATH=
+  /opt/pw-browsers`) at 375px and 1280px, both locales, plus the homepage
+  itself post-refactor for a regression check — all eight `scrollWidth`/
+  `clientWidth` probes came back clean (no overflow). Deleted the throwaway
+  route and the `AGENTS.md`/`CLAUDE.md` files `next dev` regenerates as a
+  side effect before committing, per the precedent from the `SectionIntro`
+  run.
+  One capture artifact worth recording so a future run doesn't chase a false
+  bug: the homepage's `fullPage` screenshot showed a large blank gap exactly
+  where the services `FeatureGrid` should render, in `home-en` only. This is
+  not a regression — `ServiceCards`' heading and card grid both carry
+  `reveal`/`reveal-stagger` classes (`globals.css`), which drive a
+  `animation-timeline: view()` scroll-linked reveal; Chromium's `fullPage`
+  screenshot stitches viewport slices without genuinely scrolling the user
+  past each section, so a view-timeline-gated element can be captured
+  mid-animation (still `opacity: 0`) even though it renders correctly once
+  actually scrolled into view. Confirmed by scrolling
+  `#services-heading` into view with `scrollIntoView` and a real wait before
+  a normal (non-fullPage) screenshot: cards render exactly as before the
+  refactor. If a future run sees a similar blank band in a `fullPage`
+  capture, scroll-into-view a section before concluding it's broken.
+  All green (install/lint/typecheck/test/build).
+
+  **For the next run:** the queue's next unchecked item is the Individuals
+  routes (`24-7-care`, `primary-care`, `mental-health`,
+  `weight-management`, `diabetes-management`, `hypertension-management`,
+  `specialty-wellness`, plus the nested `nutrition`, `diabetes-prevention`,
+  `dermatology`, `expert-medical-opinion`, `sleep`) — the first routes to
+  actually consume `PageTemplate`/`SectionIntro`/`FeatureGrid`/`CtaBand`.
+  Note `content/navigation.ts` and `content/home.ts` already carry the
+  correct `href`s for every one of these routes (used by the mega-menu,
+  footer and homepage service cards today, all pointing at routes that
+  404 until this item lands) — reuse those paths rather than inventing new
+  ones. Also note real body copy for each condition doesn't exist in the
+  repo yet; per "invent no facts," each route's `SectionIntro`/`FeatureGrid`
+  content needs new, genuinely-written (not fabricated-statistic) marketing
+  copy added to both message files, not placeholder em-dashes — condition
+  descriptions aren't the kind of number/name/credential the "invent
+  nothing" rule forbids, but check that any new copy still makes no clinical
+  claims and add a review note anywhere it might.
 
 - 2026-08-08 — Synced the Expo app to the new forest/jade/marigold identity,
   the last item under "Visual system." This was the biggest single-task diff
