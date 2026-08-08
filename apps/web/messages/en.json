@@ -227,5 +227,268 @@
     "readMore": "Read more",
     "comingSoon": "Coming soon",
     "placeholderContent": "The content on this page is demonstration material and must be replaced following qualified review before publication."
+  },
+  "individuals": {
+    "sectionHeadings": {
+      "highlights": "What this includes",
+      "children": "Related care"
+    },
+    "cta": {
+      "heading": "Ready to get care in your language?",
+      "body": "Create an account and reach a clinician or the assistant whenever you need to.",
+      "primaryCta": "Get started",
+      "secondaryCta": "Download the app"
+    },
+    "care247": {
+      "hero": {
+        "title": "Care whenever you need it",
+        "body": "Reach a Nepali-speaking clinician by voice or video call, day or night, without scheduling a clinic visit first."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Open around the clock",
+            "body": "The queue stays open through nights, weekends and public holidays, not just office hours."
+          },
+          "two": {
+            "title": "In your own language",
+            "body": "Every call happens in Nepali, so you can describe how you feel in the words you actually use."
+          },
+          "three": {
+            "title": "Added to your record",
+            "body": "Notes from the call join your personal health record, so the next clinician you see already has the context."
+          }
+        }
+      }
+    },
+    "primaryCare": {
+      "hero": {
+        "title": "One clinician, over time",
+        "body": "Book routine check-ups and follow-ups with a provider who gets to know your history, instead of starting over with someone new each visit."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Continuity, not a new stranger",
+            "body": "Return to the same clinician for follow-ups, so context carries over from one visit to the next."
+          },
+          "two": {
+            "title": "Preventive, not just reactive",
+            "body": "Regular check-ins catch small things early instead of waiting for a problem to become urgent."
+          },
+          "three": {
+            "title": "Referrals when you need one",
+            "body": "If something is outside primary care, your clinician can point you to the right specialty."
+          }
+        }
+      }
+    },
+    "mentalHealth": {
+      "hero": {
+        "title": "Support, in private",
+        "body": "Talk with a licensed therapist or psychiatrist through a private video or voice call, in Nepali, at a time that works for you."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Private by default",
+            "body": "Sessions are confidential, and nothing about your visit is shared without your say-so."
+          },
+          "two": {
+            "title": "Talk it through in Nepali",
+            "body": "Describing feelings is hard enough without translating them — every session happens in your language."
+          },
+          "three": {
+            "title": "Choose who you talk to",
+            "body": "Browse provider profiles and pick someone you're comfortable with, rather than being assigned at random."
+          }
+        }
+      }
+    },
+    "weightManagement": {
+      "hero": {
+        "title": "A plan you can actually keep",
+        "body": "Coaching, tracking and clinical support for weight, built around habits that hold over months, not a diet you abandon in a week."
+      },
+      "children": {
+        "nutrition": {
+          "body": "Practical eating guidance that fits Nepali meals and routines, not a generic diet plan."
+        },
+        "diabetesPrevention": {
+          "body": "Support for lowering your risk before diabetes develops, built on your own numbers over time."
+        }
+      }
+    },
+    "diabetesManagement": {
+      "hero": {
+        "title": "Keep your numbers where you want them",
+        "body": "Ongoing coaching and clinician support for diabetes, with your readings and visits gathered in one place instead of scattered across paper slips."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Track without the spreadsheet",
+            "body": "Log readings from home and see them alongside your visit history, not in a separate notebook."
+          },
+          "two": {
+            "title": "A coach between visits",
+            "body": "Check in with a coach on the weeks you don't see a clinician, instead of going quiet until the next appointment."
+          },
+          "three": {
+            "title": "Clinicians who see the trend",
+            "body": "Your provider reviews the pattern over time, not just the single number from today's visit."
+          }
+        }
+      }
+    },
+    "hypertensionManagement": {
+      "hero": {
+        "title": "Steady care for your blood pressure",
+        "body": "Regular check-ins and clinician support to manage hypertension over the long run, with your readings kept in one running record."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Readings that tell a story",
+            "body": "One reading says little on its own; a running record shows whether your numbers are actually improving."
+          },
+          "two": {
+            "title": "Medication support",
+            "body": "Talk through side effects or timing with a clinician instead of guessing on your own."
+          },
+          "three": {
+            "title": "Lifestyle support included",
+            "body": "Coaching on salt, activity and stress sits alongside the medical care, not as an afterthought."
+          }
+        }
+      }
+    },
+    "specialtyWellness": {
+      "hero": {
+        "title": "Specialists, when general care isn't enough",
+        "body": "Reach a specialist or a second opinion without a long referral chain, for the moments primary care alone can't fully answer."
+      },
+      "children": {
+        "dermatology": {
+          "body": "Show a specialist what's on your skin and get guidance without waiting weeks for an in-person slot."
+        },
+        "expertMedicalOpinion": {
+          "body": "Have a complex diagnosis or treatment plan reviewed by a second, independent clinician."
+        },
+        "sleep": {
+          "body": "Work through ongoing sleep trouble with a clinician, rather than living with it indefinitely."
+        }
+      }
+    },
+    "nutrition": {
+      "hero": {
+        "title": "Eating that fits your life",
+        "body": "Guidance built around Nepali meals and your actual routine, from a provider who adjusts the plan as your life changes."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Built around your plate",
+            "body": "Guidance starts from what you actually eat, not a generic meal plan translated after the fact."
+          },
+          "two": {
+            "title": "Adjusts as you go",
+            "body": "Check in and revise the plan as your routine, schedule or goals change."
+          },
+          "three": {
+            "title": "One record, not a separate app",
+            "body": "Nutrition guidance sits inside the same health record as the rest of your care."
+          }
+        }
+      }
+    },
+    "diabetesPrevention": {
+      "hero": {
+        "title": "Lower your risk before it becomes diabetes",
+        "body": "Coaching built around your own readings and habits, for the window before prediabetes turns into a diagnosis."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Starts from your own numbers",
+            "body": "The plan is built around your readings and history, not a generic risk checklist."
+          },
+          "two": {
+            "title": "Small changes, tracked",
+            "body": "See whether the changes you're making are actually moving your numbers, visit over visit."
+          },
+          "three": {
+            "title": "A clinician when you need one",
+            "body": "Escalate to a clinician directly the moment coaching alone isn't enough."
+          }
+        }
+      }
+    },
+    "dermatology": {
+      "hero": {
+        "title": "Show a specialist what you're seeing",
+        "body": "Send photos of a skin concern and talk it through with a dermatology specialist, without a long wait for an in-person slot."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Photos do the first job",
+            "body": "Share clear photos of the concern so the specialist has something concrete to look at before you even talk."
+          },
+          "two": {
+            "title": "Ask about anything visible",
+            "body": "From a persistent rash to a mole you're unsure about, bring whatever is on your skin."
+          },
+          "three": {
+            "title": "A record of how it changes",
+            "body": "Photos and notes from each visit stay in your record, so it's easy to see how something has changed."
+          }
+        }
+      }
+    },
+    "expertMedicalOpinion": {
+      "hero": {
+        "title": "A second, independent read",
+        "body": "Have a diagnosis or treatment plan reviewed by another clinician before you decide, especially when the stakes are high."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Bring what you already have",
+            "body": "Share existing reports and records so the second review starts from what's already known, not from scratch."
+          },
+          "two": {
+            "title": "An independent review",
+            "body": "The reviewing clinician wasn't involved in the original diagnosis, so the opinion is genuinely separate."
+          },
+          "three": {
+            "title": "Something to bring back",
+            "body": "Take the written opinion back to your existing care team to decide together what happens next."
+          }
+        }
+      }
+    },
+    "sleep": {
+      "hero": {
+        "title": "Work through what's keeping you up",
+        "body": "Talk to a clinician about ongoing sleep trouble and get a plan, instead of living with poor sleep as normal."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Start with what's actually happening",
+            "body": "Describe your nights honestly — the plan starts from your actual pattern, not a generic sleep checklist."
+          },
+          "two": {
+            "title": "Not just ‘try to relax’",
+            "body": "Get a real plan to work through, beyond advice you've probably already heard."
+          },
+          "three": {
+            "title": "Follow up as it changes",
+            "body": "Check back in as sleep improves or doesn't, and adjust the plan instead of starting over each time."
+          }
+        }
+      }
+    }
   }
 }

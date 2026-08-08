@@ -120,7 +120,7 @@ work.
 - [x] Shared page templates: a hero/section/CTA template pair for condition
       pages and segment pages, so the ~35 remaining routes are content, not
       bespoke layout.
-- [ ] Individuals routes: `24-7-care`, `primary-care`, `mental-health`,
+- [x] Individuals routes: `24-7-care`, `primary-care`, `mental-health`,
       `weight-management`, `diabetes-management`, `hypertension-management`,
       `specialty-wellness`, plus the nested `nutrition`,
       `diabetes-prevention`, `dermatology`, `expert-medical-opinion`, `sleep`.
@@ -169,6 +169,105 @@ work.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-08 — Built the twelve Individuals routes, the first content
+  consumer of `PageTemplate`/`SectionIntro`/`FeatureGrid`/`CtaBand`:
+  `24-7-care`, `primary-care`, `mental-health`, `weight-management` (+
+  `nutrition`, `diabetes-prevention`), `diabetes-management`,
+  `hypertension-management`, `specialty-wellness` (+ `dermatology`,
+  `expert-medical-opinion`, `sleep`). All 12 build statically for both
+  locales (`next build` lists all 24 `ne`/`en` pairs as `SSG`).
+  One shared component drives all twelve rather than 12 near-identical
+  `page.tsx` bodies: `content/individuals.ts` holds a typed list (art,
+  `artPosition`, and — the one real content decision here — a `kind`
+  discriminant) and `components/individuals/IndividualsPageView.tsx`
+  renders from it. `weightManagement` and `specialtyWellness` are `kind:
+  'segment'` — they have no content of their own beyond routing to their
+  own children, so they get a `FeatureGrid` linking to their sub-pages
+  instead of a highlights list. Every other route is `kind: 'condition'`:
+  hero + a new `Highlights` component (`components/ui/Highlights.tsx`, a
+  plain numbered three-up text list, no icon). `Highlights` exists because
+  `FeatureGrid` requires an `Art` per card and this task needed roughly 30
+  short points across 10 leaf pages — illustrating every one would mean
+  either 30 new SVGs (diluting "distinct composition, not recolored" past
+  the point of meaning anything) or reusing the same handful of arts
+  many times over on a single page, which reads as filler, not art.
+  Hero art itself is still the existing 6 illustrations, reused
+  thematically across the 12 pages (e.g. `VitalsTrend` for
+  `diabetesManagement`/`hypertensionManagement`/`diabetesPrevention`,
+  `CalmMind` for `mentalHealth`/`sleep`) — no route is ever shown next to
+  its reuse-sibling, so this doesn't repeat the "recoloured icon" problem
+  the art direction rejects, and building 6 more single-use illustrations
+  for this task alone wasn't justified.
+  All hero/highlights/children copy is new writing for this run, added to
+  `individuals.*` in both message files (243 lines each) — nothing in the
+  repo had condition-level marketing copy yet. Stayed inside "invent no
+  facts": every sentence describes what the product *is* (Nepali-language
+  calls, personal record, coaching, specialist access — all already
+  established by `platform-vision.md` and `home.services`) with no
+  statistics, named partners, credentials beyond what `home.services`
+  already established ("licensed therapist", matching its existing
+  "board-certified providers"/"licensed therapists and psychiatrists"), or
+  outcome claims. The bottom CTA band is shared verbatim across all 12
+  pages (`individuals.cta`) rather than 12 bespoke headings — a Teladoc-
+  style condition-page pattern, and it avoids inventing a distinct "why
+  act now" hook per condition where no such hook exists yet.
+  Reused `nav.segments.individuals` for the hero eyebrow and
+  `common.learnMore` for the `FeatureGrid` label instead of adding
+  duplicate keys under `individuals.*` — both already existed for exactly
+  this purpose.
+  Deliberately out of scope, left for their own queued items: no bare
+  `/individuals` segment-index route (not listed in this task's route set —
+  the mega-menu's `/individuals` link still 404s, a pre-existing gap, not a
+  regression); no `generateMetadata` per route (a separate queued item);
+  `/get-care`, `/register` and `/app` still don't resolve (referenced
+  identically by the homepage already, so not a new gap this task
+  introduced).
+  One real bug, caught by `pnpm build` rather than by inspection: the
+  Python content-authoring script used `**highlights(items)` to splice a
+  page's highlight content in, but `highlights()` returns `{"items":
+  {...}}` — spread merges `items` in as a sibling of `hero` instead of
+  nesting it under `highlights`, so `t('<key>.highlights.items.<n>.title')`
+  resolved to nothing. `next build`'s static generation throws
+  `MISSING_MESSAGE` per missing key (240 instances, one per locale/page/
+  field), which is what surfaced it — `pnpm typecheck` can't catch a wrong
+  JSON shape, and `pnpm test` doesn't touch `apps/web` message content.
+  Fixed by nesting correctly (`"highlights": highlights(items)`) and
+  re-running the generator idempotently. Recording the shape mismatch here
+  in case a future run reuses this content-generation-script pattern for
+  another route bucket: verify with `pnpm build`, not just `tsc`, since
+  next-intl message keys are unchecked strings from TypeScript's point of
+  view.
+  Verified visually beyond the build: served the production build
+  (`pnpm build && pnpm start`) and drove it with headless Chromium (system
+  Playwright at `/opt/node22/lib/node_modules`, `PLAYWRIGHT_BROWSERS_PATH=
+  /opt/pw-browsers`, same approach as every prior visual run) across a
+  leaf condition page and a segment page, both locales, 375px and 1280px —
+  `scrollWidth`/`clientWidth` came back equal at every point, no overflow.
+  One capture artifact worth recording, distinct from the view-timeline one
+  logged two runs ago: `fullPage` screenshots showed the sticky header
+  (`Header.tsx`, `sticky top-0`) duplicated mid-page, overlapping the hero
+  heading. This is Playwright stitching viewport-height slices while
+  scrolling a `position: sticky` element — the header gets captured again
+  at its pinned position partway down the stitched image — not a real
+  layout bug. Confirmed with an ordinary (non-`fullPage`, no scrolling)
+  screenshot of the same route: header and hero render correctly, no
+  overlap. Filing both `fullPage` gotchas here (view-timeline reveals, now
+  sticky headers) so a future run recognises the pattern instead of
+  chasing a phantom bug: when a `fullPage` capture looks wrong but nothing
+  else points to a real bug, re-check with a plain viewport screenshot
+  before concluding the page is broken.
+  All green (install/lint/typecheck/test/build).
+
+  **For the next run:** the queue's next unchecked item is the Individuals
+  utility routes (`how-it-works`, `without-insurance`, `faqs` with FAQ
+  schema.org markup). `IndividualsPageView`/`content/individuals.ts` are
+  specific to the condition/segment shape built this run and don't apply
+  directly — `how-it-works` and `faqs` in particular will need their own
+  content shape (steps, a Q&A list) rather than hero+highlights. The
+  `/individuals` segment-index route and per-route `generateMetadata` are
+  still open gaps, tracked under their own later queue items — don't
+  assume either exists yet.
 
 - 2026-08-08 — Built the shared hero/section/CTA template pair, the first
   item under "Marketing site" and the queue's first unchecked task now that
