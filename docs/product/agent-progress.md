@@ -135,7 +135,7 @@ work.
       `newsroom`, `contact`.
 - [x] Legal routes: `legal`, `legal/privacy`, `legal/community-guidelines`,
       `accessibility`, `help`.
-- [ ] Health library: index plus article route, with a typed content model.
+- [x] Health library: index plus article route, with a typed content model.
 - [ ] Pricing page driven by `packages/entitlements` — the catalogue is the
       source of truth, so prices are never duplicated into copy.
 - [ ] `sitemap.ts`, `robots.ts`, per-route `generateMetadata`, and
@@ -252,6 +252,133 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-08 — Built the Health library: `/health-library` (index) and
+  `/health-library/[slug]` (article), the first genuinely dynamic route in
+  `apps/web` — every prior page was a static folder. Closes out the
+  "Marketing site" section's last zero-source-material item and, per the
+  previous run's own note, fixes the `nav.items.healthLibrary`/footer
+  `helpfulLinks` link that had 404'd since the mega-menu and footer were
+  first built.
+
+  **Why three articles, and why these three:** the ledger's own note on this
+  item flagged the risk plainly — "no articles exist anywhere in the repo...
+  this will need either an honest empty state or a very small typed set of
+  genuinely-written articles that stay inside invent-no-facts." An empty
+  state was ruled out because the task explicitly asks for an *article
+  route*, and a route with nothing to route to would be pointless scaffolding
+  ahead of content, the same reasoning `resource-center` used to justify
+  *not* building a library two runs ago. So: a very small typed set, and
+  deliberately not a new topic. `legal/privacy`'s `PrivacyView` already
+  distilled "what's genuinely true today" down to exactly three principles
+  (`PRINCIPLE_KEYS = ['storage', 'confirmed', 'safety']`) and already had
+  that content vetted against `packages/configuration`/`clinical-safety`/
+  `health-records` by a previous run. Rather than inventing a fourth topic
+  with its own grounding risk, this run's three articles
+  (`storageChoice`, `confirmedRecords`, `safetyCheck`) restate that exact
+  triad in longer explainer voice — each closing with a `relatedPrompt` link
+  back to the specific existing page the fact came from (`/legal/privacy`,
+  `/individuals/faqs`, `/clinicians/commitment-to-quality` respectively),
+  so the library routes deeper into real content instead of dead-ending.
+  Nepali copy reuses the *exact* vetted phrasing from `legal.privacy`'s
+  highlights and `individuals.faqs` answers three/four/five wherever the
+  sentence was already right, rather than re-translating the same fact a
+  third time and risking terminology drift (e.g. "इन्क्रिप्ट", "मस्यौदा",
+  "पुष्टि" all carried over verbatim).
+
+  **New typed content model:** `content/healthLibrary.ts` —
+  `HealthLibraryArticle { key, slug, Art, artPosition, relatedHref,
+  relatedNavKey }`, the same shape-per-array-entry pattern as
+  `content/individuals.ts`. `getHealthLibraryArticle(slug)` is the one lookup
+  both the index (mapping all of them) and the article route (finding one)
+  use. Two new view components in `components/health-library/`:
+  `HealthLibraryIndexView` (hero + `FeatureGrid` of the three articles,
+  reusing `common.readMore` rather than `common.learnMore` since these are
+  articles, not services) and `HealthLibraryArticleView` (hero + two body
+  paragraphs + the `relatedPrompt` mint section, the same shape
+  `PrivacyView`/`AccessibilityView` already established for a closing
+  contact-style prompt, generalised to link anywhere via
+  `article.relatedHref` instead of hardcoding `/contact`). Both share one
+  `healthLibrary.cta` band (primary "Get started" → `/register`, secondary
+  "See FAQs" → `/individuals/faqs`) across the index and all three articles,
+  matching the `individuals.cta`/`organizations.cta` reuse precedent.
+
+  **The dynamic route itself, new ground for this codebase:**
+  `app/[locale]/health-library/[slug]/page.tsx` uses `notFound()` for an
+  unknown slug and a `generateStaticParams` that returns only `{ slug }` —
+  confirmed against Next.js's own documented pattern for a dynamic segment
+  nested under another dynamic segment (the parent `[locale]` layout already
+  enumerates locales; the child is invoked once per locale and only needs to
+  add its own segment). `pnpm build` confirms this actually worked: both
+  `/health-library` and `/health-library/[slug]` are listed under SSG with
+  all three slugs prerendered for both `ne` and `en` (6 article pages + 2
+  index pages, 8 routes total). Verified with `curl` against `pnpm start`
+  that a made-up slug (`/health-library/does-not-exist`) returns a real 404,
+  not a silent empty page.
+
+  Art: three least-reused compositions specifically to avoid piling further
+  onto `DiagnosticFocus`/`HabitSprout` (9 and 6 direct `Art:` usages
+  respectively, before this run — counted via `grep -c "Art: X"` across
+  `content/`/`components/`/`app/`). `RecordTransform` (2 uses before this
+  run, tied for least-reused) for `confirmedRecords` — the most literal fit
+  in the whole library, since it depicts a draft document becoming a
+  structured record, exactly what that article explains. `HomeFirstVisit`
+  (3 uses) for `storageChoice`, a deliberate stretch flagged honestly: its
+  established meaning elsewhere is "ongoing point of contact," repurposed
+  here as "your own space to keep something," which is a thinner fit than
+  `RecordTransform`'s but avoids piling a sixth use onto `MemberRouting`
+  (already the more literal "routing to a destination" choice). Index hero
+  reuses `MemberRouting` anyway (its established use as the hub/index
+  metaphor, matching `/legal`'s own index page) since an index page's
+  identity as a hub is a stronger claim on it than a single article's is.
+  `AroundTheClockCare` (3 uses) for `safetyCheck` — "always-on, running every
+  time" maps onto "a check that runs before every single response, not just
+  risky-looking ones" better than `DiagnosticFocus`'s "closer look" would
+  have, and keeps this run from adding a tenth use to the single most-reused
+  composition in the library.
+
+  Verified end to end: `pnpm build` lists both new routes as SSG; counting
+  generated HTML files directly under `.next/server/app` (excluding the
+  `_not-found`/`_global-error` boundaries) gives 84 pages site-wide now, up
+  from 76 after the Legal run above — the expected +8 (2 index pages + 3
+  articles × 2 locales). Served the production build (`pnpm build && pnpm start`) and
+  drove it with headless Chromium (`/opt/node22/lib/node_modules/playwright`,
+  binary at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`,
+  `args: ['--no-sandbox']`, same working setup every prior visual run has
+  used). One new gotcha this run hit that prior runs' notes didn't:
+  `page.goto(..., { waitUntil: 'networkidle' })` timed out at 30s on this
+  container for reasons unrelated to the app (it passed instantly on the
+  first route, then hung on the second) — switched to `waitUntil: 'load'`
+  for every `goto` in the verification script and every navigation
+  completed normally. Worth trying `'load'` first on this container instead
+  of defaulting to `'networkidle'`, since the earlier `waitForLoadState`
+  gotcha two runs ago was the opposite problem (client-side transitions
+  never firing `'load'` again) — the fix differs by whether it's a full
+  `goto` or an in-app `<Link>` transition, so don't conflate the two.
+  `scrollWidth`/`clientWidth` equal at 375/768/1280px across both locales
+  for both the index and all three articles (no overflow). Confirmed real
+  navigation: clicking an article card on the index (matched by `href`, not
+  by link text, since Nepali is the rendered locale by default and hard-coding
+  an English name regex silently matches nothing) lands on the correct
+  article; that article's `relatedPrompt` button correctly resolves to
+  `/individuals/faqs` (there are two `/individuals/faqs` links on an article
+  page — the `relatedPrompt` button and the shared CTA band's secondary link
+  — `.first()` was needed to disambiguate in the test script, not a bug in
+  the page); the homepage footer's previously-404ing `healthLibrary` link
+  now resolves to `/health-library`. All green
+  (install/lint/typecheck/test/build).
+
+  **For the next run:** the queue's next unchecked item is the Pricing page
+  driven by `packages/entitlements` ("the catalogue is the source of truth,
+  so prices are never duplicated into copy"). Read `packages/entitlements/
+  src/index.ts` before writing anything — the FREE tier and paid modules
+  referenced loosely in `individuals.withoutInsurance`/`individuals.faqs`
+  will need to become an actual rendered catalogue this time, with real
+  `monthlyPricePaisa` values converted to display currency rather than the
+  deliberately-numberless copy every prior run used. This is also the first
+  task in the queue where a wrong number is the specific risk, not a wrong
+  claim — double-check the paisa→rupee conversion and currency formatting
+  before shipping it.
 
 - 2026-08-08 — Built the five Legal/utility routes: `legal`, `legal/privacy`,
   `legal/community-guidelines`, `accessibility`, `help`. This was the

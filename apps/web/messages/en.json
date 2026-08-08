@@ -941,5 +941,56 @@
         }
       }
     }
+  },
+  "healthLibrary": {
+    "hero": {
+      "title": "The health library",
+      "body": "Short explainers on how Mero Health actually handles your documents, your record and your safety — grounded in what's built today, not what's planned."
+    },
+    "gridHeading": "Start here",
+    "cta": {
+      "heading": "Ready to see it in your own record?",
+      "body": "Create an account and reach the assistant or a clinician whenever you need to.",
+      "primaryCta": "Get started",
+      "secondaryCta": "See FAQs"
+    },
+    "articles": {
+      "storageChoice": {
+        "title": "Choosing where your record lives",
+        "summary": "Your own Google Drive or Mero Health's hosted storage — both are your choice, and you can change it later.",
+        "body": {
+          "paragraphOne": "Every document you capture ends up in one of two places: your own Google Drive, or Mero Health's hosted storage. Google Drive stays entirely yours — the file is encrypted on your device before it ever leaves it, so it's opaque to anyone but you, including Mero Health.",
+          "paragraphTwo": "Hosted storage is where extraction, search and sharing are offered as part of the product, which is why it's a separate paid module rather than the default. Either way, the choice is yours, and you can change it later."
+        },
+        "relatedPrompt": {
+          "heading": "See the full picture",
+          "body": "This is one of three principles behind how Mero Health handles your data — see all three on the Privacy page."
+        }
+      },
+      "confirmedRecords": {
+        "title": "Why nothing is used until you confirm it",
+        "summary": "Extraction from an uploaded document produces a draft first — only what you confirm or correct is ever used.",
+        "body": {
+          "paragraphOne": "When you upload a lab report or prescription, the first thing that happens is extraction — turning a photograph into structured values. That result is a draft, not a fact. It sits in a queue for you to review.",
+          "paragraphTwo": "Only after you confirm a value, or correct it, does it become part of your record — something the assistant can reason over, a share link can include, or an export can contain. A draft never reaches any of those on its own; the confirmation step is not optional and cannot be skipped."
+        },
+        "relatedPrompt": {
+          "heading": "More questions like this",
+          "body": "This is one of the questions people ask most before they start — see the rest on the FAQ page."
+        }
+      },
+      "safetyCheck": {
+        "title": "The safety check that runs before every answer",
+        "summary": "A deterministic check, independent of the language model, runs ahead of every assistant response — and it doesn't diagnose.",
+        "body": {
+          "paragraphOne": "Before the assistant's response ever reaches you, a separate, deterministic check runs first — rules, not a language model, deciding whether what's about to be shown needs to be intercepted. This runs on every single response, not just the ones that look risky in hindsight.",
+          "paragraphTwo": "If anything looks like it could be a medical emergency, that check catches it before the model's answer is shown, and points you to appropriate care instead. The assistant itself does not diagnose — its job is to help you understand your own record, not to replace a clinician."
+        },
+        "relatedPrompt": {
+          "heading": "How we think about quality",
+          "body": "This safety check is one part of how Mero Health approaches clinical quality — read more on the Commitment to Quality page."
+        }
+      }
+    }
   }
 }
