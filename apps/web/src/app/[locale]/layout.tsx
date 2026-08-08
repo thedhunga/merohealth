@@ -1,0 +1,90 @@
+import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
+import { notFound } from 'next/navigation';
+import { Inter, Noto_Sans_Devanagari } from 'next/font/google';
+import { NextIntlClientProvider, hasLocale } from 'next-intl';
+import { getTranslations, setRequestLocale } from 'next-intl/server';
+
+import { Header } from '@/components/layout/Header';
+import { Footer } from '@/components/layout/Footer';
+import { routing } from '@/i18n/routing';
+
+import '@/styles/globals.css';
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+});
+
+const notoDevanagari = Noto_Sans_Devanagari({
+  subsets: ['devanagari', 'latin'],
+  variable: '--font-noto-devanagari',
+  display: 'swap',
+});
+
+export function generateStaticParams() {
+  return routing.locales.map((locale) => ({ locale }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'brand' });
+  const home = await getTranslations({ locale, namespace: 'home.hero' });
+
+  return {
+    title: {
+      default: `${t('name')} · ${home('title')}`,
+      template: `%s · ${t('name')}`,
+    },
+    description: home('body'),
+    applicationName: t('name'),
+    openGraph: {
+      type: 'website',
+      siteName: t('name'),
+      title: `${t('name')} · ${home('title')}`,
+      description: home('body'),
+      locale: locale === 'ne' ? 'ne_NP' : 'en_US',
+    },
+    robots: {
+      // The demonstration build should not be indexed until real content and
+      // qualified clinical review are in place.
+      index: false,
+      follow: false,
+    },
+  };
+}
+
+export default async function LocaleLayout({
+  children,
+  params,
+}: {
+  children: ReactNode;
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+
+  if (!hasLocale(routing.locales, locale)) {
+    notFound();
+  }
+
+  setRequestLocale(locale);
+
+  return (
+    <html className={`${inter.variable} ${notoDevanagari.variable}`} lang={locale}>
+      <body className="flex min-h-dvh flex-col bg-white">
+        <NextIntlClientProvider>
+          <Header />
+          <main className="flex-1" id="main">
+            {children}
+          </main>
+          <Footer />
+        </NextIntlClientProvider>
+      </body>
+    </html>
+  );
+}

@@ -1,0 +1,136 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens.
+ *
+ * The base palette mirrors `packages/configuration` so the marketing site and
+ * the Expo product surface stay visually identical. Values that only the web
+ * site needs (tint ramps, elevation, container widths) are defined here.
+ */
+@theme {
+  /* Brand — shared with @swasthya/configuration */
+  --color-ink: #102b2b;
+  --color-muted: #5f7370;
+  --color-canvas: #f6f8f4;
+  --color-surface: #ffffff;
+  --color-line: #dce6e2;
+
+  --color-primary-50: #f0faf6;
+  --color-primary-100: #ddf3eb;
+  --color-primary-200: #a8dbc9;
+  --color-primary-300: #6fc4ab;
+  --color-primary-400: #2e9b85;
+  --color-primary-500: #0b685c;
+  --color-primary-600: #095a50;
+  --color-primary-700: #074e47;
+  --color-primary-800: #053a35;
+  --color-primary-900: #042b28;
+
+  --color-saffron-100: #fff1ce;
+  --color-saffron-400: #f2b84b;
+  --color-saffron-600: #a46008;
+
+  --color-info-100: #e8eeff;
+  --color-info-500: #285d9a;
+  --color-info-700: #1c4270;
+
+  --color-danger-100: #fee4e2;
+  --color-danger-500: #b42318;
+
+  /* Type */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-devanagari:
+    var(--font-noto-devanagari), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  /* Shape */
+  --radius-card: 1.5rem;
+  --radius-pill: 999px;
+
+  /* Elevation */
+  --shadow-card: 0 1px 2px rgb(16 43 43 / 0.04), 0 12px 32px -12px rgb(16 43 43 / 0.14);
+  --shadow-menu: 0 24px 56px -20px rgb(16 43 43 / 0.28);
+
+  /* Layout */
+  --container-site: 78rem;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+    font-family: var(--font-devanagari);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /*
+   * Devanagari sits lower and taller than Latin at the same font-size, so
+   * Nepali headlines need extra leading to avoid clipped matras.
+   */
+  :lang(ne) h1,
+  :lang(ne) h2,
+  :lang(ne) h3 {
+    line-height: 1.32;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-primary-400);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@utility container-site {
+  width: 100%;
+  max-width: var(--container-site);
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+
+  @media (width >= 48rem) {
+    padding-inline: 2rem;
+  }
+}
+
+/* Continuous partner-logo marquee. Pauses on hover and for reduced motion. */
+@keyframes marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-track {
+  animation: marquee-scroll 42s linear infinite;
+}
+
+.marquee:hover .marquee-track,
+.marquee:focus-within .marquee-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
+}
