@@ -129,7 +129,7 @@ work.
 - [x] Organizations routes: `employers`, `health-plans`,
       `hospitals-health-systems`, `our-approach`, `partners`,
       `resource-center`, `events`.
-- [ ] Clinicians routes: `our-providers`, `clinical-leadership`, `careers`,
+- [x] Clinicians routes: `our-providers`, `clinical-leadership`, `careers`,
       `commitment-to-quality`.
 - [ ] Company routes: `about`, `about/impact`, `about/leadership`, `careers`,
       `newsroom`, `contact`.
@@ -169,6 +169,90 @@ work.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-08 — Built the four Clinicians routes: `our-providers`,
+  `clinical-leadership`, `careers`, `commitment-to-quality`. Unlike the
+  Organizations run before this one, none of these four had existing content
+  to lean on — `content/navigation.ts`'s clinicians segment has no anchor
+  children, so all four are standalone bespoke `View` components in
+  `components/clinicians/` (mirroring `OurApproachView`/`PartnersView`/
+  `EventsView`, not the anchored `OrganizationPartnerView` shape), rather than
+  a typed content array like `content/individuals.ts`/`content/organizations.ts` —
+  four genuinely different content shapes didn't justify one.
+
+  **Content grounding, checked before writing a word:** the repo has real
+  facts to draw on for two of the four pages and none for the other two, so
+  they got different treatment rather than uniform hero+highlights copy.
+  - `our-providers` restates what `home.services` already establishes
+    (`primaryCare`: "board-certified providers... one clinician";
+    `mentalHealth`: "licensed therapists and psychiatrists... in your own
+    language", reused near-verbatim) plus the Nepali/day-or-night reachability
+    already in `individuals.howItWorks` steps three and four. No headcount,
+    no named clinicians — the network's *kind*, not its *size*.
+  - `commitment-to-quality` restates the standing constraints directly:
+    the `emergencyServices` sentence from the Organizations run
+    ("A deterministic safety layer runs ahead of every assistant
+    response...") is reused verbatim since it's the same standing fact for a
+    different audience, and the CONFIRMED/CORRECTED-only rule and "the
+    assistant does not diagnose" line both paraphrase the FAQ answers already
+    shipped under `individuals.faqs`.
+  - `clinical-leadership` and `careers` have zero source material — no
+    leadership roster, no job listings exist anywhere in the repo — so both
+    are honest empty states (`EventsView`'s pattern: a heading like "Not yet
+    announced" / "No open roles right now" plus a body that says what happens
+    next), not hero+highlights forced onto nothing. `careers`' hero title
+    reuses `nav.promos.clinicians.title` ("Simplify your work. Amplify your
+    impact.") verbatim rather than writing a second, competing headline — the
+    mega-menu promo tile and this dedicated page make the same pitch.
+
+  **One shared-CTA wrinkle the Organizations run's `resource-center` case
+  didn't fully resolve, so this run did it differently:** all four pages
+  close on one `clinicians.cta` band ("Talk to our team" → `/contact`, "See
+  open roles" → `/clinicians/careers`), except `careers` itself, which can't
+  link to itself. The `resource-center` precedent changed the *href* but left
+  the *label* pointed at the old destination ("Explore the resource center"
+  linking to `/organizations/our-approach`) — a label/destination mismatch.
+  `CareersView` avoids repeating that: its own secondary link overrides both
+  href and label together (`nav('items.ourProviders')` → `/clinicians/our-providers`),
+  so the visible text always names where the link actually goes.
+
+  Art: no new SVGs. `HomeFirstVisit` (a house = ongoing point of contact) for
+  `our-providers`, `WorkplaceInvestment` (career/investment growth) for
+  `careers`, `DiagnosticFocus` ("a closer look" → a quality review) for
+  `commitment-to-quality`. `clinical-leadership` is the stretch of this run,
+  same as `events` was last time: `HabitSprout` (a sprout growing) stands in
+  for "the team is still forming," which is honest but not a tight visual
+  match — flagging it the same way the Organizations log flagged `events`,
+  in case a future art pass wants a purpose-built leadership composition.
+
+  Verified end to end: `pnpm build` lists all 4 routes as SSG for both
+  locales (62 pages site-wide now, up from 54). Served the production build
+  (`pnpm build && pnpm start`, plain `next start`, not `next dev` — no stray
+  `AGENTS.md`/`CLAUDE.md` regenerated this run) and drove it with headless
+  Chromium (system Playwright at `/opt/node22/lib/node_modules`, binary at
+  `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` on this container —
+  the `/opt/pw-browsers/chromium/...` path a couple of prior runs' notes
+  imply doesn't exist here, recording the actual working path in case a
+  future run hits the same `executable doesn't exist` error). Confirmed all
+  8 routes return 200 (Nepali served bare, `/en` prefixed — `/clinicians/...`
+  gives a 307 redirect if you hit it un-prefixed expecting `/ne/...`, which
+  is correct: bare path *is* Nepali, not a locale-less path).
+  `scrollWidth`/`clientWidth` equal at 375/768/1280 on both locales for all 4
+  routes (no overflow), and confirmed via a real hover interaction (not a
+  programmatic style read — see two runs ago's log entry on why that
+  distinction matters) that all four `/clinicians/*` links resolve correctly
+  from the open mega-menu panel. All green
+  (install/lint/typecheck/test/build).
+
+  **For the next run:** the queue's next unchecked item is the Company routes
+  (`about`, `about/impact`, `about/leadership`, `careers`, `newsroom`,
+  `contact`). Note `/careers` here is a *different* route from this run's
+  `/clinicians/careers` — the former is company-wide hiring (footer's
+  `whoWeAre` column), the latter is clinician-specific (footer's `clinicians`
+  column) — don't collapse them into one page. Also note `/contact` is
+  referenced by nearly every CTA band built so far (this run's included) and
+  still doesn't resolve; building it will fix a real, currently-broken link
+  across most of the site, not just add a new one.
 
 - 2026-08-08 — Built the seven Organizations routes: `employers`,
   `health-plans`, `hospitals-health-systems`, `our-approach`, `partners`,

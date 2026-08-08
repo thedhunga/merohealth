@@ -661,5 +661,79 @@
         "body": "Check back soon, or talk to our team if you'd like to host or co-host a session with us."
       }
     }
+  },
+  "clinicians": {
+    "cta": {
+      "heading": "Interested in joining Mero Health's clinical team?",
+      "body": "We're building the clinicians behind Nepali-first care. Get in touch to learn where you might fit.",
+      "primaryCta": "Talk to our team",
+      "secondaryCta": "See open roles"
+    },
+    "ourProviders": {
+      "hero": {
+        "title": "The clinicians behind Mero Health",
+        "body": "Board-certified providers and licensed therapists and psychiatrists, reachable in Nepali by voice or video — the same clinician, visit after visit, whenever possible."
+      },
+      "highlightsHeading": "What our clinicians provide",
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Board-certified primary care",
+            "body": "Stay on top of your health with a board-certified clinician, building a relationship over time rather than starting over at every visit."
+          },
+          "two": {
+            "title": "Licensed therapists and psychiatrists",
+            "body": "Access a network of licensed therapists and psychiatrists — private, and in your own language."
+          },
+          "three": {
+            "title": "Reachable in Nepali, day or night",
+            "body": "Request a voice or video call any time, day or night, without scheduling a clinic visit first — notes join your record so the next clinician has the context."
+          }
+        }
+      }
+    },
+    "clinicalLeadership": {
+      "hero": {
+        "title": "Clinical leadership",
+        "body": "The people setting clinical standards for Mero Health will be introduced here — with their names and credentials — once those roles are filled and confirmed."
+      },
+      "emptyState": {
+        "heading": "Not yet announced",
+        "body": "Check back soon, or get in touch if you're interested in a clinical leadership role at Mero Health."
+      }
+    },
+    "careers": {
+      "hero": {
+        "title": "Simplify your work. Amplify your impact.",
+        "body": "We're building the clinical team behind Mero Health's Nepali-first care. Open roles will be listed here as they become available."
+      },
+      "emptyState": {
+        "heading": "No open roles right now",
+        "body": "Check back soon, or write in if you'd like to be considered as roles open up."
+      }
+    },
+    "commitmentToQuality": {
+      "hero": {
+        "title": "Safety and quality, by design",
+        "body": "Every assistant answer passes a deterministic safety check first, and only confirmed health records are ever reasoned over — quality isn't a promise added on top, it's how the system is built."
+      },
+      "highlightsHeading": "How we hold the line on quality",
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "A deterministic check before every answer",
+            "body": "A deterministic safety layer runs ahead of every assistant response and recognises signs of an emergency, directing the person toward urgent care immediately rather than waiting on a model to decide."
+          },
+          "two": {
+            "title": "Only confirmed records are reasoned over",
+            "body": "A document extraction is a draft until the person confirms or corrects it. Only confirmed records ever reach the assistant, a share link or an export."
+          },
+          "three": {
+            "title": "The assistant doesn't diagnose",
+            "body": "The assistant does not diagnose. Anything that looks like an emergency is intercepted first and pointed to appropriate care."
+          }
+        }
+      }
+    }
   }
 }
