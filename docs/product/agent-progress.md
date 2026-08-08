@@ -133,7 +133,7 @@ work.
       `commitment-to-quality`.
 - [x] Company routes: `about`, `about/impact`, `about/leadership`, `careers`,
       `newsroom`, `contact`.
-- [ ] Legal routes: `legal`, `legal/privacy`, `legal/community-guidelines`,
+- [x] Legal routes: `legal`, `legal/privacy`, `legal/community-guidelines`,
       `accessibility`, `help`.
 - [ ] Health library: index plus article route, with a typed content model.
 - [ ] Pricing page driven by `packages/entitlements` — the catalogue is the
@@ -252,6 +252,119 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-08 — Built the five Legal/utility routes: `legal`, `legal/privacy`,
+  `legal/community-guidelines`, `accessibility`, `help`. This was the
+  previous run's own flagged next item, and its note that these pages would
+  be "the most exposed to the invent-no-facts rule yet" held up — every
+  sentence on `/legal/privacy` and `/legal/community-guidelines` was checked
+  against `packages/configuration`'s `legalEntity: { displayName:
+  'Demonstration entity — configure before launch' }` before being written.
+
+  Five bespoke `View` components in `components/legal/` (mirroring the
+  `company`/`clinicians` precedent — five different content shapes, so no
+  typed content array), all using `SectionIntro`'s `tone: 'paper'` for the
+  first time in the codebase, exactly where the previous run's note said it
+  would eventually belong: stacking another full-bleed dark block under the
+  permanently dark header reads as too heavy for a legal/utility page. None
+  of the five closes on a `CtaBand` — `PageTemplate`'s own doc comment
+  already names "legal, utility" as the pages that should omit one.
+
+  **Content grounding, page by page:**
+  - `legal` (`LegalIndexView`) is a routing hub to the other four — three
+    cards (privacy, community guidelines, accessibility), the same
+    `ContactView` card-grid shape reused verbatim. Its hero states plainly,
+    in the first sentence, that Mero Health has no registered legal entity
+    yet and that these are a description of behaviour rather than a signed
+    contract — the fact every other page in this run had to not contradict.
+  - `legal/privacy` (`PrivacyView`) does not attempt a lawyer-drafted
+    policy — it says outright that it isn't one, since there's no registered
+    entity to issue one from — and instead restates three things that are
+    genuinely already true today, reusing the exact facts `individuals.faqs`
+    items three and five and `company.about`'s highlights already
+    established: BYO storage is client-encrypted before it leaves the
+    device, only CONFIRMED/CORRECTED observations are ever reasoned over
+    (a DRAFT never reaches the assistant, a share link or an export — the
+    standing constraint stated as user-facing copy for the first time), and
+    the deterministic safety check runs ahead of every model response. A
+    closing prompt reuses `company.cta.primaryCta` ("Talk to our team") →
+    `/contact` rather than inventing a new label for the same destination.
+  - `legal/community-guidelines` (`CommunityGuidelinesView`) is an honest
+    empty state, not fabricated rules: Mero Health has no feature yet where
+    users interact with each other (no forums, reviews, public profiles), so
+    drafting guidelines now would be governing something that doesn't exist.
+    States plainly that real guidelines will be published before, not after,
+    any such feature ships.
+  - `accessibility` (`AccessibilityView`) is the one page in this run that
+    had to hold two facts in tension: the ledger's own "Accessibility pass"
+    queue item (heading order, landmarks, focus traps in the mobile drawer,
+    contrast, a keyboard walkthrough of the mega-menu) is still unchecked,
+    so a blanket "we're accessible" claim would misrepresent unfinished
+    work. The three highlights are deliberately narrow and independently
+    verifiable instead: semantic headings/landmarks (true throughout, per
+    every `Section`/`SectionHeading`), `aria-hidden` art per the art
+    direction's own "never render text as an image" rule (true), and
+    `FaqList`'s native `<details>`/`<summary>` elements responding to a
+    keyboard "the same way any browser control does" (true, and narrower
+    than claiming the whole site — including the specifically-unaudited
+    mega-menu — is keyboard-complete). A closing "Still ahead" section
+    names the exact unchecked queue item rather than staying vague, then
+    routes to `/contact` to report a barrier.
+  - `help` (`HelpView`) has no separate help-desk content to draw on, so —
+    same instinct as `ResourceCenterView`/`ContactView` — it routes to the
+    three pages that already answer a support question
+    (`/individuals/faqs`, `/individuals/how-it-works`, `/contact`) instead
+    of a third copy of the same content.
+
+  **Art:** `MemberRouting` (routing to the right document) for `legal`,
+  reused a fourth time. `RecordTransform` (a lab report becoming a
+  structured record) for `legal/privacy`, a direct fit for "how your data
+  is handled," reused a third time. `HabitSprout` ("still forming") for
+  `legal/community-guidelines`, the same "feature doesn't exist yet"
+  metaphor `LeadershipView`/`ClinicalLeadershipView` already established,
+  reused a third time. `CalmMind` and `AroundTheClockCare` both get their
+  first dedicated use outside the homepage/condition pages here — `CalmMind`
+  ("considered, unhurried") for `accessibility`, `AroundTheClockCare`
+  ("available any time") for `help`, a genuine fit for a help center's job
+  rather than a stretch.
+
+  Verified end to end: `pnpm build` lists all 5 new routes as SSG for both
+  locales (76 pages site-wide now, up from 66). Served the production build
+  (`pnpm build && pnpm start`) and drove it with headless Chromium (system
+  Playwright at `/opt/node22/lib/node_modules/playwright`, binary at
+  `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`, `args:
+  ['--no-sandbox']` — without it `chromium.launch` hung until Playwright's
+  own 30s timeout with no error message, worth flagging since the previous
+  runs' notes don't mention needing it). All 5 routes × both locales ×
+  375/768/1280px: `scrollWidth`/`clientWidth` equal everywhere, no overflow.
+  Confirmed with real navigation (`page.locator('main').getByRole('link',
+  ...).click()`, not a static href read) that all three `/legal` routing
+  cards, both `/legal/privacy` and `/accessibility`'s "Talk to our team"
+  buttons, and all three `/help` routing cards resolve to the correct
+  destination in both locales — including on the `/legal` index itself,
+  where an unscoped locator initially clicked a hidden duplicate of the
+  same link text/href inside the header's mega-menu and silently failed to
+  navigate; scoping to `main` fixed it. Also hit a second false negative
+  worth recording for a future run: right after fixing the scoping, clicks
+  still appeared to do nothing because `page.waitForLoadState('load')` never
+  resolves for a Next.js client-side route change — the initial page's
+  `load` event already fired and a `<Link>` transition doesn't refire it, so
+  the URL check was reading the page too early. Fixed with
+  `page.waitForURL(...)` instead. Confirmed via `footer a` extraction that
+  all five previously-dead `helpfulLinks` hrefs (`/help`, `/legal`,
+  `/legal/privacy`, `/accessibility`, `/legal/community-guidelines`) now
+  resolve. All green (install/lint/typecheck/test/build).
+
+  **For the next run:** the queue's next unchecked item is the Health
+  library (index plus article route, with a typed content model). No
+  articles exist anywhere in the repo, so — same as `resource-center`,
+  `partners` and every other zero-source-material page before it — this
+  will need either an honest empty state or a very small typed set of
+  genuinely-written articles that stay inside "invent no facts" (no
+  clinical claims, no cited studies that don't exist). Check whether
+  `content/navigation.ts`'s `healthLibrary` href (`/health-library`,
+  already in the footer's `helpfulLinks` column, still 404ing) implies a
+  specific content shape before designing the typed model.
 
 - 2026-08-08 — Built the six Company routes: `about`, `about/impact`,
   `about/leadership`, `careers`, `newsroom`, `contact`. This clears the

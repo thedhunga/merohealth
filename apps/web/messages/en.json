@@ -829,5 +829,117 @@
         }
       }
     }
+  },
+  "legal": {
+    "index": {
+      "hero": {
+        "title": "Legal documents",
+        "body": "These pages describe how Mero Health actually works today. This is a demonstration build without a registered legal entity yet, so treat them as a plain description of behaviour, not a signed legal contract."
+      },
+      "routesHeading": "Choose what you're looking for",
+      "routes": {
+        "items": {
+          "privacy": {
+            "title": "Privacy",
+            "body": "How your health documents and data are stored, and what the assistant is and isn't allowed to use."
+          },
+          "communityGuidelines": {
+            "title": "Community Guidelines",
+            "body": "Rules for interacting with others on Mero Health — published once a community feature actually exists."
+          },
+          "accessibility": {
+            "title": "Accessibility",
+            "body": "What's already built for screen readers and keyboards, and where the work is still ongoing."
+          }
+        }
+      }
+    },
+    "privacy": {
+      "hero": {
+        "title": "Privacy",
+        "body": "A plain description of how your health data is stored and used today — not a lawyer-drafted policy yet, since Mero Health doesn't have a registered legal entity to issue one from."
+      },
+      "principlesHeading": "What's already true",
+      "highlights": {
+        "items": {
+          "storage": {
+            "title": "Your storage, your choice",
+            "body": "Keep your record in your own Google Drive, encrypted before it ever leaves your device, or in Mero Health's hosted storage. Either way, you can change your mind later."
+          },
+          "confirmed": {
+            "title": "Nothing is used until you confirm it",
+            "body": "Extraction from an uploaded document produces a draft first. Only observations you've confirmed or corrected are ever reasoned over by the assistant, placed in a share link, or included in an export."
+          },
+          "safety": {
+            "title": "A safety check runs before every answer",
+            "body": "A deterministic check runs ahead of every assistant response, independent of the language model, and intercepts anything that looks like an emergency before it reaches you."
+          }
+        }
+      },
+      "contactPrompt": {
+        "heading": "Questions about your data?",
+        "body": "If anything here is unclear, or you want to know more about how a specific document is handled, reach out."
+      }
+    },
+    "communityGuidelines": {
+      "hero": {
+        "title": "Community Guidelines",
+        "body": "Rules for how people interact with each other on Mero Health."
+      },
+      "emptyState": {
+        "heading": "Not yet needed",
+        "body": "Mero Health doesn't have a feature yet where you interact with other users — no forums, reviews or public profiles. Guidelines will be published here before any feature like that ships, not after."
+      }
+    },
+    "accessibility": {
+      "hero": {
+        "title": "Accessibility",
+        "body": "Some things are already built the right way. A full audit hasn't happened yet. Both are true, and this page says so rather than picking one."
+      },
+      "highlightsHeading": "Already built in",
+      "highlights": {
+        "items": {
+          "semantic": {
+            "title": "Real headings and landmarks",
+            "body": "Every page uses proper heading levels and section landmarks, so a screen reader can navigate it the same way a sighted visitor scans it."
+          },
+          "noTextAsImage": {
+            "title": "Text is never an image",
+            "body": "Illustrations are decorative and hidden from screen readers; the words next to them always carry the meaning, so nothing is lost to a screen reader or to translation."
+          },
+          "nativeControls": {
+            "title": "Native controls where it counts",
+            "body": "Disclosures like our FAQ list use standard <details> and <summary> elements instead of custom widgets, so they respond to a keyboard the same way any browser control does."
+          }
+        }
+      },
+      "outstanding": {
+        "heading": "Still ahead",
+        "body": "A full audit — heading order across every route, focus order in the mobile menu, and colour contrast — hasn't happened yet. If something doesn't work with your assistive technology in the meantime, tell us."
+      }
+    },
+    "help": {
+      "hero": {
+        "title": "Help Center",
+        "body": "Find an answer, or a person, depending on what you need."
+      },
+      "routesHeading": "Where to go",
+      "routes": {
+        "items": {
+          "faqs": {
+            "title": "Frequently asked questions",
+            "body": "Straight answers about language, cost, storage and safety."
+          },
+          "howItWorks": {
+            "title": "How Mero Health works",
+            "body": "A walkthrough of what happens from your first upload to your first answer."
+          },
+          "contact": {
+            "title": "Still stuck?",
+            "body": "Route your question to the right place on our contact page."
+          }
+        }
+      }
+    }
   }
 }
