@@ -151,7 +151,7 @@ work.
       the storage port injected.
 - [x] `apps/api`: entitlement guard enforcing `checkModule` and `checkQuota`
       at the route boundary. A UI-only gate is not a gate.
-- [ ] Prisma schema for `HealthDocument`, `HealthObservation`, `DeviceSample`,
+- [x] Prisma schema for `HealthDocument`, `HealthObservation`, `DeviceSample`,
       `Subscription` and usage counters, plus a migration and seed data.
 - [ ] Hosted storage adapter against the MinIO service already in
       `compose.yaml`, implementing `HealthDocumentStore`.
@@ -252,6 +252,90 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — Built the Prisma schema for the personal health platform:
+  `HealthDocument`, `HealthObservation`, `DeviceSample`, `Subscription`,
+  `UsageCounter`, plus a migration and seed data. First task to touch
+  `packages/database` — everything before this ran in-memory.
+
+  **The naming collision the previous run flagged had to be resolved, not
+  deferred:** `schema.prisma` already had a `Subscription` model, but it was
+  the pre-pivot one (`subscriberType`/`subscriberId`/`planId` against a
+  DB-driven `Plan` catalogue) — confirmed by grep, again, that nothing in the
+  codebase reads `Subscription`, `Plan` or `Entitlement` at all, and that no
+  `migrations/` directory existed yet, so this is genuinely the first
+  migration this package has ever had rather than a change against a live
+  schema. Given that, replacing the old `Subscription` model was the correct
+  call, not scope creep: this product's plan catalogue is code-defined in
+  `packages/entitlements` (pricing, modules, limits all live there), so a
+  subscription only needs to record which `PlanTier` an owner is on, not a
+  foreign key into a `Plan` table. **Deliberately did not touch `Plan` or
+  `Entitlement`** — removing those too would be pruning the wider pre-pivot
+  schema, which is the larger decision the previous run named and this run
+  is explicitly not making by accident. `Plan`/`Entitlement` now have no
+  reader anywhere; whether they still belong is still open.
+
+  **No live database was available in this environment** (no Docker daemon;
+  `compose.yaml`'s Postgres never starts) — this could easily have meant an
+  untested migration written on faith. Found a real path instead: Postgres
+  16 is installed on the box directly (`pg_ctlcluster`), so this run started
+  a local cluster, created the `swasthya`/`swasthya` role and database
+  matching `compose.yaml`'s credentials, generated the initial migration
+  with `prisma migrate diff --from-empty --to-schema ... --script` (works
+  without a live connection — it diffs the schema file, not a database), and
+  then actually applied it with `prisma migrate deploy`, ran
+  `prisma migrate diff --from-config-datasource --to-schema` afterward to
+  confirm zero drift between the applied migration and the schema file, ran
+  the new seed rows against it, queried every new table back out to confirm
+  the values landed as written, and re-ran the seed a second time to confirm
+  the `ON CONFLICT DO NOTHING` idempotency actually holds rather than
+  assuming it from reading the SQL. Stopped the cluster afterward — nothing
+  about this depends on it staying up; the next run gets a clean box and can
+  repeat the same steps if it needs to touch the schema again.
+
+  **Design notes for whoever wires a real reader/resolver against these
+  tables next:** `ownerId` on every new table is a plain `String`, not
+  `@db.Uuid`, deliberately — there is still no identity/auth layer (same gap
+  the entitlements-guard run named), so it is exactly the client-supplied
+  string `RecordsController` already validates, no more trustworthy than
+  that. None of the five new models declare a Prisma `@relation` to another
+  model in this file (e.g. `HealthObservation.documentId` is a bare
+  `@db.Uuid` column) — that matches this schema's existing convention across
+  all ~40 pre-pivot models, none of which cross-reference each other via
+  Prisma relations either, presumably to keep each bounded context
+  extraction-ready into its own service later. `UsageCounter` uses a
+  non-null `period` column ("YYYY-MM" for the two monthly-reset dimensions,
+  the sentinel `"ALL_TIME"` for the other three) rather than a nullable
+  `DateTime?`, specifically so `@@unique([ownerId, dimension, period])`
+  actually holds — Postgres treats every `NULL` as distinct, so a nullable
+  period column would have silently allowed duplicate all-time counters per
+  owner. `Subscription` has `@@unique([ownerId])`: one row per owner,
+  updated in place on a tier change, no history table — the simplest shape
+  that unblocks replacing `FreeTierSubscriptionResolver`
+  (`apps/api/src/entitlements/subscription-resolver.ts`), which still names
+  this table as its own replacement; wiring a real resolver against it is
+  the natural next step but is not this task. `DocumentStatus` and
+  `ObservationStatus` got real Postgres enums (matching the existing
+  precedent of `AppointmentStatus`/`PrescriptionStatus`/`PharmacyOrderStatus`
+  — workflow state machines get enums here, plain categorical fields like
+  `kind`/`storageBackend`/`sensitivity` stay `String`), and their members
+  are copy-pasted 1:1 from `packages/health-records`'s `canTransition` table
+  and `ObservationStatus` union so a row can never hold a status the domain
+  logic disallows.
+
+  Seed data: one fictional owner (`demo-owner-fictional-001`) threaded
+  through all five new tables — a demo lab document, one haemoglobin
+  observation on it (`LOCAL` code system, not a LOINC number, specifically
+  to avoid asserting a real-world clinical code this run could not verify
+  with certainty), a manual step-count device sample, a `FREE` subscription,
+  and a `DOCUMENTS_STORED` usage counter. Checksum on the demo document is
+  the well-known SHA-256 of the empty string rather than an invented-looking
+  hex string, on the same "invent nothing" logic the standing constraints
+  already apply to statistics and credentials.
+
+  Verified: `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` (24/24 tasks, unchanged pass count — this task added no
+  TypeScript, only schema/SQL/docs), `pnpm build` all green.
 
 - 2026-08-09 — Built the entitlement guard: `apps/api` now enforces
   `checkModule`/`checkQuota` at the route boundary rather than trusting a

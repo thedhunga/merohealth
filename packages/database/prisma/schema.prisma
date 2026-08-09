@@ -74,6 +74,48 @@ enum PharmacyOrderStatus {
   REFUNDED
 }
 
+// Mirrors packages/health-records's DocumentStatus exactly — that package
+// owns the transition rules (canTransition); this enum just has to keep the
+// same members so a row can never hold a status the domain logic disallows.
+enum DocumentStatus {
+  CAPTURED
+  UPLOADING
+  STORED
+  EXTRACTING
+  AWAITING_CONFIRMATION
+  CONFIRMED
+  EXTRACTION_FAILED
+  DELETED
+}
+
+// Mirrors packages/health-records's ObservationStatus. Only CONFIRMED and
+// CORRECTED rows are trusted (see selectTrusted) — a DRAFT extraction must
+// never reach the assistant, a share link or an export.
+enum ObservationStatus {
+  DRAFT
+  CONFIRMED
+  CORRECTED
+  REJECTED
+}
+
+// Mirrors shared-types's PlanTier. The plan catalogue itself (pricing,
+// modules, limits) stays code-defined in packages/entitlements — this enum
+// only records which tier a given owner is currently on.
+enum PlanTier {
+  FREE
+  PLUS
+  PRO
+}
+
+// Mirrors shared-types's QuotaDimension.
+enum QuotaDimension {
+  DOCUMENTS_STORED
+  EXTRACTION_PAGES_PER_MONTH
+  ASSISTANT_MESSAGES_PER_MONTH
+  ACTIVE_SHARE_LINKS
+  CONNECTED_DEVICES
+}
+
 model User {
   id         String    @id @default(uuid()) @db.Uuid
   email      String?   @unique
@@ -592,17 +634,121 @@ model LedgerEntry {
   createdAt    DateTime @default(now())
 }
 
+// ------------------------------------------------------------------------
+// Personal health platform (docs/architecture/platform-vision.md). Unlike
+// the models above, none of these declare a Prisma `@relation` to another
+// model here — every id-shaped field (ownerId, documentId) is a plain
+// scalar column, matching this file's existing convention of not wiring
+// cross-model foreign keys at the ORM level, since packages are meant to
+// stay extraction-ready into separate services.
+//
+// `ownerId` is deliberately a plain String, not `@db.Uuid`: there is no
+// identity/auth layer yet (see apps/api's FreeTierSubscriptionResolver doc
+// comment), so it is just whatever client-supplied string the caller sent,
+// same as `RecordsController`'s own validation.
+
+model HealthDocument {
+  id              String         @id @default(uuid()) @db.Uuid
+  ownerId         String
+  kind            String
+  status          DocumentStatus @default(CAPTURED)
+  storageBackend  String
+  externalRef     String
+  byteSize        BigInt
+  contentType     String?
+  checksumSha256  String
+  title           String
+  documentDate    DateTime?
+  capturedAt      DateTime       @default(now())
+  sensitivity     String         @default("STANDARD")
+  clientEncrypted Boolean        @default(false)
+  pageCount       Int            @default(1)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  version         Int            @default(1)
+
+  @@index([ownerId, status])
+}
+
+model HealthObservation {
+  id              String            @id @default(uuid()) @db.Uuid
+  documentId      String            @db.Uuid
+  ownerId         String
+  code            String
+  codeSystem      String
+  labelNe         String
+  labelEn         String
+  value           String
+  unit            String?
+  referenceRange  String?
+  abnormalFlag    String?
+  effectiveAt     DateTime?
+  status          ObservationStatus @default(DRAFT)
+  provenance      String
+  // Extraction confidence 0-1. Null for non-extracted provenance.
+  confidence      Float?
+  extractionRunId String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  version         Int               @default(1)
+
+  @@index([documentId])
+  @@index([ownerId, code])
+}
+
+model DeviceSample {
+  id            String    @id @default(uuid()) @db.Uuid
+  ownerId       String
+  kind          String
+  source        String
+  deviceLabel   String?
+  value         Float
+  unit          String
+  recordedAt    DateTime
+  recordedUntil DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([ownerId, kind, recordedAt])
+}
+
+// Replaces the pre-pivot Subscription model this file used to define
+// (subscriberType/subscriberId/planId against a DB-driven Plan catalogue).
+// Nothing in the codebase ever read that model (confirmed by grep before
+// this change), and it modelled a plan catalogue stored in the database —
+// this product's catalogue is code-defined in packages/entitlements, so a
+// subscription only needs to record which tier an owner is on, not a
+// foreign key into a `Plan` table. `Plan`/`Entitlement` below are left
+// untouched; whether they still belong is a separate decision.
+//
+// This is the real store `FreeTierSubscriptionResolver`
+// (apps/api/src/entitlements/subscription-resolver.ts) names as its own
+// replacement — wiring a resolver against it is future work, not this task.
 model Subscription {
-  id             String    @id @default(uuid()) @db.Uuid
-  subscriberType String
-  subscriberId   String    @db.Uuid
-  planId         String    @db.Uuid
-  status         String
-  startsAt       DateTime
-  endsAt         DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  version        Int       @default(1)
+  id                 String    @id @default(uuid()) @db.Uuid
+  ownerId            String    @unique
+  tier               PlanTier  @default(FREE)
+  status             String    @default("ACTIVE")
+  currentPeriodStart DateTime  @default(now())
+  currentPeriodEnd   DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  version            Int       @default(1)
+}
+
+// One row per (owner, dimension, period). `period` is "YYYY-MM" for the
+// two monthly-reset dimensions and the sentinel "ALL_TIME" for the rest, so
+// the unique constraint holds regardless of dimension — a nullable period
+// column would not: Postgres treats every NULL as distinct, which would
+// silently defeat uniqueness for the non-monthly rows.
+model UsageCounter {
+  id        String         @id @default(uuid()) @db.Uuid
+  ownerId   String
+  dimension QuotaDimension
+  period    String
+  count     Int            @default(0)
+  updatedAt DateTime       @updatedAt
+
+  @@unique([ownerId, dimension, period])
 }
 
 model Plan {
