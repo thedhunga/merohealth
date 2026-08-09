@@ -1,8 +1,12 @@
+import Image from 'next/image';
 import { useTranslations } from 'next-intl';
-import { Play, Quote } from 'lucide-react';
+import { Play, Quote, User } from 'lucide-react';
 
 import { testimonialKeys } from '@/content/home';
 import { SectionHeading } from '@/components/ui/Section';
+import { hasAsset } from '@/lib/assets';
+
+const STORY_VIDEO = '/video/mero-health-story.mp4';
 
 /**
  * Testimonial carousel.
@@ -14,6 +18,7 @@ import { SectionHeading } from '@/components/ui/Section';
  */
 export function Testimonials() {
   const t = useTranslations('home.testimonials');
+  const storyReady = hasAsset(STORY_VIDEO);
 
   return (
     <section aria-labelledby="testimonials-heading" className="bg-forest-800 py-16 md:py-24">
@@ -37,8 +42,10 @@ export function Testimonials() {
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-center">
           <div className="lg:col-span-5">
             {/*
-              Video slot. `poster` renders until real footage is supplied, so
-              the section is complete-looking without shipping a fake video.
+              The play badge only renders before the film exists. Once a real
+              <source> is present the native controls own the play affordance,
+              and a decorative badge sitting over them would be a second,
+              non-functional play button.
             */}
             <div className="group relative aspect-video overflow-hidden rounded-card bg-forest-900 shadow-menu">
               <video
@@ -49,16 +56,18 @@ export function Testimonials() {
                 poster="/imagery/nepali-care-team.webp"
                 preload="none"
               >
-                {/* <source src="/video/mero-health-story.mp4" type="video/mp4" /> */}
+                {storyReady ? <source src={STORY_VIDEO} type="video/mp4" /> : null}
               </video>
-              <span
-                aria-hidden
-                className="pointer-events-none absolute inset-0 grid place-items-center"
-              >
-                <span className="grid size-16 place-items-center rounded-full bg-white/90 text-forest-700 transition-transform group-hover:scale-110">
-                  <Play className="size-6 translate-x-0.5 fill-current" />
+              {storyReady ? null : (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 grid place-items-center"
+                >
+                  <span className="grid size-16 place-items-center rounded-full bg-white/90 text-forest-700 transition-transform group-hover:scale-110">
+                    <Play className="size-6 translate-x-0.5 fill-current" />
+                  </span>
                 </span>
-              </span>
+              )}
             </div>
             <p className="mt-3 text-sm text-jade-200">{t('watchVideo')}</p>
           </div>
@@ -77,10 +86,32 @@ export function Testimonials() {
                   <blockquote className="mt-4 text-lg leading-relaxed text-white text-pretty">
                     {t(`items.${key}.quote`)}
                   </blockquote>
-                  <footer className="mt-5 text-sm text-jade-200">
-                    <span className="font-semibold text-white">{t(`items.${key}.name`)}</span>
-                    <span aria-hidden> · </span>
-                    {t(`items.${key}.context`)}
+                  <footer className="mt-5 flex items-center gap-3 text-sm text-jade-200">
+                    {/*
+                      Portraits land one at a time, so each avatar falls back
+                      to a neutral placeholder rather than a broken image. The
+                      photograph is decorative — the name beside it already
+                      carries the meaning — so alt is empty.
+                    */}
+                    <span className="relative size-11 shrink-0 overflow-hidden rounded-full bg-white/15 ring-1 ring-white/25">
+                      {hasAsset(`/imagery/portrait-${key}.webp`) ? (
+                        <Image
+                          alt=""
+                          className="object-cover"
+                          fill
+                          sizes="44px"
+                          src={`/imagery/portrait-${key}.webp`}
+                        />
+                      ) : (
+                        <User aria-hidden className="absolute inset-0 m-auto size-5 text-jade-200" />
+                      )}
+                    </span>
+                    <span>
+                      <span className="block font-semibold text-white">
+                        {t(`items.${key}.name`)}
+                      </span>
+                      {t(`items.${key}.context`)}
+                    </span>
                   </footer>
                 </li>
               ))}

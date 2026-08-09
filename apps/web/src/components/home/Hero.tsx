@@ -4,10 +4,14 @@ import { ArrowRight, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { ButtonLink } from '@/components/ui/Button';
 import { RecordTransform } from '@/components/art/RecordTransform';
 import { Link } from '@/i18n/navigation';
+import { hasAsset } from '@/lib/assets';
+
+const HERO_VIDEO = '/video/mero-health-hero.mp4';
 
 export function Hero() {
   const t = useTranslations('home.hero');
   const announcement = useTranslations('home.announcement');
+  const heroVideoReady = hasAsset(HERO_VIDEO);
 
   return (
     <>
@@ -25,6 +29,39 @@ export function Hero() {
       </div>
 
       <section className="relative overflow-hidden bg-forest-700 text-white">
+        {/*
+          Ambient footage, sitting behind everything.
+
+          Muted with no audio track, autoplaying, looping and `playsInline` —
+          the only combination browsers reliably autoplay. It is decorative, so
+          it carries no controls and no label, and it is skipped entirely under
+          reduced-motion via `motion-reduce:hidden`.
+
+          The forest wash over it is deliberately opaque enough that the
+          headline contrast does not depend on what the footage happens to
+          show — a bright frame must not be able to make the h1 unreadable.
+        */}
+        {heroVideoReady ? (
+          <>
+            <video
+              aria-hidden
+              autoPlay
+              className="pointer-events-none absolute inset-0 size-full object-cover opacity-45 motion-reduce:hidden"
+              loop
+              muted
+              playsInline
+              preload="metadata"
+              tabIndex={-1}
+            >
+              <source src={HERO_VIDEO} type="video/mp4" />
+            </video>
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-forest-700/75"
+            />
+          </>
+        ) : null}
+
         {/*
           The signature: मेरो set as artwork, bled off the edge. It is a
           graphic, not a heading — the real <h1> sits below and this is

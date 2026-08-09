@@ -1,5 +1,41 @@
 # Asset brief — prompts for Veo and ChatGPT
 
+## Status — what has landed
+
+Wired and live. Anything missing keeps its SVG artwork, so the site is
+complete either way.
+
+| Asset | State |
+|---|---|
+| `video/mero-health-hero.mp4` | ✅ wired — ambient loop behind the hero, muted, `motion-reduce:hidden` |
+| `video/mero-health-story.mp4` | ✅ wired — testimonial player |
+| `video/mero-health-capture.mp4` | ⬜ present but unused — 9:16, no slot for it yet |
+| `imagery/portrait-{sabina,raju,mina,prakash}.webp` | ✅ wired — testimonial avatars |
+| `mero-health-social.png` | ✅ used as the OG/Twitter card |
+| The 9 remaining images | ⬜ missing — SVG artwork stands in |
+
+### Four things to know about the delivered images
+
+1. **Every one carries a visible AI watermark** — the four-pointed ✦ in the
+   bottom-right. It is cropped out incidentally at the 44px avatar size, but it
+   will be visible anywhere these are used larger. It has deliberately **not**
+   been removed: it is a provenance marker disclosing that the image is
+   generated, and stripping it to pass synthetic photographs off as real on a
+   health site is not a thing to do quietly. If you want them clean, regenerate
+   on a tier that does not watermark.
+2. **Aspect ratios do not match the brief.** It asked for 1:1; only
+   `portrait-mina` came back square. The other three are ~16:9, so the square
+   avatar crop takes a centre band. Fine at 44px, wrong if reused larger.
+3. **Source files are 2-9 MB each.** `next/image` re-encodes on the way out —
+   the 8.2 MB `portrait-sabina` serves as a 1.4 KB avatar — so visitors are
+   unaffected. The repository now carries ~30 MB of assets, which is the real
+   cost.
+4. **`portrait-raju..webp` had a double dot** and was renamed;
+   **`portrait-sgroup-4.webp` was a four-up contact sheet**, not a single
+   portrait, so it was moved out of `public/` to
+   `docs/product/source-contact-sheet-4up.webp` rather than served as one.
+
+
 Generate these externally, drop the files at the exact paths below, and the
 code picks them up. Filenames are load-bearing: match them exactly.
 

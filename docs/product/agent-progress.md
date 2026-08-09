@@ -175,17 +175,17 @@ externally with Veo and ChatGPT.
 first; if the directory is still empty, skip to the next unchecked task rather
 than building slots for files that are not there.
 
-- [ ] Add an `EditorialImage` component that takes a `src` and an SVG
+- [x] Add an `EditorialImage` component that takes a `src` and an SVG
       `fallback`, renders `next/image` when the file exists and the artwork
       when it does not. **A missing asset must degrade to the existing SVG,
       never to a broken image** — the site has to stay shippable whether or
       not the photography has landed.
-- [ ] Wire the testimonial portraits, then the organisation tabs, then the
+- [x] Wire the testimonial portraits, then the organisation tabs, then the
       condition-page heroes, in that order of visual payoff.
-- [ ] Wire the hero and story videos. Both are silent and must carry a poster
+- [x] Wire the hero and story videos. Both are silent and must carry a poster
       frame; autoplay only ever muted, and never for the story film, which is
       user-initiated.
-- [ ] Confirm every generated photograph still sits inside its existing
+- [x] Confirm every generated photograph still sits inside its existing
       fictional-example labelling. Synthetic faces beside testimonials are
       fine while labelled; presenting one as a real patient is not.
 
