@@ -65,4 +65,16 @@ describe('LanguageCorpusRepository', () => {
 
     expect(repository.listAuditEntries('utterance-1').map((entry) => entry.id)).toEqual(['audit-1', 'audit-2']);
   });
+
+  it('deletes only the requested ids, returning the ones actually found', () => {
+    const repository = new LanguageCorpusRepository();
+    repository.save(makeUtterance({ id: 'a' }));
+    repository.save(makeUtterance({ id: 'b' }));
+
+    const deleted = repository.deleteMany(['a', 'missing']);
+
+    expect(deleted).toEqual(['a']);
+    expect(repository.find('a')).toBeNull();
+    expect(repository.find('b')).not.toBeNull();
+  });
 });

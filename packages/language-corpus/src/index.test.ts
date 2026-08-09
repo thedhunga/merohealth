@@ -9,6 +9,7 @@ import {
   corpusReviewQueue,
   deidentify,
   discardUtterance,
+  eraseFromSnapshot,
   grantConsent,
   hasPurpose,
   isLive,
@@ -278,6 +279,37 @@ describe('buildSnapshot', () => {
 
   it('excludes an owner with no grants at all', () => {
     expect(buildSnapshot([utterance()], new Map(), takenAt).utterances).toHaveLength(0);
+  });
+
+  it('starts the erased count at zero — nothing has been erased from a freshly built snapshot', () => {
+    const grants = new Map([['user-1', [grant()]]]);
+    expect(buildSnapshot([utterance()], grants, takenAt).excluded.erased).toBe(0);
+  });
+});
+
+describe('eraseFromSnapshot', () => {
+  const takenAt = '2026-06-01T00:00:00.000Z';
+  const grants = new Map([
+    ['user-1', [grant({ ownerId: 'user-1' })]],
+    ['user-2', [grant({ ownerId: 'user-2' })]],
+  ]);
+
+  it('removes only the named owner, keeping the rest and counting the removal', () => {
+    const snapshot = buildSnapshot(
+      [utterance({ id: 'a', ownerId: 'user-1' }), utterance({ id: 'b', ownerId: 'user-2' })],
+      grants,
+      takenAt,
+    );
+
+    const erased = eraseFromSnapshot(snapshot, 'user-1');
+
+    expect(erased.utterances.map((u) => u.id)).toEqual(['b']);
+    expect(erased.excluded.erased).toBe(1);
+  });
+
+  it('is a no-op, returning the same snapshot, when the owner has nothing in it', () => {
+    const snapshot = buildSnapshot([utterance({ id: 'a', ownerId: 'user-1' })], grants, takenAt);
+    expect(eraseFromSnapshot(snapshot, 'someone-else')).toBe(snapshot);
   });
 });
 

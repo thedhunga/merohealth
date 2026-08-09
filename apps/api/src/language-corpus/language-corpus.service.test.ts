@@ -89,3 +89,48 @@ describe('LanguageCorpusService reviewer actions', () => {
     expect(() => service.auditLog('missing')).toThrow(NotFoundException);
   });
 });
+
+describe('LanguageCorpusService erase', () => {
+  it('removes every utterance belonging to the owner, leaving others untouched', () => {
+    const service = buildService();
+    service.ingest({ ...validIngest, id: 'a', ownerId: 'owner-1' });
+    service.ingest({ ...validIngest, id: 'b', ownerId: 'owner-2' });
+    service.ingest({ ...validIngest, id: 'c', ownerId: 'owner-1' });
+
+    const { erasedUtteranceIds } = service.erase('owner-1');
+
+    expect(erasedUtteranceIds).toEqual(['a', 'c']);
+    expect(() => service.read('a', 'reviewer-1')).toThrow(NotFoundException);
+    expect(service.read('b', 'reviewer-1').ownerId).toBe('owner-2');
+  });
+
+  it('also removes an erased owner’s utterances from the review queue', () => {
+    const service = buildService();
+    service.ingest({ ...validIngest, id: 'a', ownerId: 'owner-1' });
+
+    service.erase('owner-1');
+
+    expect(service.queue()).toHaveLength(0);
+  });
+
+  it('attributes the deletion to the data subject, distinct from a reviewer decision', () => {
+    // Audit entries outlive the utterance they describe — `auditLog(id)`
+    // requires the utterance to still exist, same as every other route
+    // keyed on an id, so the repository is inspected directly here rather
+    // than through that method.
+    const repository = new LanguageCorpusRepository();
+    const service = new LanguageCorpusService(repository);
+    service.ingest({ ...validIngest, id: 'a', ownerId: 'owner-1' });
+
+    service.erase('owner-1');
+
+    expect(repository.listAuditEntries('a')).toMatchObject([
+      { action: 'UTTERANCE_ERASED', actorId: 'owner-1', actorRole: 'DATA_SUBJECT' },
+    ]);
+  });
+
+  it('is a no-op for an owner with nothing in the corpus', () => {
+    const service = buildService();
+    expect(service.erase('nobody-here').erasedUtteranceIds).toEqual([]);
+  });
+});

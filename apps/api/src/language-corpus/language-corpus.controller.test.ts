@@ -84,3 +84,21 @@ describe('LanguageCorpusController reviewer routes', () => {
     expect(controller.queue().total).toBe(2);
   });
 });
+
+describe('LanguageCorpusController erase', () => {
+  it('erases every utterance for the owner and reports how many', () => {
+    const controller = buildController();
+    controller.ingest(validIngest);
+    controller.ingest({ ...validIngest, id: 'utterance-2', ownerId: 'owner-2' });
+
+    const result = controller.erase('owner-1');
+
+    expect(result).toEqual({ erasedUtteranceIds: ['utterance-1'], erasedCount: 1 });
+    expect(() => controller.read('utterance-1', 'reviewer-1')).toThrow(NotFoundException);
+  });
+
+  it('rejects a blank ownerId rather than silently erasing nothing', () => {
+    const controller = buildController();
+    expect(() => controller.erase('   ')).toThrow(BadRequestException);
+  });
+});

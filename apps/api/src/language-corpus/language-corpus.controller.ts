@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Headers, Param, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiHeader, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import { CorpusReviewerGuard, REVIEWER_ID_HEADER } from './corpus-reviewer.guard.js';
@@ -107,6 +107,21 @@ export class LanguageCorpusController {
   @ApiOperation({ summary: 'Record that a residual identifier was found — this utterance must never train a model' })
   discard(@Param('utteranceId') utteranceId: string, @Headers(REVIEWER_ID_HEADER) reviewerId?: string) {
     return this.corpus.discard(utteranceId, requireReviewerId(reviewerId));
+  }
+
+  @Delete('owners/:ownerId')
+  @ApiParam({ name: 'ownerId' })
+  @ApiOperation({
+    summary:
+      'A right-to-erasure request: removes every utterance belonging to this owner from the corpus and the review queue',
+  })
+  erase(@Param('ownerId') ownerId: string) {
+    const parsed = z.string().trim().min(1).safeParse(ownerId);
+    if (!parsed.success) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'ownerId is required' });
+    }
+    const { erasedUtteranceIds } = this.corpus.erase(parsed.data);
+    return { erasedUtteranceIds, erasedCount: erasedUtteranceIds.length };
   }
 
   @Get('utterances/:utteranceId/audit-log')

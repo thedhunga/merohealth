@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { clearForTraining, corpusReviewQueue, discardUtterance, type CorpusUtterance } from '@swasthya/language-corpus';
+import {
+  clearForTraining,
+  corpusReviewQueue,
+  discardUtterance,
+  utteranceIdsForOwner,
+  type CorpusUtterance,
+} from '@swasthya/language-corpus';
 import { LanguageCorpusRepository, type CorpusAuditEntry } from './language-corpus.repository.js';
 
 export interface IngestUtteranceInput {
@@ -59,6 +65,46 @@ export class LanguageCorpusService {
     const discarded = this.repository.save(discardUtterance(this.#require(utteranceId), new Date().toISOString()));
     this.#audit(utteranceId, reviewerId, 'UTTERANCE_DISCARDED');
     return discarded;
+  }
+
+  /**
+   * A person's right-to-erasure request (language-corpus.md §4, the
+   * "unlearning problem"). `utteranceIdsForOwner` names what belongs to
+   * them; deleting those rows reaches the corpus and, because
+   * `corpusReviewQueue` above is a filter over the same repository rather
+   * than a separate store, the review queue for free. It does **not** reach
+   * a training snapshot, because nothing in this repository persists one
+   * yet — `buildSnapshot` is called on demand, nowhere, today — and it
+   * cannot reach a model already trained on one, because §4 is explicit
+   * that trained weights cannot be unlearned from. Both are true today
+   * without this function lying about either: there is no snapshot to miss
+   * and no model that exists to have trained on this person's data. The
+   * moment a snapshot store exists, its owner must call
+   * `eraseFromSnapshot` here too, per that function's own doc comment.
+   *
+   * Unguarded, like `ingest`: this is the data subject acting on their own
+   * `ownerId`, not a reviewer acting on someone else's, and this repo has
+   * no identity layer yet to bind a caller to the `ownerId` they claim —
+   * same limitation `CorpusReviewerGuard`'s own doc comment names. Replace
+   * with a real identity check the moment one exists.
+   */
+  erase(ownerId: string): { erasedUtteranceIds: readonly string[] } {
+    const ids = utteranceIdsForOwner(this.repository.list(), ownerId);
+    const erasedUtteranceIds = this.repository.deleteMany(ids);
+
+    const occurredAt = new Date().toISOString();
+    for (const utteranceId of erasedUtteranceIds) {
+      this.repository.appendAuditEntry({
+        id: randomUUID(),
+        utteranceId,
+        actorId: ownerId,
+        actorRole: 'DATA_SUBJECT',
+        action: 'UTTERANCE_ERASED',
+        occurredAt,
+      });
+    }
+
+    return { erasedUtteranceIds };
   }
 
   /** The accountability trail §5 depends on: who read this utterance and who decided it, and when. */

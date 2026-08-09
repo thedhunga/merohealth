@@ -14,8 +14,13 @@ export interface CorpusAuditEntry {
   id: string;
   utteranceId: string;
   actorId: string;
-  actorRole: 'CORPUS_REVIEWER';
-  action: 'UTTERANCE_READ' | 'UTTERANCE_CLEARED' | 'UTTERANCE_DISCARDED';
+  /**
+   * `DATA_SUBJECT` covers the erasure path (agent-progress.md's language
+   * corpus queue): the person themselves acting on their own utterances,
+   * not a reviewer acting on someone else's.
+   */
+  actorRole: 'CORPUS_REVIEWER' | 'DATA_SUBJECT';
+  action: 'UTTERANCE_READ' | 'UTTERANCE_CLEARED' | 'UTTERANCE_DISCARDED' | 'UTTERANCE_ERASED';
   occurredAt: string;
 }
 
@@ -42,6 +47,22 @@ export class LanguageCorpusRepository {
 
   list(): CorpusUtterance[] {
     return [...this.#utterances.values()];
+  }
+
+  /**
+   * The erasure path's reach into the corpus itself: once a row is gone from
+   * this map, `list()` no longer surfaces it, which is also how it stops
+   * appearing in `corpusReviewQueue` — that queue is a filter over `list()`,
+   * not a separate store, so there is nothing further to erase it from.
+   * Returns the ids actually found, so a caller can tell erasure of an
+   * already-erased or never-existed id apart from a real deletion.
+   */
+  deleteMany(ids: readonly string[]): readonly string[] {
+    const deleted: string[] = [];
+    for (const id of ids) {
+      if (this.#utterances.delete(id)) deleted.push(id);
+    }
+    return deleted;
   }
 
   appendAuditEntry(entry: CorpusAuditEntry): void {

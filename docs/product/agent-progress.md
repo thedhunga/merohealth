@@ -209,7 +209,7 @@ an evaluation set before it needs a trainer.
       misunderstands, and ask there rather than at signup.
 - [x] Reviewer queue for utterances flagged `awaitingHumanReview`, reusing the
       credentialing reviewer role pattern.
-- [ ] Erasure path: `utteranceIdsForOwner` must reach the corpus, every
+- [x] Erasure path: `utteranceIdsForOwner` must reach the corpus, every
       derived snapshot and the review queue. Be truthful in the UI about
       models already trained — do not imply unlearning that did not happen.
 
@@ -276,6 +276,92 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — **Erasure path: `utteranceIdsForOwner` must reach the corpus,
+  every derived snapshot and the review queue (line 212, the first unchecked
+  task, re-derived from a fresh top-to-bottom `grep -n "^- \["` per every
+  prior entry's own instruction).** The three destinations turned out to be
+  in three different states of "exists to be reached," which shaped the
+  whole task.
+
+  **The review queue was already reached for free.** `corpusReviewQueue`
+  (previous run) is a filter over `LanguageCorpusRepository.list()`, not a
+  separate store — so deleting a row from the repository removes it from
+  the queue with no extra code. Confirmed with a test (`erase` empties the
+  queue) rather than just asserted.
+
+  **The corpus needed a real deletion path, since none existed.**
+  `utteranceIdsForOwner` (built two runs ago, per language-corpus.md §4) had
+  never been called from anywhere — `grep -rn "utteranceIdsForOwner"
+  apps packages` outside its own tests turned up nothing. Added
+  `LanguageCorpusRepository.deleteMany(ids)` (returns the ids actually
+  found, so a caller can tell a real deletion from an erasure request for
+  data that was never there) and `LanguageCorpusService.erase(ownerId)`,
+  which chains `utteranceIdsForOwner` → `deleteMany` and logs one
+  `UTTERANCE_ERASED` audit entry per deleted id. New route:
+  `DELETE /language-corpus/owners/:ownerId`, unguarded like `ingest` —
+  this is the data subject acting on their own id, not a reviewer acting on
+  someone else's, and documented with the same "no identity layer exists
+  yet to verify the caller owns this id" caveat `CorpusReviewerGuard`
+  already carries elsewhere in this module.
+
+  Erasure needed its own actor role: the existing `CorpusAuditEntry.actorRole`
+  was hardcoded to the literal type `'CORPUS_REVIEWER'`, correct for a
+  reviewer's own decisions but wrong for a person deleting their own data.
+  Widened to `'CORPUS_REVIEWER' | 'DATA_SUBJECT'` and added the
+  `UTTERANCE_ERASED` action, rather than reusing `CORPUS_REVIEWER` for an
+  action no reviewer took.
+
+  **No snapshot existed anywhere to reach.** `buildSnapshot` (also built two
+  runs ago) is a pure function; `grep -rn "buildSnapshot" apps packages`
+  outside its own tests confirmed nothing in `apps/api` calls it — no
+  snapshot has ever been taken or persisted in this codebase, and
+  `apps/api` has no consent-grant store either (`grep -rn "ConsentGrant"
+  apps` outside tests: nothing), so `buildSnapshot` could not even be
+  invoked server-side today regardless of erasure. Building a persisted
+  snapshot store just to give erasure something to delete from would have
+  been inventing a subsystem this ledger item never asked for. Instead
+  added `eraseFromSnapshot(snapshot, ownerId)` to `packages/language-corpus`
+  — a pure function scrubbing one owner out of a `CorpusSnapshot` value,
+  the same "hand back the operation, the caller owns the store" shape
+  `utteranceIdsForOwner`'s own doc comment already commits to — plus an
+  `excluded.erased` count on `CorpusSnapshot` so a scrubbed snapshot stays
+  explainable, matching the existing `excluded.consentRevoked` /
+  `awaitingReview` / `discarded` counts. `LanguageCorpusService.erase`'s doc
+  comment names this explicitly: nothing calls `eraseFromSnapshot` yet
+  because there is nothing to call it on, and the day a snapshot store
+  exists its owner must wire this in too.
+
+  **Truthful about models already trained, because there aren't any.**
+  language-corpus.md §7 is explicit that no training code exists in this
+  repo at all — confirmed again by grep, nothing has changed there. So the
+  honest answer to "have any models trained on this person's data" is
+  simply no, for every person, today; there was no unlearning claim to
+  avoid fabricating because there is no trained model to make one about.
+  Did **not** build any UI surface for this (no consent-screen button, no
+  settings screen): `apps/mobile`'s companion still never calls
+  `POST /language-corpus/utterances` (flagged unbuilt by two prior entries,
+  still true — confirmed by grep), so no utterance from this app has ever
+  reached the server-side corpus this endpoint erases from. A UI erase
+  button today would visibly do something while being a no-op against real
+  data for every current user, which is exactly the kind of surface that
+  looks finished and is not — the thing the standing constraints ask this
+  ledger to avoid. Wiring `apps/mobile` to actually POST retained utterances
+  server-side is real, separate work and a precondition for any erasure UI
+  to mean anything; it is not yet in the queue as its own item.
+
+  **Verify:** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm
+  typecheck`, `pnpm test` (`@swasthya/language-corpus` 35 → 38,
+  `@swasthya/api` 188 → 195), `pnpm build`, all green from a clean install,
+  run as `pnpm <script>` at the repo root per the existing turbo-dependency
+  note in the entry below this one.
+
+  **For the next run:** re-derive the first unchecked task from a fresh
+  `grep -n "^- \["` over the whole file, not from this pointer. The
+  language-corpus section is now fully checked; the next section in file
+  order is "Identity and professional credentialing," but confirm that with
+  the grep rather than trusting this sentence, per every entry above this
+  one making the same point.
 
 - 2026-08-09 — **Reviewer queue for utterances flagged `awaitingHumanReview`,
   reusing the credentialing reviewer role pattern (line 210, the first

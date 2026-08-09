@@ -357,6 +357,8 @@ export interface CorpusSnapshot {
     consentRevoked: number;
     awaitingReview: number;
     discarded: number;
+    /** Removed after the snapshot was taken, by `eraseFromSnapshot` — see there. */
+    erased: number;
   };
 }
 
@@ -397,7 +399,33 @@ export function buildSnapshot(
     included.push(utterance);
   }
 
-  return { takenAt, utterances: included, excluded: { consentRevoked, awaitingReview, discarded } };
+  return { takenAt, utterances: included, excluded: { consentRevoked, awaitingReview, discarded, erased: 0 } };
+}
+
+/**
+ * Removes one person from a snapshot already taken — the "every derived
+ * snapshot" leg of the erasure path in language-corpus.md §4. A snapshot is a
+ * value here, not a store: whoever persists one (no caller does yet — see
+ * `apps/api`'s language-corpus module) is responsible for calling this on
+ * every snapshot it still holds and re-persisting the result, the same way
+ * `utteranceIdsForOwner` hands back ids rather than deleting from a store it
+ * does not own.
+ *
+ * This can only reach a snapshot still sitting as data. It cannot reach a
+ * model already trained on one — §4 is explicit that unlearning from trained
+ * weights is not possible, so a caller answering an erasure request must say
+ * so truthfully rather than implying this function undoes that too.
+ */
+export function eraseFromSnapshot(snapshot: CorpusSnapshot, ownerId: string): CorpusSnapshot {
+  const kept = snapshot.utterances.filter((utterance) => utterance.ownerId !== ownerId);
+  const removed = snapshot.utterances.length - kept.length;
+  if (removed === 0) return snapshot;
+
+  return {
+    ...snapshot,
+    utterances: kept,
+    excluded: { ...snapshot.excluded, erased: snapshot.excluded.erased + removed },
+  };
 }
 
 /**
