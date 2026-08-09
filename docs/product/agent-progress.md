@@ -210,7 +210,7 @@ Patients are the primary interface; clinicians are a clearly-marked tab.
 - [x] Clinician registration flow on `apps/web`: council selection,
       registration number, certificate and ID capture, and a clear status
       screen while the application is pending.
-- [ ] Reviewer queue: a distinct role, not a general admin power, with every
+- [x] Reviewer queue: a distinct role, not a general admin power, with every
       evidence-image read logged and every decision attributed.
 - [ ] Verified badge component stating **which council, which number, when
       last checked** — never "trusted doctor". Must render from the persisted
@@ -252,6 +252,148 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — Built the credentialing reviewer queue as a real `apps/api`
+  module: `apps/api/src/credentialing/` — submit, queue, per-application
+  read, begin-review, approve, reject, and an audit-log endpoint, all wired
+  into `AppModule`. Fourth "Identity and professional credentialing" task;
+  closes the gap the clinician-registration-flow entry above named for it.
+  Re-checked `apps/web/public/` first, per "Photography wiring"'s own gating
+  instruction — grepped every filename asset-brief.md actually names; still
+  only the same two pre-photography files. Skipped it again, same as every
+  prior run, and moved to this task, the next unchecked one.
+
+  **"Distinct role, not a general admin power" (§4) built as a real,
+  separate `ReviewerGuard`, not folded into `EntitlementsGuard` or left as a
+  convention.** Every reviewer route (`GET /credentialing/queue`,
+  `GET .../applications/:id`, `.../begin-review`, `.../approve`,
+  `.../reject`, `.../audit-log`) carries `@UseGuards(ReviewerGuard)`, which
+  requires an `x-reviewer-role: CLINICAL_REVIEWER` header — reusing
+  `packages/database`'s own `UserRole.CLINICAL_REVIEWER` enum member name,
+  not an invented label — plus `x-reviewer-id` to attribute the action to.
+  **Named plainly, not glossed over: there is still no identity/auth layer
+  anywhere in this repo** (the same gap every prior `apps/api`-adjacent run
+  has flagged, now against a sixth module), so this guard cannot verify a
+  caller actually holds that role the way a real session would; it can only
+  require the caller to declare it, the same honesty limit `ownerId`
+  already accepts everywhere else in this API (`EntitlementsGuard`'s own
+  `extractOwnerId` comment makes the identical admission). What it genuinely
+  buys even without real authentication: nobody reaches a reviewer route by
+  accident the way an undifferentiated "is logged in" check would allow, and
+  the declared reviewer id is exactly what downstream attribution and audit
+  logging need. The guard's own doc comment says outright to replace it the
+  moment real auth exists, and not to read its current presence as actual
+  authorization.
+
+  **"Every read of an evidence image is logged" (§4) scoped to what this
+  codebase can honestly log today.** No credentialing-evidence storage
+  adapter exists yet (named as an open gap by both prior credentialing
+  entries below), so no route here ever serves evidence image bytes — the
+  most a reviewer can read through this API is the evidence *reference*
+  (`certificateImageRef`/`identityImageRef`) on `GET
+  /credentialing/applications/:id`. `CredentialingService.read` is the one
+  method that hands those refs to a caller, and it is the one method that
+  writes an `EVIDENCE_READ` audit entry — attributed to the reviewer id,
+  timestamped, scoped to that application. `GET .../queue` deliberately does
+  not log anything: it returns `reviewQueue`'s own summary rows, not a
+  specific application's evidence.
+
+  **"Every decision attributed" (§3) enforced twice over, not just logged.**
+  `packages/credentialing`'s own `approveApplication`/`rejectApplication`
+  already refuse to run without a `reviewerId` string — that was built two
+  runs ago and needed no change. This run adds a second, independent record
+  of the same fact: `beginReview`/`approve`/`reject` each also append a
+  `CredentialingAuditEntry` (`REVIEW_STARTED` / `APPLICATION_APPROVED` /
+  `APPLICATION_REJECTED`) carrying the same reviewer id, readable back
+  through `GET .../audit-log` — so "who decided this" survives even for a
+  caller who only ever looks at the audit trail, not the application
+  record itself.
+
+  **New local type, not added to `packages/credentialing`, and that's a
+  deliberate boundary read.** `CredentialingAuditEntry` lives in
+  `apps/api/src/credentialing/credentialing.repository.ts`, not
+  `packages/shared-types` or `packages/credentialing` itself:
+  identity-and-credentialing.md §5 names that package's scope as "council
+  registry, application state machine, review queue, badge rules" only —
+  auditing who acted is a side effect of the API layer sitting on top, the
+  same "domain records the decision, a repository layer executes side
+  effects" split `health-records`/`devices` already established for their
+  own packages. If a future run finds auditing needs to be shared across
+  more than one service, that's a deliberate promotion, not a bug in this
+  one.
+
+  **In-memory repository, same precedent `RecordsRepository` already set,
+  named rather than silently matched.** `CredentialingRepository` is a
+  process-local `Map` plus an append-only array, not Prisma-backed, even
+  though `packages/database/prisma/schema.prisma` has no
+  `CredentialingApplication`/audit table at all yet — grepped first to
+  confirm. This mirrors `RecordsRepository`'s own doc comment (still true
+  today: nothing in `apps/api` actually imports `@prisma/client` anywhere,
+  despite the "Prisma schema" queue item above being checked — that task
+  built the schema and migration, not a wired client) rather than inventing
+  a bespoke persistence layer for just this module.
+
+  **A real, if narrow, submission endpoint was added (`POST
+  /credentialing/applications`), not just the reviewer side — named as a
+  scope decision, not scope creep.** A reviewer queue with nothing to
+  review would only be exercisable through hand-built test fixtures.
+  `CredentialingService.submit` finds-or-creates by `applicantId` (a plain
+  client-supplied field, same convention as `ownerId` throughout this API)
+  and calls the existing `submitApplication`. This surfaced a real property
+  of the state machine `packages/credentialing` already built: calling
+  submit twice while still `EVIDENCE_SUBMITTED`/`UNDER_REVIEW` correctly
+  throws `ApplicationTransitionError` rather than silently overwriting — an
+  applicant can only resubmit after an actual `REJECTED` decision, per §3.
+  A test originally asserted the wrong (silent-overwrite) behaviour and was
+  corrected to assert the throw instead, once the failure explained why.
+
+  **Still disconnected from `apps/web`'s clinician registration flow —
+  named, not wired, because wiring it was out of scope for "reviewer
+  queue."** The clinician-registration-flow entry below already documented
+  that `apps/web` has no backend calls anywhere and submits entirely
+  client-side with `local-file:`-prefixed evidence refs. This run's
+  `POST /credentialing/applications` is real, tested, working backend code,
+  but nothing in `apps/web` calls it yet — an application submitted through
+  the web flow today still only ever exists in that browser tab, exactly as
+  the prior entry described. Connecting the two is future work: it needs a
+  real evidence-upload path (§4: evidence never goes to bring-your-own
+  storage, so this needs its own hosted-storage wiring, not the Drive/MinIO
+  adapters `health-records` uses) before `local-file:` refs could become
+  real ones.
+
+  New files: `credentialing.repository.ts` (+ audit entry type),
+  `credentialing.service.ts`, `credentialing.controller.ts`,
+  `reviewer.guard.ts`, `credentialing.module.ts`, all under
+  `apps/api/src/credentialing/`, each with a colocated `index.test.ts`-style
+  `*.test.ts`. Added `@swasthya/credentialing` to `apps/api/package.json`
+  (same `workspace:*` + export-condition shape `apps/web` already uses for
+  it) and registered `CredentialingModule` in `AppModule` alongside
+  `RecordsModule`. 30 new tests across the four test files (4 repository, 5
+  guard, 8 service, 9 controller — plus 4 already-passing tests
+  re-verified unaffected), all colocated with their source per the standing
+  convention.
+
+  Verified: `pnpm install` (new workspace dependency — confirmed
+  `--frozen-lockfile` passes clean afterward), `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` (`@swasthya/api` going from 35 to 65 tests; every other
+  package's test count unchanged), `pnpm build` (`apps/api/dist/credentialing/`
+  produced alongside the rest of `dist/`), all green.
+
+  **For the next run:** the queue's next unchecked item in this section is
+  "Verified badge component" — the render-only piece: state which council,
+  which number, when last checked, never "trusted doctor", and it must read
+  from the persisted `CredentialingBadge` (`badgeRenderStatus` already
+  exists in `packages/credentialing`), never compute trust live. It needs
+  nowhere real to read a badge *from* yet: this run's `approve` endpoint
+  returns an `APPROVED` `CredentialingApplication`, not yet a
+  `CredentialingBadge` — `issueBadge` from `packages/credentialing` is
+  still never called anywhere in `apps/api`, the same "built the domain
+  layer, not every caller" gap this ledger has repeated for every package
+  since `packages/identity`. A natural next step is having
+  `CredentialingService.approve` also call `issueBadge` (it will need a
+  `recheckDueAt` policy input from somewhere, since §3 names no cadence —
+  see the `packages/credentialing` entry below's own note on that) and
+  persist the result, giving the badge component something real to render.
 
 - 2026-08-09 — Built the clinician registration flow on `apps/web`:
   `/clinicians/register`, council selection, registration number, certificate

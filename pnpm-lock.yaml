@@ -59,6 +59,9 @@ importers:
       '@swasthya/clinical-safety':
         specifier: workspace:*
         version: link:../../packages/clinical-safety
+      '@swasthya/credentialing':
+        specifier: workspace:*
+        version: link:../../packages/credentialing
       '@swasthya/entitlements':
         specifier: workspace:*
         version: link:../../packages/entitlements
