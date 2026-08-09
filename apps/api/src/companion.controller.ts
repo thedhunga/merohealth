@@ -10,7 +10,13 @@ const requestSchema = z.object({
 @ApiTags('companion')
 @Controller('companion')
 export class CompanionController {
-  constructor(private readonly healthResearch = new PerplexityHealthService()) {}
+  // An explicit type annotation is required here, not just the default value:
+  // Nest's DI reflects `design:paramtypes` from the annotation to resolve the
+  // provider at runtime. Without it, tsc still emits metadata but as a bare
+  // `Object` token, which Nest cannot match to any registered provider and
+  // throws on boot — the default value alone only helps direct construction
+  // in a test, never Nest's own instantiation path.
+  constructor(private readonly healthResearch: PerplexityHealthService = new PerplexityHealthService()) {}
 
   @Post('assess')
   @ApiOperation({ summary: 'Run deterministic pre-generation safety screening' })

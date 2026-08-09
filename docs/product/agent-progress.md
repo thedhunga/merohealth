@@ -146,7 +146,7 @@ work.
 
 ### Platform core
 
-- [ ] `apps/api`: records module exposing capture, list, timeline and
+- [x] `apps/api`: records module exposing capture, list, timeline and
       confirm/correct/reject endpoints over `packages/health-records`, with
       the storage port injected.
 - [ ] `apps/api`: entitlement guard enforcing `checkModule` and `checkQuota`
@@ -252,6 +252,108 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — Built `apps/api`'s records module: capture, list, timeline and
+  confirm/correct/reject endpoints over `packages/health-records`, with the
+  storage port injected. First task in "Platform core" and the first task any
+  run has done against `apps/api` rather than `apps/web` — read
+  `docs/architecture/platform-vision.md` §3.2 and `packages/health-records`'s
+  actual source before starting, per the previous run's own note, and that
+  paid off: the module design follows directly from what was already there
+  rather than inventing a shape for it.
+
+  **New `apps/api/src/records/`** — `records.repository.ts` (an in-memory
+  `Map`-backed store for `HealthDocument`/`HealthObservation`, explicitly a
+  stand-in: its own doc comment says the next queue item, the Prisma schema,
+  replaces only this file, not the service or controller above it),
+  `records.service.ts` (the actual logic, wrapping
+  `@swasthya/health-records`'s pure functions —
+  `buildTimeline`/`confirmObservation`/`correctObservation`/
+  `rejectObservation` — around the repository), `records.controller.ts` (zod
+  request validation, matching `companion.controller.ts`'s existing pattern),
+  and `records.module.ts`. Wired into `AppModule` alongside the existing
+  three controllers.
+
+  **"With the storage port injected" taken literally:** `RecordsService`
+  takes `HealthDocumentStore` (the port `packages/storage-adapters` already
+  defines) through a Nest DI token, `HEALTH_DOCUMENT_STORE`, exported from
+  `records.service.ts` and bound in `records.module.ts` to
+  `InMemoryDocumentStore('HOSTED')` for now. Swapping in the real MinIO
+  adapter, queued right after the Prisma schema, is a one-line change in the
+  module — nothing in the service or controller knows or needs to know which
+  adapter is behind the port. `captureDocument` also calls
+  `assertPlacementAllowed` itself before `store.put()`, rather than trusting
+  every future adapter to enforce it internally — the standing constraint
+  that a backend Mero Health doesn't control must never receive readable
+  bytes has to hold regardless of which adapter is plugged in, so the check
+  lives at the port boundary in the service, not inside one adapter's `put`.
+
+  **Scoped honestly around what isn't built yet:** there is no OCR/extraction
+  pipeline anywhere in this repo, so `captureDocument` uploads bytes and
+  records a document already `STORED` — it does not, and should not,
+  fabricate `HealthObservation`s. That leaves confirm/correct/reject with
+  nothing to act on through the HTTP surface alone yet; they're fully
+  implemented, wired, and tested (service- and controller-level tests seed a
+  `DRAFT` observation directly into the repository, since that's the only way
+  to produce one honestly today), but a real client can't exercise them until
+  an extraction step exists to create drafts in the first place. Documented
+  here explicitly rather than papering over it with a fake extraction
+  endpoint — the mobile capture-flow item later in this same queue section
+  names `pendingConfirmations` as what it needs to drive its confirmation
+  queue, so this module's job was to have that contract ready, not to build
+  extraction early.
+
+  **A pre-existing, unrelated bug found and fixed during verification:**
+  `pnpm test` never actually boots the Nest application (vitest imports the
+  controller classes directly), so nothing before this run had ever run
+  `node dist/main.js` against a real build. Doing that here — the only way to
+  verify the new endpoints against a live server rather than just direct
+  class instantiation — showed the app has never actually been able to
+  start: `CompanionController`'s constructor
+  (`private readonly healthResearch = new PerplexityHealthService()`, no
+  type annotation) makes `tsc --emitDecoratorMetadata` reflect the parameter
+  as a bare `Object` rather than `PerplexityHealthService`, and Nest's
+  injector throws on boot trying to resolve a provider for `Object`.
+  Confirmed this predates this run entirely by building and running the
+  *unmodified* `origin/mero-health/platform-foundation` tip in a scratch
+  `git worktree` — same crash, same stack, before a single line of this
+  run's work was added. Fixed with a one-line, one-file change: an explicit
+  `: PerplexityHealthService` annotation on that same parameter (kept the
+  default value too, since `companion.controller.test.ts` still constructs
+  it directly without Nest). This was a blocking prerequisite for verifying
+  this run's own task, not a second task — the records module's new
+  `RecordsService` has the same shape of dependency (a constructor parameter
+  Nest must resolve by type) and would have hit the identical class of
+  failure the moment anyone actually tried to run the server, so leaving it
+  broken would have meant shipping code that had only ever been exercised
+  through direct-construction unit tests, never through Nest's own
+  instantiation path.
+
+  Verified end to end: `pnpm build && node dist/main.js` now starts cleanly
+  and logs every route, `RecordsController` included, under
+  `NestApplication successfully started`. Drove it with `curl` against a
+  live server: capture → returns a `STORED` document with a real `ref` from
+  the injected `InMemoryDocumentStore`; list scopes strictly to the given
+  `ownerId`; timeline reflects the captured document with zero counts (no
+  observations exist yet, as expected); observations-for-document returns an
+  empty list for a real document and a 404 for an unknown one; confirming an
+  unknown observation 404s; omitting `ownerId` on list/timeline 400s. All
+  green (install/lint/typecheck/test/build — `pnpm test` includes 28 tests in
+  `apps/api` now, up from 3, across the three new colocated
+  `records.*.test.ts` files plus the pre-existing `companion.controller.test.ts`,
+  itself unaffected by the DI fix).
+
+  **For the next run:** next unchecked item is the entitlement guard
+  (`checkModule`/`checkQuota` at the route boundary — "a UI-only gate is not
+  a gate"). This run's `RecordsController` has no entitlement enforcement at
+  all yet — every endpoint is open — which is correct sequencing per the
+  queue order, not an oversight, but means the guard's own task should wire
+  through `records/documents` (capture in particular: it's the one endpoint
+  a paid quota — documents stored — should actually gate) as its first real
+  target, not just add the guard in the abstract. After that, the Prisma
+  schema item replaces this run's `RecordsRepository` — check
+  `records.repository.ts`'s own doc comment first, since it names exactly
+  what has to move.
 
 - 2026-08-09 — Accessibility pass: heading order, landmarks, focus traps in
   the mobile drawer, contrast, and a keyboard walkthrough of the mega-menu.
