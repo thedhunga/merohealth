@@ -530,3 +530,75 @@ export interface CreateChartingTemplateInput {
   assessmentPrompt: string;
   planPrompt: string;
 }
+
+/* ------------------------------------------------------------------ *
+ * Clinical summary (clinical-suite.md capability map row 4)
+ *
+ * "Problem list, allergies, medications ... Extends digital-twin with
+ * clinician-authored provenance." `TwinFact` already models a
+ * `CLINICIAN_AUTHORED` provenance and a `CLINICIAN_VERIFIED` verification
+ * (see that type's own comment) but has no field for which patient,
+ * clinician or encounter recorded one — the mobile companion infers "whose
+ * fact this is" from the device's own signed-in owner, which has no meaning
+ * once a clinician is charting a different person's visit. A
+ * `ClinicalSummaryItem` is that missing wrapper around the same
+ * provenance/verification vocabulary (reused via indexed access below,
+ * not retyped), scoped to a patient-registry `patientId` and, when
+ * clinician-authored, the `clinical-charting` encounter that recorded it.
+ * Restricted to the three kinds this capability row names — `TwinFactKind`
+ * also carries `BLOOD_GROUP`, `EMERGENCY_CONTACT`, `PREGNANCY_STATUS`,
+ * `ACCESSIBILITY` and `HEALTH_GOAL`, none of which is a problem, an allergy
+ * or a medication. As with `Encounter.patientId` against
+ * `HealthDocument.ownerId` (clinical-charting's own comment), this asserts
+ * no linkage between a `ClinicalSummaryItem.patientId` and a `TwinFact`'s
+ * own id space beyond both being opaque strings — patient-registry and
+ * digital-twin stay separate bounded contexts.
+ * ------------------------------------------------------------------ */
+export type ClinicalSummaryKind = Extract<TwinFactKind, 'CONDITION' | 'ALLERGY' | 'MEDICATION'>;
+
+/**
+ * Mirrors the real problem-list lifecycle: a condition resolves, an
+ * allergy is marked no longer relevant, a medication is discontinued. One
+ * status covers all three kinds rather than three bespoke enums — nothing
+ * in this codebase needs to distinguish "resolved" from "discontinued"
+ * today, and inventing that split ahead of a caller that needs it would be
+ * designing for a hypothetical requirement.
+ */
+export type ClinicalSummaryStatus = 'ACTIVE' | 'RESOLVED';
+
+export interface ClinicalSummaryItem {
+  id: string;
+  patientId: string;
+  kind: ClinicalSummaryKind;
+  label: string;
+  value: string;
+  status: ClinicalSummaryStatus;
+  provenance: TwinFact['provenance'];
+  verification: TwinFact['verification'];
+  /** Set together, only for a clinician-authored item; both null for a patient-reported one. */
+  authoredByEncounterId: string | null;
+  authoredByClinicianId: string | null;
+  recordedAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface RecordPatientReportedSummaryItemInput {
+  patientId: string;
+  kind: ClinicalSummaryKind;
+  label: string;
+  value: string;
+}
+
+/**
+ * `patientId` and `encounterId` are deliberately absent here: the API
+ * boundary derives both from the `clinical-charting` encounter the item is
+ * authored against, rather than trusting a client-supplied `patientId` that
+ * could disagree with the encounter it is nested under.
+ */
+export interface RecordClinicianSummaryItemInput {
+  clinicianId: string;
+  kind: ClinicalSummaryKind;
+  label: string;
+  value: string;
+}

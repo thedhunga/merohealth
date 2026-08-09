@@ -261,7 +261,7 @@ suite grows. A module that "works" but has no outage test is not finished.
 - [x] `scheduling`: appointments and resource calendars. Degrades to
       `READ_ONLY` when the registry is unavailable rather than failing.
 - [x] `clinical-charting`: encounters, SOAP notes, templates.
-- [ ] `clinical-summary`: problem list, allergies, medications — extending
+- [x] `clinical-summary`: problem list, allergies, medications — extending
       `digital-twin` with clinician-authored provenance.
 - [ ] `medication-safety`: interaction and allergy checking. Built **before**
       prescribing, so prescribing degrades to `MANUAL` against it rather than
@@ -276,6 +276,97 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — **`clinical-summary`: problem list, allergies, medications —
+  extending `digital-twin` with clinician-authored provenance (clinical-suite.md
+  capability map row 4, the first unchecked task, re-derived from a fresh
+  top-to-bottom `grep -n "^- \["` per every prior entry's own instruction).**
+  This is the fourth clinical-suite module and the first one to sit
+  entirely above `clinical-charting` rather than beside it.
+
+  **What "extending digital-twin" means here.** `packages/digital-twin`'s
+  `TwinFact` already models a `CLINICIAN_AUTHORED` provenance and a
+  `CLINICIAN_VERIFIED` verification, but has no field for which patient,
+  clinician or encounter recorded one — its `provenance`/`verification`
+  vocabulary is designed around a single device's own signed-in owner,
+  which has no meaning once a clinician is charting a *different* person's
+  visit. Rather than retrofit patient/clinician/encounter fields onto
+  `TwinFact` itself (which would break the mobile companion's existing
+  unscoped usage), added a new `ClinicalSummaryItem` type to
+  `packages/shared-types` that reuses the same provenance/verification
+  union via indexed access (`TwinFact['provenance']`) instead of retyping
+  it, scoped to a patient-registry `patientId`. Restricted `kind` to
+  `Extract<TwinFactKind, 'CONDITION' | 'ALLERGY' | 'MEDICATION'>` — the
+  three things this capability row actually names; `TwinFactKind`'s other
+  four kinds (blood group, emergency contact, pregnancy status,
+  accessibility) are not a problem list, an allergy or a medication.
+  `ClinicalSummaryStatus` is `'ACTIVE' | 'RESOLVED'` for all three kinds
+  rather than three bespoke lifecycles — nothing in this codebase needs to
+  distinguish "resolved" from "discontinued" today.
+
+  **New package `packages/clinical-summary`** (pure domain layer, matching
+  `clinical-charting`'s own split): `recordPatientReportedItem` (provenance
+  `PATIENT_REPORTED`, verification `UNVERIFIED`, no encounter) and
+  `recordClinicianAuthoredItem` (provenance `CLINICIAN_AUTHORED`,
+  verification `CLINICIAN_VERIFIED` from the moment it exists — the author
+  and the verifier are the same person, so there is no separate
+  confirmation step to invent) and `resolveItem`, which throws
+  `ClinicalSummaryItemAlreadyResolvedError` on an already-resolved item
+  rather than being silently idempotent, matching
+  `EncounterAlreadyClosedError`/`AppointmentAlreadyCancelledError`'s own
+  precedent for "did my write actually do anything."
+
+  **`apps/api/src/clinical-summary/`**, mirroring `clinical-charting`'s
+  file set exactly (repository/service/controller/module-descriptor/module,
+  each with its own test, plus the fault-isolation test the standing
+  constraints require): `ClinicalSummaryService` is injected
+  `ClinicalChartingService` — its port, never its repository, per §2 rule 3
+  — and only `recordClinicianAuthored` calls into it, to resolve the
+  authoring encounter (and read `patientId` off it, so a client cannot
+  claim a patient that disagrees with the encounter it is nested under).
+  Recording a patient-reported item, reading, listing and resolving never
+  touch clinical-charting, so the list keeps working even if
+  clinical-charting is down. Module descriptor: `CLINICAL_SUMMARY` requires
+  nothing, `degradesWith: [{ key: 'CLINICAL_CHARTING', mode: 'HIDE' }]` —
+  same shape row 3's own descriptor used against `HEALTH_RECORDS`. Routes:
+  `POST /clinical-summary/items` (patient-reported), `POST
+  /clinical-summary/encounters/:encounterId/items` (clinician-authored),
+  `GET /clinical-summary/items` (filterable by `patientId`/`kind`), `GET
+  /clinical-summary/items/:itemId`, `POST
+  /clinical-summary/items/:itemId/resolve`, `GET /clinical-summary/health`.
+  Registered in `app.module.ts` after `ClinicalChartingModule`, and added
+  `@swasthya/clinical-summary` as an `apps/api` dependency.
+
+  **Deliberately not built:** whether an encounter must be `OPEN` to author
+  a summary item against it. `clinical-charting` enforces that "sign and
+  lock" rule for its own notes and document attachments, but
+  `clinical-summary` doesn't own `Encounter` and the ledger task only asks
+  for provenance, not a business rule about when authoring is allowed — so
+  this was left alone rather than inventing a constraint the capability row
+  never stated. Also did not add a `sensitivity` field (unlike
+  `HealthDocument`/`HealthObservation`/`TwinFact`, which all carry one):
+  nothing in this codebase currently reads or gates on `sensitivity`
+  functionally (`grep -rn "sensitivity"` outside type declarations and one
+  capture-time default confirms it), so adding it here would be
+  unused surface area, not a real capability. No UI in `apps/web` or
+  `apps/mobile`: none of `patient-registry`, `scheduling` or
+  `clinical-charting` got one either when they were built — this stays an
+  API-only "core EHR surface" module until the clinical-suite reaches the
+  point of building a clinician-facing shell.
+
+  **Verify:** `pnpm install` (lockfile needed updating for the new
+  workspace package — confirmed clean afterward with `pnpm install
+  --frozen-lockfile`), `pnpm lint`, `pnpm typecheck`, `pnpm test`
+  (`@swasthya/clinical-summary` 0 → 4 tests, `@swasthya/api` 195 → 222),
+  `pnpm build`, all green from a clean install, run as `pnpm <script>` at
+  the repo root.
+
+  **For the next run:** re-derive the first unchecked task from a fresh
+  `grep -n "^- \["` over the whole file, not from this pointer. The next
+  item in file order is `medication-safety` (row 5) — "Built before
+  prescribing, so prescribing degrades to `MANUAL` against it rather than
+  depending on it" — but confirm that with the grep rather than trusting
+  this sentence, per every entry above this one making the same point.
 
 - 2026-08-09 — **Erasure path: `utteranceIdsForOwner` must reach the corpus,
   every derived snapshot and the review queue (line 212, the first unchecked

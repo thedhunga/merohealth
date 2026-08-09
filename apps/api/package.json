@@ -19,6 +19,7 @@
     "@swasthya/care-directory": "workspace:*",
     "@swasthya/clinical-charting": "workspace:*",
     "@swasthya/clinical-safety": "workspace:*",
+    "@swasthya/clinical-summary": "workspace:*",
     "@swasthya/credentialing": "workspace:*",
     "@swasthya/entitlements": "workspace:*",
     "@swasthya/health-records": "workspace:*",
