@@ -189,6 +189,30 @@ than building slots for files that are not there.
       fictional-example labelling. Synthetic faces beside testimonials are
       fine while labelled; presenting one as a real patient is not.
 
+### Nepali language corpus
+
+Design in
+[`docs/architecture/language-corpus.md`](../architecture/language-corpus.md).
+`packages/language-corpus` is built: consent purposes, de-identification,
+retention, snapshots, erasure.
+
+**Do not build training code.** The package captures consent so a model *can*
+be trained later; the pipeline itself is deliberately out of scope and needs
+an evaluation set before it needs a trainer.
+
+- [ ] Consent screen in `apps/mobile` and `apps/web`: each purpose separately
+      toggleable, default off, plain Nepali explanation of what is kept and
+      what is not. **Never bundle these into terms acceptance.**
+- [ ] Wire `retainUtterance` into the companion, gated on a live grant. It
+      throws without one — let it throw rather than catching and dropping.
+- [ ] Capture `CORRECTION` pairs when a person rephrases after the assistant
+      misunderstands, and ask there rather than at signup.
+- [ ] Reviewer queue for utterances flagged `awaitingHumanReview`, reusing the
+      credentialing reviewer role pattern.
+- [ ] Erasure path: `utteranceIdsForOwner` must reach the corpus, every
+      derived snapshot and the review queue. Be truthful in the UI about
+      models already trained — do not imply unlearning that did not happen.
+
 ### Identity and professional credentialing
 
 Design in

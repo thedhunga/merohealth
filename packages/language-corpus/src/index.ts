@@ -1,0 +1,310 @@
+import type { LanguageCode } from '@swasthya/shared-types';
+
+/**
+ * Nepali language corpus.
+ *
+ * The purpose of this package is to make it *possible* to train a Nepali
+ * health model later, by capturing the consent and provenance now. It
+ * deliberately contains no training code: that is a different problem, needs
+ * scale this product does not yet have, and can be built at any time.
+ *
+ * Consent, however, cannot be built later. A conversation retained without a
+ * training-use basis recorded at the moment of capture is unusable for
+ * training afterwards, and no amount of subsequent engineering fixes that.
+ * That asymmetry is the whole reason this exists this early.
+ */
+
+/* ------------------------------------------------------------------ *
+ * Consent
+ * ------------------------------------------------------------------ */
+
+/**
+ * Consent purposes are separate and independently revocable.
+ *
+ * `SERVICE_DELIVERY` is what makes the product work and is not optional.
+ * Everything else is, and none of it may ride along on acceptance of the
+ * terms of service — bundling secondary use into a terms checkbox is exactly
+ * the pattern that makes a consent record worthless.
+ */
+export type ConsentPurpose =
+  | 'SERVICE_DELIVERY'
+  | 'MODEL_TRAINING_TEXT'
+  | 'MODEL_TRAINING_VOICE'
+  | 'HUMAN_REVIEW';
+
+/** Purposes a person must actively opt into. Default is always off. */
+export const optionalPurposes: readonly ConsentPurpose[] = [
+  'MODEL_TRAINING_TEXT',
+  'MODEL_TRAINING_VOICE',
+  'HUMAN_REVIEW',
+];
+
+export interface ConsentGrant {
+  purpose: ConsentPurpose;
+  ownerId: string;
+  grantedAt: string;
+  /** Set the moment it is withdrawn. Never delete the row — see below. */
+  revokedAt: string | null;
+  /** Wording the person actually agreed to, so an old grant stays auditable. */
+  policyVersion: string;
+}
+
+/**
+ * Whether a grant is live at a given instant.
+ *
+ * Takes an explicit `at` rather than reading the clock: the same utterance is
+ * evaluated at capture time and again at snapshot time, and those answers can
+ * legitimately differ.
+ */
+export function isLive(grant: ConsentGrant, at: string): boolean {
+  const t = Date.parse(at);
+  if (Number.isNaN(t) || Date.parse(grant.grantedAt) > t) return false;
+  return grant.revokedAt === null || Date.parse(grant.revokedAt) > t;
+}
+
+export function hasPurpose(
+  grants: readonly ConsentGrant[],
+  purpose: ConsentPurpose,
+  at: string,
+): boolean {
+  return grants.some((grant) => grant.purpose === purpose && isLive(grant, at));
+}
+
+/* ------------------------------------------------------------------ *
+ * De-identification
+ * ------------------------------------------------------------------ */
+
+export type RedactionKind =
+  | 'PHONE' | 'EMAIL' | 'CITIZENSHIP' | 'NMC_NUMBER' | 'LONG_DIGITS' | 'URL';
+
+export interface Redaction {
+  kind: RedactionKind;
+  /** Character offset in the *original* text. */
+  start: number;
+  length: number;
+}
+
+export interface DeidentifiedText {
+  text: string;
+  redactions: readonly Redaction[];
+  /**
+   * True when nothing matched. Not a guarantee of safety — see the note on
+   * `deidentify` — but useful for routing the risky ones to human review.
+   */
+  clean: boolean;
+}
+
+/**
+ * Patterns are ordered longest-match-first so a citizenship number is not
+ * partially eaten by the generic long-digit rule.
+ */
+const patterns: ReadonlyArray<{ kind: RedactionKind; re: RegExp }> = [
+  { kind: 'EMAIL', re: /[\w.+-]+@[\w-]+\.[\w.]{2,}/g },
+  { kind: 'URL', re: /https?:\/\/\S+/g },
+  // Nepali citizenship certificate: 2-2-2-5 digit groups, various separators.
+  { kind: 'CITIZENSHIP', re: /\b\d{2}[-/]\d{2}[-/]\d{2}[-/]\d{4,6}\b/g },
+  // Nepali mobile numbers are ten digits opening 97 or 98, often with +977.
+  { kind: 'PHONE', re: /(?:\+?977[-\s]?)?\b9[78]\d{8}\b/g },
+  // Kathmandu-style landline: 01-XXXXXXX.
+  { kind: 'PHONE', re: /\b0\d{1,2}[-\s]?\d{6,7}\b/g },
+  { kind: 'NMC_NUMBER', re: /\b(?:NMC|एनएमसी)[-\s:]*\d{3,6}\b/gi },
+  // Catch-all for anything long enough to be an identifier.
+  { kind: 'LONG_DIGITS', re: /\b\d{7,}\b/g },
+];
+
+const placeholder: Record<RedactionKind, string> = {
+  PHONE: '[फोन]',
+  EMAIL: '[इमेल]',
+  CITIZENSHIP: '[नागरिकता]',
+  NMC_NUMBER: '[दर्ता नम्बर]',
+  LONG_DIGITS: '[नम्बर]',
+  URL: '[लिंक]',
+};
+
+/**
+ * Removes structured identifiers from an utterance before it is retained.
+ *
+ * **This is not sufficient on its own and must not be treated as if it were.**
+ * It catches identifiers with regular structure — phone numbers, emails,
+ * citizenship numbers. It cannot catch a Nepali personal name, a village, or a
+ * relationship ("मेरो बुहारी"), because those have no reliable surface form to
+ * match on and a name list would be both incomplete and a privacy problem of
+ * its own.
+ *
+ * The mitigations for that residue are human review before any corpus is used
+ * and the fact that retention is opt-in in the first place — not a cleverer
+ * regular expression.
+ */
+export function deidentify(text: string): DeidentifiedText {
+  const redactions: Redaction[] = [];
+  const taken: Array<[number, number]> = [];
+
+  let out = text;
+
+  for (const { kind, re } of patterns) {
+    // Reset because these are module-level /g regexes reused across calls.
+    re.lastIndex = 0;
+    for (const match of text.matchAll(re)) {
+      const start = match.index;
+      const length = match[0].length;
+      // Skip anything already covered by an earlier, more specific pattern.
+      if (taken.some(([s, l]) => start < s + l && s < start + length)) continue;
+      taken.push([start, length]);
+      redactions.push({ kind, start, length });
+    }
+  }
+
+  // Replace back-to-front so earlier offsets stay valid.
+  for (const r of [...redactions].sort((a, b) => b.start - a.start)) {
+    out = out.slice(0, r.start) + placeholder[r.kind] + out.slice(r.start + r.length);
+  }
+
+  return { text: out, redactions, clean: redactions.length === 0 };
+}
+
+/* ------------------------------------------------------------------ *
+ * Utterances
+ * ------------------------------------------------------------------ */
+
+/**
+ * `CORRECTION` is the most valuable row in this table and the cheapest to
+ * collect: the person told the assistant it had misunderstood, and rephrased.
+ * That pair is a labelled example of exactly the failure the model needs to
+ * learn, and the moment it happens is a natural, honest place to ask whether
+ * the exchange may be kept.
+ */
+export type UtteranceKind = 'USER_MESSAGE' | 'CORRECTION' | 'VOICE_TRANSCRIPT';
+
+export interface CorpusUtterance {
+  id: string;
+  ownerId: string;
+  kind: UtteranceKind;
+  /** Already de-identified. Raw text is never stored in the corpus. */
+  text: string;
+  locale: LanguageCode;
+  capturedAt: string;
+  /** What the assistant had said, for a CORRECTION. */
+  precedingAssistantText: string | null;
+  redactionCount: number;
+  /** Cleared once a human has checked the residual-identifier risk. */
+  awaitingHumanReview: boolean;
+}
+
+export class CorpusConsentError extends Error {
+  constructor(purpose: ConsentPurpose) {
+    super(`No live consent for ${purpose}; refusing to retain utterance.`);
+    this.name = 'CorpusConsentError';
+  }
+}
+
+function purposeFor(kind: UtteranceKind): ConsentPurpose {
+  return kind === 'VOICE_TRANSCRIPT' ? 'MODEL_TRAINING_VOICE' : 'MODEL_TRAINING_TEXT';
+}
+
+export interface RetainInput {
+  id: string;
+  ownerId: string;
+  kind: UtteranceKind;
+  rawText: string;
+  locale: LanguageCode;
+  capturedAt: string;
+  precedingAssistantText?: string | null;
+}
+
+/**
+ * The single way an utterance enters the corpus.
+ *
+ * Throws rather than returning null when consent is absent: silently dropping
+ * would let a caller believe capture succeeded, and a corpus that quietly
+ * contains fewer rows than expected is far harder to notice than one that
+ * fails loudly.
+ */
+export function retainUtterance(
+  input: RetainInput,
+  grants: readonly ConsentGrant[],
+): CorpusUtterance {
+  const purpose = purposeFor(input.kind);
+  if (!hasPurpose(grants, purpose, input.capturedAt)) {
+    throw new CorpusConsentError(purpose);
+  }
+
+  const { text, redactions } = deidentify(input.rawText);
+
+  return {
+    id: input.id,
+    ownerId: input.ownerId,
+    kind: input.kind,
+    text,
+    locale: input.locale,
+    capturedAt: input.capturedAt,
+    precedingAssistantText: input.precedingAssistantText ?? null,
+    redactionCount: redactions.length,
+    // Anything that carried an identifier gets a human look before use; so
+    // does every voice transcript, where speech-to-text may have introduced
+    // a name the text pipeline never saw.
+    awaitingHumanReview: redactions.length > 0 || input.kind === 'VOICE_TRANSCRIPT',
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * Snapshots
+ * ------------------------------------------------------------------ */
+
+export interface CorpusSnapshot {
+  takenAt: string;
+  utterances: readonly CorpusUtterance[];
+  /** Excluded counts, so a snapshot can be explained rather than just trusted. */
+  excluded: {
+    consentRevoked: number;
+    awaitingReview: number;
+  };
+}
+
+/**
+ * Builds the exact set of utterances a training run is allowed to see.
+ *
+ * Consent is re-checked here, not just at capture: someone may have withdrawn
+ * in between, and the withdrawal has to bite before the data is used rather
+ * than after. This is also why a model version must record the snapshot it was
+ * trained on — once weights exist, an utterance cannot be unlearned, so the
+ * only honest guarantee is that it was still consented at the moment training
+ * began.
+ */
+export function buildSnapshot(
+  utterances: readonly CorpusUtterance[],
+  grantsByOwner: ReadonlyMap<string, readonly ConsentGrant[]>,
+  takenAt: string,
+): CorpusSnapshot {
+  let consentRevoked = 0;
+  let awaitingReview = 0;
+  const included: CorpusUtterance[] = [];
+
+  for (const utterance of utterances) {
+    const grants = grantsByOwner.get(utterance.ownerId) ?? [];
+    if (!hasPurpose(grants, purposeFor(utterance.kind), takenAt)) {
+      consentRevoked += 1;
+      continue;
+    }
+    if (utterance.awaitingHumanReview) {
+      awaitingReview += 1;
+      continue;
+    }
+    included.push(utterance);
+  }
+
+  return { takenAt, utterances: included, excluded: { consentRevoked, awaitingReview } };
+}
+
+/**
+ * Everything belonging to one person, for a deletion request.
+ *
+ * Returns the ids rather than performing the delete: the caller owns the
+ * storage, and a right-to-erasure request has to reach the corpus, any
+ * derived snapshots, and the review queue — not just one table.
+ */
+export function utteranceIdsForOwner(
+  utterances: readonly CorpusUtterance[],
+  ownerId: string,
+): readonly string[] {
+  return utterances.filter((u) => u.ownerId === ownerId).map((u) => u.id);
+}
