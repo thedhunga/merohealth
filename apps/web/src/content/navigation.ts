@@ -159,6 +159,7 @@ export const navSegments: NavSegment[] = [
       {
         headingKey: 'ourTeam',
         items: [
+          { key: 'register', href: '/clinicians/register' },
           { key: 'ourProviders', href: '/clinicians/our-providers' },
           { key: 'clinicalLeadership', href: '/clinicians/clinical-leadership' },
           { key: 'providerCareers', href: '/clinicians/careers' },
@@ -210,6 +211,7 @@ export const footerColumns: FooterColumn[] = [
   {
     headingKey: 'clinicians',
     links: [
+      { key: 'register', href: '/clinicians/register' },
       { key: 'commitmentToQuality', href: '/clinicians/commitment-to-quality' },
       { key: 'providerCareers', href: '/clinicians/careers' },
     ],

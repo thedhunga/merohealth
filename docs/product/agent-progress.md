@@ -207,7 +207,7 @@ Patients are the primary interface; clinicians are a clearly-marked tab.
       rules. **No automatic approval** — there is no public council API, so a
       human reads the register. Never render "verified" for a submission no
       person has reviewed.
-- [ ] Clinician registration flow on `apps/web`: council selection,
+- [x] Clinician registration flow on `apps/web`: council selection,
       registration number, certificate and ID capture, and a clear status
       screen while the application is pending.
 - [ ] Reviewer queue: a distinct role, not a general admin power, with every
@@ -252,6 +252,156 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — Built the clinician registration flow on `apps/web`:
+  `/clinicians/register`, council selection, registration number, certificate
+  and ID capture, and a status screen. Third "Identity and professional
+  credentialing" task; closes the section's own gap named at the end of the
+  `packages/credentialing` entry below. Re-checked `apps/web/public/` first,
+  per "Photography wiring"'s own gating instruction — still only the same two
+  pre-photography files, none of asset-brief.md's ~17 named files. Skipped it
+  again and moved to this task, the next unchecked one.
+
+  **First UI task to actually call a domain package this ledger built purely
+  headless until now.** `submitApplication`/`councilRegistry` from
+  `packages/credentialing` are called for real, from a real route, for the
+  first time — every prior `packages/identity`/`packages/credentialing` run
+  explicitly named "nothing calls this yet" as an open gap. Added
+  `@swasthya/credentialing` as an `apps/web` dependency (previously only
+  `@swasthya/shared-types`) and to `next.config.ts`'s `transpilePackages`,
+  mirroring exactly how `configuration`/`entitlements`/`shared-types` are
+  already listed there — same `exports` shape (`react-native`/`types`/
+  `default` conditions), same reason.
+
+  **`apps/web` has no backend and no credentialing-evidence storage
+  adapter — named as real, not routed around.** Grepped first and confirmed
+  `apps/web` has zero `route.ts` files and zero `fetch(` calls anywhere
+  (`ContactView.tsx` already documents this as a deliberate "no live channel
+  in this demonstration build" stance for the same reason). This flow builds
+  and submits a real `CredentialingApplication` entirely client-side —
+  `submitApplication` runs for real, producing a genuine `EVIDENCE_SUBMITTED`
+  record — but the certificate/ID photographs never leave the browser tab:
+  `certificateImageRef`/`identityImageRef` are stamped `local-file:<name>`
+  rather than a real uploaded pointer, and the status screen says outright
+  that this demonstration build isn't connected to a live review team yet and
+  the application only exists in this browser tab. Per the standing "invent
+  no facts" constraint, that felt like the honest choice over a fake success
+  state implying a reviewer is already looking at it.
+
+  **"No automatic approval, ever" (identity-and-credentialing.md §3) enforced
+  by what this code simply never calls, not by a check.** This flow only ever
+  calls `submitApplication`; it never calls `beginReview`/`approveApplication`
+  itself, so the only application status reachable through this component is
+  `EVIDENCE_SUBMITTED` — there is no code path here that could render
+  "verified" for an unreviewed submission, because nothing here can produce
+  an `APPROVED` application at all. The status screen's copy says a trained
+  reviewer checks the number against the council's public register and that
+  nobody has reviewed it yet, echoing §3's own language rather than a
+  softened paraphrase.
+
+  **Nepali profession labels added, the exact gap `packages/credentialing`'s
+  own entry below left named for this task.** `councilRegistry` deliberately
+  ships no `professionNe` — its own comment says that's UI copy for this
+  task's `ne.json`/`en.json`. Added `clinicians.register.professions.*` for
+  all five councils (डाक्टरहरू, नर्स तथा सुँडेनीहरू, सम्बद्ध स्वास्थ्य
+  व्यवसायीहरू, फार्मासिस्टहरू, आयुर्वेद चिकित्सकहरू) — ordinary descriptive
+  profession nouns, not proper nouns or clinical claims, so translating them
+  directly (rather than treating them like the council names, which were
+  looked up) is consistent with "invent no facts": nothing about "nurse" or
+  "pharmacist" needed an external source to translate correctly.
+
+  **Accepted ID document types are identity-and-credentialing.md §2's own
+  list, not invented:** the identity-photo hint names exactly राष्ट्रिय
+  परिचयपत्र / national ID, नागरिकता / citizenship, passport and driving
+  licence — the same four §2 names for the separate `packages/identity`
+  ladder — reused here since §3 step 2 just says "a photo ID" without its own
+  list. The evidence step's hint about blurred photographs being the most
+  common rejection reason is §3's own sentence, not a fabricated UX tip.
+
+  **No forms library, no file-upload or stepper component existed anywhere in
+  `apps/web` before this** (confirmed by an Explore pass first) — the whole
+  flow is plain `useState` local to `RegisterView.tsx`, matching
+  `OrganizationTabs.tsx`'s established convention (no react-hook-form, no
+  global state library). File capture uses a hidden `<input type="file"
+  accept="image/*" capture="environment">` behind a visible `<label>` —
+  the standard accessible pattern, and `capture="environment"` opens the
+  device camera directly on a phone browser while still falling back to a
+  plain picker on desktop. There is no live-preview web camera flow the way
+  `apps/mobile`'s `expo-camera` capture screen has one; building `getUserMedia`
+  capture wasn't in scope for this task and would have been new surface area
+  the ledger didn't ask for.
+
+  **Object URL lifecycle handled explicitly, a real correctness detail, not
+  gold-plating:** each captured file's preview is a `URL.createObjectURL`
+  blob; a `useEffect` keyed on that field revokes the *previous* URL when the
+  file is replaced or the component unmounts, rather than accumulating leaked
+  blob URLs across retakes.
+
+  **Basic focus management for the four-step flow:** each step's heading is a
+  focusable (`tabIndex={-1}`) element that receives focus on `useEffect` when
+  `step` changes, so a screen reader or keyboard user landing on the "review"
+  or "status" panel gets announced there rather than silently staying wherever
+  they last were — the same class of accessibility work the earlier
+  "Accessibility pass" task already set a bar for in this codebase.
+
+  **Only one marigold action across the whole flow, deliberately, not one per
+  step.** The art direction rule is "one action per screen," but this is one
+  continuous page with four sequential panels, not four screens — used
+  `primary` (forest) for the "Continue" buttons and reserved `accent`
+  (marigold) for "Submit application" alone, the actual moment of commitment.
+
+  **New testable logic kept in plain functions, matching this app's own
+  precedent for `focusTrap.ts`** (no React Testing Library or jsdom is
+  configured anywhere in `apps/web`, confirmed by grepping for existing
+  component tests — there are none, only pure-logic ones): `src/lib/
+  local-id.ts` (session-scoped `crypto.randomUUID()`-based ids — no Hermes/
+  Metro constraint here unlike `apps/mobile`'s own `local-id.ts`, since this
+  only ever runs in a browser or Next's Node SSR pass, both of which have
+  `crypto.randomUUID()` natively) and `src/lib/clinician-application.ts`
+  (constructs the initial `NOT_STARTED` application and calls
+  `submitApplication`, kept out of the component so it's actually testable).
+  6 new tests total across both files, verifying: distinct/prefixed ids, the
+  submitted application always lands `EVIDENCE_SUBMITTED` with
+  `reviewerId`/`decidedAt` null, and both evidence refs carry the
+  `local-file:` marker.
+
+  **Wired into navigation, not left as an orphan route** — added `register`
+  as the first item under the "ourTeam" mega-menu column and the footer's
+  clinicians column (`content/navigation.ts`), plus a `content/routes.ts`
+  entry so `sitemap.ts` and `generateMetadata` both pick it up automatically,
+  the same registry every other marketing route already goes through.
+
+  **Verified past the unit tests:** built the app and grepped the exported
+  static HTML directly for both locales' real copy — Nepali ("प्रमाणित
+  क्लिनिसियनको रूपमा दर्ता गर्नुहोस्", "तपाईं कुन परिषद्मा दर्ता हुनुहुन्छ",
+  "डाक्टरहरू", "फोटो छान्नुहोस्") and English ("Register as a verified
+  clinician", "Which council are you registered with?", "Doctors", "Choose
+  photo") all present, no error-boundary marker, and confirmed the new nav
+  and footer links render on the homepage's own exported HTML too — rather
+  than trusting `tsc --noEmit` and the build's exit code alone.
+
+  Verified: `pnpm install` (new workspace dependency, `@swasthya/credentialing`
+  added to `apps/web` — confirmed `--frozen-lockfile` passes clean
+  afterward), `pnpm lint`, `pnpm typecheck`, `pnpm test` (`@swasthya/web`
+  contributing 6 new tests from zero; every other package's test count
+  unchanged), `pnpm build` (both `/ne/clinicians/register` and
+  `/en/clinicians/register` statically generated), all green.
+
+  **For the next run:** the queue's next unchecked items in this section are
+  "Reviewer queue" (a distinct role, every evidence read logged, every
+  decision attributed) and the "Verified badge component" itself — neither
+  can be built as a real, working feature yet without the two gaps this run
+  named again: (1) still no identity/auth layer anywhere in this repo (an
+  `applicantId` here is a fresh `local-id.ts` value generated at submit time,
+  not a real signed-in identity — a reviewer queue has nothing real to
+  attribute a decision *to* without one), and (2) still no
+  credentialing-evidence storage adapter, so a reviewer queue would have
+  local-only `local-file:` refs with nothing behind them to actually display
+  for review. A future run could still build the reviewer-queue *domain*
+  wiring (an `apps/api` module calling `reviewQueue`/`beginReview`/
+  `approveApplication`/`rejectApplication` over an in-memory or Prisma-backed
+  store) without solving either gap fully, the same "build what's honestly
+  buildable, name what isn't" approach this run took.
 
 - 2026-08-09 — Built `packages/credentialing`: the council registry, the
   application state machine (submit → review → decide), the review queue, and

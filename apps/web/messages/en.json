@@ -53,6 +53,7 @@
       "connectedPartners": "Connected Care Partners",
       "resourceCenter": "Resource Center",
       "events": "Events",
+      "register": "Register as a Clinician",
       "ourProviders": "Our Providers",
       "clinicalLeadership": "Clinical Leadership",
       "providerCareers": "Provider Careers",
@@ -670,6 +671,63 @@
       "body": "We're building the clinicians behind Nepali-first care. Get in touch to learn where you might fit.",
       "primaryCta": "Talk to our team",
       "secondaryCta": "See open roles"
+    },
+    "register": {
+      "hero": {
+        "title": "Register as a verified clinician",
+        "body": "Select your council, submit your registration number and evidence, and a trained reviewer checks it against the public register before any badge is issued."
+      },
+      "stepsLabel": "Registration steps",
+      "steps": {
+        "details": "Council & number",
+        "evidence": "Evidence",
+        "review": "Review",
+        "status": "Status"
+      },
+      "professions": {
+        "NMC": "Doctors",
+        "NNC": "Nurses and midwives",
+        "NHPC": "Allied health professionals",
+        "PHARMACY_COUNCIL": "Pharmacists",
+        "AYURVEDIC_COUNCIL": "Ayurvedic practitioners"
+      },
+      "details": {
+        "heading": "Which council are you registered with?",
+        "body": "Pick the statutory council that matches your profession.",
+        "councilLegend": "Council",
+        "registrationNumberLabel": "Registration number",
+        "registrationNumberPlaceholder": "As printed on your certificate",
+        "continueCta": "Continue"
+      },
+      "evidence": {
+        "heading": "Photograph your certificate and ID",
+        "body": "Blurred photographs are the most common reason an application is rejected — make sure both are flat, well-lit and fully in frame.",
+        "certificateLabel": "Council certificate",
+        "certificateHint": "The certificate issued by your council.",
+        "identityLabel": "Photo ID",
+        "identityHint": "National ID, citizenship certificate, passport or driving licence.",
+        "chooseFile": "Choose photo",
+        "changeFile": "Change photo",
+        "backCta": "Back",
+        "continueCta": "Continue"
+      },
+      "review": {
+        "heading": "Review before submitting",
+        "body": "Check the details below. A trained reviewer checks your registration number against the council's public register — nothing here is approved automatically.",
+        "councilLabel": "Council",
+        "registrationNumberLabel": "Registration number",
+        "certificateLabel": "Council certificate",
+        "identityLabel": "Photo ID",
+        "backCta": "Back",
+        "submitCta": "Submit application"
+      },
+      "status": {
+        "heading": "Application submitted",
+        "body": "Your application is waiting for a trained reviewer to check your registration number against {council}'s public register. Nobody has reviewed it yet, and no badge is issued until they do.",
+        "referenceLabel": "Application reference",
+        "demoNotice": "This demonstration build isn't connected to a live review team yet, so this application only exists in this browser tab — reloading the page will clear it.",
+        "startOverCta": "Start a new application"
+      }
     },
     "ourProviders": {
       "hero": {

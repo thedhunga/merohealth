@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@swasthya/configuration": "workspace:*",
+    "@swasthya/credentialing": "workspace:*",
     "@swasthya/entitlements": "workspace:*",
     "@swasthya/shared-types": "workspace:*",
     "lucide-react": "1.30.0",

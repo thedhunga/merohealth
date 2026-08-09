@@ -80,6 +80,11 @@ const bespokeRoutes: RouteEntry[] = [
     descriptionKey: 'organizations.events.hero.body',
   },
   {
+    pathname: '/clinicians/register',
+    titleKey: 'clinicians.register.hero.title',
+    descriptionKey: 'clinicians.register.hero.body',
+  },
+  {
     pathname: '/clinicians/our-providers',
     titleKey: 'clinicians.ourProviders.hero.title',
     descriptionKey: 'clinicians.ourProviders.hero.body',
