@@ -68,6 +68,12 @@ importers:
       '@swasthya/health-records':
         specifier: workspace:*
         version: link:../../packages/health-records
+      '@swasthya/module-registry':
+        specifier: workspace:*
+        version: link:../../packages/module-registry
+      '@swasthya/patient-registry':
+        specifier: workspace:*
+        version: link:../../packages/patient-registry
       '@swasthya/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
@@ -423,6 +429,19 @@ importers:
         version: 4.1.10(@types/node@24.1.0)(vite@8.2.1(@types/node@24.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.9)(yaml@2.9.0))
 
   packages/module-registry:
+    dependencies:
+      '@swasthya/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@types/node@24.1.0)(vite@8.2.1(@types/node@24.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.9)(yaml@2.9.0))
+
+  packages/patient-registry:
     dependencies:
       '@swasthya/shared-types':
         specifier: workspace:*
@@ -7807,7 +7826,9 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89': {}
 

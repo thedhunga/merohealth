@@ -358,3 +358,58 @@ export interface ClinicalModuleDescriptor {
   degradesWith: readonly { key: ClinicalModuleKey; mode: ClinicalDegradation }[];
   health(): Promise<ClinicalModuleHealth>;
 }
+
+/* ------------------------------------------------------------------ *
+ * Patient registry (clinical-suite.md capability map row 1)
+ *
+ * "Foundation. Owns identity; others reference by id only." — every field
+ * here is administrative registration data, not a clinical fact, and
+ * `PatientRecord.id` is the opaque id every later clinical-suite module
+ * (`scheduling`, `clinical-charting`, ...) will hold instead of a foreign
+ * key, per §2 rule 1. `district`/`municipality` reuse `DirectoryEntity`'s
+ * own field names for the same two Nepali administrative levels, not a new
+ * naming convention.
+ * ------------------------------------------------------------------ */
+export type PatientSex = 'FEMALE' | 'MALE' | 'OTHER' | 'UNDISCLOSED';
+
+export interface PatientAddress {
+  district: string;
+  municipality: string;
+  ward?: string | undefined;
+}
+
+export interface PatientDemographics {
+  displayName: string;
+  /** ISO date (YYYY-MM-DD) — a birth date has no time-of-day component. */
+  dateOfBirth: string;
+  sex: PatientSex;
+  phone: string;
+  preferredLocale: LanguageCode;
+  address?: PatientAddress | undefined;
+}
+
+export interface PatientRecord {
+  id: string;
+  demographics: PatientDemographics;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+/**
+ * A demographics update: every field individually omittable. Spelled out
+ * field by field with an explicit `| undefined`, rather than the built-in
+ * `Partial<PatientDemographics>`, because this project's
+ * `exactOptionalPropertyTypes` treats "key absent" and "key present but
+ * `undefined`" as different types — and zod's own `.partial()` schema
+ * infers the latter for every optional key, so a parsed request body
+ * type-checks against this shape without a cast.
+ */
+export interface PatientDemographicsPatch {
+  displayName?: string | undefined;
+  dateOfBirth?: string | undefined;
+  sex?: PatientSex | undefined;
+  phone?: string | undefined;
+  preferredLocale?: LanguageCode | undefined;
+  address?: PatientAddress | undefined;
+}

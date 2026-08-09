@@ -232,7 +232,7 @@ suite grows. A module that "works" but has no outage test is not finished.
       contract, a registry, and a resolver computing what is available given a
       set of module health states. Build this first — everything below plugs
       into it, and retrofitting it later means touching every module.
-- [ ] `patient-registry`: demographics and identity. Owns patient identity;
+- [x] `patient-registry`: demographics and identity. Owns patient identity;
       every other module references by opaque id, never by foreign key.
 - [ ] `scheduling`: appointments and resource calendars. Degrades to
       `READ_ONLY` when the registry is unavailable rather than failing.
@@ -252,6 +252,122 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — Built `patient-registry`, capability map row 1 and the second
+  "Clinical suite — eClinicalWorks parity" task, on top of last run's
+  `packages/module-registry` contract. Re-read clinical-suite.md in full
+  first, per its own instruction. Re-checked `apps/web/public/` first too,
+  per "Photography wiring"'s own gating instruction — still only the same
+  two pre-photography files, none of asset-brief.md's named files. Skipped
+  it again, same as every prior run, and moved to this task.
+
+  **Split the same way `packages/module-registry` split last run: domain
+  shape in `packages/shared-types`, behaviour in a new owning package.**
+  `PatientSex`, `PatientAddress`, `PatientDemographics`, `PatientRecord` and
+  `PatientDemographicsPatch` went into `shared-types`; `registerPatient` and
+  `updateDemographics` (pure, clock-at-the-boundary, matching every other
+  domain package) into new `packages/patient-registry`. Fields are
+  administrative registration data only — display name, ISO birth date,
+  sex, phone, preferred locale, an optional district/municipality/ward
+  address — nothing a clinical claim, per "invent no facts."
+  `district`/`municipality` reuse `DirectoryEntity`'s own field names for
+  the same two Nepali administrative levels rather than inventing new ones.
+
+  **The one domain invariant worth enforcing below the API boundary: a
+  birth date cannot be in the future.** `assertPlausibleDateOfBirth` throws
+  `FutureDateOfBirthError` from both `registerPatient` and
+  `updateDemographics` — a real impossibility, not just a shape check zod
+  already covers at the controller.
+
+  **`exactOptionalPropertyTypes` fought the natural `Partial<PatientDemographics>`
+  signature for the patch, and the fix is now the pattern for the next
+  optional-field zod schema this repo writes.** zod's own `.partial()`
+  output types every optional key as `T | undefined` even when *present*
+  (not merely omittable), which this project's `tsconfig.base.json`
+  `exactOptionalPropertyTypes: true` treats as a different type from the
+  built-in `Partial<T>`'s `{ prop?: T }`. Fixed by hand-writing
+  `PatientDemographicsPatch` in `shared-types` with `| undefined` spelled
+  out per field, matching `HealthObservation.unit`'s existing `string | null`
+  precedent for "the interface itself, not `Partial<>`, encodes the
+  optionality." `updateDemographics`'s merge is field-by-field `??`, not an
+  object spread, for the same reason: spreading a patch typed this way could
+  let a present-but-`undefined` key silently blank a field the caller never
+  touched.
+
+  **`apps/api/src/patient-registry/`**: repository (in-memory `Map`, same
+  precedent `RecordsRepository`/`CredentialingRepository` already set),
+  service (register/get/updateDemographics/list, `NotFoundException` on a
+  missing id, same message-string style `RecordsService`/`CredentialingService`
+  use), controller (`POST /patients`, `GET /patients/:patientId`,
+  `POST /patients/:patientId/demographics` — `POST` for the update, not
+  `PATCH`, since nothing else in this API uses `PATCH`; matches
+  `observations/:id/confirm`-style action routing instead), and
+  `GET /patients/health` returning the same `ClinicalModuleHealth` the
+  module descriptor reports — declared before the `:patientId` route so
+  Nest's route matching doesn't swallow `health` as a param value. Wired
+  into `AppModule` alongside `RecordsModule`/`CredentialingModule`.
+
+  **`createPatientRegistryModuleDescriptor` is the first real, non-test
+  `ClinicalModuleDescriptor`, and it declares empty `requires`/`degradesWith`
+  deliberately, not by omission.** Capability map row 1 names patient-registry
+  "the foundation" — nothing above it in the dependency graph for it to
+  reference. `health()` delegates to the service's own `health()` rather than
+  being reimplemented inline, so the HTTP health endpoint and the descriptor
+  can never drift from each other.
+
+  **The required outage test, read honestly for a module with no dependents
+  yet.** §2's own deliverable is "a test that forces the module DOWN and
+  asserts the rest of the system still works" — but patient-registry has no
+  `requires`/`degradesWith` edges pointing *at* it (that starts with
+  `scheduling`, the next queue item), so there is no other clinical-suite
+  module to assert stayed up through a registry-level cascade. Built
+  `patient-registry.fault-isolation.test.ts` against what's honestly
+  testable today: (1) a `BrokenPatientRegistryRepository` that throws on
+  every call, proving a real failure in this module's own store does not
+  reach a freshly-instantiated, completely unrelated `CredentialingController`
+  in the same process — §2 rule 5, "the shell renders around holes,"
+  demonstrated against an actual thrown error rather than asserted in
+  prose; and (2) `buildModuleRegistry`/`collectHealthStates`/
+  `resolveAvailability` from `@swasthya/module-registry` — the first real
+  external consumer of that package outside its own test file — correctly
+  marking `PATIENT_REGISTRY` unavailable when its health probe is forced
+  `DOWN`. Deliberately did not build a system-wide `/system/modules`
+  aggregator endpoint this run: with exactly one registered module, that
+  surface has nothing yet to aggregate and would be exactly the kind of
+  premature abstraction the standing constraints warn against — the next
+  module to register (`scheduling`) is what makes a real aggregator worth
+  building.
+
+  New package `packages/patient-registry` (same `package.json`/`tsconfig.json`
+  shape as `packages/module-registry`, colocated `index.test.ts`, 7 tests).
+  New `apps/api/src/patient-registry/` (5 source files + 5 colocated test
+  files, 25 new tests: 3 repository, 8 service, 10 controller, 2
+  module-descriptor, 2 fault-isolation). Added `@swasthya/module-registry`
+  and `@swasthya/patient-registry` to `apps/api/package.json`.
+
+  Verified: `pnpm install` (two new/changed workspace dependencies —
+  confirmed `--frozen-lockfile` passes clean afterward), `pnpm lint`,
+  `pnpm typecheck` (caught and fixed the `exactOptionalPropertyTypes`
+  mismatch described above — two real errors, both resolved by typing
+  `PatientDemographicsPatch` explicitly rather than loosening
+  `exactOptionalPropertyTypes` itself), `pnpm test` (`@swasthya/patient-registry`
+  contributing 7 tests from zero, `@swasthya/api` going from 65 to 90; every
+  other package's test count unchanged), `pnpm build`
+  (`packages/patient-registry/dist/` and `apps/api/dist/patient-registry/`
+  produced), all green.
+
+  **For the next run:** the queue's next unchecked item is `scheduling` —
+  appointments and resource calendars, degrading to `READ_ONLY` when
+  patient-registry is unavailable rather than failing outright (capability
+  map row 2). It is the first real consumer of this run's
+  `createPatientRegistryModuleDescriptor`: it should declare
+  `degradesWith: [{ key: 'PATIENT_REGISTRY', mode: 'READ_ONLY' }]` and its
+  own outage test should force *patient-registry's* health down and assert
+  scheduling degrades correctly — the module-registry-level assertion this
+  run's own test couldn't make for lack of a second module to degrade. That
+  test is also the natural moment to reconsider building the
+  `/system/modules` aggregator this run deliberately deferred, now that
+  there would be two real descriptors for it to resolve together.
 
 - 2026-08-09 — Built `packages/module-registry`: the `ModuleDescriptor` /
   `Degradation` contract, a validating registry, and a synchronous resolver
