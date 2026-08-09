@@ -202,7 +202,7 @@ Patients are the primary interface; clinicians are a clearly-marked tab.
       (`ANONYMOUS` → `REGISTERED` → `IDENTITY_VERIFIED`), the verification
       state machine, and the evidence lifecycle — including deletion of the
       document image once the decision is recorded.
-- [ ] `packages/credentialing`: Nepali council registry (NMC, NNC, NHPC,
+- [x] `packages/credentialing`: Nepali council registry (NMC, NNC, NHPC,
       Pharmacy, Ayurvedic), application state machine, review queue and badge
       rules. **No automatic approval** — there is no public council API, so a
       human reads the register. Never render "verified" for a submission no
@@ -252,6 +252,137 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — Built `packages/credentialing`: the council registry, the
+  application state machine (submit → review → decide), the review queue, and
+  badge rules. Second "Identity and professional credentialing" task; closes
+  the section's own gap named at the end of the `packages/identity` entry
+  below. Re-checked `apps/web/public/` first, per "Photography wiring"'s own
+  gating instruction, since that section still sits earlier in the queue than
+  this one — still only the same two pre-photography files as last run,
+  none of asset-brief.md's ~17 named files, confirmed this time by actually
+  grepping every filename the brief names rather than eyeballing the
+  directory. Skipped it again, same as the prior run.
+
+  **Mirrors `packages/identity`'s shape deliberately, not coincidentally.**
+  identity-and-credentialing.md §3's flow (select council + number → submit
+  certificate + ID photos → manual review queue → human decision → badge) is
+  structurally the same four-step shape as §2's identity verification flow
+  this repo already built a state machine for, just against a council
+  register instead of a national ID. `CredentialingApplication`'s
+  submit/beginReview/approve/reject functions and its
+  `NOT_STARTED → EVIDENCE_SUBMITTED → UNDER_REVIEW → {APPROVED,REJECTED}`,
+  `REJECTED → EVIDENCE_SUBMITTED` transition table are the same pattern
+  `VerificationRequest` already established — reusing a proven shape here
+  rather than inventing a second one for what is, mechanically, the same
+  problem.
+
+  **Verified, don't-invent-a-renewal-cadence call, named rather than
+  guessed.** §3 says "registration lapses… every verification carries a
+  re-check date" but never states an interval (annually? at council
+  renewal?), and this codebase has no confirmed answer from any council. Built
+  `CredentialingBadge.recheckDueAt` as a value the *caller* supplies to
+  `issueBadge`/`recheckBadge` rather than a constant this package computes —
+  the same "no invented policy numbers" discipline `packages/interop` applied
+  to PDF clinical codes it couldn't verify. `isBadgeCurrent` / `badgeRenderStatus`
+  compare against whatever date it was given, so the actual cadence is a
+  decision for whoever eventually reads a real council's renewal rules, not
+  fabricated here.
+
+  **"Never render verified for a submission no person has reviewed" is a
+  runtime refusal, not just a documented rule.** `issueBadge` is the *only*
+  way to construct a `CredentialingBadge` — no path exists from a bare
+  council/registrationNumber pair to a badge — and it throws
+  `ApplicationNotApprovedError` unless `status === 'APPROVED'` *and*
+  `reviewerId`/`decidedAt` are both set, so a badge is unconstructible without
+  a real, attributed human decision already recorded on the application.
+  Tested explicitly for an `UNDER_REVIEW` application and (deliberately) for
+  an `APPROVED` one missing `reviewerId` — the second case can't occur through
+  this package's own `approveApplication` (which always sets both together),
+  but the test guards the invariant at the type/shape level too, in case a
+  caller ever constructs a `CredentialingApplication` by hand.
+
+  **Evidence deletion applied to credentialing evidence too, a judgment call
+  worth flagging.** identity-and-credentialing.md §4 ("Handling the
+  evidence") literally names "the identity image" in its deletion bullet, but
+  sits after §3 (credentialing) as a general-titled section, and its own
+  "review queue" bullet ("access to the review queue is a distinct role...
+  every read of an evidence image is logged") is credentialing's own
+  vocabulary — §2's identity flow never calls its process a "queue" anywhere.
+  Read §4 as covering both evidence types rather than identity-only, so
+  `approveApplication`/`rejectApplication` null both `certificateImageRef` and
+  `identityImageRef` in the same state change that records the decision, same
+  invariant `packages/identity` set for `VerificationRequest`. If a future
+  run finds council certificates are meant to be retained for audit purposes
+  (unlike a national ID scan), that's a deliberate reversal of this reading,
+  not a bug — this codebase has no source confirming either way, so this is a
+  judgment call, not a verified fact.
+
+  **Council Nepali names were looked up, not translated by guesswork, and are
+  cited so a future run can re-check them.** identity-and-credentialing.md
+  only names the five councils in English. Used `WebSearch` to find each
+  council's own Nepali name rather than transliterating the English myself:
+  NMC → नेपाल चिकित्सक परिषद्, NNC → नेपाल नर्सिङ परिषद् (cross-checked against
+  the "नेपाल नर्सिङ्ग परिषद् ऐन, २०५२" act title on lawcommission.gov.np), NHPC
+  → नेपाल स्वास्थ्य व्यवसायी परिषद् (per its 2053 Act, hokathmandu.bagamati.gov.np),
+  Pharmacy → नेपाल फार्मेसी परिषद् (nepalpharmacycouncil.org.np's own
+  online-form page), Ayurvedic → नेपाल आयुर्वेद चिकित्सा परिषद् (per the "आयुर्वेद
+  चिकित्सा परिषद् ऐन, २०४५" act title, also lawcommission.gov.np). Deliberately
+  did **not** invent Nepali translations of the five professions
+  ("doctors", "nurses and midwives", etc.) alongside them — those are
+  descriptive UI copy, not proper nouns, belong in `ne.json`/`en.json` once the
+  not-yet-built clinician-registration-flow task actually renders them, and a
+  wrong guess there is lower-stakes to invent than council names are to leave
+  unverified but still not this package's job to translate.
+
+  **No id generation, same precedent every domain package in this repo has
+  now set three times over** (`health-records`, `devices`, `identity`):
+  every function takes an existing `CredentialingApplication` and returns a
+  new one; nothing here constructs the initial `NOT_STARTED` record, assigns
+  it an id, or reads a clock. Timestamps are explicit string parameters.
+
+  New package `packages/credentialing`, mirrors `packages/identity`'s shape
+  exactly (root `index.ts`, colocated `index.test.ts`, no `node:` imports so
+  no `react-native` export-condition split needed). New shared types in
+  `packages/shared-types`: `CouncilKey`, `CredentialingApplicationStatus`,
+  `CredentialingApplication`, `CredentialingBadge` — grepped first to confirm
+  none of these names were already in use. 17 new tests: the council registry
+  (all five keys present, `isKnownCouncil` rejects an unknown key), the
+  application state machine (full walk to `APPROVED`, illegal-skip rejection,
+  resubmission-after-rejection clearing the prior decision), the
+  evidence-deletion invariant on both approval and rejection paths, the review
+  queue's oldest-first ordering excluding not-yet-submitted and already-decided
+  applications, and badge issuance/staleness/recheck. Verified past the unit
+  tests: built the package and ran the compiled `dist/index.js` through a full
+  submit → review → approve → issueBadge → badgeRenderStatus flow, confirming
+  `VERIFIED` before the recheck date and `UNVERIFIED` after it, plus the
+  review queue's ordering, against the compiled output rather than trusting
+  the TypeScript source alone.
+
+  Verified: `pnpm install` (new workspace member — confirmed
+  `--frozen-lockfile` passes clean afterward), `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` (`@swasthya/credentialing` contributing 17 new tests from zero;
+  every other package's test count unchanged), `pnpm build`
+  (`packages/credentialing/dist/index.js` and `.d.ts` produced), all green.
+
+  **For the next run:** the queue's next unchecked item in this section is
+  "Clinician registration flow on `apps/web`" — council selection,
+  registration number, certificate/ID capture, and a status screen. Nothing
+  in `apps/web`/`apps/api` calls any function in this package yet, the same
+  "built the domain layer, not the wiring" gap every package-only task in this
+  ledger has left (this task's own bullet never mentions `apps/web` or
+  `apps/api`, the same signal that scoped every prior package-only run). Two
+  concrete things that UI task will need from here: (1) `submitApplication`
+  needs somewhere to actually upload `certificateImageRef`/`identityImageRef`
+  — no credentialing-evidence storage adapter exists yet, and per §4 it must
+  be hosted storage under Mero Health's control, never bring-your-own; (2)
+  there is still no identity/auth layer anywhere in this repo (named again,
+  same gap every prior run touching `apps/api` has flagged), so the
+  registration flow has no real `applicantId` to attach a submission to until
+  that exists. Also unbuilt after this: "Reviewer queue" (a distinct role,
+  every evidence read logged, every decision attributed) and the "Verified
+  badge component" itself — `reviewQueue`/`issueBadge`/`badgeRenderStatus`
+  exist as pure functions now, but nothing renders or persists them yet.
 
 - 2026-08-09 — Built `packages/identity`: the `AssuranceLevel` ladder
   (`ANONYMOUS` → `REGISTERED` → `IDENTITY_VERIFIED`), the

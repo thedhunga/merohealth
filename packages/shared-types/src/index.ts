@@ -252,3 +252,60 @@ export interface VerificationRequest {
   /** Set once `APPROVED` or `REJECTED`. */
   decidedAt: string | null;
 }
+
+/* ------------------------------------------------------------------ *
+ * Professional credentialing
+ *
+ * A clinician's `PROFESSIONAL_VERIFIED` badge (identity-and-credentialing.md
+ * §2's fourth table row) is not a rung on `AssuranceLevel` above — see that
+ * type's own comment for why. It is this separate application → manual
+ * review → badge pipeline, owned by `packages/credentialing`.
+ * ------------------------------------------------------------------ */
+
+/** Nepal's five statutory professional registers (§3). */
+export type CouncilKey =
+  | 'NMC' | 'NNC' | 'NHPC' | 'PHARMACY_COUNCIL' | 'AYURVEDIC_COUNCIL';
+
+export type CredentialingApplicationStatus =
+  | 'NOT_STARTED' | 'EVIDENCE_SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED';
+
+/**
+ * A clinician's application to be listed as council-verified. `reviewerId`
+ * and `decidedAt` are set together, only once a human has read the register
+ * — §3's "no automatic approval, ever." `certificateImageRef` /
+ * `identityImageRef` are opaque storage pointers, nulled the moment a
+ * decision is recorded (§4's "store the decision, not the document"), the
+ * same evidence-deletion invariant `packages/identity`'s `VerificationRequest`
+ * already established for its own evidence.
+ */
+export interface CredentialingApplication {
+  id: string;
+  applicantId: string;
+  council: CouncilKey;
+  registrationNumber: string;
+  status: CredentialingApplicationStatus;
+  certificateImageRef: string | null;
+  identityImageRef: string | null;
+  submittedAt: string | null;
+  /** Set only on `REJECTED`, so the applicant knows what to fix before resubmitting. */
+  rejectionReason: string | null;
+  /** Who decided, for the accountability trail §3 requires. Set only alongside `decidedAt`. */
+  reviewerId: string | null;
+  decidedAt: string | null;
+}
+
+/**
+ * What a clinician's verified badge actually states — "which council, which
+ * number, and when it was last checked" (§3 step 5), never "trusted doctor"
+ * (§3, "never claim more than was checked"). Constructible only from an
+ * `APPROVED` application; see `packages/credentialing`'s `issueBadge`.
+ */
+export interface CredentialingBadge {
+  council: CouncilKey;
+  registrationNumber: string;
+  reviewerId: string;
+  verifiedAt: string;
+  lastCheckedAt: string;
+  /** Registration lapses (§3); past this date the badge must degrade to unverified. */
+  recheckDueAt: string;
+}
