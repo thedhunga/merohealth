@@ -141,7 +141,7 @@ work.
 - [x] `sitemap.ts`, `robots.ts`, per-route `generateMetadata`, and
       `Organization` + `WebSite` structured data. Keep `robots` set to
       noindex while the demonstration notice is still shown.
-- [ ] Accessibility pass: heading order, landmarks, focus traps in the mobile
+- [x] Accessibility pass: heading order, landmarks, focus traps in the mobile
       drawer, contrast, and a keyboard walkthrough of the mega-menu.
 
 ### Platform core
@@ -252,6 +252,155 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — Accessibility pass: heading order, landmarks, focus traps in
+  the mobile drawer, contrast, and a keyboard walkthrough of the mega-menu.
+  Closes out the "Marketing site" section entirely — the queue moves into
+  "Platform core" next.
+
+  **Scoped as an audit-plus-fix, not a rewrite:** read every relevant
+  component (`Header.tsx`, `MegaMenu.tsx`, `MobileNav.tsx`,
+  `app/[locale]/layout.tsx`, `SectionIntro.tsx`, `Section.tsx`,
+  `styles/globals.css`) before changing anything, then fixed exactly what was
+  actually broken. Two of the five checklist items needed no code change —
+  documenting that plainly here rather than inventing busywork to look like
+  five fixes:
+  - **Landmarks:** already correct. `header`/`nav` (×2, both
+    `aria-label`led)/`main id="main"`/`footer` are the only landmarks, one of
+    each, and the skip-link (`Header.tsx`) correctly targets `#main`.
+  - **Contrast:** audited computationally (WCAG relative-luminance formula,
+    not eyeballed) against every token pair actually used for text —
+    `ink`/`ink-soft` on `paper`, all six `Button.tsx` variants against their
+    own backgrounds, `jade-100`/`jade-200` on `forest-800`/`forest-700`,
+    `danger-500` on `paper`. Lowest ratio found was 6.58:1
+    (`primary` button hover state, white on `forest-600`), every other pair
+    cleared 7:1 — all comfortably above the 4.5:1 AA threshold for normal
+    text. The palette was already built deliberately for this (`Button.tsx`'s
+    own comment: "Marigold on deep forest is the highest-contrast pairing in
+    the palette"), so this item is a clean audit result, not a fix.
+
+  **Heading order — one real inconsistency, fixed.** Grepped every `<h1`
+  in `apps/web/src`: exactly two, `SectionIntro.tsx` and `home/Hero.tsx`,
+  and every route composes exactly one of the two (home → `Hero`, all ~35
+  other routes → `PageTemplate` → `SectionIntro`), so there's reliably one
+  `h1` per page with no risk of a page defining zero or two. The one real
+  bug: `MegaMenu.tsx`'s column headings were `<h2>` while `MobileNav.tsx`'s
+  identical column headings (same content, same `headings.<key>` translation
+  key, just a different viewport) were `<h3>` — same semantic content at two
+  different heading levels, and both live in header chrome that precedes the
+  page's own `h1` in document order whenever a panel is open, which a screen
+  reader's heading-navigation command would surface directly. Changed
+  `MegaMenu.tsx` to `<h3>` to match `MobileNav.tsx`, with a comment
+  explaining why (not "restating what the code does" — the *why* is the
+  document-order relationship to the page's own `h1`, which isn't visible
+  from the line itself).
+
+  **Focus trap in the mobile drawer — the substantial piece, built from
+  scratch.** Confirmed first (grepped the whole app) that nothing like this
+  existed anywhere: no `role="dialog"`, no `aria-modal`, no `inert`, no
+  focus-trap utility. The drawer (`Header.tsx`'s `#mobile-drawer`) opened and
+  closed correctly and Escape already closed it (global keydown handler),
+  but Tab could walk straight out of the drawer into `main`/`footer` behind
+  it — both visually hidden under the fixed overlay but still in the tab
+  order and still reachable by a screen reader's landmark navigation — and
+  focus was never moved into the drawer on open or back to the hamburger
+  button on close.
+
+  New `lib/focusTrap.ts` + colocated `lib/focusTrap.test.ts` (5 cases): a
+  single pure function, `shouldWrapFocus(activeElement, first, last,
+  shiftKey)`, deciding only *whether* Tab/Shift+Tab should wrap and to which
+  end — comparing element identity, never touching `document` or calling
+  `.focus()` itself, so it's fully testable with plain values and needs no
+  jsdom (this app has never had a DOM testing environment configured; adding
+  one — `jsdom` + a React testing library — for one hook felt like the wrong
+  trade for what's genuinely a two-branch boundary check). New
+  `hooks/useFocusTrap.ts` (the first file in a new `hooks/` directory, no
+  DOM-wiring test — verified instead by driving a real browser, same
+  methodology every prior interactive-behaviour run in this log has used)
+  wires that pure function to the actual DOM: on activation, moves focus to
+  the first focusable element inside the container (falling back to the
+  container itself, which is why the drawer `<div>` now carries
+  `tabIndex={-1}`), marks `main`/`footer` `inert` for the duration so a
+  screen reader can't wander behind the modal, and on deactivation restores
+  focus to a caller-supplied `returnFocusRef` (the hamburger button) rather
+  than trusting `document.activeElement`, which Safari doesn't reliably set
+  on a mouse click.
+
+  `Header.tsx`: added `mobileToggleRef`/`mobileDrawerRef`, one
+  `useFocusTrap(mobileDrawerRef, mobileOpen, { returnFocusRef:
+  mobileToggleRef })` call, and `role="dialog"` `aria-modal="true"`
+  `aria-label={t('actions.menuLabel')}` `tabIndex={-1}` on the drawer
+  wrapper. New `nav.actions.menuLabel` key ("Menu" / "मेनु") added to both
+  message files — reused nowhere existing since `openMenu`/`closeMenu` are
+  action labels for the toggle button, not a name for the dialog itself, and
+  conflating the two would read oddly to a screen reader ("dialog: Open
+  menu").
+
+  **Considered and deliberately reverted: `aria-haspopup="true"` on the
+  desktop mega-menu triggers.** Added it first, then re-read `MegaMenu.tsx`'s
+  own comment — "The panel is a region rather than a menu: it holds links,
+  not commands" — a previous run's deliberate choice not to use the ARIA
+  `menu` widget pattern (which requires arrow-key/Home/End navigation this
+  panel doesn't implement). `aria-haspopup="true"` specifically signals that
+  `menu` pattern to assistive tech, so adding it would have set a false
+  expectation for exactly the audience this task is about. Reverted before
+  committing; `aria-expanded`/`aria-controls` alone is the correct, already-
+  present signal for a disclosure controlling a plain link region.
+
+  **Keyboard walkthrough of the mega-menu found a second real, more
+  consequential bug, also fixed:** driving the actual desktop trigger button
+  with headless Chromium (not just reading the code) showed that focusing it
+  (Tab arrival) correctly opened its panel via `onFocus`, but a *following*
+  Enter press, or a mouse click after a hover had already opened it,
+  immediately closed the panel again. Cause: `onClick` toggled
+  (`setOpenSegment(expanded ? null : segment.key)`), and by the time a click
+  or Enter-activation event reaches the button, `onFocus`/`onMouseEnter` has
+  already flipped `expanded` to `true` for that render — so the click's own
+  toggle reads the now-open state and closes it. Net effect: a touchscreen
+  user tapping the trigger (no separate hover event on touch, so tap =
+  focus+click almost simultaneously) or a screen-reader/keyboard user
+  pressing Enter/Space to explicitly "activate" a button with
+  `aria-expanded` — the expected interaction for a disclosure control — saw
+  the panel flash open and immediately close. Fixed by making `onClick`
+  unconditionally open (`setOpenSegment(segment.key)`) rather than toggle:
+  the panel already has three independent ways to close (Escape, an outside
+  click, blurring the header), so `onClick` doesn't need to be a fourth, and
+  removing the toggle removes the race with the focus/hover state entirely.
+
+  Verified end to end with headless Chromium (system Playwright, run from
+  inside `/opt/node22/lib/node_modules/playwright`'s own directory so plain
+  ESM `import 'playwright'` resolves — `NODE_PATH` alone didn't work for
+  ESM's resolver on this container, worth noting for a future run hitting
+  the same `ERR_MODULE_NOT_FOUND`) against the production build
+  (`pnpm build && pnpm start`): drawer `role="dialog"`/`aria-modal="true"`/
+  `aria-label` all present; focus lands inside the drawer on open; both
+  `main` and `footer` report `.inert === true` while open and `false` after
+  close; Shift+Tab from the first focusable element wraps to the last and
+  Tab from the last wraps back to the first; Escape closes the drawer *and*
+  returns focus to the hamburger button (checked by element identity, not
+  just visibility); the mega-menu panel now stays open through both Enter
+  and a real click, in both orders (focus-then-Enter, hover-then-click); its
+  column headings render as `H3` on both viewports; the page's `h1` count
+  stays exactly 1 with a panel open; Escape still closes the mega-menu;
+  confirmed the drawer's `aria-label` reads "मेनु" on the bare (Nepali)
+  path and "Menu" under `/en`. Three unrelated pre-existing 404s
+  (`/signin`, `/register`, `/get-care` RSC prefetches) showed up in the
+  console during this pass — not a regression, matches this log's own
+  earlier notes that those routes don't resolve yet. All green
+  (install/lint/typecheck/test/build — `pnpm test` includes the five new
+  `lib/focusTrap.test.ts` cases).
+
+  **For the next run:** the queue's next unchecked item moves into
+  "Platform core": `apps/api`'s records module exposing capture, list,
+  timeline and confirm/correct/reject endpoints over `packages/health-records`,
+  with the storage port injected. This is a different kind of task than any
+  run in the "Marketing site"/"Visual system" sections above — read
+  `docs/architecture/platform-vision.md` §3.2 and `packages/health-records`'s
+  actual source (not just this ledger's summary of it) before starting, and
+  note the standing constraint this module has to hold from day one: only
+  `CONFIRMED`/`CORRECTED` observations may ever be exposed to anything
+  downstream (the assistant, a share link, an export) — a `DRAFT` extraction
+  must never leave this module's own boundary.
 
 - 2026-08-08 — Built `sitemap.ts`, `robots.ts`, per-route `generateMetadata`
   and `Organization`/`WebSite` structured data. This is a retroactive item —

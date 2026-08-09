@@ -11,6 +11,7 @@ import { Logo } from '@/components/layout/Logo';
 import { LocaleSwitcher } from '@/components/layout/LocaleSwitcher';
 import { MegaMenu } from '@/components/layout/MegaMenu';
 import { MobileNav } from '@/components/layout/MobileNav';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { cn } from '@/lib/cn';
 
 /** Grace period so the pointer can cross the gap between trigger and panel. */
@@ -23,6 +24,8 @@ export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const headerRef = useRef<HTMLElement>(null);
+  const mobileToggleRef = useRef<HTMLButtonElement>(null);
+  const mobileDrawerRef = useRef<HTMLDivElement>(null);
 
   const cancelClose = useCallback(() => {
     if (closeTimer.current) {
@@ -79,6 +82,11 @@ export function Header() {
     };
   }, [mobileOpen]);
 
+  // Modal behaviour for the drawer: trap Tab inside it, hide `main`/`footer`
+  // from assistive tech while it covers them, and hand focus back to the
+  // hamburger button on close rather than wherever it happens to drift.
+  useFocusTrap(mobileDrawerRef, mobileOpen, { returnFocusRef: mobileToggleRef });
+
   const activeSegment = navSegments.find((segment) => segment.key === openSegment);
 
   return (
@@ -121,8 +129,14 @@ export function Header() {
                         : 'text-jade-100 hover:bg-white/10 hover:text-white',
                     )}
                     onClick={() => {
+                      // Not a toggle: `onFocus`/`onMouseEnter` already open the
+                      // panel before a click can land, so a real click or an
+                      // Enter/Space activation right after would immediately
+                      // re-close it if this ever read stale `expanded` state.
+                      // Escape, an outside click and blurring the header are
+                      // already three separate ways to close it.
                       cancelClose();
-                      setOpenSegment(expanded ? null : segment.key);
+                      setOpenSegment(segment.key);
                     }}
                     onFocus={() => {
                       cancelClose();
@@ -169,6 +183,7 @@ export function Header() {
           onClick={() => {
             setMobileOpen((value) => !value);
           }}
+          ref={mobileToggleRef}
           type="button"
         >
           {mobileOpen ? <X aria-hidden className="size-6" /> : <Menu aria-hidden className="size-6" />}
@@ -191,8 +206,13 @@ export function Header() {
 
       {mobileOpen ? (
         <div
+          aria-label={t('actions.menuLabel')}
+          aria-modal="true"
           className="fixed inset-x-0 top-20 bottom-0 z-40 overflow-y-auto bg-paper shadow-menu lg:hidden"
           id="mobile-drawer"
+          ref={mobileDrawerRef}
+          role="dialog"
+          tabIndex={-1}
         >
           <div className="container-site pt-4">
             <MobileNav onNavigate={closeAll} />

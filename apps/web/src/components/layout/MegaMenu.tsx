@@ -37,9 +37,15 @@ export function MegaMenu({ segment, onNavigate, panelId }: MegaMenuProps) {
             className={cn(index === 0 ? 'lg:col-span-6' : 'lg:col-span-3')}
             key={column.headingKey}
           >
-            <h2 className="mb-5 text-xs font-bold tracking-[0.12em] text-ink-soft uppercase">
+            {/*
+              h3, not h2: this panel sits in the header, ahead of the page's
+              own h1 in document order, and MobileNav's equivalent column
+              heading is already h3 — matching keeps one screen-reader
+              heading level for the same semantic content on both viewports.
+            */}
+            <h3 className="mb-5 text-xs font-bold tracking-[0.12em] text-ink-soft uppercase">
               {t(`headings.${column.headingKey}`)}
-            </h2>
+            </h3>
 
             <ul
               className={cn(
