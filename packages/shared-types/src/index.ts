@@ -309,3 +309,52 @@ export interface CredentialingBadge {
   /** Registration lapses (§3); past this date the badge must degrade to unverified. */
   recheckDueAt: string;
 }
+
+/* ------------------------------------------------------------------ *
+ * Clinical suite module registry
+ *
+ * docs/architecture/clinical-suite.md §3's capability map, minus row 8
+ * ("Patient portal" — that is `apps/web` + `apps/mobile` themselves, not a
+ * module that plugs into this fault-isolation system). Modules 1-7 are the
+ * next unchecked ledger tasks; 9-20 are sequenced but not yet started. All
+ * 19 keys are declared up front so `requires`/`degradesWith` references
+ * compile-check against the full eventual map, not just whichever module
+ * happens to exist today.
+ * ------------------------------------------------------------------ */
+export type ClinicalModuleKey =
+  | 'PATIENT_REGISTRY' | 'SCHEDULING' | 'CLINICAL_CHARTING' | 'CLINICAL_SUMMARY'
+  | 'MEDICATION_SAFETY' | 'PRESCRIBING' | 'DIAGNOSTICS_ORDERS' | 'TELECONSULTATION'
+  | 'BILLING' | 'COVERAGE' | 'REFERRALS' | 'POPULATION_HEALTH' | 'ANALYTICS'
+  | 'ENGAGEMENT' | 'HEALTH_RECORDS' | 'INTEROP' | 'IMMUNIZATION'
+  | 'QUALITY_REPORTING' | 'TENANCY';
+
+/** A module's own self-reported condition, per §2's `ModuleDescriptor.health()`. */
+export type ClinicalHealthStatus = 'UP' | 'DEGRADED' | 'DOWN';
+
+export interface ClinicalModuleHealth {
+  status: ClinicalHealthStatus;
+  detail?: string;
+}
+
+/**
+ * How a module behaves when a `degradesWith` dependency is unavailable. §2's
+ * own four modes, verbatim — this package invents no fifth mode and no
+ * severity ordering between them; that judgement stays with whichever module
+ * declares which mode it degrades to.
+ */
+export type ClinicalDegradation = 'HIDE' | 'READ_ONLY' | 'QUEUE_AND_RETRY' | 'MANUAL';
+
+/**
+ * §2's contract, transcribed directly. `requires` is a hard dependency — the
+ * module cannot run at all without it, so this list should stay near-empty
+ * per the doc's own warning. `degradesWith` is the far more common shape: the
+ * module still runs, in the stated degraded mode, when that dependency is
+ * down. `health()` is a method, not a stored value, because it must always
+ * reflect the module's current condition, never a stale snapshot.
+ */
+export interface ClinicalModuleDescriptor {
+  key: ClinicalModuleKey;
+  requires: readonly ClinicalModuleKey[];
+  degradesWith: readonly { key: ClinicalModuleKey; mode: ClinicalDegradation }[];
+  health(): Promise<ClinicalModuleHealth>;
+}

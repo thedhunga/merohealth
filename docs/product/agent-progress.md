@@ -228,7 +228,7 @@ Read it before starting anything in this section. Build strictly in order.
 deliverable — it is the only thing keeping the isolation property true as the
 suite grows. A module that "works" but has no outage test is not finished.
 
-- [ ] `packages/module-registry`: the `ModuleDescriptor` / `Degradation`
+- [x] `packages/module-registry`: the `ModuleDescriptor` / `Degradation`
       contract, a registry, and a resolver computing what is available given a
       set of module health states. Build this first — everything below plugs
       into it, and retrofitting it later means touching every module.
@@ -252,6 +252,145 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — Built `packages/module-registry`: the `ModuleDescriptor` /
+  `Degradation` contract, a validating registry, and a synchronous resolver
+  computing per-module availability from a health snapshot. First "Clinical
+  suite — eClinicalWorks parity" task, and the whole section's own
+  prerequisite — read `docs/architecture/clinical-suite.md` in full first, per
+  its own instruction. Re-checked `apps/web/public/` first too, per
+  "Photography wiring"'s gating instruction, since that section still sits
+  earlier in the queue — still only the same two pre-photography files every
+  prior run has found, none of asset-brief.md's named files. Skipped it again
+  and moved to this task, the next unchecked one.
+
+  **Types split the same way `packages/identity`/`packages/credentialing`
+  already split theirs, not a new convention.** `ClinicalModuleKey`,
+  `ClinicalHealthStatus`, `ClinicalModuleHealth`, `ClinicalDegradation` and
+  `ClinicalModuleDescriptor` went into `packages/shared-types`, transcribed
+  directly from clinical-suite.md §2's own TS contract (`Degradation`'s four
+  modes verbatim, `ModuleDescriptor`'s three fields verbatim); the actual
+  registry-building and resolution logic stayed in the new
+  `packages/module-registry` package, mirroring "domain shape in shared-types,
+  behaviour in the owning package" exactly as those two packages' own types
+  did. `ModuleDescriptor.health(): Promise<...>` is a method signature, not
+  stored data, so it is still just a *type* even living in a shared-types
+  file with no runtime exports — confirmed this compiles cleanly rather than
+  assuming it.
+
+  **`ClinicalModuleKey` declares all 19 non-portal capability-map rows up
+  front, not just the seven this queue section names.** Modules 1-7
+  (`patient-registry` through `prescribing`) are the ones actually queued
+  next; 9-20 are sequenced but unstarted. Declaring the full set now means a
+  `requires`/`degradesWith` reference from, say, `prescribing` to
+  `diagnostics-orders` (module 7, still queued) type-checks against a real key
+  today rather than needing this enum touched again later — the same
+  "exhaustive over the eventual domain, not just what's built" call
+  `packages/identity`'s `minimumAssuranceLevel` made for `ModuleKey`. Row 8
+  ("Patient portal") was deliberately left out: the doc's own notes column
+  says that one *is* `apps/web` + `apps/mobile` themselves, not a module that
+  plugs into this fault-isolation system.
+
+  **The resolver is synchronous and takes a pre-computed health snapshot,
+  not a live registry it probes itself — a deliberate reading of "computing
+  what is available given a set of module health states."** The ledger task's
+  own wording already frames the resolver's input as *a set of health
+  states*, not *a set of modules to check*, so `resolveAvailability` takes a
+  `ReadonlyMap<ClinicalModuleKey, ClinicalModuleHealth>` and returns a plain,
+  pure computation — trivial to test against fixed states without mocking any
+  async `health()` call, and matching this repo's standing preference for
+  pure domain functions with I/O pushed to the boundary. A separate
+  `collectHealthStates` bridges from a live registry to that snapshot by
+  calling every module's `health()` in parallel — and per §2 rule 6 ("timeouts
+  and circuit breakers on every outbound call"), a probe that itself throws is
+  caught and downgraded to `DOWN` rather than rejecting the whole snapshot;
+  this package's own dependency on each module's health check is exactly the
+  kind of outbound call that rule is about.
+
+  **`requires` cascades transitively; `degradesWith` cascades exactly one hop
+  and no further — read directly from §2's worked example, not invented.**
+  The doc's prescribing/drug-database example is explicit that prescribing
+  degrades to `MANUAL` *against* a down dependency rather than going down
+  *with* it, so `degradesWith` never triggers off a dependency's own
+  `blockedBy` chain, only off whether that one declared dependency resolves
+  `available: false`. `requires` is the opposite: unavailability is
+  transitive and binary by design ("absent → this module cannot run at all"),
+  so `blockedBy` on a module three `requires` hops from a `DOWN` leaf lists
+  every link in the chain, not just the direct one — tested explicitly for a
+  three-module chain. A `degradesWith` dependency that is merely `DEGRADED`
+  (not `DOWN`, i.e. still `available: true`) does not trigger its declared
+  mode — the doc's example says "if that is DOWN," not "if that is anything
+  less than UP," and conflating the two would make `DEGRADED` a second silent
+  meaning for a status the doc never assigns one to.
+
+  **Multiple simultaneous `degradesWith` triggers are all reported, not
+  collapsed into one invented severity ranking.** §2 names `HIDE`/
+  `READ_ONLY`/`QUEUE_AND_RETRY`/`MANUAL` with no stated ordering between them;
+  picking, say, `HIDE` as "more severe" than `READ_ONLY` when two dependencies
+  are down at once would be a fabricated policy call, exactly the kind of
+  invented fact the standing constraints forbid. `ResolvedModule.degradations`
+  is a list; the caller — a future UI or `apps/api` aggregator — decides how
+  to present more than one, once one exists to decide that.
+
+  **`buildModuleRegistry` validates edges at wiring time, not resolve time.**
+  A `requires`/`degradesWith` reference to a module key that was never
+  registered throws `UnknownModuleReferenceError` immediately, rather than
+  silently resolving to "unavailable forever" the first time someone calls
+  `resolveAvailability` — the kind of bug that would otherwise hide behind
+  "well, everything downstream just looks perpetually degraded." Also rejects
+  a duplicate module key (`DuplicateModuleError`). `resolveAvailability`
+  itself still separately guards against a hand-built, unvalidated registry
+  (a `ModuleNotRegisteredError` rather than a crash on `undefined`) and
+  against a cyclic `requires` chain (`CyclicModuleDependencyError`, so a
+  wiring mistake fails loudly instead of recursing forever) — defensive
+  because nothing yet forces every caller through `buildModuleRegistry`
+  first.
+
+  **No modules actually plug into this yet, named plainly rather than
+  glossed over — this run built the contract, not module 1.** No
+  `patient-registry` package exists, so there is nothing real to construct a
+  `ClinicalModuleDescriptor` for outside the test file's own mock
+  descriptors. That is this task's own stated scope ("build this first —
+  everything below plugs into it"), not a shortfall.
+
+  New package `packages/module-registry`, same shape as every prior package
+  (`package.json`/`tsconfig.json` matching `packages/identity`'s exactly, root
+  `index.ts`, colocated `index.test.ts`, no `node:` imports so no
+  `react-native` export-condition split needed). New types added to
+  `packages/shared-types` as described above — grepped first to confirm none
+  of the five new names were already in use. 17 new tests: registry
+  validation (build, duplicate key, unknown `requires` reference, unknown
+  `degradesWith` reference), the resolver (healthy module, missing snapshot
+  entry defaults to DOWN, own-DOWN vs blocked-by-dependency, single-hop and
+  transitive `requires` cascades, `degradesWith` triggering on DOWN but not on
+  DEGRADED, multiple simultaneous degradations, an unavailable module
+  reporting no degradations, cyclic-chain detection, unvalidated-registry
+  guard), and `collectHealthStates` (parallel collection, a throwing probe
+  downgrading to DOWN with the error message as `detail`).
+
+  Verified: `pnpm install` (new workspace member — lockfile needed updating,
+  confirmed `--frozen-lockfile` passes clean afterward), `pnpm lint`,
+  `pnpm typecheck` (caught and fixed one real error: the cyclic-registry test
+  built a `Map` from an array literal that inferred `Map<string, ...>` instead
+  of `Map<ClinicalModuleKey, ...>` — annotated the literal explicitly rather
+  than loosening `ModuleRegistry`'s key type to `string`), `pnpm test`
+  (`@swasthya/module-registry` contributing 17 new tests from zero; every
+  other package's test count unchanged, 30 test tasks total all green),
+  `pnpm build` (`packages/module-registry/dist/index.js` and `.d.ts`
+  produced), all green.
+
+  **For the next run:** the queue's next unchecked item is `patient-registry`
+  — demographics and identity, owning patient identity so every other module
+  references it by opaque id, never a foreign key. It is the first real
+  consumer of this run's `ClinicalModuleDescriptor` contract: it should
+  export one, register `PATIENT_REGISTRY` with an empty `requires` (it is the
+  foundation everything else depends on, so nothing above it in the
+  dependency graph), and give `scheduling` (the task after it) something real
+  to `require` or `degradesWith` against instead of a queue-only reference.
+  Per clinical-suite.md §1, remember prescribing (module 6, two tasks after
+  patient-registry) is where `docs/compliance/` must start leading rather
+  than trailing — not relevant yet for patient-registry itself, but worth
+  flagging early since it's now only three tasks away.
 
 - 2026-08-09 — Built the "Verified badge component" on `apps/web`, the last
   unchecked task in "Identity and professional credentialing." Re-checked
