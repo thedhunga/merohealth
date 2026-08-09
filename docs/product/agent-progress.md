@@ -153,7 +153,7 @@ work.
       at the route boundary. A UI-only gate is not a gate.
 - [x] Prisma schema for `HealthDocument`, `HealthObservation`, `DeviceSample`,
       `Subscription` and usage counters, plus a migration and seed data.
-- [ ] Hosted storage adapter against the MinIO service already in
+- [x] Hosted storage adapter against the MinIO service already in
       `compose.yaml`, implementing `HealthDocumentStore`.
 - [ ] Google Drive adapter: OAuth, an app-scoped folder, and client-side
       encryption so stored bytes stay opaque to the server.
@@ -252,6 +252,109 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — Built the hosted storage adapter: `MinioDocumentStore` in
+  `packages/storage-adapters`, an S3-compatible implementation of
+  `HealthDocumentStore` against the MinIO service in `compose.yaml`, wired
+  into `apps/api`'s `RecordsModule` as a real (not hypothetical) alternative
+  to the in-memory store.
+
+  **Kept off the package's root export on purpose.** `packages/storage-adapters`
+  ships a `"react-native"` export condition so `apps/mobile` can one day import
+  its source directly — but the `minio` client pulls in `node:http`/`node:net`,
+  which Metro cannot bundle. Rather than risk breaking that path the day mobile
+  actually wires this package in, the adapter lives in a new file,
+  `hosted-store.ts`, exported only via a second package-export entry,
+  `@swasthya/storage-adapters/hosted` (no `react-native` condition on that one
+  — Node-only, deliberately unreachable from a bundler). `apps/api` imports
+  that subpath; the root `.` export `apps/mobile` would use stays exactly as
+  Node-free as it was before this run.
+
+  **No way to run real MinIO in this environment, so said so and found the next
+  best thing rather than either skipping verification or mocking the client
+  library.** No Docker daemon (same gap the Prisma-schema run hit for
+  Postgres), and this sandbox's network policy rejects `dl.min.io` outright
+  (confirmed via `$HTTPS_PROXY/__agentproxy/status`, `connect_rejected` /
+  policy denial), so there's no path to the real MinIO binary here. Rather
+  than mock the `minio` client (which would only prove the adapter calls the
+  client correctly, not that the client's requests are correct against a real
+  S3-compatible server), used `s3rver` — a real, in-process, S3-compatible
+  HTTP server, installed as a devDependency — so `hosted-store.test.ts` drives
+  the actual `minio` client over an actual HTTP round trip: real request
+  signing, real header parsing, real response bodies. This is genuine
+  integration coverage of the wire protocol, just not against MinIO's own
+  binary specifically — worth a future run repeating this against real MinIO
+  the moment Docker is available, though nothing here suggests it would behave
+  differently (MinIO's whole design goal is exact S3 API compatibility).
+  Prototyped this compatibility question standalone (a scratch script against
+  a live `s3rver` instance) before committing to the approach, specifically to
+  confirm the `minio` client's `putObject` metadata handling
+  (`prependXAMZMeta` auto-prefixes plain metadata keys with `x-amz-meta-`
+  unless already an AWS/supported header) actually round-trips through
+  `statObject` the way the adapter's `list()` depends on, rather than
+  discovering that gap after the adapter was already written.
+
+  **Went one step further than the package-level tests: booted the real
+  server against the real adapter.** Built `apps/api`, started
+  `node dist/main.js` twice — once with no `OBJECT_STORAGE_*` env vars (falls
+  back to `InMemoryDocumentStore`, confirmed capture/list still work exactly
+  as before this run) and once with them pointed at a standalone `s3rver`
+  instance on a scratch port — and drove a real `POST /v1/records/documents`
+  through curl against the MinIO-backed path. Confirmed the response `ref`,
+  the `GET /v1/records/documents` listing, and the actual bytes + metadata
+  file `s3rver` wrote to disk (`cat`, not just trusting the HTTP response) all
+  agree: same 39-byte payload, same SHA-256, same content-type, object key
+  correctly scoped `owner-live/<uuid>-discharge_summary.pdf`. This is the same
+  "wire it concretely, not just build it in the abstract" standard the
+  entitlement-guard run set — a port with two adapters and a factory that
+  never gets exercised end to end is still, functionally, an abstraction.
+
+  **Design choices worth recording:** object keys are
+  `${ownerId}/${uuid}-${sanitizedFilename}`, so `list(ownerId)` is a plain
+  prefix query — the bucket itself stays the only source of truth for what
+  exists, with no side database to fall out of sync (matching
+  `InMemoryDocumentStore`'s own contract, just S3-backed instead of a `Map`).
+  `byteSize`/`contentType`/`checksumSha256` on `list()` come from a `statObject`
+  call per key rather than being cached anywhere — an N+1 against the object
+  store, acceptable for a reference adapter at this stage, worth revisiting if
+  a single owner's document count grows large enough for it to matter.
+  `minioConfigFromEnv()` reads `OBJECT_STORAGE_ENDPOINT` /
+  `OBJECT_STORAGE_BUCKET` / `OBJECT_STORAGE_ACCESS_KEY` /
+  `OBJECT_STORAGE_SECRET_KEY` — these were already declared in `.env.example`
+  from before this run existed, so this introduces no new environment
+  contract; only parses the endpoint URL into host/port/TLS that didn't exist
+  yet. Noticed but deliberately did not touch: `.env.example`'s
+  `OBJECT_STORAGE_SECRET_KEY=replace-me` doesn't match `compose.yaml`'s actual
+  `MINIO_ROOT_PASSWORD=replace-me-local-only` — a pre-existing placeholder
+  mismatch, harmless until someone actually runs `compose.yaml`'s MinIO
+  locally and copies `.env.example` verbatim, at which point auth would fail
+  until the value is corrected by hand. `RecordsModule` now picks the adapter
+  via `OBJECT_STORAGE_ENDPOINT`'s presence rather than a hard swap, so a bare
+  checkout with no object store configured still boots and passes its own
+  test suite — the previous run's comment ("swapping in the real adapter is a
+  one-line change") undersold it slightly; it's one line, but conditional,
+  not unconditional, specifically so this module doesn't gain a hard runtime
+  dependency on an object store existing.
+
+  Verified: `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` (`@swasthya/storage-adapters` up to 21 tests from 12; `apps/api`
+  unchanged at 39 — its records tests instantiate `RecordsService` directly
+  with a stub store, so this run's module-wiring change had nothing new for
+  them to catch, which is exactly why the live-server curl pass above mattered),
+  `pnpm build`, all green.
+
+  **For the next run:** next unchecked item is the Google Drive adapter —
+  OAuth, an app-scoped folder, client-side encryption so stored bytes stay
+  opaque to the server. `resolveStoragePlacement`/`assertPlacementAllowed` in
+  `packages/storage-adapters/src/index.ts` already encode the policy this
+  adapter must honour (`requiresClientEncryption: true` for `GOOGLE_DRIVE`);
+  this run's `MinioDocumentStore` is a second, independent example of an
+  adapter that calls `assertPlacementAllowed` defensively at its own `put`
+  boundary rather than trusting the caller, worth matching. Consider whether
+  the Drive adapter needs its own `@swasthya/storage-adapters/*` subpath (an
+  OAuth-capable Node/browser client is a different bundling question than
+  `minio`'s Node-only one — don't assume the same subpath split applies
+  without checking what the Drive SDK actually needs).
 
 - 2026-08-09 — Built the Prisma schema for the personal health platform:
   `HealthDocument`, `HealthObservation`, `DeviceSample`, `Subscription`,

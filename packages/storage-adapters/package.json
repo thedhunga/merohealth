@@ -11,6 +11,10 @@
       "react-native": "./src/index.ts",
       "types": "./src/index.ts",
       "default": "./dist/index.js"
+    },
+    "./hosted": {
+      "types": "./src/hosted-store.ts",
+      "default": "./dist/hosted-store.js"
     }
   },
   "scripts": {
@@ -21,9 +25,13 @@
   },
   "dependencies": {
     "@swasthya/entitlements": "workspace:*",
-    "@swasthya/shared-types": "workspace:*"
+    "@swasthya/shared-types": "workspace:*",
+    "minio": "8.0.7"
   },
   "devDependencies": {
+    "@types/node": "24.1.0",
+    "@types/s3rver": "3.7.4",
+    "s3rver": "3.7.1",
     "typescript": "6.0.3",
     "vitest": "4.1.10"
   }
