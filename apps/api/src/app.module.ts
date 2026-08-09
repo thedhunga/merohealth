@@ -6,9 +6,10 @@ import { HealthController } from './health.controller.js';
 import { PatientRegistryModule } from './patient-registry/patient-registry.module.js';
 import { PerplexityHealthService } from './perplexity-health.service.js';
 import { RecordsModule } from './records/records.module.js';
+import { SchedulingModule } from './scheduling/scheduling.module.js';
 
 @Module({
-  imports: [RecordsModule, CredentialingModule, PatientRegistryModule],
+  imports: [RecordsModule, CredentialingModule, PatientRegistryModule, SchedulingModule],
   controllers: [HealthController, CompanionController, DirectoryController],
   providers: [PerplexityHealthService],
 })

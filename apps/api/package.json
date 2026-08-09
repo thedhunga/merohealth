@@ -23,6 +23,7 @@
     "@swasthya/health-records": "workspace:*",
     "@swasthya/module-registry": "workspace:*",
     "@swasthya/patient-registry": "workspace:*",
+    "@swasthya/scheduling": "workspace:*",
     "@swasthya/shared-types": "workspace:*",
     "@swasthya/storage-adapters": "workspace:*",
     "reflect-metadata": "0.2.2",

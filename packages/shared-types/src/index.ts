@@ -413,3 +413,34 @@ export interface PatientDemographicsPatch {
   preferredLocale?: LanguageCode | undefined;
   address?: PatientAddress | undefined;
 }
+
+/* ------------------------------------------------------------------ *
+ * Scheduling (clinical-suite.md capability map row 2)
+ *
+ * "Degrades to READ_ONLY without the registry" — `patientId` and
+ * `clinicianId` are opaque ids, never a foreign key into patient-registry or
+ * a future clinician-registry, per §2 rule 1. Only `SCHEDULED`/`CANCELLED`
+ * are modelled: nothing in this module marks a visit `COMPLETED`, so that
+ * status would be an unreachable, invented state rather than a real one.
+ * ------------------------------------------------------------------ */
+export type AppointmentStatus = 'SCHEDULED' | 'CANCELLED';
+
+export interface Appointment {
+  id: string;
+  patientId: string;
+  clinicianId: string;
+  /** ISO 8601 UTC instant, e.g. `2026-08-09T09:30:00.000Z`. */
+  scheduledStart: string;
+  scheduledEnd: string;
+  status: AppointmentStatus;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface ScheduleAppointmentInput {
+  patientId: string;
+  clinicianId: string;
+  scheduledStart: string;
+  scheduledEnd: string;
+}

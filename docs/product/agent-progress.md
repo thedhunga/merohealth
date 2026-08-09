@@ -234,7 +234,7 @@ suite grows. A module that "works" but has no outage test is not finished.
       into it, and retrofitting it later means touching every module.
 - [x] `patient-registry`: demographics and identity. Owns patient identity;
       every other module references by opaque id, never by foreign key.
-- [ ] `scheduling`: appointments and resource calendars. Degrades to
+- [x] `scheduling`: appointments and resource calendars. Degrades to
       `READ_ONLY` when the registry is unavailable rather than failing.
 - [ ] `clinical-charting`: encounters, SOAP notes, templates.
 - [ ] `clinical-summary`: problem list, allergies, medications — extending
@@ -252,6 +252,137 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — Built `scheduling`, capability map row 2 and the third
+  "Clinical suite — eClinicalWorks parity" task, the first real consumer of
+  last run's `PATIENT_REGISTRY` descriptor and the first module with a real
+  `degradesWith` edge. Re-read clinical-suite.md in full first, per its own
+  instruction. Re-checked `apps/web/public/` first too, per "Photography
+  wiring"'s own gating instruction — found a new `imagery/` directory this
+  time (every prior run only ever saw the flat `public/` root), which
+  briefly looked like photography had landed. `git log` on the one file in
+  it (`nepali-care-team.webp`) showed it was committed in the original
+  `feat: add Next.js marketing site` commit, and it's already wired into
+  `Testimonials.tsx` — not new, and not one of asset-brief.md's ~17 named
+  files. Still the same two pre-photography files every prior run has
+  found, just one of them moved into a subdirectory at some point before
+  this ledger existed. Skipped photography wiring again and moved to this
+  task, the next unchecked one.
+
+  **Split the same way every prior clinical-suite package has split:
+  domain shape (`AppointmentStatus`, `Appointment`, `ScheduleAppointmentInput`)
+  in `packages/shared-types`, pure behaviour (`scheduleAppointment`,
+  `cancelAppointment`) in new `packages/scheduling`.** Only `SCHEDULED` and
+  `CANCELLED` are modelled — no `COMPLETED` status, because nothing in this
+  task builds a `completeAppointment` transition, and an unreachable status
+  value would be exactly the kind of invented-but-unused shape the standing
+  constraints warn against. The one real domain invariant, matching
+  `patient-registry`'s "birth date can't be in the future" precedent: an
+  appointment's end cannot be at or before its start
+  (`InvalidAppointmentWindowError`) — a real impossibility, not a shape
+  check. Cancelling an already-cancelled appointment throws
+  (`AppointmentAlreadyCancelledError`) rather than being silently
+  idempotent, mirroring `packages/credentialing`'s own
+  `ApplicationTransitionError` precedent for a repeat submission.
+
+  **The actual point of this task — READ_ONLY degradation — is enforced in
+  `apps/api/src/scheduling/scheduling.service.ts`, not left as a
+  declaration nobody checks.** `SchedulingService` is constructed with
+  `PatientRegistryService` injected as a dependency (its public port, per
+  §2 rule 3 — never `PatientRegistryRepository`). Both `schedule` and
+  `cancel` call a private `assertPatientRegistryAvailable()` first, which
+  checks `patients.health()` and throws `ServiceUnavailableException` if
+  it reports `DOWN` — read literally from the `Degradation` type's own
+  comment, "READ_ONLY: serve persisted data, refuse writes": *every* write
+  this module offers is refused while the dependency is down, not only
+  `schedule` (the one that actually calls into patient-registry to resolve
+  the opaque `patientId`) — so `cancel` gates on the same check even though
+  it never itself talks to patient-registry. `get`/`list` never call it at
+  all, and keep serving from `SchedulingRepository`'s own store regardless
+  of patient-registry's health — proven behaviourally in
+  `scheduling.fault-isolation.test.ts`, not just asserted in a comment.
+
+  **`scheduling.fault-isolation.test.ts` is this run's version of the
+  outage test clinical-suite.md §2 requires of every module, and it closes
+  the specific gap last run's own "for the next run" note named: the
+  module-registry-level assertion patient-registry's own outage test
+  couldn't make for lack of a second module.** Three tests: (1) a
+  `BrokenSchedulingRepository` proving a real thrown error inside
+  scheduling's own store never reaches `patients.get()` on an unrelated,
+  live `PatientRegistryService` in the same process (§2 rule 5, "the shell
+  renders around holes"); (2) `createPatientRegistryModuleDescriptor` +
+  `createSchedulingModuleDescriptor` wired through `buildModuleRegistry` /
+  `collectHealthStates` / `resolveAvailability` from
+  `@swasthya/module-registry`, with `PATIENT_REGISTRY`'s health forced
+  `DOWN` — asserting `resolveAvailability` reports `SCHEDULING` as still
+  `available: true` (per §2's rule that `degradesWith` never cascades to
+  unavailability) but carrying exactly one degradation,
+  `{ dependency: 'PATIENT_REGISTRY', mode: 'READ_ONLY' }`; (3) the same
+  scenario driven through the real `SchedulingController`/`SchedulingService`
+  stack rather than the resolver directly, confirming the declared
+  degradation and the actual enforced behaviour agree with each other, not
+  just each independently with the doc.
+
+  **Deliberately did not build a `/system/modules` HTTP aggregator this
+  run, even though last run's note flagged this as the natural moment
+  ("now that there would be two real descriptors for it to resolve
+  together").** The ledger's own working agreement is one task per run, and
+  the queue item is "`scheduling`", not "an aggregator endpoint" — the
+  fault-isolation test above already exercises `resolveAvailability` across
+  both real descriptors without one, which is what capability map row 2
+  actually required. Left named, not silently dropped, for whichever future
+  run wants to pick it up once a third module makes the case stronger.
+
+  **ISO 8601 instants validated by a hand-written regex in the controller,
+  not zod's built-in `.datetime()`** — matching `patient-registry`'s own
+  choice of a `dateOfBirth` regex over a library validator, and sidestepping
+  any uncertainty about that method's exact behaviour on this repo's zod
+  4.4.3. The regex matches exactly the shape `new Date().toISOString()`
+  produces (`YYYY-MM-DDTHH:mm:ss.sssZ`), since every request body in this
+  flow is expected to carry timestamps produced the same way `createdAt`/
+  `updatedAt` already are throughout this API.
+
+  New package `packages/scheduling` (same shape as `packages/module-registry`
+  and `packages/patient-registry`, colocated `index.test.ts`, 4 tests). New
+  `apps/api/src/scheduling/` (5 source files + 5 colocated test files, 28 new
+  tests: 3 repository, 11 service, 9 controller, 2 module-descriptor, 3
+  fault-isolation). Added `@swasthya/scheduling` to `apps/api/package.json`
+  and wired `SchedulingModule` into `AppModule` alongside the existing three.
+
+  One correctness fix during verification, not scope creep: the controller
+  test for a synchronously-thrown `BadRequestException` (an invalid request
+  body) originally used `await expect(...).rejects.toThrow(...)`, but
+  `SchedulingController.schedule` is not itself `async` — zod validation
+  throws synchronously before the call into the async `SchedulingService`,
+  so the exception was escaping the `expect()` call entirely rather than
+  being caught as a promise rejection. Fixed to the synchronous
+  `expect(() => controller.schedule(...)).toThrow(...)` form
+  `PatientRegistryController`'s own tests already use for the same reason.
+
+  Verified: `pnpm install` (new workspace dependency — confirmed
+  `--frozen-lockfile` passes clean afterward), `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` (`@swasthya/scheduling` contributing 4 tests from zero,
+  `@swasthya/api` going from 90 to 118; every other package's test count
+  unchanged), `pnpm build` (`packages/scheduling/dist/` and
+  `apps/api/dist/scheduling/` produced), all green.
+
+  **For the next run:** the queue's next unchecked item is
+  `clinical-charting` — encounters, SOAP notes, templates, consuming
+  `health-records`. Per §4's own sequencing note, modules 1-4 (through
+  `clinical-summary`) are "the smallest thing a clinic can actually use";
+  nothing before module 5 (`medication-safety`) touches prescribing, where
+  the safety and regulatory burden begins. `clinical-charting` should
+  follow the same shape this run and last run both used: domain shape in
+  `shared-types`, behaviour in a new package, an `apps/api` module wired
+  the same way, a `ClinicalModuleDescriptor` with a real `requires` or
+  `degradesWith` edge (this doc doesn't say which — read capability map row
+  3 and §2 rule 4 again before deciding), and its own outage test. Whether
+  it should `require` or merely `degradesWith` against `HEALTH_RECORDS`
+  specifically (not yet a registered module in this registry — only
+  `PATIENT_REGISTRY` and `SCHEDULING` are so far) is worth resolving early,
+  since `packages/health-records` already exists as a domain package but
+  has never been wired into `@swasthya/module-registry` with its own
+  descriptor the way `patient-registry`/`scheduling` now are.
 
 - 2026-08-09 — Built `patient-registry`, capability map row 1 and the second
   "Clinical suite — eClinicalWorks parity" task, on top of last run's
