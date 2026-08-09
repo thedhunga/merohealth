@@ -205,7 +205,7 @@ an evaluation set before it needs a trainer.
       what is not. **Never bundle these into terms acceptance.**
 - [x] Wire `retainUtterance` into the companion, gated on a live grant. It
       throws without one — let it throw rather than catching and dropping.
-- [ ] Capture `CORRECTION` pairs when a person rephrases after the assistant
+- [x] Capture `CORRECTION` pairs when a person rephrases after the assistant
       misunderstands, and ask there rather than at signup.
 - [ ] Reviewer queue for utterances flagged `awaitingHumanReview`, reusing the
       credentialing reviewer role pattern.
@@ -276,6 +276,59 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — **Capture `CORRECTION` pairs when a person rephrases after the
+  assistant misunderstands, and ask there rather than at signup (line 208,
+  the first unchecked task, re-derived from a fresh top-to-bottom
+  `grep -n "^- \["`).** Scoped to `apps/mobile/app/(tabs)/companion.tsx`, the
+  only companion surface, same as the previous run.
+
+  **Classifying a rephrase (`apps/mobile/src/lib/companion-capture.ts`,
+  new):** the existing wiring only ever captured `USER_MESSAGE`. Whether a
+  submission is a `CORRECTION` is a small, pure decision — flagged as a
+  rephrase *and* something preceding it to correct — so it is a standalone
+  function with its own `companion-capture.test.ts` (4 cases) rather than
+  logic buried in the screen component. `apps/mobile` has no
+  React-Testing-Library-style harness for screens (`grep` for
+  `testing-library` in `apps/mobile/package.json` turns up nothing, and nothing
+  under `app/` or `src/` sets one up), so this is deliberately factored to be
+  testable without one; `app-state.tsx`'s new method is thin wiring over
+  already-tested `language-corpus` primitives, matching how `captureUtterance`
+  itself has no direct test.
+
+  **The "ask there" part (`apps/mobile/src/state/app-state.tsx`):** the
+  standing `captureUtterance` silently no-ops without a live grant — correct
+  for an ordinary `USER_MESSAGE`, but language-corpus.md §2 is explicit that a
+  `CORRECTION` is exactly the moment to *ask*, not skip. A naive
+  `setConsent('MODEL_TRAINING_TEXT', true)` followed by `captureUtterance(...)`
+  would not work: both read `consentGrants` from the same render's closure, so
+  the second call would still see the pre-grant state and refuse the very
+  utterance the person just agreed to keep. Added `grantConsentAndCapture`,
+  which computes the new grants list once and passes it directly into
+  `retainUtterance`, so the grant is guaranteed live for the capture that
+  needed it.
+
+  **UI (`companion.tsx`):** the answer screen now has a "this didn't help —
+  ask differently" action alongside the existing "ask another question" one —
+  they are different things and were previously conflated into one reset.
+  Tapping it records the just-shown answer as `lastAssistantText` and flags
+  the next submission as a rephrase. If that submission is classified as a
+  `CORRECTION` and `MODEL_TRAINING_TEXT` isn't already live, an inline
+  yes/no card appears on the new answer screen instead of silently dropping
+  it; a "no" is remembered for the rest of the session so it does not nag on
+  every subsequent correction. All copy is the file's existing inline
+  `language === 'en' ? … : …` pattern — `apps/mobile` has no
+  `messages/*.json` layer the way `apps/web` does, so that ternary *is* the
+  established bilingual pattern here, not a shortcut around the standing
+  constraint (which names the `apps/web/messages` files specifically).
+
+  **Verify:** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` (mobile: 16 tests, 4 new), `pnpm build` all green.
+
+  **For the next run:** the two remaining language-corpus tasks (reviewer
+  queue for `awaitingHumanReview`, and the erasure path) are next in file
+  order. Re-derive from a fresh `grep -n "^- \["` rather than trusting this
+  pointer, per this same note in every prior entry.
 
 - 2026-08-09 — **Wired `retainUtterance` into the companion, gated on a live
   grant (line 206, the first unchecked task — re-derived from a fresh

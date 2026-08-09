@@ -14,7 +14,7 @@ import {
 import { generateLocalOwnerId, generateUtteranceId } from '@/lib/local-id';
 
 /** What a caller supplies to capture an utterance; the rest is filled in here. */
-interface UtteranceCapture {
+export interface UtteranceCapture {
   kind: UtteranceKind;
   rawText: string;
   precedingAssistantText?: string | null;
@@ -51,6 +51,16 @@ interface AppState {
    */
   corpusUtterances: CorpusUtterance[];
   captureUtterance: (input: UtteranceCapture) => void;
+  /**
+   * language-corpus.md §2's "ask there rather than at signup": the companion
+   * offers this the moment a CORRECTION happens, not at consent screen or
+   * signup. Grants `MODEL_TRAINING_TEXT` and retains the utterance in one
+   * call rather than a `setConsent` followed by `captureUtterance`, because
+   * those are two separate `useState` updates — the second would still read
+   * the pre-grant `consentGrants` from this render's closure and refuse the
+   * very utterance the person just agreed to keep.
+   */
+  grantConsentAndCapture: (input: UtteranceCapture) => void;
 }
 
 const Context = createContext<AppState | null>(null);
@@ -100,6 +110,27 @@ export function AppStateProvider({ children }: PropsWithChildren) {
         },
         consentGrants,
       );
+      setCorpusUtterances((current) => [...current, utterance]);
+    },
+    grantConsentAndCapture: (input) => {
+      const now = new Date().toISOString();
+      const purpose = purposeForUtteranceKind(input.kind);
+      const grants = hasPurpose(consentGrants, purpose, now)
+        ? consentGrants
+        : [...consentGrants, grantConsent(purpose, ownerId, now)];
+      const utterance = retainUtterance(
+        {
+          id: generateUtteranceId(),
+          ownerId,
+          kind: input.kind,
+          rawText: input.rawText,
+          locale: language,
+          capturedAt: now,
+          precedingAssistantText: input.precedingAssistantText ?? null,
+        },
+        grants,
+      );
+      setConsentGrants(grants);
       setCorpusUtterances((current) => [...current, utterance]);
     },
   }), [consentGrants, corpusUtterances, facts, language, lowBandwidth, ownerId, skippedPrompts]);

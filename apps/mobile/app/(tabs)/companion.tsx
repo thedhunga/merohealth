@@ -31,6 +31,11 @@ import { assessSafety, getSafetyTemplate } from '@swasthya/clinical-safety';
 import { colors, radii, spacing } from '@swasthya/configuration';
 import { Screen, SathiOrb, uiStyles } from '@/components/ui';
 import { useAppState } from '@/state/app-state';
+import { classifyCompanionCapture, type CompanionCapture } from '@/lib/companion-capture';
+
+const DEFAULT_ANSWER_TEXT =
+  'Symptoms can have many causes. Consider duration, severity, and other signs with a qualified health professional.';
+
 interface ResearchResult {
   provider: 'perplexity-sonar';
   status: 'complete' | 'setup-required' | 'unavailable';
@@ -43,7 +48,7 @@ interface ResearchResult {
 
 export default function CompanionScreen() {
   const params = useLocalSearchParams<{ demo?: string }>();
-  const { language, captureUtterance } = useAppState();
+  const { language, captureUtterance, hasConsent, grantConsentAndCapture } = useAppState();
   const [message, setMessage] = useState(
     params.demo === 'emergency' ? 'मलाई सास फेर्न गाह्रो छ' : '',
   );
@@ -51,6 +56,16 @@ export default function CompanionScreen() {
   const [research, setResearch] = useState<ResearchResult | null>(null);
   const [isResearching, setIsResearching] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<string | null>(null);
+  // Set when "this didn't help" is tapped on an answer, so the *next*
+  // submission is classified as a CORRECTION rather than a fresh question —
+  // see `classifyCompanionCapture`.
+  const [isRephrasing, setIsRephrasing] = useState(false);
+  const [lastAssistantText, setLastAssistantText] = useState<string | null>(null);
+  // language-corpus.md §2's "ask there rather than at signup": held here
+  // until the person answers the inline ask, rather than captured (or
+  // dropped) immediately.
+  const [pendingCorrection, setPendingCorrection] = useState<CompanionCapture | null>(null);
+  const [correctionAskDismissed, setCorrectionAskDismissed] = useState(false);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 200);
   const assessment = submitted ? assessSafety(message) : null;
@@ -99,9 +114,25 @@ export default function CompanionScreen() {
     setResearch(null);
     // language-corpus.md §2: natural phrasing of a symptom is the valuable
     // signal, independent of what the safety check does with it — so this
-    // runs for every submission, and is a no-op unless MODEL_TRAINING_TEXT
-    // consent is already live (see `captureUtterance` in `app-state.tsx`).
-    captureUtterance({ kind: 'USER_MESSAGE', rawText: message });
+    // runs for every submission. A rephrase after "this didn't help" is
+    // classified as a CORRECTION instead — the highest-value, cheapest row.
+    const capture = classifyCompanionCapture({
+      message,
+      isRephrase: isRephrasing,
+      precedingAssistantText: lastAssistantText,
+    });
+    setIsRephrasing(false);
+    if (capture.kind === 'CORRECTION' && !hasConsent('MODEL_TRAINING_TEXT') && !correctionAskDismissed) {
+      // Ask right here, at the moment the correction happened, instead of
+      // silently dropping it the way an unconsented USER_MESSAGE is dropped —
+      // that is the entire point of this task per language-corpus.md §2.
+      setPendingCorrection(capture);
+    } else {
+      // Already consented, or already declined the ask this session: either
+      // way `captureUtterance` is the right call — it is a no-op without a
+      // live grant, so a repeat decline stays silent rather than nagging.
+      captureUtterance(capture);
+    }
     const safety = assessSafety(message);
     if (safety.interruptConversation) return;
     setIsResearching(true);
@@ -192,8 +223,12 @@ export default function CompanionScreen() {
 
           <View style={styles.card}>
             <View>
-              <Text style={styles.stepLabel}>STEP 1 · WHAT MATTERS NOW</Text>
-              <Text style={styles.question}>आज के भइरहेको छ?</Text>
+              <Text style={styles.stepLabel}>
+                {isRephrasing ? 'STEP 1 · REPHRASE' : 'STEP 1 · WHAT MATTERS NOW'}
+              </Text>
+              <Text style={styles.question}>
+                {isRephrasing ? 'फरक शब्दमा भन्नुहोस्' : 'आज के भइरहेको छ?'}
+              </Text>
             </View>
 
             <TextInput
@@ -308,10 +343,7 @@ export default function CompanionScreen() {
                     ? 'Evidence-backed information'
                     : 'General information'}
                 </Text>
-                <Text style={styles.answer}>
-                  {research?.answer ??
-                    'Symptoms can have many causes. Consider duration, severity, and other signs with a qualified health professional.'}
-                </Text>
+                <Text style={styles.answer}>{research?.answer ?? DEFAULT_ANSWER_TEXT}</Text>
                 {research?.citations.length ? (
                   <View style={styles.citationList}>
                     <Text style={styles.citationHeading}>Sources</Text>
@@ -359,12 +391,75 @@ export default function CompanionScreen() {
               Approved Demonstration Health Guide, v1 · उत्पादनका लागि होइन
             </Text>
           </View>
+
+          {pendingCorrection ? (
+            <View style={styles.correctionAsk}>
+              <Text style={styles.correctionAskTitle}>
+                {language === 'en'
+                  ? 'Keep this exchange to improve Nepali answers?'
+                  : 'यो कुराकानी नेपाली जवाफ सुधार्न राख्न मिल्छ?'}
+              </Text>
+              <Text style={styles.correctionAskBody}>
+                {language === 'en'
+                  ? 'The earlier answer missed the point and you rephrased. That pair helps the assistant learn Nepali phrasing. Nothing is kept without a yes, and this can be turned off anytime from the consent screen.'
+                  : 'अघिल्लो जवाफले नबुझेकोले तपाईंले फरक शब्दमा सोध्नुभयो। यस्तै जोडीले सहायकलाई नेपाली भाषा बुझ्न सघाउँछ। तपाईंको हो नभनी केही राखिँदैन, र यो सहमति स्क्रिनबाट जुनसुकै बेला बन्द गर्न सकिन्छ।'}
+              </Text>
+              <View style={styles.correctionAskRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    grantConsentAndCapture(pendingCorrection);
+                    setPendingCorrection(null);
+                  }}
+                  style={styles.correctionAskYes}
+                >
+                  <Text style={styles.correctionAskYesText}>
+                    {language === 'en' ? 'Yes, keep it' : 'हो, राख्नुहोस्'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setCorrectionAskDismissed(true);
+                    setPendingCorrection(null);
+                  }}
+                  style={styles.correctionAskNo}
+                >
+                  <Text style={styles.correctionAskNoText}>
+                    {language === 'en' ? 'No thanks' : 'पर्दैन'}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
+
+          <Pressable
+            onPress={() => {
+              setLastAssistantText(research?.answer ?? DEFAULT_ANSWER_TEXT);
+              setIsRephrasing(true);
+              setSubmitted(false);
+              setMessage('');
+              setVoiceStatus(null);
+              setResearch(null);
+            }}
+            style={styles.rephraseButton}
+          >
+            <Text style={styles.rephraseButtonText}>
+              {language === 'en'
+                ? "This didn't help — ask differently"
+                : 'यसले मद्दत गरेन, फरक शब्दमा सोध्नुहोस्'}
+            </Text>
+          </Pressable>
+
           <Pressable
             onPress={() => {
               setSubmitted(false);
               setMessage('');
               setVoiceStatus(null);
               setResearch(null);
+              setIsRephrasing(false);
+              setLastAssistantText(null);
+              setPendingCorrection(null);
             }}
             style={uiStyles.primaryButton}
           >
@@ -531,4 +626,41 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   perplexityButtonText: { color: 'white', fontSize: 13, fontWeight: '900' },
+  correctionAsk: {
+    backgroundColor: colors.mint,
+    borderRadius: radii.lg,
+    gap: spacing.sm,
+    padding: spacing.lg,
+  },
+  correctionAskTitle: { color: colors.primaryDark, fontSize: 14, fontWeight: '900' },
+  correctionAskBody: { color: colors.primaryDark, fontSize: 12, lineHeight: 18 },
+  correctionAskRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
+  correctionAskYes: {
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 46,
+  },
+  correctionAskYesText: { color: 'white', fontSize: 13, fontWeight: '900' },
+  correctionAskNo: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,.75)',
+    borderRadius: radii.md,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 46,
+  },
+  correctionAskNoText: { color: colors.primaryDark, fontSize: 13, fontWeight: '900' },
+  rephraseButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.line,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 50,
+  },
+  rephraseButtonText: { color: colors.primaryDark, fontSize: 13, fontWeight: '900' },
 });
