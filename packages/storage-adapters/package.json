@@ -15,6 +15,10 @@
     "./hosted": {
       "types": "./src/hosted-store.ts",
       "default": "./dist/hosted-store.js"
+    },
+    "./google-drive": {
+      "types": "./src/google-drive-store.ts",
+      "default": "./dist/google-drive-store.js"
     }
   },
   "scripts": {

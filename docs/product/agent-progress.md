@@ -155,7 +155,7 @@ work.
       `Subscription` and usage counters, plus a migration and seed data.
 - [x] Hosted storage adapter against the MinIO service already in
       `compose.yaml`, implementing `HealthDocumentStore`.
-- [ ] Google Drive adapter: OAuth, an app-scoped folder, and client-side
+- [x] Google Drive adapter: OAuth, an app-scoped folder, and client-side
       encryption so stored bytes stay opaque to the server.
 - [ ] `packages/interop`: FHIR R4 mapping for documents and observations, a
       record export bundle (PDF + JSON), and a revocable, time-limited share
@@ -252,6 +252,117 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — Built the Google Drive adapter: `GoogleDriveDocumentStore` and
+  `GoogleOAuthTokenProvider` in `packages/storage-adapters`, implementing
+  `HealthDocumentStore` against the person's own Drive. Second, independent
+  example of an adapter behind the port (after `MinioDocumentStore`), and the
+  first one for the bring-your-own side of the "your data, your storage"
+  split `docs/architecture/platform-vision.md` §3.1 describes.
+
+  **Scoped the "OAuth" bullet to what an adapter actually owns.** The task
+  reads "OAuth, an app-scoped folder, and client-side encryption." Client-side
+  encryption was already enforced at the port boundary before this run
+  (`assertPlacementAllowed` on `GOOGLE_DRIVE` requires `blob.clientEncrypted`)
+  — this run's `put()` re-checks it anyway, same defense-in-depth
+  `MinioDocumentStore` already established, rather than trusting every future
+  caller to remember. "OAuth" for an adapter that only ever calls Drive's REST
+  API is the *token refresh* mechanics — `GoogleOAuthTokenProvider` does a
+  real `grant_type=refresh_token` exchange against
+  `https://oauth2.googleapis.com/token`, caches the access token, and
+  refreshes a minute ahead of expiry. **Deliberately did not build the consent
+  screen / authorization-code flow that produces the first refresh token** —
+  there is still no identity/auth layer anywhere in this repo to hang a
+  "connected accounts" concept off of (confirmed again by grep, same gap
+  every run touching `apps/api` auth has named), so persisting a per-person
+  refresh token has no home yet. Building that flow now would mean inventing
+  where it lives, which is exactly the kind of unscoped decision this ledger
+  asks not to make by accident. `GoogleDriveStoreConfig.refreshToken`'s own
+  doc comment names this explicitly as the next run's problem, not a gap
+  papered over. **For the same reason, this adapter is not wired into
+  `apps/api`'s `RecordsModule`** — unlike `MinioDocumentStore` (one shared
+  service credential, a genuine drop-in default), Drive requires one OAuth
+  grant per person, and there is nowhere yet to read one from per request.
+  Wiring it in now would mean either hardcoding a single fake owner's token
+  (fabricating a capability that doesn't exist) or leaving a dead code path
+  nothing can reach — both worse than naming the gap here and leaving
+  `RecordsModule` as is until a connected-accounts flow exists to feed it.
+
+  **"App-scoped folder" taken as a real design decision, not a checkbox.**
+  Google Drive's `drive.file` OAuth scope restricts an app to only see
+  files/folders it created — but Drive separately offers a special hidden
+  `appDataFolder`, invisible in the person's own Drive UI, normally used for
+  app config. Deliberately did **not** use that: these are the person's own
+  health documents, and hiding them from their own Drive would work against
+  the entire point of bring-your-own storage ("your data, your storage" means
+  they can find, rename, or delete a file outside Mero Health too). Instead
+  the adapter creates (and, on every later use, finds and reuses) one
+  ordinary, named, visible folder, `"Mero Health Records"` — same
+  memoized-promise idempotency pattern as `MinioDocumentStore#ensureBucket`,
+  `#ensureFolder`, proven race-free under concurrent `put()`s in a dedicated
+  test (see below). Per-document checksum lives in Drive's `appProperties`
+  (visible only to the app that wrote it, same `drive.file`-scope guarantee),
+  since Drive has no native SHA-256 field — mirrors `MinioDocumentStore`'s own
+  `x-amz-meta-` checksum convention, just Drive's metadata mechanism instead.
+
+  **No live Google account or credentials exist in this environment**, and
+  unlike MinIO there is no widely-used, long-established local emulator for
+  Drive's REST API to fall back on the way `s3rver` did for S3 (checked: the
+  one hit on the npm registry, `google-drive-mock`, is a single-maintainer
+  package with zero prior history in this codebase — not something to trust
+  into a health product's dependency tree over a hand-rolled alternative).
+  So `google-drive-store.test.ts` hand-rolls the actual slice of the Drive v3
+  wire protocol this adapter speaks — OAuth token refresh, folder search and
+  creation, real `multipart/related` upload bodies (not `multipart/form-data`
+  — `FormData`/`Blob` build the wrong one, so the body is constructed by
+  hand), `alt=media` download, listing, deletion — as a real in-process
+  `node:http` server, so the client's request shaping, header handling and
+  response parsing are all genuinely exercised over a real socket, the same
+  bar the MinIO run set with `s3rver`. Caught one real bug from this while
+  writing the tests: an early version of the "folder created at most once
+  under concurrent `put`s" test shared the describe block's one mock server
+  (and its one global folder namespace) with an earlier test, so the folder
+  already existed by the time that test ran and the assertion of "exactly one
+  *new* creation" was unmeetable by construction — fixed by giving that one
+  test its own throwaway server, not by loosening the assertion. Also
+  verified past the unit tests, same standard as the MinIO run: built the
+  package, imported the compiled `dist/google-drive-store.js` from a scratch
+  script against a second, independently written mock server, and drove a
+  full put → get → list round trip through the compiled output, not just the
+  TypeScript source. That pass also flaged exactly one bug — in the scratch
+  script's own mock, whose lazy `q.includes('folder')` folder-search check
+  false-matched a file-listing query (because the folder id happens to be
+  named `folder-0`); the shipped test file already uses the precise MIME-type
+  string so this was never a risk to the real suite, but worth naming since it
+  is the kind of mistake a less careful mock could ship silently.
+
+  New env vars in `.env.example`: `GOOGLE_OAUTH_CLIENT_ID` /
+  `GOOGLE_OAUTH_CLIENT_SECRET` (the app's own OAuth client, shared across every
+  person who connects a Drive — distinct from the per-person refresh token,
+  which has nowhere to live yet). New package export
+  `@swasthya/storage-adapters/google-drive`, Node-only for the same reason
+  `./hosted` already is (`Buffer`/`node:crypto`; Metro can't bundle either for
+  `apps/mobile`) — the root `.` export stays exactly as React-Native-safe as
+  before this run.
+
+  Verified: `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` (`@swasthya/storage-adapters` up to 32 tests from 21 — 11 new in
+  `google-drive-store.test.ts`; every other package unchanged), `pnpm build`,
+  all green.
+
+  **For the next run:** two honest gaps this run named rather than solved,
+  both blocking further progress on Drive specifically: (1) the OAuth consent
+  flow that produces a person's first refresh token — needs a redirect route,
+  a callback, and somewhere to persist the token per person, which in turn
+  wants at least a minimal identity/auth layer to hang "connected accounts"
+  off of; (2) wiring `GoogleDriveDocumentStore` into `RecordsModule` is
+  mechanical once (1) exists, but not before. Absent picking either of those
+  up, the next unchecked queue item is `packages/interop`: FHIR R4 mapping,
+  a record export bundle (PDF + JSON), and a revocable, time-limited share
+  link — read `docs/architecture/platform-vision.md` §3.3 first; it is
+  explicit that v1 is the export bundle and share link, not a hospital-system
+  FHIR connection, since there is no national health information exchange to
+  plug into yet.
 
 - 2026-08-09 — Built the hosted storage adapter: `MinioDocumentStore` in
   `packages/storage-adapters`, an S3-compatible implementation of
