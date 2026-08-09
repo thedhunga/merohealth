@@ -198,7 +198,7 @@ Read it first — it contains one decision that must not be quietly reversed:
 point it is actually needed, and the person is told why at that moment.
 Patients are the primary interface; clinicians are a clearly-marked tab.
 
-- [ ] `packages/identity`: assurance levels
+- [x] `packages/identity`: assurance levels
       (`ANONYMOUS` → `REGISTERED` → `IDENTITY_VERIFIED`), the verification
       state machine, and the evidence lifecycle — including deletion of the
       document image once the decision is recorded.
@@ -252,6 +252,132 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — Built `packages/identity`: the `AssuranceLevel` ladder
+  (`ANONYMOUS` → `REGISTERED` → `IDENTITY_VERIFIED`), the
+  `VerificationRequest` state machine, and the evidence-deletion invariant.
+  First "Identity and professional credentialing" task; read
+  `docs/architecture/identity-and-credentialing.md` in full first, per its
+  own instruction — its one binding decision is that a national ID is never
+  required to sign up, verification happens only at the point it is needed.
+
+  **Checked `apps/web/public/` before touching "Photography wiring" — the
+  section above this one in the queue — and it was not, technically, empty.**
+  Two files exist: `mero-health-social.png` and
+  `imagery/nepali-care-team.webp`. Neither is asset-brief.md photography:
+  `git log` shows both landed in the very first commit
+  (`77d8520`, "add Next.js marketing site"), predating the photography effort
+  entirely, and both are already wired for unrelated purposes
+  (`mero-health-social.png` is the OG share image `seo.ts` already reads;
+  `nepali-care-team.webp` is a video `poster` attribute in
+  `Testimonials.tsx`). Zero of the ~17 files asset-brief.md actually names
+  (portraits, org/condition photography, the three videos) exist. Read the
+  section's "check first, skip if empty" instruction as being about whether
+  the *described* photography has landed, not literally whether the
+  directory has zero bytes — building `EditorialImage` and wiring it to
+  slots with nothing behind them would be exactly the "building slots for
+  files that are not there" the instruction warns against. Skipped to
+  "Identity and professional credentialing" instead, next unchecked section.
+  A future run should re-check `apps/web/public/imagery/` for the
+  brief's actual filenames before assuming this is still true.
+
+  **Scoped `AssuranceLevel` to three levels, not the four in the doc's own
+  table.** identity-and-credentialing.md §2 lists `PROFESSIONAL_VERIFIED`
+  alongside `ANONYMOUS`/`REGISTERED`/`IDENTITY_VERIFIED`, but §5's module
+  boundary is explicit that `packages/credentialing` (not yet built — the
+  next unchecked task) owns "council registry, application state machine,
+  review queue, badge rules" as its own thing, and the ledger task bullet
+  for this run names only the first three. Modelled `PROFESSIONAL_VERIFIED`
+  as a clinician's separate credentialing badge rather than a fourth rung on
+  this ladder — a clinician still separately holds one of these three
+  levels as a person. Documented directly on the `AssuranceLevel` type so
+  the next run building `packages/credentialing` doesn't rediscover the
+  question of why it's missing.
+
+  **`minimumAssuranceLevel` is the one piece of this package that goes past
+  the bare minimum a literal reading of the task bullet would produce, and
+  it's deliberate.** A type alias plus a transition guard would satisfy
+  "assurance levels" technically but leave the package with no actual
+  answer to "what does someone need to reach before X" — the question every
+  future route guard will ask. Built it as an exhaustive
+  `Record<ModuleKey, AssuranceLevel>`, transcribed directly from the "what
+  it unlocks" column of §2's own table (`ASSISTANT`/`CARE_DIRECTORY` →
+  `ANONYMOUS`; `RECORD_SHARING`/`PROVIDER_EXPORT`/`TELECONSULTATION` →
+  `IDENTITY_VERIFIED`, matching "sharing records with a named clinician,
+  teleconsultation" and reading provider export as the same trust tier since
+  it is also data leaving the platform to a named third party). Every other
+  `ModuleKey` defaults to `REGISTERED` — the doc's own words, "the level the
+  product is designed around" — rather than inventing a rationale per
+  module the doc doesn't discuss. `ModuleKey` exhaustiveness is enforced by
+  TypeScript itself (a `Record`, not a lookup function with a fallback), so
+  a module added to `shared-types` without a row here is a compile error,
+  same discipline `packages/devices` used for its record-type switch.
+
+  **Evidence deletion is a code invariant, not a documented promise.**
+  identity-and-credentialing.md §4: "Store the decision, not the document.
+  Once review completes, the identity image is deleted." Rather than leaving
+  that to a caller to remember, `approveVerification` and
+  `rejectVerification` both null `evidenceImageRef` as part of the same
+  object update that records the decision — there is no reachable state
+  where `status` is `APPROVED` or `REJECTED` and `evidenceImageRef` is
+  non-null, and `index.test.ts` asserts this for both outcomes, not just the
+  approval path (rejection deletes the evidence too, since a resubmission
+  is fresh evidence, not a patch to the rejected one — confirmed
+  `submitEvidence` also clears the prior `rejectionReason`/`decidedAt`
+  rather than merging). This is real, storage bytes still need a caller (an
+  `apps/api` service, not built yet) that actually deletes the blob when it
+  sees `evidenceImageRef` go to `null` — this package only makes that the
+  correct signal to act on, the same "domain records the decision, a
+  repository layer executes side effects" split `health-records` and
+  `devices` already established.
+
+  **No id generation, same precedent `health-records`/`devices` set.**
+  Every function takes an existing `VerificationRequest` and returns a new
+  one; nothing here constructs the initial `NOT_STARTED` record or assigns
+  it an id — that's a service-layer concern once one exists. Timestamps
+  (`submittedAt`, `decidedAt`) are explicit string parameters rather than
+  the package calling `new Date()` internally, matching the "pure,
+  deterministic domain functions, clock reads happen at the boundary"
+  convention already visible everywhere the codebase currently calls
+  `Date.now()` (only `storage-adapters`' adapters do, never a package like
+  this one).
+
+  New package `packages/identity`, mirrors `health-records`' shape exactly
+  (logic directly in `index.ts`, colocated `index.test.ts`, no `node:`
+  imports so no `react-native` export-condition split was needed). New
+  shared types added to `packages/shared-types`: `AssuranceLevel`,
+  `IdentityDocumentType`, `VerificationStatus`, `VerificationRequest` —
+  grepped first to confirm nothing in the repo referenced any of these
+  names yet, so this was a clean addition, not a retrofit. 17 new tests:
+  the assurance ladder (legal/illegal transitions, ordering, no path out of
+  `IDENTITY_VERIFIED`), `minimumAssuranceLevel` (both named tiers plus an
+  exhaustive check that every other module defaults to `REGISTERED`), and
+  the verification state machine (the full walk to `APPROVED`, the
+  resubmission-after-rejection path, the two evidence-deletion assertions,
+  and that a decision cannot be recorded without first entering review).
+
+  Verified: `pnpm install` (new workspace member — confirmed
+  `--frozen-lockfile` passes clean afterward), `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` (`@swasthya/identity` contributing 17 new tests from zero;
+  every other package's test count unchanged, confirming the
+  `shared-types` addition broke nothing downstream), `pnpm build`
+  (`packages/identity/dist/index.js` and `.d.ts` produced), all green.
+
+  **For the next run:** the queue's next unchecked item is
+  `packages/credentialing` — read identity-and-credentialing.md §3 and §5
+  again; the two non-negotiable rules are no automatic approval (there is
+  no public NMC/NNC/NHPC API, a human reads the register) and a verified
+  badge must render from a persisted decision, never be computed live.
+  Two real gaps this run is naming rather than solving: (1) nothing calls
+  any of this package's functions yet — no `apps/api` identity module, no
+  OTP/phone-verification flow to reach `REGISTERED` in the first place, the
+  same "no identity/auth layer anywhere" gap every prior `apps/api`-adjacent
+  run has already named, now finally with a package to hang it off of; (2)
+  `minimumAssuranceLevel` is not enforced anywhere yet — `apps/api`'s
+  entitlement guard checks plan/quota but not assurance level, so a route
+  needing `IDENTITY_VERIFIED` (record sharing, teleconsultation) has no
+  actual gate today. Wiring either needs the OTP/registration flow this
+  run deliberately left unbuilt.
 
 - 2026-08-09 — Built `apps/mobile`'s document capture flow: camera → review →
   upload → confirmation queue. Closes out "Platform core" entirely — the

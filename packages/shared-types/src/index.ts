@@ -207,3 +207,48 @@ export interface QuotaVerdict {
   /** Set when denied, so callers can prompt an upgrade rather than fail flat. */
   upgradeTo: PlanTier | null;
 }
+
+/* ------------------------------------------------------------------ *
+ * Identity and verification
+ *
+ * Three levels, not the four in docs/architecture/identity-and-credentialing.md
+ * §2: `PROFESSIONAL_VERIFIED` is a clinician's credentialing badge, owned by
+ * `packages/credentialing` against its own state machine (council, licence
+ * number, manual review), not a rung on this person-level ladder. A clinician
+ * still separately holds one of these three as themself.
+ * ------------------------------------------------------------------ */
+
+/**
+ * `REGISTERED` is the level the product is designed around — most people
+ * should never need to go past it. `IDENTITY_VERIFIED` is deliberately hard
+ * to reach by accident: it requires a government document and a human or
+ * liveness-checked decision, never an inferred upgrade.
+ */
+export type AssuranceLevel = 'ANONYMOUS' | 'REGISTERED' | 'IDENTITY_VERIFIED';
+
+/** राष्ट्रिय परिचयपत्र, नागरिकता, or the non-Nepali passport fallback. */
+export type IdentityDocumentType =
+  | 'NATIONAL_ID' | 'CITIZENSHIP' | 'PASSPORT' | 'DRIVING_LICENCE';
+
+/**
+ * A request to move one person from `REGISTERED` to `IDENTITY_VERIFIED`.
+ * `evidenceImageRef` is opaque storage pointer, never the bytes — and per
+ * identity-and-credentialing.md §4 it is set to `null` the moment a decision
+ * is recorded, whichever way it goes. What persists is the decision, not the
+ * document.
+ */
+export type VerificationStatus =
+  | 'NOT_STARTED' | 'EVIDENCE_SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED';
+
+export interface VerificationRequest {
+  id: string;
+  ownerId: string;
+  status: VerificationStatus;
+  documentType: IdentityDocumentType | null;
+  evidenceImageRef: string | null;
+  /** Set only on `REJECTED`, so the person knows what to fix before resubmitting. */
+  rejectionReason: string | null;
+  submittedAt: string | null;
+  /** Set once `APPROVED` or `REJECTED`. */
+  decidedAt: string | null;
+}
