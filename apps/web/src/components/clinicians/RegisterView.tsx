@@ -12,6 +12,7 @@ import { PageTemplate } from '@/components/ui/PageTemplate';
 import { Section } from '@/components/ui/Section';
 import { cn } from '@/lib/cn';
 import { submitNewClinicianApplication } from '@/lib/clinician-application';
+import { councilName } from '@/lib/council-name';
 
 const COUNCIL_KEYS = Object.keys(councilRegistry) as CouncilKey[];
 const STEP_ORDER = ['details', 'evidence', 'review', 'status'] as const;
@@ -21,11 +22,6 @@ const STEP_HEADING_ID = 'register-step-heading';
 interface CapturedFile {
   file: File;
   previewUrl: string;
-}
-
-function councilName(key: CouncilKey, locale: string): string {
-  const council = councilRegistry[key];
-  return locale === 'ne' ? council.nameNe : council.nameEn;
 }
 
 /**

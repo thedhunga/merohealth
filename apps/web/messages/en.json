@@ -672,6 +672,13 @@
       "primaryCta": "Talk to our team",
       "secondaryCta": "See open roles"
     },
+    "verifiedBadge": {
+      "statusVerified": "Verified",
+      "statusUnverified": "Recheck due",
+      "councilLine": "Registered with {council}",
+      "numberLine": "Registration number {number}",
+      "lastCheckedLine": "Last checked {date}"
+    },
     "register": {
       "hero": {
         "title": "Register as a verified clinician",

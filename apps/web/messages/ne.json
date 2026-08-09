@@ -672,6 +672,13 @@
       "primaryCta": "हाम्रो टोलीसँग कुरा गर्नुहोस्",
       "secondaryCta": "खुला पदहरू हेर्नुहोस्"
     },
+    "verifiedBadge": {
+      "statusVerified": "प्रमाणित",
+      "statusUnverified": "पुनः जाँच बाँकी",
+      "councilLine": "{council}मा दर्ता",
+      "numberLine": "दर्ता नम्बर {number}",
+      "lastCheckedLine": "पछिल्लो जाँच {date}"
+    },
     "register": {
       "hero": {
         "title": "प्रमाणित क्लिनिसियनको रूपमा दर्ता गर्नुहोस्",

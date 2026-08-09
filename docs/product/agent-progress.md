@@ -212,7 +212,7 @@ Patients are the primary interface; clinicians are a clearly-marked tab.
       screen while the application is pending.
 - [x] Reviewer queue: a distinct role, not a general admin power, with every
       evidence-image read logged and every decision attributed.
-- [ ] Verified badge component stating **which council, which number, when
+- [x] Verified badge component stating **which council, which number, when
       last checked** — never "trusted doctor". Must render from the persisted
       badge, never computed live from a service that can fail.
 
@@ -252,6 +252,118 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — Built the "Verified badge component" on `apps/web`, the last
+  unchecked task in "Identity and professional credentialing." Re-checked
+  `apps/web/public/` first, per "Photography wiring"'s own gating instruction
+  — still only the same two pre-photography files, none of asset-brief.md's
+  ~17 named files. Skipped it again, same as every prior run, and moved to
+  this task, the next unchecked one.
+
+  **Built as a pure, tested presentational component that takes an
+  already-issued `CredentialingBadge` as a prop — not a component that
+  fetches or computes anything itself.** New
+  `apps/web/src/components/clinicians/VerifiedBadge.tsx` renders exactly
+  identity-and-credentialing.md §3 step 5's three facts (which council,
+  which number, when it was last checked) and nothing more; the status label
+  is "Verified" / "Recheck due" (ne: "प्रमाणित" / "पुनः जाँच बाँकी"), never
+  "trusted doctor" or any stronger claim, per §3's "never claim more than was
+  checked." `now` is a required prop rather than read from `Date.now()`
+  inside the component, matching every domain package this ledger has built
+  so far ("clock reads happen at the boundary").
+
+  **"Must never be computed live from a service that can fail" (§5) is
+  structural, not a comment promising good behaviour.** The component has no
+  network call, no `fetch`, no dependency on anything that can be down — the
+  only computation is `verifiedBadgeViewModel` (new
+  `apps/web/src/lib/verified-badge.ts`), a thin wrapper around
+  `packages/credentialing`'s own `badgeRenderStatus`, which compares `now`
+  against the badge's own persisted `recheckDueAt`. There is no code path
+  here that reaches a live register, a health-check endpoint, or any other
+  fallible service — staleness is a pure date comparison against data the
+  badge already carries.
+
+  **Named plainly, not glossed over: nothing in this repository calls
+  `issueBadge` yet, so this component has no real data to render today.**
+  Grepped first and confirmed `apps/api`'s `CredentialingService.approve`
+  (built two runs ago, in the reviewer-queue entry below) records an
+  `APPROVED` `CredentialingApplication` but never constructs or persists a
+  `CredentialingBadge` from it — the exact gap that entry's own "For the next
+  run" note flagged. Deliberately did not close that gap in this run: doing
+  so would mean inventing a `recheckDueAt` policy value with no source, which
+  `packages/credentialing`'s own `issueBadge` doc comment explicitly refuses
+  to do internally for the same "invent no facts" reason ("no invented
+  renewal cadence... this codebase has never confirmed with a council"). A
+  real caller needs a real reviewer-supplied re-check date, which needs a
+  reviewer-facing UI that doesn't exist yet — out of scope for a component
+  task. This run only builds and tests the render side against the real
+  `CredentialingBadge` shape, so the run that wires `issueBadge` into
+  `approve` has something correct to hand data to.
+
+  **Consequently unmounted: no page in `apps/web` renders
+  `<VerifiedBadge />` yet, and that is a deliberate, named gap, not an
+  oversight.** Checked `RegisterView.tsx`'s status step as the obvious
+  candidate — it's the one place in this app holding a real
+  `CredentialingApplication` — but that flow's own header comment (accurate,
+  re-verified) says it never calls `approveApplication` itself, so
+  `application.status` can never actually be `APPROVED` there; a badge
+  branch would be genuinely unreachable code, not "correctly wired but
+  empty" the way `apps/mobile`'s confirmation queue is. Checked
+  `OurProvidersView.tsx` too — its own comment says "no provider roster
+  exists to list," so there is no public clinician profile to attach a badge
+  to without inventing one. This mirrors the exact "built the domain layer,
+  nothing calls it yet" shape this ledger has accepted for `packages/identity`
+  and `packages/credentialing` themselves, now for a UI component instead of
+  a package.
+
+  **Two small, real refactors alongside the new component, not scope
+  creep — both needed for the component to exist without duplicating
+  logic.** (1) `councilName` (ne/en council display name) was a private
+  helper inside `RegisterView.tsx`; extracted to
+  `apps/web/src/lib/council-name.ts` so `VerifiedBadge.tsx` can use the same
+  logic instead of a second copy — `RegisterView.tsx` now imports it, no
+  behaviour change, confirmed by the unchanged build output for
+  `/clinicians/register`. (2) `apps/web` had no date-formatting utility
+  anywhere (grepped first to confirm); added
+  `apps/web/src/lib/format-date.ts`, a thin `Intl.DateTimeFormat` wrapper —
+  confirmed against Node's actual ICU data that `ne` renders Devanagari
+  script and numerals (`२०२६ अगस्ट ९`) with no extra dependency. Its own
+  comment is explicit that this is the Gregorian calendar in Devanagari
+  script, not a Bikram Sambat conversion — this codebase has no BS-calendar
+  utility, and claiming one would be exactly the kind of invented capability
+  the standing constraints forbid.
+
+  **i18n**: added `clinicians.verifiedBadge.*` (statusVerified,
+  statusUnverified, councilLine, numberLine, lastCheckedLine) to both
+  `ne.json` and `en.json`, following the same `{placeholder}` interpolation
+  `clinicians.register.status.body` already uses for `{council}`.
+
+  **Tests**: no React Testing Library or jsdom is configured anywhere in
+  `apps/web` (confirmed by grepping existing test files — all are
+  pure-logic), so `VerifiedBadge.tsx` itself is untested directly, matching
+  this app's own established convention; its one piece of real logic lives
+  in `verified-badge.ts` and is tested there (VERIFIED before the recheck
+  date, UNVERIFIED after, fields pass through unchanged). `council-name.ts`
+  and `format-date.ts` each got their own new test file. 7 new tests total
+  across the three lib files (`@swasthya/web` going from 25 to 32 tests).
+
+  Verified: `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` (all 29 packages green, `@swasthya/web` 25 → 32), `pnpm build`
+  (`/ne/clinicians/register` and `/en/clinicians/register` still statically
+  generated, unchanged by the `councilName` extraction), all green.
+
+  **For the next run:** the "Identity and professional credentialing"
+  section is now fully checked. The queue's next unchecked section is
+  "Clinical suite — eClinicalWorks parity," starting with
+  `packages/module-registry` — read `docs/architecture/clinical-suite.md` in
+  full first, per its own instruction, and build the `ModuleDescriptor`/
+  `Degradation` contract, the registry, and the resolver before anything
+  else in that section, since every later module plugs into it. Separately,
+  if a future run wants to close the `issueBadge`-has-no-caller gap this run
+  named: it needs (1) a reviewer-facing UI or API input for a real
+  `recheckDueAt` (no invented cadence), and (2) a public clinician-profile
+  surface to actually mount `VerifiedBadge` on, since none exists today
+  without inventing provider data the standing constraints forbid.
 
 - 2026-08-09 — Built the credentialing reviewer queue as a real `apps/api`
   module: `apps/api/src/credentialing/` — submit, queue, per-application
