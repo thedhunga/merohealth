@@ -41,5 +41,9 @@ function createDocumentStore(): HealthDocumentStore {
     { provide: SUBSCRIPTION_RESOLVER, useClass: FreeTierSubscriptionResolver },
     { provide: USAGE_READER, useClass: RecordsUsageReader },
   ],
+  // RecordsService is this module's public port — `clinical-charting`
+  // imports RecordsModule to inject it, the same "import the module, get the
+  // service" wiring SchedulingModule already uses for PatientRegistryModule.
+  exports: [RecordsService],
 })
 export class RecordsModule {}

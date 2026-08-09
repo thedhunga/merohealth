@@ -8,7 +8,12 @@ import {
   type TimelineEntry,
 } from '@swasthya/health-records';
 import { assertPlacementAllowed, type DocumentBlob, type HealthDocumentStore } from '@swasthya/storage-adapters';
-import type { HealthDocument, HealthDocumentKind, HealthObservation } from '@swasthya/shared-types';
+import type {
+  ClinicalModuleHealth,
+  HealthDocument,
+  HealthDocumentKind,
+  HealthObservation,
+} from '@swasthya/shared-types';
 import { RecordsRepository } from './records.repository.js';
 
 /** DI token for the storage port — bound to a concrete adapter in RecordsModule. */
@@ -70,6 +75,19 @@ export class RecordsService {
     return this.repository.listDocuments(ownerId);
   }
 
+  /**
+   * Resolves a document reference by opaque id — the port
+   * `clinical-charting` calls to validate a document it wants to attach to
+   * an encounter actually exists, the same "resolve the opaque id through
+   * the owning module's port" shape `PatientRegistryService.get` already
+   * gives `scheduling`.
+   */
+  getDocument(documentId: string): HealthDocument {
+    const document = this.repository.findDocument(documentId);
+    if (!document) throw new NotFoundException(`No document ${documentId}`);
+    return document;
+  }
+
   listDocumentObservations(documentId: string): HealthObservation[] {
     if (!this.repository.findDocument(documentId)) {
       throw new NotFoundException(`No document ${documentId}`);
@@ -103,5 +121,18 @@ export class RecordsService {
     const observation = this.repository.findObservation(observationId);
     if (!observation) throw new NotFoundException(`No observation ${observationId}`);
     return observation;
+  }
+
+  /**
+   * clinical-suite.md §2's `ModuleDescriptor.health()`, giving `HEALTH_RECORDS`
+   * a real descriptor to plug into `@swasthya/module-registry` — the gap the
+   * previous ledger entry named ("has never been wired into module-registry
+   * with its own descriptor the way patient-registry/scheduling now are").
+   * The in-memory/MinIO-backed repository has no failure mode of its own
+   * modelled yet, so this always reports UP, same as every other module's
+   * health() today.
+   */
+  health(): Promise<ClinicalModuleHealth> {
+    return Promise.resolve({ status: 'UP' });
   }
 }

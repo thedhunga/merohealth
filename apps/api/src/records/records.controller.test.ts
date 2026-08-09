@@ -18,6 +18,13 @@ const validCapture = {
   bytesBase64: Buffer.from('fake bytes').toString('base64'),
 };
 
+describe('RecordsController health', () => {
+  it('reports UP', async () => {
+    const controller = buildController();
+    await expect(controller.health()).resolves.toEqual({ status: 'UP' });
+  });
+});
+
 describe('RecordsController capture', () => {
   it('decodes base64 bytes and stores the document', async () => {
     const controller = buildController();

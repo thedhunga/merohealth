@@ -62,6 +62,12 @@ function requireOwnerId(ownerId: string | undefined): string {
 export class RecordsController {
   constructor(private readonly records: RecordsService) {}
 
+  @Get('health')
+  @ApiOperation({ summary: "clinical-suite.md §2's ModuleDescriptor.health(), exposed over HTTP" })
+  health() {
+    return this.records.health();
+  }
+
   @Post('documents')
   @UseGuards(EntitlementsGuard)
   @RequireModule('HEALTH_RECORD')

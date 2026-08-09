@@ -86,6 +86,14 @@ describe('RecordsService document and timeline reads', () => {
     expect(() => service.listDocumentObservations('missing')).toThrow(NotFoundException);
   });
 
+  it('resolves a document by id, and throws for an unknown one', async () => {
+    const { service } = buildService();
+    const document = await service.captureDocument(makeCapture());
+
+    expect(service.getDocument(document.id)).toBe(document);
+    expect(() => service.getDocument('missing')).toThrow(NotFoundException);
+  });
+
   it('builds a timeline from the owner’s own documents and observations', async () => {
     const { service } = buildService();
     const document = await service.captureDocument(makeCapture());
@@ -133,5 +141,12 @@ describe('RecordsService confirm/correct/reject', () => {
     expect(() => service.confirm('missing')).toThrow(NotFoundException);
     expect(() => service.correct('missing', '1', null)).toThrow(NotFoundException);
     expect(() => service.reject('missing')).toThrow(NotFoundException);
+  });
+});
+
+describe('RecordsService.health', () => {
+  it('reports UP', async () => {
+    const { service } = buildService();
+    await expect(service.health()).resolves.toEqual({ status: 'UP' });
   });
 });

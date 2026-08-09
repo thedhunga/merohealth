@@ -236,7 +236,7 @@ suite grows. A module that "works" but has no outage test is not finished.
       every other module references by opaque id, never by foreign key.
 - [x] `scheduling`: appointments and resource calendars. Degrades to
       `READ_ONLY` when the registry is unavailable rather than failing.
-- [ ] `clinical-charting`: encounters, SOAP notes, templates.
+- [x] `clinical-charting`: encounters, SOAP notes, templates.
 - [ ] `clinical-summary`: problem list, allergies, medications — extending
       `digital-twin` with clinician-authored provenance.
 - [ ] `medication-safety`: interaction and allergy checking. Built **before**
@@ -252,6 +252,156 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — Built `clinical-charting`, capability map row 3 and the
+  fourth "Clinical suite — eClinicalWorks parity" task, on top of the
+  `patient-registry`/`scheduling` precedent the previous two runs set.
+  Re-read clinical-suite.md in full first, per its own instruction.
+  Re-checked `apps/web/public/` first too, per "Photography wiring"'s own
+  gating instruction — still only the same two pre-photography files,
+  none of asset-brief.md's named files. Skipped it again and moved to
+  this task, the next unchecked one.
+
+  **Resolved the open question the previous run's own log entry named:
+  whether `clinical-charting` should `require` or `degradesWith` against
+  `HEALTH_RECORDS`, which had never been wired into `@swasthya/module-registry`
+  with its own descriptor.** Capability map row 3 reads "Core EHR surface.
+  Consumes health-records" — a `degradesWith` relationship, not a hard
+  dependency (charting must keep working even if health-records is down;
+  eCW parity does not require every chart to carry an attachment). Building
+  that edge honestly meant giving `HEALTH_RECORDS` a real descriptor first,
+  the same "foundation before consumer" order `patient-registry` set for
+  `scheduling`: added `RecordsService.health()` and `RecordsService.getDocument()`
+  (the latter a thin wrapper around `RecordsRepository.findDocument`, which
+  already existed but was never exposed past the service boundary), a
+  `GET /records/health` route, `records.module-descriptor.ts`
+  (`createHealthRecordsModuleDescriptor`, empty `requires`/`degradesWith`,
+  same shape `patient-registry`'s own foundation descriptor used), and
+  `exports: [RecordsService]` on `RecordsModule` (it had no exports array at
+  all before this run — nothing had ever needed to inject `RecordsService`
+  into another module).
+
+  **Split the same way every prior clinical-suite package has split: domain
+  shape (`Encounter`, `EncounterStatus`, `OpenEncounterInput`, `SoapNote`,
+  `SoapNoteInput`, `ChartingTemplate`, `CreateChartingTemplateInput`) in
+  `packages/shared-types`, pure behaviour in new `packages/clinical-charting`.**
+  `Encounter.patientId`/`clinicianId` are opaque ids, same convention
+  `scheduling` set; `Encounter.attachedDocumentIds` holds opaque
+  `HealthDocument` ids. Deliberately did **not** assert that a
+  `HealthDocument.ownerId` equals an `Encounter.patientId` anywhere in this
+  code — patient-registry (clinical patients) and health-records (personal-
+  platform document owners) are different bounded contexts with their own id
+  spaces that this codebase has never unified, and asserting they line up
+  would itself be an invented fact. Attaching a document only proves the
+  document reference resolves, nothing about whose it is.
+
+  **The real invariant this module enforces below the API boundary: a closed
+  encounter is locked.** `EncounterNotOpenError` blocks recording a note,
+  revising a note, or attaching a document once `closeEncounter` has run —
+  the "sign and lock" behaviour real EHRs use to keep a finished visit's
+  documentation from silently changing later. There is no `reopenEncounter`;
+  closing is permanent, matching `scheduling`'s own precedent that a
+  cancelled appointment stays cancelled. `EncounterAlreadyClosedError` on a
+  second close mirrors `AppointmentAlreadyCancelledError` for the identical
+  "don't silently no-op a state transition a caller is relying on to detect
+  as real" reason. Attaching the *same* document twice, by contrast, is a
+  deliberate no-op rather than a third error class — there is no ambiguity
+  a caller needs surfaced there, unlike the close/cancel case.
+
+  **`packages/clinical-charting`'s "templates" ship with zero seeded content,
+  named as a deliberate reading of "invent no facts," not a shortfall.** A
+  `ChartingTemplate` holds only `subjectivePrompt`/`objectivePrompt`/
+  `assessmentPrompt`/`planPrompt` — structural section prompts a clinician
+  writes themself through `POST /clinical-charting/templates` — never
+  pre-filled clinical wording. No template is seeded anywhere in this run;
+  inventing even a generic "chief complaint" skeleton felt too close to the
+  fabricated-clinical-content line the standing constraints draw, so the
+  feature is real but starts empty until a real clinician populates it.
+
+  **`degradesWith: [{ key: 'HEALTH_RECORDS', mode: 'HIDE' }]`, not
+  `READ_ONLY` — a deliberate reading of §2's four modes against what this
+  module actually offers.** Only one action in `clinical-charting` touches
+  health-records at all: attaching an existing document reference to an
+  encounter (`ClinicalChartingService.attachDocument`, gated on
+  `documents.health()` the same way `SchedulingService.schedule` gates on
+  `patients.health()`). `READ_ONLY` ("serve persisted data, refuse writes")
+  does not fit — attaching isn't this module's own write being refused,
+  it's a capability that depends entirely on a second module's live data;
+  `HIDE` ("remove the surface entirely; nothing else notices") is what
+  actually happens: the attach option disappears as a viable action and
+  everything else — opening encounters, closing them, writing and revising
+  SOAP notes — carries on untouched. No apps/web/apps/mobile page renders
+  this attach action yet (named plainly, not glossed over — same
+  "domain and API layer built, nothing calls it yet" shape this ledger
+  accepted for `packages/identity`/`packages/credentialing` before their UI
+  arrived), so there is no literal UI surface to hide; the honest
+  API-boundary equivalent implemented here is refusing the call with a 503
+  rather than silently accepting a document reference this module cannot
+  verify — documented in `ClinicalChartingService.attachDocument`'s own
+  comment so a future run wiring the UI reads the reasoning, not just the
+  mode name.
+
+  **The required outage test, same three-part shape `scheduling`'s own
+  `scheduling.fault-isolation.test.ts` set.** (1) `BrokenClinicalChartingRepository`
+  proving a real thrown error inside charting's own store never reaches
+  `RecordsService.getDocument` on an unrelated, live `RecordsService` in the
+  same process (§2 rule 5); (2) `createHealthRecordsModuleDescriptor` +
+  `createClinicalChartingModuleDescriptor` wired through
+  `buildModuleRegistry`/`collectHealthStates`/`resolveAvailability`, with
+  `HEALTH_RECORDS`'s health forced `DOWN` — asserting `resolveAvailability`
+  reports `CLINICAL_CHARTING` as still `available: true` but carrying
+  exactly one degradation, `{ dependency: 'HEALTH_RECORDS', mode: 'HIDE' }`;
+  (3) the same scenario driven through the real
+  `ClinicalChartingController`/`ClinicalChartingService` stack, confirming
+  `attachDocument` is refused while `openEncounter`/`recordNote`/
+  `closeEncounter` all keep working.
+
+  New package `packages/clinical-charting` (same shape as
+  `packages/scheduling`, colocated `index.test.ts`, 11 tests). New
+  `apps/api/src/clinical-charting/` (6 source files + 6 colocated test
+  files, 46 new tests: 5 repository, 17 service, 14 controller, 2
+  module-descriptor, 3 fault-isolation — `openEncounter`/`recordNote` are
+  synchronous, so their invalid-state tests use `expect(() => ...).toThrow(...)`,
+  not `rejects`, matching the sync/async distinction the `scheduling`
+  entry below first worked out for `SchedulingController.schedule`). Changes
+  to `apps/api/src/records/`: `records.service.ts` gained `getDocument`
+  and `health`, `records.controller.ts` gained `GET /records/health`,
+  `records.module.ts` gained `exports: [RecordsService]`, plus new
+  `records.module-descriptor.ts` (2 tests) — 4 new tests added to the
+  existing `records.service.test.ts`/`records.controller.test.ts`. Added
+  `@swasthya/clinical-charting` to `apps/api/package.json` and wired
+  `ClinicalChartingModule` (importing `RecordsModule`) into `AppModule`
+  alongside the existing four.
+
+  Verified: `pnpm install` (new workspace member — confirmed
+  `--frozen-lockfile` passes clean afterward), `pnpm lint`, `pnpm typecheck`
+  (clean on the first pass — no `exactOptionalPropertyTypes` friction this
+  time since every new field in `shared-types` is either required or an
+  explicit `readonly` array, never an optional patch shape), `pnpm test`
+  (`@swasthya/clinical-charting` contributing 11 tests from zero,
+  `@swasthya/api` going from 118 to 164; every other package's test count
+  unchanged), `pnpm build` (`packages/clinical-charting/dist/`,
+  `apps/api/dist/clinical-charting/`, and the four new/changed files under
+  `apps/api/dist/records/` all produced), all green.
+
+  **For the next run:** the queue's next unchecked item is
+  `clinical-summary` — problem list, allergies, medications, "extending
+  `digital-twin` with clinician provenance" (capability map row 4). This is
+  the last of the four modules §4 calls "the smallest thing a clinic can
+  actually use" before module 5 (`medication-safety`) begins the
+  prescribing safety/regulatory burden. Worth reading `packages/digital-twin`
+  closely before starting: it already has `TwinFact` with a `provenance`
+  field including `CLINICIAN_AUTHORED`, so this module may be more "extend
+  digital-twin's existing shape with a clinician-facing write path gated on
+  encounter/module-registry state" than "invent a new domain package from
+  scratch" — worth confirming which before committing to a `shared-types`
+  split. A real `degradesWith` candidate is `CLINICAL_CHARTING` itself
+  (problem-list entries plausibly originate from an encounter note) or
+  `PATIENT_REGISTRY` (it needs a patient id to attach to, same as every
+  module so far) — read digital-twin's existing confirmation semantics
+  first, since "nothing is asserted without confirmation" (platform-vision.md
+  §3.2) is exactly the kind of property this module must not weaken for
+  clinician-authored facts either.
 
 - 2026-08-09 — Built `scheduling`, capability map row 2 and the third
   "Clinical suite — eClinicalWorks parity" task, the first real consumer of

@@ -444,3 +444,89 @@ export interface ScheduleAppointmentInput {
   scheduledStart: string;
   scheduledEnd: string;
 }
+
+/* ------------------------------------------------------------------ *
+ * Clinical charting (clinical-suite.md capability map row 3)
+ *
+ * "Core EHR surface. Consumes health-records." — an encounter may reference
+ * an existing `HealthDocument` by id (a lab report reviewed during the
+ * visit, say); the reference is an opaque id resolved through health-records'
+ * own port, per §2 rule 1, the same convention `scheduling` already
+ * established for `patientId`/`clinicianId`. This package makes no claim
+ * that a `HealthDocument.ownerId` and an `Encounter.patientId` are the same
+ * identity — patient-registry (clinical patients) and health-records
+ * (personal-platform document owners) are different bounded contexts with
+ * their own id spaces, and asserting they line up would be inventing a
+ * linkage this codebase has never established.
+ * ------------------------------------------------------------------ */
+export type EncounterStatus = 'OPEN' | 'CLOSED';
+
+export interface Encounter {
+  id: string;
+  patientId: string;
+  clinicianId: string;
+  status: EncounterStatus;
+  startedAt: string;
+  /** Set only once, when the encounter closes. */
+  closedAt: string | null;
+  attachedDocumentIds: readonly string[];
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface OpenEncounterInput {
+  patientId: string;
+  clinicianId: string;
+}
+
+/**
+ * Subjective, Objective, Assessment, Plan — the standard clinical note shape
+ * eCW itself uses (capability map row 3). One encounter may carry more than
+ * one note (an addendum, say), so a note is its own entity referencing its
+ * encounter rather than an inline field on it.
+ */
+export interface SoapNote {
+  id: string;
+  encounterId: string;
+  authorId: string;
+  subjective: string;
+  objective: string;
+  assessment: string;
+  plan: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface SoapNoteInput {
+  authorId: string;
+  subjective: string;
+  objective: string;
+  assessment: string;
+  plan: string;
+}
+
+/**
+ * A reusable note skeleton a clinician defines for themself — structural
+ * section prompts only, never pre-filled clinical content. This codebase
+ * ships no canned medical wording, per "invent no facts": every template is
+ * authored by a real clinician through the API, none seeded.
+ */
+export interface ChartingTemplate {
+  id: string;
+  name: string;
+  subjectivePrompt: string;
+  objectivePrompt: string;
+  assessmentPrompt: string;
+  planPrompt: string;
+  createdAt: string;
+}
+
+export interface CreateChartingTemplateInput {
+  name: string;
+  subjectivePrompt: string;
+  objectivePrompt: string;
+  assessmentPrompt: string;
+  planPrompt: string;
+}
