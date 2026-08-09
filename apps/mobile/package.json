@@ -18,6 +18,7 @@
     "@swasthya/clinical-safety": "workspace:*",
     "@swasthya/configuration": "workspace:*",
     "@swasthya/digital-twin": "workspace:*",
+    "@swasthya/health-records": "workspace:*",
     "@swasthya/localization": "workspace:*",
     "@swasthya/shared-types": "workspace:*",
     "@swasthya/training-content": "workspace:*",

@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Camera,
   FileHeart,
+  FileText,
   HeartPulse,
   MapPin,
   MessageCircle,
@@ -135,6 +136,13 @@ export default function HomeScreen() {
             subtitle="जाँच, तयारी र नतिजा बुझ्ने पाठ"
             title={t(language, 'lab')}
             tone="forest"
+          />
+          <ActionCard
+            badge="PHOTOGRAPH & CONFIRM"
+            icon={FileText}
+            onPress={() => router.push('/records')}
+            subtitle="ल्याब रिपोर्ट वा प्रेस्क्रिप्सन खिचेर थप्नुहोस्"
+            title={t(language, 'documents')}
           />
         </View>
         <View style={styles.actionColumn}>

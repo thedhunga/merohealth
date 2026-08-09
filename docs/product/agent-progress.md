@@ -162,7 +162,7 @@ work.
       link.
 - [x] `packages/devices`: normalisation for Health Connect and HealthKit
       samples into `DeviceSample`.
-- [ ] `apps/mobile`: document capture flow — camera, review, upload, and the
+- [x] `apps/mobile`: document capture flow — camera, review, upload, and the
       confirmation queue driven by `pendingConfirmations`.
 
 ### Photography wiring
@@ -252,6 +252,149 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — Built `apps/mobile`'s document capture flow: camera → review →
+  upload → confirmation queue. Closes out "Platform core" entirely — the
+  queue moves to "Photography wiring" next, which is gated on asset files
+  that don't exist yet (see that section's own note).
+
+  **First task to give `apps/mobile` a real backend client.** Grepped first
+  and confirmed nothing in the app had ever called `apps/api`'s records
+  module — the only existing HTTP call anywhere in the app was
+  `(tabs)/companion.tsx`'s one-off `fetch` to `/v1/companion/research`. New
+  `src/lib/records-api.ts` is a thin typed wrapper (`captureDocument`,
+  `listDocuments`, `listDocumentObservations`, `listTimeline`,
+  `confirm`/`correct`/`rejectObservation`) over exactly the six endpoints
+  `records.controller.ts` already exposes — deliberately not a generic HTTP
+  client, since there is nothing else to generalize for yet. Reused
+  `companion.tsx`'s own `EXPO_PUBLIC_API_URL` / same-origin-`/api/...`
+  fallback convention rather than inventing a second one; that fallback path
+  isn't actually served anywhere yet (companion's isn't either), so a bare
+  `expo start` with no API configured will 404 on either — an existing,
+  named gap, not a new one. `RecordsApiError` carries the entitlements
+  guard's `code`/`upgradeTo` forward specifically so the capture screen can
+  show "you've hit your plan limit" instead of a generic failure — the guard
+  run's whole point was returning a verdict instead of a flat 403, and a
+  client that swallows that distinction would waste it.
+
+  **`pendingConfirmations` driving the queue, taken literally, exposed a real
+  API gap: there is no "all observations for an owner" endpoint, only
+  per-document.** `listPendingConfirmations(ownerId)` fetches the owner's
+  documents, then fetches each document's observations, flattens, and hands
+  the result to `@swasthya/health-records`' own `pendingConfirmations` —
+  worst-confidence first, exactly as that function already promises. This is
+  a real N+1 against the API. Documented rather than hidden, on the same
+  "reference implementation, revisit if it matters" basis the MinIO adapter's
+  own `list()` N+1 already set — a bulk endpoint is a straightforward future
+  addition to `records.controller.ts`, not a design change here.
+
+  **Honest about what the queue will actually show today: nothing.** No
+  extraction pipeline exists anywhere in this repo (the records-module run
+  named this explicitly), so every captured document lands `STORED` with
+  zero observations — the confirmation queue is correctly wired but will
+  render its empty state on every real run until extraction exists. The
+  empty-state copy says exactly that ("appears here once a document has been
+  processed") rather than any wording that implies the feature is broken or
+  the queue is decorative — an honest empty state, not a fabricated demo
+  queue, per the standing "invent nothing" constraint.
+
+  **No identity/auth layer still means no real owner identity — named again,
+  handled the same conservative way `apps/api` runs have handled it.** Added
+  `ownerId` to `AppStateProvider`, generated once per app launch via new
+  `src/lib/local-id.ts` (`Math.random`-based, explicitly not a persistent
+  account id — doc comment explains why `crypto.randomUUID` and
+  `node:crypto` were both rejected, the same Metro-bundling constraint
+  `packages/devices` hit). This matches every other piece of `AppStateProvider`
+  state (`facts`, `skippedPrompts`): none of it persists across a relaunch
+  today, so a documents captured in one session are orphaned from a fresh
+  one. That is a real, known limitation worth a future run's attention (some
+  minimal persistence — `expo-secure-store` or even `AsyncStorage` — the
+  moment there's an actual account to persist), not something this task
+  could fix without inventing an auth system nowhere on this queue yet.
+
+  **Camera capture built on `expo-camera` alone, no new native dependency.**
+  `consultation.tsx` already wired `expo-camera` for a live video *preview*
+  only (no `takePictureAsync`, no `ref`); this run is the first still-photo
+  capture in the app. Checked the installed `expo-camera@57` types directly
+  (`CameraView.takePictureAsync(options?): Promise<CameraCapturedPicture>`,
+  with a `base64` option) before writing the screen — that alone covers
+  camera → JPEG → base64 with no `expo-image-picker` or `expo-file-system`
+  addition, so `apps/mobile/package.json` gained exactly one new dependency
+  (`@swasthya/health-records`, workspace), not four. Updated
+  `app.json`'s `expo-camera` plugin `cameraPermission` string to name both
+  uses now that the one OS-level camera permission covers the consultation
+  preview and document capture — the string is user-facing rationale text,
+  and leaving it consultation-only would have made it inaccurate rather than
+  merely incomplete.
+
+  **New pure, colocated-tested modules** (`src/lib/`, no rendering involved —
+  this app has no DOM/React Native testing harness configured, so, matching
+  the accessibility-pass run's own precedent for `focusTrap.ts`, logic that
+  needs testing was kept in plain functions and verified with vitest
+  directly): `local-id.ts`, `document-kinds.ts` (a `Record` keyed by every
+  `HealthDocumentKind` so a kind added upstream without a label is a compile
+  error, same exhaustiveness discipline `packages/devices` used for its
+  record-type switch), `records-api.ts`. 10 new tests across three files —
+  `records-api.test.ts` mocks `global.fetch` via `vi.stubGlobal` (no such
+  pattern existed anywhere in this repo before; grepped first to confirm),
+  covering the `EXPO_PUBLIC_API_URL` branch, the entitlements-guard error
+  shape, and the N+1 aggregation actually sorting worst-confidence-first
+  across two documents.
+
+  **New screens** `app/capture.tsx` (camera → review → upload, all one
+  screen/component with local step state rather than three routes passing a
+  captured photo's base64 through router params, which expo-router's
+  string-based params are a poor fit for) and `app/records.tsx` (the
+  confirmation queue plus the existing `buildTimeline` output, since a
+  document list with nothing to view it on would be its own gap). Both
+  reachable from a new `ActionCard` on `(tabs)/index.tsx` ("कागजातहरू" /
+  "Documents") — added one localization key (`documents`) to
+  `packages/localization`'s flat `copy` object, matching how every other
+  short/reused mobile label already gets translated there; everything else
+  in both new screens is inline `language === 'en' ? … : …` ternary copy,
+  matching `companion.tsx`/`twin.tsx`'s existing convention exactly (this
+  app has no `next-intl`/per-namespace message-file setup — confirmed by the
+  same explore pass that found the `copy` object in the first place — so the
+  web app's "every string in `ne.json`/`en.json`" rule has no mobile
+  equivalent to follow yet).
+
+  **Verified past the unit tests:** `pnpm build`'s `expo export --platform
+  web` actually compiled and statically rendered both new routes
+  (`dist/capture.html`, `dist/records.html`, plus the updated
+  `dist/(tabs)/index.html`) — grepped the exported HTML directly for the
+  screens' real Nepali copy ("कागजातको फोटो खिच्नुहोस्", "मेरा कागजातहरू",
+  the new action card's "कागजातहरू" + its subtitle) and confirmed no
+  error-boundary markers, rather than trusting that `tsc --noEmit` passing
+  meant the screens actually render. No live device/simulator was available
+  in this environment to test the camera permission flow or a real
+  `takePictureAsync` call end to end — that remains unverified beyond the
+  type-level contract with `expo-camera`'s own `.d.ts` files, worth a future
+  run's attention the first time a simulator is available.
+
+  Verified: `pnpm install` (new workspace dependency,
+  `@swasthya/health-records` added to `apps/mobile` — confirmed
+  `--frozen-lockfile` passes clean afterward), `pnpm lint`, `pnpm typecheck`
+  (confirmed `.toSorted()` inside `health-records`' source type-checks
+  cleanly when pulled in through `apps/mobile`'s own `ESNext`-lib tsconfig,
+  since the `react-native` export condition resolves that package straight
+  to its `.ts` source rather than a prebuilt `.d.ts`), `pnpm test` (`apps/api`
+  and `apps/mobile` — the two packages the ledger already flagged as
+  possibly affected — plus all 26 turbo test tasks green; `@swasthya/mobile`
+  contributing 10 new tests from zero), `pnpm build`, all green.
+
+  **For the next run:** "Platform core" is now fully checked. The queue's
+  next unchecked section is "Photography wiring" — its own header says not
+  to start until files actually exist in `apps/web/public/`; check that
+  first, and if still empty, skip to "Identity and professional
+  credentialing" (`packages/identity`) instead, per that section's own
+  instruction. Two gaps this run surfaced worth a future run's attention
+  regardless of which section is picked up: (1) session-scoped `ownerId`
+  means captured documents don't survive a relaunch — real persistence
+  needs at minimum a place to store one id, which in turn wants at least a
+  minimal identity layer, the same gap `packages/identity` exists to close;
+  (2) `listPendingConfirmations`'s per-document N+1 would be worth a bulk
+  `GET /records/observations?ownerId=` endpoint the moment a real owner has
+  more than a handful of documents.
 
 - 2026-08-09 — Built `packages/devices`: normalisation for Health Connect
   (Android) and HealthKit (iOS) wearable records into `DeviceSample`. First
