@@ -71,6 +71,9 @@ importers:
       '@swasthya/health-records':
         specifier: workspace:*
         version: link:../../packages/health-records
+      '@swasthya/language-corpus':
+        specifier: workspace:*
+        version: link:../../packages/language-corpus
       '@swasthya/module-registry':
         specifier: workspace:*
         version: link:../../packages/module-registry

@@ -207,7 +207,7 @@ an evaluation set before it needs a trainer.
       throws without one — let it throw rather than catching and dropping.
 - [x] Capture `CORRECTION` pairs when a person rephrases after the assistant
       misunderstands, and ask there rather than at signup.
-- [ ] Reviewer queue for utterances flagged `awaitingHumanReview`, reusing the
+- [x] Reviewer queue for utterances flagged `awaitingHumanReview`, reusing the
       credentialing reviewer role pattern.
 - [ ] Erasure path: `utteranceIdsForOwner` must reach the corpus, every
       derived snapshot and the review queue. Be truthful in the UI about
@@ -276,6 +276,86 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — **Reviewer queue for utterances flagged `awaitingHumanReview`,
+  reusing the credentialing reviewer role pattern (line 210, the first
+  unchecked task, re-derived from a fresh top-to-bottom
+  `grep -n "^- \["`).** Nothing in the backend persisted a corpus utterance
+  at all before this run — `apps/mobile`'s `captureUtterance` only ever kept
+  them in local component state (see the previous run's own note) — so
+  "reviewer queue" necessarily meant building the storage and API surface
+  for one, not just a query over an existing table.
+
+  **`packages/language-corpus` additions:** `corpusReviewQueue` (oldest
+  `capturedAt` first, mirroring `credentialing`'s `reviewQueue`) and two
+  decision functions, `clearForTraining` and `discardUtterance`. Neither
+  existed before because nothing needed a decision beyond the boolean
+  `awaitingHumanReview` — but a queue whose only exit is "silently stop
+  matching a filter" isn't a review, it's a filter. Added `discardedAt` to
+  `CorpusUtterance` (`null` until a reviewer confirms a real residual
+  identifier `deidentify` couldn't catch — language-corpus.md §5's own
+  caveat that it "does not catch names") and taught `buildSnapshot` to
+  exclude discarded utterances alongside the existing consent/awaiting-review
+  exclusions, with its own `excluded.discarded` count. Both decision
+  functions throw `UtteranceNotAwaitingReviewError` on an utterance not
+  currently in the queue, the same "a decision needs something to decide
+  about" invariant `credentialing`'s state machine already enforces. 6 new
+  tests (29 → 35), plus updating the existing `utterance()` test builder for
+  the new field.
+
+  **`apps/api/src/language-corpus/` (new module), reusing the pattern at
+  `credentialing/reviewer.guard.ts` + `credentialing.service.ts`'s
+  `#audit`, not the code:** a `CorpusReviewerGuard` requiring
+  `x-reviewer-role: CORPUS_REVIEWER` + `x-reviewer-id`, deliberately a
+  *different* role from `CLINICAL_REVIEWER` — reading Nepali conversational
+  text for a leaked name is a different competency and trust boundary from
+  reading a council register, and nothing in language-corpus.md makes
+  credentialing review a prerequisite here. Did **not** add `CORPUS_REVIEWER`
+  to `packages/database`'s `UserRole` enum: confirmed by
+  `grep -rn "@swasthya/database" apps/api/src` (no hits) that nothing in
+  `apps/api` actually imports that enum today, `CLINICAL_REVIEWER`'s own
+  guard only references it in a comment, and hand-authoring a Postgres
+  migration for an enum value nothing reads felt like more unverified
+  surface area than the task needed — flagged in the guard's own doc
+  comment as the thing to fix once an identity/auth layer makes that enum
+  load-bearing. Routes: `POST /language-corpus/utterances` (ingest —
+  unguarded, matching `credentialing`'s own unguarded `submit`, since it
+  only accepts an utterance already retained — consent-gated and
+  de-identified — wherever it was captured), `GET .../review-queue`,
+  `GET .../utterances/:id` (the logged read), `POST .../:id/clear`,
+  `POST .../:id/discard`, `GET .../:id/audit-log`, all guard-protected
+  except ingest. Audit entries (`UTTERANCE_READ` / `UTTERANCE_CLEARED` /
+  `UTTERANCE_DISCARDED`) live in `apps/api`, not the domain package — same
+  split `credentialing.repository.ts`'s own doc comment establishes: the
+  domain package owns whether an utterance is still awaiting review, not who
+  looked at it or when.
+
+  **Left for a future run, not this one:** nothing calls the new
+  `POST /language-corpus/utterances` endpoint yet — wiring
+  `apps/mobile`'s `captureUtterance` to actually send retained utterances
+  here (today they still only live in the screen's in-memory
+  `corpusUtterances` state) is real work of its own and wasn't part of this
+  ledger item, which was scoped to the reviewer queue. There is also no
+  `apps/web` or `apps/mobile` UI for a reviewer to actually use these
+  routes from — same "backend-only, no UI yet" state `credentialing`'s own
+  reviewer queue is still in.
+
+  **Verify:** `pnpm install --frozen-lockfile` (needed a lockfile update for
+  the new `@swasthya/language-corpus` → `apps/api` workspace dependency,
+  committed alongside), `pnpm lint`, `pnpm typecheck`, `pnpm test`
+  (`@swasthya/language-corpus` 29 → 35, `@swasthya/api` 157 → 188 across 4
+  new test files), `pnpm build` all green from a clean install. Run these
+  as `pnpm <script>` at the repo root (turbo), not `pnpm --filter <pkg>
+  test` directly — `test` depends on `^build` in `turbo.json` and a
+  filtered run skips that, which is why `@swasthya/api`'s tests first
+  failed on unresolved workspace package entries until rerun through
+  turbo.
+
+  **For the next run:** the one remaining language-corpus task (erasure
+  path: `utteranceIdsForOwner` reaching the corpus, every derived snapshot,
+  and this new review queue) is next in file order. Re-derive from a fresh
+  `grep -n "^- \["` rather than trusting this pointer, per every prior
+  entry's own instruction.
 
 - 2026-08-09 — **Capture `CORRECTION` pairs when a person rephrases after the
   assistant misunderstands, and ask there rather than at signup (line 208,

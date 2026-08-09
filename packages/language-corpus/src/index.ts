@@ -222,6 +222,15 @@ export interface CorpusUtterance {
   redactionCount: number;
   /** Cleared once a human has checked the residual-identifier risk. */
   awaitingHumanReview: boolean;
+  /**
+   * Set when a reviewer decides the residual risk is real and this utterance
+   * must never enter a training snapshot — distinct from consent withdrawal,
+   * which is the person's own decision, and from the not-yet-built erasure
+   * path (agent-progress.md's language-corpus queue), which is the person's
+   * own request rather than a reviewer's judgement call. Null while
+   * undecided or cleared.
+   */
+  discardedAt: string | null;
 }
 
 export class CorpusConsentError extends Error {
@@ -282,7 +291,58 @@ export function retainUtterance(
     // does every voice transcript, where speech-to-text may have introduced
     // a name the text pipeline never saw.
     awaitingHumanReview: redactions.length > 0 || input.kind === 'VOICE_TRANSCRIPT',
+    discardedAt: null,
   };
+}
+
+/* ------------------------------------------------------------------ *
+ * Review queue
+ *
+ * §5: "anything that matched a pattern is held for human review before
+ * use" — this is what a reviewer works through, and the two ways a review
+ * can end. Deliberately the same shape as `packages/credentialing`'s own
+ * queue/decision functions (queue oldest-first, a decision is a small pure
+ * transition, attribution and audit logging live in the API layer that
+ * calls these, not here) — reviewing an utterance for residual
+ * identifiers and reviewing a council registration are different domains
+ * but the same "a human must look before this is trusted" shape.
+ * ------------------------------------------------------------------ */
+
+/** Utterances still awaiting a human look, oldest capture first — so nothing waits behind one that arrived later. */
+export function corpusReviewQueue(
+  utterances: readonly CorpusUtterance[],
+): readonly CorpusUtterance[] {
+  return utterances
+    .filter((utterance) => utterance.awaitingHumanReview)
+    .toSorted((a, b) => a.capturedAt.localeCompare(b.capturedAt));
+}
+
+export class UtteranceNotAwaitingReviewError extends Error {
+  constructor(utteranceId: string) {
+    super(`Utterance ${utteranceId} is not awaiting human review`);
+    this.name = 'UtteranceNotAwaitingReviewError';
+  }
+}
+
+function requireAwaitingReview(utterance: CorpusUtterance): void {
+  if (!utterance.awaitingHumanReview) throw new UtteranceNotAwaitingReviewError(utterance.id);
+}
+
+/** A reviewer found no residual risk: the utterance may enter a future snapshot, subject to consent still being live at that time. */
+export function clearForTraining(utterance: CorpusUtterance): CorpusUtterance {
+  requireAwaitingReview(utterance);
+  return { ...utterance, awaitingHumanReview: false };
+}
+
+/**
+ * A reviewer found a real residual identifier `deidentify` could not catch
+ * (§5: "it does not catch names"). Discarding rather than re-flagging is
+ * deliberate: leaving it `awaitingHumanReview` would just put it back in
+ * front of the next reviewer, and the risk was already confirmed once.
+ */
+export function discardUtterance(utterance: CorpusUtterance, discardedAt: string): CorpusUtterance {
+  requireAwaitingReview(utterance);
+  return { ...utterance, awaitingHumanReview: false, discardedAt };
 }
 
 /* ------------------------------------------------------------------ *
@@ -296,6 +356,7 @@ export interface CorpusSnapshot {
   excluded: {
     consentRevoked: number;
     awaitingReview: number;
+    discarded: number;
   };
 }
 
@@ -316,12 +377,17 @@ export function buildSnapshot(
 ): CorpusSnapshot {
   let consentRevoked = 0;
   let awaitingReview = 0;
+  let discarded = 0;
   const included: CorpusUtterance[] = [];
 
   for (const utterance of utterances) {
     const grants = grantsByOwner.get(utterance.ownerId) ?? [];
     if (!hasPurpose(grants, purposeForUtteranceKind(utterance.kind), takenAt)) {
       consentRevoked += 1;
+      continue;
+    }
+    if (utterance.discardedAt !== null) {
+      discarded += 1;
       continue;
     }
     if (utterance.awaitingHumanReview) {
@@ -331,7 +397,7 @@ export function buildSnapshot(
     included.push(utterance);
   }
 
-  return { takenAt, utterances: included, excluded: { consentRevoked, awaitingReview } };
+  return { takenAt, utterances: included, excluded: { consentRevoked, awaitingReview, discarded } };
 }
 
 /**

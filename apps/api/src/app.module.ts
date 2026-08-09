@@ -4,13 +4,21 @@ import { CompanionController } from './companion.controller.js';
 import { CredentialingModule } from './credentialing/credentialing.module.js';
 import { DirectoryController } from './directory.controller.js';
 import { HealthController } from './health.controller.js';
+import { LanguageCorpusModule } from './language-corpus/language-corpus.module.js';
 import { PatientRegistryModule } from './patient-registry/patient-registry.module.js';
 import { PerplexityHealthService } from './perplexity-health.service.js';
 import { RecordsModule } from './records/records.module.js';
 import { SchedulingModule } from './scheduling/scheduling.module.js';
 
 @Module({
-  imports: [RecordsModule, CredentialingModule, PatientRegistryModule, SchedulingModule, ClinicalChartingModule],
+  imports: [
+    RecordsModule,
+    CredentialingModule,
+    PatientRegistryModule,
+    SchedulingModule,
+    ClinicalChartingModule,
+    LanguageCorpusModule,
+  ],
   controllers: [HealthController, CompanionController, DirectoryController],
   providers: [PerplexityHealthService],
 })

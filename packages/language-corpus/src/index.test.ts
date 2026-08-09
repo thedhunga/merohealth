@@ -3,8 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   CorpusConsentError,
   CURRENT_POLICY_VERSION,
+  UtteranceNotAwaitingReviewError,
   buildSnapshot,
+  clearForTraining,
+  corpusReviewQueue,
   deidentify,
+  discardUtterance,
   grantConsent,
   hasPurpose,
   isLive,
@@ -39,6 +43,7 @@ function utterance(overrides: Partial<CorpusUtterance> = {}): CorpusUtterance {
     precedingAssistantText: null,
     redactionCount: 0,
     awaitingHumanReview: false,
+    discardedAt: null,
     ...overrides,
   };
 }
@@ -259,8 +264,61 @@ describe('buildSnapshot', () => {
     expect(snapshot.excluded.awaitingReview).toBe(1);
   });
 
+  it('excludes a discarded utterance even though consent is live and review is no longer pending', () => {
+    const grants = new Map([['user-1', [grant()]]]);
+    const snapshot = buildSnapshot(
+      [utterance({ discardedAt: '2026-05-01T00:00:00.000Z' })],
+      grants,
+      takenAt,
+    );
+
+    expect(snapshot.utterances).toHaveLength(0);
+    expect(snapshot.excluded.discarded).toBe(1);
+  });
+
   it('excludes an owner with no grants at all', () => {
     expect(buildSnapshot([utterance()], new Map(), takenAt).utterances).toHaveLength(0);
+  });
+});
+
+describe('corpusReviewQueue', () => {
+  it('lists only utterances awaiting review, oldest capture first', () => {
+    const queue = corpusReviewQueue([
+      utterance({ id: 'a', awaitingHumanReview: true, capturedAt: '2026-02-02T00:00:00.000Z' }),
+      utterance({ id: 'b', awaitingHumanReview: false }),
+      utterance({ id: 'c', awaitingHumanReview: true, capturedAt: '2026-02-01T00:00:00.000Z' }),
+    ]);
+
+    expect(queue.map((u) => u.id)).toEqual(['c', 'a']);
+  });
+
+  it('is empty when nothing is awaiting review', () => {
+    expect(corpusReviewQueue([utterance({ awaitingHumanReview: false })])).toHaveLength(0);
+  });
+});
+
+describe('clearForTraining and discardUtterance', () => {
+  it('clears an awaiting utterance, leaving discardedAt null', () => {
+    const cleared = clearForTraining(utterance({ awaitingHumanReview: true }));
+    expect(cleared.awaitingHumanReview).toBe(false);
+    expect(cleared.discardedAt).toBeNull();
+  });
+
+  it('discards an awaiting utterance, stamping when', () => {
+    const at = '2026-05-01T00:00:00.000Z';
+    const discarded = discardUtterance(utterance({ awaitingHumanReview: true }), at);
+
+    expect(discarded.awaitingHumanReview).toBe(false);
+    expect(discarded.discardedAt).toBe(at);
+  });
+
+  it('refuses to decide an utterance that was never awaiting review', () => {
+    expect(() => clearForTraining(utterance({ awaitingHumanReview: false }))).toThrow(
+      UtteranceNotAwaitingReviewError,
+    );
+    expect(() => discardUtterance(utterance({ awaitingHumanReview: false }), '2026-05-01T00:00:00.000Z')).toThrow(
+      UtteranceNotAwaitingReviewError,
+    );
   });
 });
 

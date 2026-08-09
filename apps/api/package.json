@@ -22,6 +22,7 @@
     "@swasthya/credentialing": "workspace:*",
     "@swasthya/entitlements": "workspace:*",
     "@swasthya/health-records": "workspace:*",
+    "@swasthya/language-corpus": "workspace:*",
     "@swasthya/module-registry": "workspace:*",
     "@swasthya/patient-registry": "workspace:*",
     "@swasthya/scheduling": "workspace:*",
