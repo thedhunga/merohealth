@@ -66,6 +66,7 @@
       "helpCenter": "Help Center",
       "legal": "Legal & Compliance",
       "privacy": "Privacy",
+      "dataConsent": "Data consent",
       "accessibility": "Accessibility",
       "communityGuidelines": "Community Guidelines"
     },
@@ -910,6 +911,10 @@
             "title": "Privacy",
             "body": "How your health documents and data are stored, and what the assistant is and isn't allowed to use."
           },
+          "dataConsent": {
+            "title": "Data consent",
+            "body": "Choose whether your conversations may be used to train the Nepali assistant — each purpose separate, off by default."
+          },
           "communityGuidelines": {
             "title": "Community Guidelines",
             "body": "Rules for interacting with others on Mero Health — published once a community feature actually exists."
@@ -946,6 +951,34 @@
       "contactPrompt": {
         "heading": "Questions about your data?",
         "body": "If anything here is unclear, or you want to know more about how a specific document is handled, reach out."
+      }
+    },
+    "dataConsent": {
+      "hero": {
+        "title": "Data consent",
+        "body": "Give or withhold permission for your conversations to be used to train the Nepali health assistant, right here. Each purpose is separate, off by default, and none of it is part of accepting any terms."
+      },
+      "purposesHeading": "Every purpose is separate",
+      "guide": "Nothing below is used for a purpose while it's off. You can turn any of these off again at any time, and the app's core service works the same either way.",
+      "onLabel": "On",
+      "offLabel": "Off",
+      "purposes": {
+        "modelTrainingText": {
+          "title": "Written messages — to improve the Nepali assistant",
+          "body": "Messages you write, after clear identifiers like phone numbers and emails are automatically removed, may be used to train the Nepali health assistant. Because things like names or places can still remain, anything that might identify you is checked by a person before it is used."
+        },
+        "modelTrainingVoice": {
+          "title": "Voice — a separate permission",
+          "body": "The same purpose as written messages, but for the text transcribed from your voice, not the recording itself. Because voice is more identifying, every voice sample is always checked by a person before use — not only sometimes, the way written messages are."
+        },
+        "humanReview": {
+          "title": "Human review",
+          "body": "Someone at Mero Health may read your de-identified conversation — to check quality, or before it is used for the purposes above. If this is off, anything that might identify you is never used."
+        }
+      },
+      "contactPrompt": {
+        "heading": "Questions about these purposes?",
+        "body": "If you want to know more about what's kept and what isn't, reach out."
       }
     },
     "communityGuidelines": {

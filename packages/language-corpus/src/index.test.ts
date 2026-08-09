@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 
 import {
   CorpusConsentError,
+  CURRENT_POLICY_VERSION,
   buildSnapshot,
   deidentify,
+  grantConsent,
   hasPurpose,
   isLive,
   optionalPurposes,
   retainUtterance,
+  revokeConsent,
   utteranceIdsForOwner,
   type ConsentGrant,
   type CorpusUtterance,
@@ -68,6 +71,59 @@ describe('isLive', () => {
   it('is false after revocation', () => {
     const g = grant({ revokedAt: '2026-03-01T00:00:00.000Z' });
     expect(isLive(g, '2026-04-01T00:00:00.000Z')).toBe(false);
+  });
+});
+
+describe('grantConsent and revokeConsent', () => {
+  const at = '2026-02-01T00:00:00.000Z';
+
+  it('grants a purpose, live as of now, stamped with the current policy version', () => {
+    const g = grantConsent('MODEL_TRAINING_TEXT', 'user-1', at);
+
+    expect(g).toEqual({
+      purpose: 'MODEL_TRAINING_TEXT',
+      ownerId: 'user-1',
+      grantedAt: at,
+      revokedAt: null,
+      policyVersion: CURRENT_POLICY_VERSION,
+    });
+    expect(isLive(g, at)).toBe(true);
+  });
+
+  it('revokes the live grant for a purpose without touching other purposes', () => {
+    const grants = [
+      grant({ purpose: 'MODEL_TRAINING_TEXT' }),
+      grant({ purpose: 'MODEL_TRAINING_VOICE' }),
+    ];
+
+    const revoked = revokeConsent(grants, 'MODEL_TRAINING_TEXT', at);
+
+    expect(hasPurpose(revoked, 'MODEL_TRAINING_TEXT', at)).toBe(false);
+    expect(hasPurpose(revoked, 'MODEL_TRAINING_VOICE', at)).toBe(true);
+  });
+
+  it('sets revokedAt rather than deleting the row', () => {
+    const revoked = revokeConsent([grant()], 'MODEL_TRAINING_TEXT', at);
+    expect(revoked).toHaveLength(1);
+    expect(revoked[0]?.revokedAt).toBe(at);
+  });
+
+  it('is a no-op when nothing is currently live for that purpose', () => {
+    const alreadyRevoked = [grant({ revokedAt: '2026-01-15T00:00:00.000Z' })];
+    expect(revokeConsent(alreadyRevoked, 'MODEL_TRAINING_TEXT', at)).toEqual(alreadyRevoked);
+  });
+
+  it('round-trips through hasPurpose: grant then revoke then grant again', () => {
+    let grants: ConsentGrant[] = [];
+    grants = [...grants, grantConsent('MODEL_TRAINING_TEXT', 'user-1', '2026-01-01T00:00:00.000Z')];
+    expect(hasPurpose(grants, 'MODEL_TRAINING_TEXT', '2026-01-02T00:00:00.000Z')).toBe(true);
+
+    grants = revokeConsent(grants, 'MODEL_TRAINING_TEXT', '2026-01-10T00:00:00.000Z');
+    expect(hasPurpose(grants, 'MODEL_TRAINING_TEXT', '2026-01-11T00:00:00.000Z')).toBe(false);
+
+    grants = [...grants, grantConsent('MODEL_TRAINING_TEXT', 'user-1', '2026-01-20T00:00:00.000Z')];
+    expect(hasPurpose(grants, 'MODEL_TRAINING_TEXT', '2026-01-21T00:00:00.000Z')).toBe(true);
+    expect(grants).toHaveLength(2);
   });
 });
 

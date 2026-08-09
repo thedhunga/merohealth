@@ -200,7 +200,7 @@ retention, snapshots, erasure.
 be trained later; the pipeline itself is deliberately out of scope and needs
 an evaluation set before it needs a trainer.
 
-- [ ] Consent screen in `apps/mobile` and `apps/web`: each purpose separately
+- [x] Consent screen in `apps/mobile` and `apps/web`: each purpose separately
       toggleable, default off, plain Nepali explanation of what is kept and
       what is not. **Never bundle these into terms acceptance.**
 - [ ] Wire `retainUtterance` into the companion, gated on a live grant. It
@@ -276,6 +276,142 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — **Process correction, then built the actual first unchecked
+  task: the consent screen in `apps/mobile` and `apps/web`.** Before touching
+  code, ran `grep -n "^- \[" agent-progress.md` over the whole queue — every
+  section, not just the one the previous run's "for the next run" note
+  pointed at — and found the literal first unchecked checkbox is not in
+  "Clinical suite," it is line 203, "Consent screen..." under "Nepali
+  language corpus," a section that sits *before* "Identity and professional
+  credentialing" and "Clinical suite" in the document. `grep -n "corpus"`
+  over the entire file returns matches only inside the queue section itself
+  (lines 192-212) — not one of the 15+ prior log entries above this one ever
+  mentions "corpus" or "consent screen." Every run back to whichever one
+  first finished "Photography wiring" silently skipped this section and
+  moved straight to Identity, then Clinical suite, evidently by reading the
+  previous entry's own "for the next run" pointer as the task rather than
+  re-scanning the full checkbox list top-to-bottom as the working agreement's
+  own §2 literally requires ("the first unchecked task in the queue below").
+  This run had already built a fair amount of `clinical-summary` (capability
+  map row 4) before running that full-file grep — a legitimate next
+  clinical-suite item, fully implemented and green, but not actually next per
+  the ledger's own rule. Discarded it with `git checkout` / `rm -rf` before
+  committing anything, rather than keep out-of-order work just because it
+  was already done, and built this task instead. **Future runs: re-derive
+  the first unchecked task from the raw checkbox list every time, not from
+  the previous entry's closing note — that note is a hint about one
+  section's internal sequencing, not a claim that no earlier section has
+  unchecked work.**
+
+  **Read `docs/architecture/language-corpus.md` in full before starting, per
+  the queue's own instruction, and confirmed `packages/language-corpus` (the
+  consent/de-identification/snapshot domain layer, §3-§5) already existed
+  and was already wired into nothing — no `apps/api` module, no UI. §3's
+  four purposes (`SERVICE_DELIVERY` not optional; `MODEL_TRAINING_TEXT`,
+  `MODEL_TRAINING_VOICE`, `HUMAN_REVIEW` opt-in, default off, independently
+  revocable, never bundled into terms) and the `ConsentGrant`/`isLive`/
+  `hasPurpose` machinery were already correct and tested; what the package
+  did not yet offer was a way to *toggle* a grant — only `isLive`/`hasPurpose`
+  (read) and `retainUtterance` (a consequence of one being live), no
+  `grantConsent`/`revokeConsent` (write). Screens in two different apps both
+  need to flip the same kind of switch, so that lifecycle logic belongs in
+  the shared package, not duplicated per app.**
+
+  **Added to `packages/language-corpus`: `CURRENT_POLICY_VERSION` (a
+  `'consent-copy-v1'` version tag stamped on every grant the two new screens
+  produce — a versioning label, not an invented fact, matching every other
+  `version`/`policyVersion` field already in this codebase), `grantConsent`
+  (builds a fresh live row rather than reviving a revoked one, so a person
+  who toggles a purpose off and back on keeps an honest two-row history, not
+  one edited row hiding the gap) and `revokeConsent` (sets `revokedAt` on
+  whichever grant is currently live for that purpose — never deletes the
+  row, per `ConsentGrant.revokedAt`'s own doc comment — and is a safe no-op
+  when nothing is live, since a toggle a person can flip either direction at
+  any time must never throw on the "already off" case). 5 new tests in the
+  package's own `index.test.ts` (28 total, up from 23): grant shape and
+  policy version, revoking one purpose without touching another, `revokedAt`
+  set rather than the row disappearing, no-op on double-revoke, and a
+  grant → revoke → grant-again round-trip through `hasPurpose` proving the
+  row count grows rather than being reused.
+
+  **`apps/mobile`: `src/state/app-state.tsx` gained `consentGrants` (starts
+  empty — §3's "default off" is structural, not a flag defaulting to false,
+  since an empty array has no live grant for anything), `hasConsent(purpose)`
+  and `setConsent(purpose, granted)`, built directly on the package's own
+  `grantConsent`/`hasPurpose`/`revokeConsent` rather than a hand-rolled
+  boolean per purpose — same in-memory-`useState`-only shape `facts` already
+  had, since this app still has no persistence or account layer at all (this
+  ledger's own standing note on `local-id.ts`). New `app/consent.tsx`: three
+  purposes (`optionalPurposes`, filtered to exclude `SERVICE_DELIVERY` with
+  a type guard since the package's own export is typed `readonly
+  ConsentPurpose[]` rather than the narrower literal union), each a real
+  React Native `Switch`, independently operable, with plain-language Nepali
+  and English copy stating what is kept (de-identified text/voice, only
+  after opt-in), what is not (raw audio, anything before a human review
+  clears it), and that voice is *always* reviewed while text is only
+  reviewed when it carried a detectable identifier — read directly from
+  language-corpus.md §5, not invented. Wired one entry point: the companion
+  screen's existing privacy note ("छुट्टै अनुमति मागिन्छ" — "a separate
+  permission is required") now navigates to `/consent` instead of being
+  inert text that named a screen that didn't exist yet.
+
+  **`apps/web`: new `/legal/data-consent` route (`DataConsentView.tsx`),
+  entirely client-side state — the same "domain layer built, nothing to
+  persist to yet" shape `RegisterView.tsx` already established for
+  `/clinicians/register`, since `apps/web` has no account/auth layer either.
+  Three purposes rendered as real `<input type="checkbox">` elements (visually
+  styled as switches but natively focusable/keyboard-operable, matching
+  `legal.accessibility`'s own "native controls where it matters" precedent
+  rather than a custom ARIA widget), each with its own `<label>` and a
+  separate `aria-describedby` paragraph rather than one label swallowing the
+  whole description. Registered in `content/routes.ts` (so `sitemap.ts` and
+  `generateMetadata` both pick it up automatically, per that file's own
+  single-source design), linked as a fourth card from `/legal`
+  (`LegalIndexView.tsx`) and from the footer's `helpfulLinks` column
+  (`content/navigation.ts`), with `nav.items.dataConsent` and the full
+  `legal.dataConsent.*` tree added to *both* `messages/ne.json` and
+  `en.json` — copy adapted from the same language-corpus.md §3/§5 facts the
+  mobile screen uses, not a second independent draft. `RecordTransform`
+  reused a fifth time for the hero art, matching `legal.privacy`'s own choice
+  for the same "this page is about your data" reason.
+
+  **Both apps' `package.json` gained `@swasthya/language-corpus` as a
+  dependency** (neither had it before — the package existed but was
+  consumed by nothing). Rebuilt `packages/language-corpus` before `apps/web`'s
+  own build: `apps/web` resolves the package through its `dist/` output (not
+  the `react-native` export condition `apps/mobile` gets), so the new
+  `grantConsent`/`revokeConsent` exports were invisible to Turbopack until
+  `pnpm --filter @swasthya/language-corpus build` ran once — caught by a
+  failed `pnpm build`, not assumed.
+
+  Verified: `pnpm install` (three workspace `package.json` changes —
+  `apps/mobile`, `apps/web`, and the untouched-but-relevant
+  `packages/language-corpus` — confirmed `--frozen-lockfile` passes clean
+  afterward), `pnpm lint`, `pnpm typecheck`, `pnpm test`
+  (`@swasthya/language-corpus` 23 → 28, every other package's count
+  unchanged — no `apps/mobile`/`apps/web` tests added, matching this
+  repo's own convention that state files and page/view components go
+  untested while the pure logic underneath them does not, the same split
+  `app-state.tsx` and `RegisterView.tsx` already set), `pnpm build`
+  (`/ne/legal/data-consent` and `/en/legal/data-consent` both statically
+  generated; `apps/mobile`'s `/consent` a new static route in its own
+  export), all green on a full sequential re-run from a clean
+  `pnpm install --frozen-lockfile` at the end, not just piecemeal per-package
+  checks along the way.
+
+  **For the next run:** the queue's next unchecked item, read literally off
+  the top-to-bottom checkbox scan this entry's own opening paragraph
+  describes, is the *second* Nepali-language-corpus task — "Wire
+  `retainUtterance` into the companion, gated on a live grant. It throws
+  without one — let it throw rather than catching and dropping." This
+  follows directly from this run's own work: `apps/mobile`'s
+  `app-state.tsx` now carries real `consentGrants`, so `companion.tsx` has
+  what it needs to call `retainUtterance` for real for the first time
+  (currently it captures a message and, separately, a voice note, but never
+  calls into `packages/language-corpus` at all). Re-derive "first unchecked"
+  from the raw list before starting, per this entry's own correction, rather
+  than assuming this note is the only unchecked thing left.
 
 - 2026-08-09 — Built `clinical-charting`, capability map row 3 and the
   fourth "Clinical suite — eClinicalWorks parity" task, on top of the

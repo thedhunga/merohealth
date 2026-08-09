@@ -249,13 +249,17 @@ export default function CompanionScreen() {
             </Pressable>
           </View>
 
-          <View style={styles.privacyCard}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/consent')}
+            style={styles.privacyCard}
+          >
             <View style={styles.privacyDot} />
             <Text style={styles.privacy}>
               यो डेमोले उत्तर स्थायी रेकर्डमा राख्दैन। राख्नु वा साझा गर्नु अघि छुट्टै अनुमति
-              मागिन्छ।
+              मागिन्छ — यहाँ हेर्नुहोस्।
             </Text>
-          </View>
+          </Pressable>
         </>
       ) : assessment?.interruptConversation ? (
         <View accessibilityLiveRegion="assertive" style={styles.emergency}>

@@ -6,28 +6,29 @@ import { PageTemplate } from '@/components/ui/PageTemplate';
 import { Section, SectionHeading } from '@/components/ui/Section';
 import { Link } from '@/i18n/navigation';
 
-const ROUTE_KEYS = ['privacy', 'communityGuidelines', 'accessibility'] as const;
+const ROUTE_KEYS = ['privacy', 'dataConsent', 'communityGuidelines', 'accessibility'] as const;
 
 const ROUTE_HREFS: Record<(typeof ROUTE_KEYS)[number], string> = {
   privacy: '/legal/privacy',
+  dataConsent: '/legal/data-consent',
   communityGuidelines: '/legal/community-guidelines',
   accessibility: '/accessibility',
 };
 
 /**
- * `/legal` — the hub for `/legal/privacy` and `/legal/community-guidelines`,
- * plus `/accessibility` (a sibling route, not nested under `/legal`, but
- * grouped here since the footer's `helpfulLinks` column treats all three as
- * one "legal & compliance" bucket). `tone: 'paper'` per the previous run's
- * note — the first section to actually use it, since stacking another
- * full-bleed dark block under the permanently dark header reads as too heavy
- * for a legal/utility page. No closing `CtaBand`, matching `PageTemplate`'s
- * own guidance to omit one on pages like this.
+ * `/legal` — the hub for `/legal/privacy`, `/legal/data-consent` and
+ * `/legal/community-guidelines`, plus `/accessibility` (a sibling route, not
+ * nested under `/legal`, but grouped here since the footer's `helpfulLinks`
+ * column treats all four as one "legal & compliance" bucket). `tone: 'paper'`
+ * per an earlier run's note — the first section to actually use it, since
+ * stacking another full-bleed dark block under the permanently dark header
+ * reads as too heavy for a legal/utility page. No closing `CtaBand`,
+ * matching `PageTemplate`'s own guidance to omit one on pages like this.
  *
  * The hero states plainly that Mero Health has no registered legal entity
  * yet (`packages/configuration`'s `legalEntity.displayName`) rather than
  * implying these are signed legal documents — the highest-risk copy in this
- * task, per the previous run's note.
+ * task, per an earlier run's note.
  */
 export function LegalIndexView() {
   const t = useTranslations('legal.index');

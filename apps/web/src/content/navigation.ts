@@ -236,6 +236,7 @@ export const footerColumns: FooterColumn[] = [
       { key: 'helpCenter', href: '/help' },
       { key: 'legal', href: '/legal' },
       { key: 'privacy', href: '/legal/privacy' },
+      { key: 'dataConsent', href: '/legal/data-consent' },
       { key: 'accessibility', href: '/accessibility' },
       { key: 'communityGuidelines', href: '/legal/community-guidelines' },
     ],

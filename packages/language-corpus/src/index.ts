@@ -70,6 +70,40 @@ export function hasPurpose(
   return grants.some((grant) => grant.purpose === purpose && isLive(grant, at));
 }
 
+/**
+ * Wording version stamped on every grant produced by the consent screen
+ * (`apps/mobile`'s `app/consent.tsx`, `apps/web`'s `DataConsentView`), so a
+ * grant made under today's copy stays distinguishable from one made under a
+ * future rewrite — see §6 on why `policyVersion` exists on the type at all.
+ */
+export const CURRENT_POLICY_VERSION = 'consent-copy-v1';
+
+/**
+ * Grants a purpose. Building a fresh row rather than reviving a revoked one
+ * keeps the history honest: a person who turns training off and back on has
+ * two grants on record, not one edited row that hides the gap.
+ */
+export function grantConsent(purpose: ConsentPurpose, ownerId: string, now: string): ConsentGrant {
+  return { purpose, ownerId, grantedAt: now, revokedAt: null, policyVersion: CURRENT_POLICY_VERSION };
+}
+
+/**
+ * Revokes a purpose by setting `revokedAt` on whichever grant is currently
+ * live for it — never by deleting the row, per `ConsentGrant.revokedAt`'s own
+ * doc comment. A no-op when nothing is live for that purpose, since there is
+ * nothing to revoke and this must stay safe to call from a toggle a person
+ * can flip either direction at any time.
+ */
+export function revokeConsent(
+  grants: readonly ConsentGrant[],
+  purpose: ConsentPurpose,
+  now: string,
+): ConsentGrant[] {
+  return grants.map((grant) =>
+    grant.purpose === purpose && isLive(grant, now) ? { ...grant, revokedAt: now } : grant,
+  );
+}
+
 /* ------------------------------------------------------------------ *
  * De-identification
  * ------------------------------------------------------------------ */

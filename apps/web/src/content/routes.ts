@@ -142,6 +142,11 @@ const bespokeRoutes: RouteEntry[] = [
     descriptionKey: 'legal.communityGuidelines.hero.body',
   },
   {
+    pathname: '/legal/data-consent',
+    titleKey: 'legal.dataConsent.hero.title',
+    descriptionKey: 'legal.dataConsent.hero.body',
+  },
+  {
     pathname: '/accessibility',
     titleKey: 'legal.accessibility.hero.title',
     descriptionKey: 'legal.accessibility.hero.body',

@@ -19,6 +19,7 @@
     "@swasthya/configuration": "workspace:*",
     "@swasthya/digital-twin": "workspace:*",
     "@swasthya/health-records": "workspace:*",
+    "@swasthya/language-corpus": "workspace:*",
     "@swasthya/localization": "workspace:*",
     "@swasthya/shared-types": "workspace:*",
     "@swasthya/training-content": "workspace:*",
