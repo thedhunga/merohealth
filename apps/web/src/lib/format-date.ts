@@ -9,5 +9,16 @@
  * Devanagari rendering itself.
  */
 export function formatDate(iso: string, locale: string): string {
-  return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(iso));
+  return new Intl.DateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    // Format in UTC, not the viewer's zone. These are calendar dates — the day
+    // a sample was taken, a certificate was checked — not instants. Rendering
+    // them locally shifts them by a day for anyone west of UTC: midnight-UTC
+    // on the 9th displays as the 8th in Kathmandu's opposite direction, and a
+    // lab result dated a day wrong is a real problem, not a cosmetic one.
+    // This bug only shows up outside UTC, which is why CI never caught it.
+    timeZone: 'UTC',
+  }).format(new Date(iso));
 }
