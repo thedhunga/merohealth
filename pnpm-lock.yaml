@@ -59,6 +59,9 @@ importers:
       '@swasthya/clinical-safety':
         specifier: workspace:*
         version: link:../../packages/clinical-safety
+      '@swasthya/entitlements':
+        specifier: workspace:*
+        version: link:../../packages/entitlements
       '@swasthya/health-records':
         specifier: workspace:*
         version: link:../../packages/health-records

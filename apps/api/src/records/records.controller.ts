@@ -1,6 +1,8 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
+import { EntitlementsGuard } from '../entitlements/entitlements.guard.js';
+import { RequireModule, RequireQuota } from '../entitlements/require-entitlement.decorator.js';
 import { RecordsService } from './records.service.js';
 
 const documentKindSchema = z.enum([
@@ -61,6 +63,9 @@ export class RecordsController {
   constructor(private readonly records: RecordsService) {}
 
   @Post('documents')
+  @UseGuards(EntitlementsGuard)
+  @RequireModule('HEALTH_RECORD')
+  @RequireQuota('DOCUMENTS_STORED')
   @ApiOperation({ summary: 'Capture a document: upload bytes through the storage port and record it' })
   @ApiBody({
     schema: {

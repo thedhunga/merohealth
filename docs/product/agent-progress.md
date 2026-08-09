@@ -149,7 +149,7 @@ work.
 - [x] `apps/api`: records module exposing capture, list, timeline and
       confirm/correct/reject endpoints over `packages/health-records`, with
       the storage port injected.
-- [ ] `apps/api`: entitlement guard enforcing `checkModule` and `checkQuota`
+- [x] `apps/api`: entitlement guard enforcing `checkModule` and `checkQuota`
       at the route boundary. A UI-only gate is not a gate.
 - [ ] Prisma schema for `HealthDocument`, `HealthObservation`, `DeviceSample`,
       `Subscription` and usage counters, plus a migration and seed data.
@@ -252,6 +252,122 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — Built the entitlement guard: `apps/api` now enforces
+  `checkModule`/`checkQuota` at the route boundary rather than trusting a
+  client to respect a plan limit. First task any run has done that needed a
+  NestJS guard — none existed anywhere in the repo (confirmed by grep before
+  starting: zero matches for `CanActivate`/`UseGuards`/`ExecutionContext`) —
+  so this run established the pattern rather than following one.
+
+  **Two honest gaps surfaced by this task, both handled by naming them
+  rather than papering over them:** (1) nothing in `apps/api` resolves "what
+  plan does this owner have" — no auth layer, no `Subscription` lookup
+  anywhere the API can read (there's a `Subscription` Prisma model in
+  `packages/database/prisma/schema.prisma`, but that schema is the
+  pre-pivot telehealth model — `Document`/`Observation`/`Prescription`/
+  `PharmacyOrder`, not `HealthDocument`/`HealthObservation` — and nothing in
+  `apps/api` reads it at all, confirmed by grep). (2) `ownerId` itself is
+  still just a client-supplied string with no identity verification behind
+  it, same as every other route. Building a guard on top of either gap
+  pretending it was solved would have been fabricating enforcement that
+  doesn't exist, so instead: **new `apps/api/src/entitlements/`**
+  (`subscription-resolver.ts` — the `SubscriptionResolver` port, DI token,
+  and `FreeTierSubscriptionResolver`, a stand-in that resolves every owner
+  to `FREE` with a doc comment explaining why that's the correct
+  *conservative* default — nobody has been verified as a paying subscriber,
+  so nobody should be treated as one — and naming the upcoming `Subscription`
+  Prisma-schema item as what actually replaces it, the same
+  stand-in-names-its-own-replacement pattern `RecordsRepository` already
+  set; `usage-reader.ts` — the `UsageReader` port, deliberately module-local
+  rather than one global implementation, since no single reader can answer
+  for all five `QuotaDimension`s yet; `require-entitlement.decorator.ts` —
+  `@RequireModule(module)`/`@RequireQuota(dimension)`, plain
+  `SetMetadata` wrappers; `entitlements.guard.ts` — `EntitlementsGuard`,
+  reads both decorators via `Reflector`, resolves the caller's tier,
+  calls `packages/entitlements`'s `checkModule`/`checkQuota` unchanged, and
+  forwards the whole verdict — including `upgradeTo` — in a
+  `ForbiddenException` body, since the package's own doc comment is explicit
+  that returning a verdict rather than throwing exists so a caller can offer
+  an upgrade instead of a flat failure; a route with neither decorator
+  passes through untouched, so the guard adds no behaviour anywhere it
+  isn't opted into).
+
+  **Wired concretely, not just built in the abstract**, per the previous
+  run's own note: `RecordsController.capture` (`POST /records/documents`)
+  now carries `@UseGuards(EntitlementsGuard)`,
+  `@RequireModule('HEALTH_RECORD')`, `@RequireQuota('DOCUMENTS_STORED')`.
+  New `RecordsUsageReader` (`apps/api/src/records/records-usage.reader.ts`)
+  implements `UsageReader` for exactly one dimension —
+  `DOCUMENTS_STORED`, a straight count off `RecordsRepository.listDocuments`
+  — and throws rather than returning zero if asked about any other
+  dimension, so a future route wired to a quota with no real meter behind
+  it fails loudly in tests instead of silently passing every request.
+  `RecordsModule` binds `SUBSCRIPTION_RESOLVER` → `FreeTierSubscriptionResolver`
+  and `USAGE_READER` → `RecordsUsageReader`, both scoped to this module —
+  `EntitlementsGuard` itself is generic and module-agnostic, ready for
+  `patient-registry`/`scheduling`/etc. to bind their own resolvers later.
+  `HEALTH_RECORD` gating is currently a no-op (every tier includes it) —
+  included anyway so both `checkModule` and `checkQuota` are demonstrably
+  wired at a real route, not just one of the two; it becomes meaningful the
+  moment a module without universal FREE access needs the same treatment.
+
+  Added `@swasthya/entitlements` to `apps/api`'s dependencies (it had never
+  been wired in before) and ran a plain `pnpm install` once to update the
+  lockfile, same as the Pricing run's precedent for adding a new workspace
+  edge — confirmed `--frozen-lockfile` passes clean afterward.
+
+  **Verified past what the unit tests can prove:** `RecordsController`'s own
+  existing tests instantiate the controller directly
+  (`new RecordsController(service)`), which never runs Nest's guard
+  pipeline at all — a guard only executes when Nest's HTTP layer resolves
+  the route, so those tests staying green says nothing about whether the
+  guard is actually wired correctly. Caught this before trusting the test
+  suite alone: built and ran a live server (`pnpm build && node dist/main.js`)
+  and drove it with `curl` — captured 25 documents for one owner (the FREE
+  limit), confirmed the 26th returns `HTTP 403` with
+  `{"code":"QUOTA_EXCEEDED","dimension":"DOCUMENTS_STORED","limit":25,"used":25,"upgradeTo":"PLUS"}`;
+  confirmed a fresh owner under quota still captures successfully
+  (`HTTP 201`); confirmed a gated request missing `ownerId` gets rejected by
+  the guard itself with `HTTP 400` before it reaches the repository; and
+  confirmed `GET /records/documents` (no decorators) still runs open with no
+  entitlement check. All four outcomes matched the design exactly. New
+  tests: `entitlements.guard.test.ts` (8 cases — open routes pass through,
+  module allow/deny, quota allow/deny, the verdict/`upgradeTo` payload shape,
+  missing-`ownerId` rejection, reading `ownerId` from query as well as body),
+  `subscription-resolver.test.ts`, `records-usage.reader.test.ts` (including
+  the "throws for an unmetered dimension" case) — `apps/api` is up to 39
+  tests from 28. All green
+  (install/lint/typecheck/test/build).
+
+  **Two lint fights worth recording for the next run touching NestJS
+  guards:** `Reflector.get(key, target)` is untyped (`any`) unless called
+  with an explicit generic — `this.reflector.get<ModuleKey | undefined>(...)`
+  — or `@typescript-eslint/no-unsafe-assignment` fires on the result.
+  Referencing a class's own methods as bare function values for a fake
+  `ExecutionContext` in the guard's test (`controller.moduleGated` as a
+  handler reference) trips `@typescript-eslint/unbound-method` even though
+  none of the methods touch `this` — fixed by declaring `this: void` on each
+  test-double method and reading them off the prototype rather than an
+  instance, which is what the rule is actually asking for, not by
+  disabling the rule.
+
+  **For the next run:** the queue's next unchecked item is the Prisma
+  schema — `HealthDocument`, `HealthObservation`, `DeviceSample`,
+  `Subscription` and usage counters, plus a migration and seed data. Two
+  things this run learned that the next one shouldn't rediscover from
+  scratch: first, `packages/database/prisma/schema.prisma` already exists
+  but models the *pre-pivot* telehealth product (`Document`, `Observation`,
+  `Prescription`, `PharmacyOrder`, `Appointment`, ~50 other models) — it is
+  not a partial version of this task, and this run did not touch it;
+  whether the new models belong in that same schema file (with the stale
+  models pruned or left alone) or a fresh one is a real decision the next
+  run has to make deliberately, not discover by accident. Second, a real
+  `Subscription` table is exactly what `FreeTierSubscriptionResolver`
+  (`apps/api/src/entitlements/subscription-resolver.ts`) names as its own
+  replacement — wiring a real resolver against it is the natural
+  continuation, and at that point every owner stops being hardcoded to
+  `FREE`.
 
 - 2026-08-09 — Built `apps/api`'s records module: capture, list, timeline and
   confirm/correct/reject endpoints over `packages/health-records`, with the

@@ -18,6 +18,7 @@
     "@nestjs/swagger": "11.4.6",
     "@swasthya/care-directory": "workspace:*",
     "@swasthya/clinical-safety": "workspace:*",
+    "@swasthya/entitlements": "workspace:*",
     "@swasthya/health-records": "workspace:*",
     "@swasthya/shared-types": "workspace:*",
     "@swasthya/storage-adapters": "workspace:*",
