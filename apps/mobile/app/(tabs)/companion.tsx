@@ -43,7 +43,7 @@ interface ResearchResult {
 
 export default function CompanionScreen() {
   const params = useLocalSearchParams<{ demo?: string }>();
-  const { language } = useAppState();
+  const { language, captureUtterance } = useAppState();
   const [message, setMessage] = useState(
     params.demo === 'emergency' ? 'मलाई सास फेर्न गाह्रो छ' : '',
   );
@@ -97,6 +97,11 @@ export default function CompanionScreen() {
   const submitQuestion = async () => {
     setSubmitted(true);
     setResearch(null);
+    // language-corpus.md §2: natural phrasing of a symptom is the valuable
+    // signal, independent of what the safety check does with it — so this
+    // runs for every submission, and is a no-op unless MODEL_TRAINING_TEXT
+    // consent is already live (see `captureUtterance` in `app-state.tsx`).
+    captureUtterance({ kind: 'USER_MESSAGE', rawText: message });
     const safety = assessSafety(message);
     if (safety.interruptConversation) return;
     setIsResearching(true);

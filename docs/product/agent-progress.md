@@ -203,7 +203,7 @@ an evaluation set before it needs a trainer.
 - [x] Consent screen in `apps/mobile` and `apps/web`: each purpose separately
       toggleable, default off, plain Nepali explanation of what is kept and
       what is not. **Never bundle these into terms acceptance.**
-- [ ] Wire `retainUtterance` into the companion, gated on a live grant. It
+- [x] Wire `retainUtterance` into the companion, gated on a live grant. It
       throws without one — let it throw rather than catching and dropping.
 - [ ] Capture `CORRECTION` pairs when a person rephrases after the assistant
       misunderstands, and ask there rather than at signup.
@@ -276,6 +276,73 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — **Wired `retainUtterance` into the companion, gated on a live
+  grant (line 206, the first unchecked task — re-derived from a fresh
+  top-to-bottom `grep -n "^- \["`, per the previous entry's own instruction
+  not to trust a "for the next run" pointer).** `apps/mobile` is the only app
+  with a companion screen — `apps/web` has no chat surface, only a marketing
+  mention of the word in its copy — so this task is scoped to
+  `app/(tabs)/companion.tsx` alone.
+
+  **`packages/language-corpus`:** the purpose-for-kind mapping
+  (`USER_MESSAGE`/`CORRECTION` → `MODEL_TRAINING_TEXT`, `VOICE_TRANSCRIPT` →
+  `MODEL_TRAINING_VOICE`) was a private `purposeFor` helper used only inside
+  `retainUtterance` and `buildSnapshot`. A caller now needs the same mapping
+  to gate *before* calling `retainUtterance`, so it is exported as
+  `purposeForUtteranceKind` rather than re-derived by hand at the call site —
+  one source of truth for which purpose governs which kind. One new test
+  covering all three kinds (28 → 29).
+
+  **`apps/mobile/src/lib/local-id.ts`:** `generateLocalOwnerId`'s
+  Date.now-plus-Math.random scheme (documented there: no `crypto.randomUUID`
+  guaranteed on Hermes, `node:crypto` breaks Metro) is exactly what a
+  `CorpusUtterance.id` also needs, so it's now a shared `generateLocalId(prefix)`
+  with `generateLocalOwnerId` and the new `generateUtteranceId` as thin
+  wrappers — not two copies of the same bit-twiddling. Tests extended to
+  cover the new export the same way the old one was covered (4 tests total,
+  up from 2).
+
+  **`apps/mobile/src/state/app-state.tsx`:** added `corpusUtterances` (starts
+  empty, same in-memory-only shape as `facts` and `consentGrants` — this app
+  still has no persistence layer) and `captureUtterance(input)`. The gate is
+  explicit and happens *before* `retainUtterance` is ever called: if
+  `hasPurpose` is false for the utterance's purpose, `captureUtterance` is a
+  silent no-op — the ordinary case for anyone who hasn't opted in, not an
+  error. Once past that gate, the call to `retainUtterance` is bare, no
+  try/catch — per the task's own instruction and the package's own doc
+  comment on why it throws instead of dropping, a throw past this point is a
+  real bug (the two consent checks disagreeing) and must surface, not vanish.
+
+  **`apps/mobile/app/(tabs)/companion.tsx`:** `submitQuestion` now calls
+  `captureUtterance({ kind: 'USER_MESSAGE', rawText: message })` for every
+  submission, before the safety check runs — retention is gated on consent,
+  not on whether the message turned out to be an emergency, since
+  language-corpus.md never draws that distinction and the natural-phrasing
+  signal is the same either way. Voice was deliberately left out: the
+  recorder only keeps audio on-device today (see the screen's own privacy
+  copy, "यो डेमोले उत्तर स्थायी रेकर्डमा राख्दैन") — there is no
+  speech-to-text step producing a `VOICE_TRANSCRIPT` string yet, so wiring
+  `MODEL_TRAINING_VOICE` here would have nothing real to gate.
+
+  **Left for a future run, not this one:** `corpusUtterances` is captured
+  into state and nothing reads it yet — no export, no debug view, no wiring
+  to `buildSnapshot`. That's fine for this task (the ledger item was about
+  *retaining* the utterance, not building a consumer for it) but worth
+  knowing so nobody goes looking for a UI that shows captured utterances and
+  concludes something is broken when there isn't one.
+
+  Verified: `pnpm install --frozen-lockfile`, `pnpm --filter
+  @swasthya/language-corpus build` (apps/web resolves the package through
+  `dist/`, same gotcha the previous run hit), `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` (`@swasthya/language-corpus` 28 → 29, `@swasthya/mobile`'s
+  `local-id.test.ts` 2 → 4, every other package's count unchanged — no new
+  test file for `app-state.tsx` or `companion.tsx` themselves, matching this
+  repo's own convention that state files and screen components go untested
+  while the pure logic underneath them does not), `pnpm build` (mobile's
+  `/companion` and `/(tabs)/companion` routes still export cleanly), all
+  green on a full sequential run from a clean `pnpm install
+  --frozen-lockfile`.
 
 - 2026-08-09 — **Process correction, then built the actual first unchecked
   task: the consent screen in `apps/mobile` and `apps/web`.** Before touching

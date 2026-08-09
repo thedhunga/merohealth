@@ -231,7 +231,12 @@ export class CorpusConsentError extends Error {
   }
 }
 
-function purposeFor(kind: UtteranceKind): ConsentPurpose {
+/**
+ * Which consent purpose governs a given utterance kind. Exported so a caller
+ * (the companion screen, before it ever calls `retainUtterance`) can gate on
+ * the right purpose itself rather than re-deriving this mapping by hand.
+ */
+export function purposeForUtteranceKind(kind: UtteranceKind): ConsentPurpose {
   return kind === 'VOICE_TRANSCRIPT' ? 'MODEL_TRAINING_VOICE' : 'MODEL_TRAINING_TEXT';
 }
 
@@ -257,7 +262,7 @@ export function retainUtterance(
   input: RetainInput,
   grants: readonly ConsentGrant[],
 ): CorpusUtterance {
-  const purpose = purposeFor(input.kind);
+  const purpose = purposeForUtteranceKind(input.kind);
   if (!hasPurpose(grants, purpose, input.capturedAt)) {
     throw new CorpusConsentError(purpose);
   }
@@ -315,7 +320,7 @@ export function buildSnapshot(
 
   for (const utterance of utterances) {
     const grants = grantsByOwner.get(utterance.ownerId) ?? [];
-    if (!hasPurpose(grants, purposeFor(utterance.kind), takenAt)) {
+    if (!hasPurpose(grants, purposeForUtteranceKind(utterance.kind), takenAt)) {
       consentRevoked += 1;
       continue;
     }

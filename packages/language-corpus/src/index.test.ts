@@ -9,6 +9,7 @@ import {
   hasPurpose,
   isLive,
   optionalPurposes,
+  purposeForUtteranceKind,
   retainUtterance,
   revokeConsent,
   utteranceIdsForOwner,
@@ -164,6 +165,14 @@ describe('deidentify', () => {
   it('is stable across repeated calls, despite module-level /g regexes', () => {
     const input = 'call 9841234567';
     expect(deidentify(input).text).toBe(deidentify(input).text);
+  });
+});
+
+describe('purposeForUtteranceKind', () => {
+  it('routes voice transcripts to the voice purpose and everything else to text', () => {
+    expect(purposeForUtteranceKind('VOICE_TRANSCRIPT')).toBe('MODEL_TRAINING_VOICE');
+    expect(purposeForUtteranceKind('USER_MESSAGE')).toBe('MODEL_TRAINING_TEXT');
+    expect(purposeForUtteranceKind('CORRECTION')).toBe('MODEL_TRAINING_TEXT');
   });
 });
 
