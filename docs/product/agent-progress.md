@@ -157,7 +157,7 @@ work.
       `compose.yaml`, implementing `HealthDocumentStore`.
 - [x] Google Drive adapter: OAuth, an app-scoped folder, and client-side
       encryption so stored bytes stay opaque to the server.
-- [ ] `packages/interop`: FHIR R4 mapping for documents and observations, a
+- [x] `packages/interop`: FHIR R4 mapping for documents and observations, a
       record export bundle (PDF + JSON), and a revocable, time-limited share
       link.
 - [ ] `packages/devices`: normalisation for Health Connect and HealthKit
@@ -252,6 +252,138 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — Built `packages/interop`: FHIR R4 mapping, the JSON/PDF export
+  bundle, and a revocable time-limited share link. First task in "Platform
+  core" that is a pure domain package rather than `apps/api` wiring — matches
+  `health-records`' shape (logic lives directly in `index.ts`, a colocated
+  test beside it), not `storage-adapters`' port-plus-adapters shape, because
+  this task's bullet never mentions `apps/api`, the same signal that made
+  earlier package-only tasks (`health-records`, `entitlements`) skip wiring
+  too.
+
+  **The three deliverables share one engine, deliberately.** `platform-vision.md`
+  §3.3 says modelling to FHIR internally "costs little and makes step 4
+  mechanical" — this run leaned on that directly: `buildFhirExportBundle`
+  (JSON) is the FHIR mapping applied to a document/observation set, and
+  `resolveSharedBundle` is the same function applied to a share link's scoped
+  subset. A share link doesn't carry its own export logic; it just narrows the
+  input before handing it to the same builder. One consequence worth naming:
+  `resolveSharedBundle` re-derives the bundle from current `documents`/
+  `observations` on every call rather than freezing one at issue time, so a
+  document deleted or an observation corrected after a link is issued is
+  reflected the next time the link is opened — the link grants access to the
+  current trusted record, not a snapshot. If a future run wants frozen
+  snapshots instead, that's a deliberate reversal of this choice, not a bug.
+
+  **"Only trusted observations are reasoned over" enforced twice, on purpose.**
+  `buildFhirExportBundle` calls `selectTrusted` before mapping anything, and
+  `toFhirObservation` itself throws `UntrustedObservationError` for a
+  DRAFT/REJECTED observation regardless of who calls it — same
+  defence-in-depth shape as `assertPlacementAllowed` in `storage-adapters`,
+  so a future caller that forgets to pre-filter still can't leak a draft
+  through this path. Verified concretely, not just asserted: a scratch script
+  built a bundle from one CONFIRMED and one DRAFT observation and printed the
+  JSON — the DRAFT never appears in the output (see below).
+
+  **Document-type and clinical codes: named what could not be verified rather
+  than guessing.** FHIR has real LOINC codes for some document types (e.g.
+  discharge summaries), but this run could not confirm a correct code for
+  every `HealthDocumentKind` with certainty, so `toFhirDocumentReference`
+  emits `type: { text: ... }` with no `coding` at all rather than a coding
+  that might be wrong — the "invent no facts" constraint applied to a wrong
+  clinical code exactly as it would to a wrong statistic. Similarly,
+  `abnormalFlag: 'CRITICAL'` maps to the HL7 v3 interpretation code `AA`
+  ("critical abnormal"), not `HH`/`LL` ("critical high"/"critical low") --
+  the domain type doesn't record which direction a critical value went, so
+  asserting a direction would be inventing one.
+
+  **A real, unglamorous technical limit, named rather than hidden:** `pdf-lib`'s
+  standard 14 fonts only support WinAnsi (Latin-1-ish) encoding, and this repo
+  has no embedded Devanagari font to hand `pdf-lib`'s `fontkit` integration, so
+  a Nepali title or label would make `drawText` throw mid-export. Rather than
+  crash or silently drop the record, `export-pdf.ts`'s `pdfSafeText` strips
+  characters above U+00FF and appends a visible `[+ non-Latin text omitted]`
+  marker — the PDF degrades legibly, and the parallel JSON/FHIR export (which
+  has no such constraint) still carries the untouched Unicode text, so nothing
+  is actually lost, only the printed rendering. A future run embedding a
+  Mukta/Devanagari font via `fontkit` removes this limitation entirely; until
+  then, exported PDFs are effectively English-only regardless of the person's
+  locale, which is worth knowing before anyone hands one to a Nepali-speaking
+  clinician expecting Devanagari labels.
+
+  **New dependency: `pdf-lib` 1.17.1**, added to `packages/interop` only. Pure
+  JS/TS, no native bindings, MIT-licensed, ~1M weekly downloads — checked
+  against the same bar the Google Drive run used to reject a single-maintainer
+  mock package, this cleared it easily. Kept off the `react-native` export
+  condition on purpose: `pdf-lib`'s RN compatibility is unverified in this
+  repo and there is no mobile PDF-export flow yet to prove it, so
+  `export-pdf.ts` only ships via a second export, `@swasthya/interop/pdf`
+  (mirrors `storage-adapters`' `/hosted` split for the same reason: keep the
+  root `.` export exactly as RN-safe as it was, don't bet an unverified
+  assumption against Metro bundling until something actually needs it there).
+  The root `.` export (FHIR mapping, share links, JSON bundle) has zero Node
+  imports and stays RN-safe.
+
+  **One real debugging detour, resolved rather than routed around:** `Buffer`
+  was unresolvable (`TS2591`) in `export-pdf.test.ts` despite `@types/node`
+  being correctly installed and symlinked into `packages/interop/node_modules/
+  @types/node` — confirmed identical tsconfig structure, identical `@types/node`
+  version and resolution path to `storage-adapters`, which has no such problem.
+  Best working theory: `storage-adapters`' files explicitly `import` from
+  `node:crypto`, which pulls `@types/node` in via normal module resolution
+  regardless of automatic type-acquisition; `packages/interop`'s only Node-only
+  file imports nothing with a `node:` specifier (`pdf-lib` is a plain package,
+  not a Node built-in), so it depended entirely on automatic global inclusion,
+  which did not fire for reasons this run could not fully pin down. Fixed with
+  an explicit `"types": ["node"]` in `packages/interop/tsconfig.json` — a
+  common, well-understood fix for exactly this class of pnpm-workspace
+  TypeScript issue, not a suppression of a real error.
+
+  **Verified past the unit tests, same standard the storage-adapter runs set:**
+  built the package and ran the compiled `dist/index.js` and `dist/export-pdf.js`
+  from a scratch script against realistic data (one CONFIRMED observation, one
+  DRAFT). Confirmed in the printed JSON: the DRAFT observation never appears;
+  the FHIR `Observation` for the CONFIRMED one carries the right LOINC coding,
+  `valueQuantity`, `referenceRange`, and `interpretation.coding.code: "H"` for
+  its HIGH flag. Confirmed the share link scoped to one document excludes an
+  unrelated second document's observation. Then went one step further on the
+  PDF specifically: inflated its FlateDecode content stream by hand (`zlib`)
+  and decoded the hex-encoded `Tj` text-showing operators back to ASCII —
+  found the literal string `"- Creatinine: 1.4 mg/dL (ref 0.7-1.3) [HIGH]"` in
+  the decompressed page content, i.e. real, correctly-formatted text is
+  actually drawn on the page, not just a structurally-valid empty PDF.
+
+  New tests: `index.test.ts` (26 cases — FHIR document/observation mapping,
+  the untrusted-observation guard, bundle filtering, share link issue/revoke/
+  expiry/scope, `InMemoryShareLinkStore`) and `export-pdf.test.ts` (5 cases —
+  valid-PDF round trip via `PDFDocument.load`, deleted-document exclusion,
+  DRAFT/REJECTED exclusion, Devanagari title does not throw, pagination once
+  content overflows a page). `packages/interop` is a new package, so these are
+  31 tests from zero, not a delta.
+
+  Verified: `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` (25/25 turbo tasks, `@swasthya/interop` contributing 31 new
+  tests; every pre-existing package's test count unchanged), `pnpm build`,
+  all green. (`pnpm format:check` was not part of this run's gate — it is
+  already failing across ~106 pre-existing files repo-wide, confirmed by
+  checking that untouched packages like `health-records` appear in its output
+  too, so this is a pre-existing gap this task did not create and does not fix.)
+
+  **For the next run:** this task's own bullet named `apps/api` nowhere, so —
+  same as `health-records` and `entitlements` before their own guard/wiring
+  tasks — nothing here is reachable over HTTP yet. The next unchecked queue
+  item is `packages/devices` (Health Connect/HealthKit normalisation into
+  `DeviceSample`), which does not depend on this run. If a future run instead
+  wants to wire this package into `apps/api` (an export-bundle endpoint, a
+  share-link create/resolve/revoke endpoint), two real gaps to know about
+  first: (1) `InMemoryShareLinkStore` is the only `ShareLinkStore`
+  implementation — a durable one needs the same `HealthDocument`/
+  `Subscription` treatment the Prisma-schema run gave everything else, and (2)
+  there is still no identity/auth layer anywhere in this repo (the same gap
+  every prior run touching `apps/api` has named), so an HTTP endpoint that
+  issues a share link would need to decide, honestly, who is allowed to ask
+  for one on an owner's behalf — not something to default silently.
 
 - 2026-08-09 — Built the Google Drive adapter: `GoogleDriveDocumentStore` and
   `GoogleOAuthTokenProvider` in `packages/storage-adapters`, implementing
