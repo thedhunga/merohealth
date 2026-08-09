@@ -160,7 +160,7 @@ work.
 - [x] `packages/interop`: FHIR R4 mapping for documents and observations, a
       record export bundle (PDF + JSON), and a revocable, time-limited share
       link.
-- [ ] `packages/devices`: normalisation for Health Connect and HealthKit
+- [x] `packages/devices`: normalisation for Health Connect and HealthKit
       samples into `DeviceSample`.
 - [ ] `apps/mobile`: document capture flow — camera, review, upload, and the
       confirmation queue driven by `pendingConfirmations`.
@@ -252,6 +252,120 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-09 — Built `packages/devices`: normalisation for Health Connect
+  (Android) and HealthKit (iOS) wearable records into `DeviceSample`. First
+  "Platform core" package that constructs new domain objects from external
+  input rather than transforming existing ones — `health-records` and
+  `interop` both operate on `HealthDocument`/`HealthObservation` that already
+  exist; this one has to decide, for the first time in this codebase, how a
+  raw platform reading becomes a `DeviceSample`.
+
+  **A real type-shape problem, not glossed over:** `DeviceSample` carries one
+  `value: number`, but a blood pressure reading is inherently two numbers
+  (systolic/diastolic) — and both source platforms actually agree with that:
+  Health Connect's `BloodPressureRecord` has two fields, HealthKit represents
+  a reading as two separately-typed, correlated `HKQuantitySample`s. The old
+  single `DeviceMetricKind.BLOOD_PRESSURE` in `packages/shared-types` could
+  not have been normalised into correctly without inventing a shape (cramming
+  two numbers into one `value`, or lying about which one is stored). Grepped
+  first to confirm nothing in the repo reads `DeviceMetricKind` or
+  `DeviceSample` yet except the type definitions and the Prisma seed (one
+  `STEPS` row) — so this was a safe, load-bearing type change, not a
+  retrofit — and replaced `BLOOD_PRESSURE` with
+  `BLOOD_PRESSURE_SYSTOLIC`/`BLOOD_PRESSURE_DIASTOLIC` in `shared-types`.
+  `Prisma`'s `DeviceSample.kind` column is a plain `String` (no enum
+  constraint, matching every other categorical field in that schema), so this
+  needed no migration. A systolic/diastolic pair now shares `recordedAt` and
+  is meant to be re-paired by a reader, not merged into one row — documented
+  on the type itself so a future consumer doesn't have to rediscover why
+  there are two kinds.
+
+  **Id generation deliberately left out, on the same precedent
+  `records.service.ts` already set** for `HealthDocument`: `randomUUID()` is
+  called at the repository/service layer, not inside the pure domain
+  package, and this task's own bullet never mentions `apps/api`. So
+  `normalizeHealthConnectRecord`/`normalizeHealthKitSample` return
+  `NormalizedDeviceSample` (`Omit<DeviceSample, 'id'>` plus a
+  `sourceRecordId`) rather than a full `DeviceSample` — assigning an id here
+  would mean either calling `node:crypto` (breaking Metro/React Native
+  bundling, the same constraint `storage-adapters` split its Node-only code
+  around) or fabricating one, neither of which is this package's job.
+  `sourceRecordId` carries the platform's own record/sample id forward
+  instead — Health Connect's `metadata.id` and HealthKit's `HKObject.uuid`
+  are both real per-record UUIDs already, so a future repository has a ready
+  idempotency key for re-synced data without this package inventing one.
+
+  **Raw record shapes are real platform API surface, checked against training
+  knowledge of the actual SDKs, not invented:** Health Connect's record class
+  names and fields (`StepsRecord.count`, `HeartRateRecord.samples[].
+  beatsPerMinute`, `SleepSessionRecord.stages[].stage`, etc.) and HealthKit's
+  stable `HKQuantityTypeIdentifier`/`HKCategoryTypeIdentifier` string
+  constants and `HKObject.uuid` are Apple's and Android's own public,
+  documented identifiers — using them as the discriminant a JS bridge would
+  report records under is representing an SDK shape, not asserting a clinical
+  fact, so this doesn't trip the "invent no facts" constraint the way a
+  fabricated statistic or clinical code would. Two platform quirks worth a
+  future run knowing: HealthKit's `HKUnit.percent()` reports oxygen
+  saturation as a 0.0–1.0 fraction, not 0–100 (handled via an explicit
+  `isFraction` flag on the input type rather than guessing from magnitude);
+  and `HKCategoryValueSleepAnalysis` versus Health Connect's sleep stage enum
+  don't line up 1:1, so both are normalised through the same rule — sum only
+  genuinely-asleep stages/values, drop `AWAKE`/`INBED`/`OUT_OF_BED`/`UNKNOWN`
+  — rather than pretending they're the same enum.
+
+  **Canonical units chosen from precedent already in this repo, not
+  arbitrarily:** `mg/dL` for blood glucose matches the unit already used in
+  `packages/health-records`' and `packages/interop`'s own test fixtures for
+  lab-panel analytes; `steps` for step count matches the Prisma seed row that
+  predates this run. Conversions applied (mmol/L↔mg/dL for glucose, kg↔lb,
+  °C↔°F, HealthKit's saturation fraction↔percent) all use published,
+  checkable physical constants (glucose's 18.0182 mg/dL-per-mmol/L factor
+  from its molar mass, the exact 0.45359237 kg avoirdupois pound) — commented
+  inline with where the number comes from, same "cite it or don't assert it"
+  standard the standing constraints apply to statistics.
+
+  **Malformed input throws rather than silently storing garbage:**
+  `InvalidDeviceRecordError` for a non-finite reading or an end-before-start
+  window, `UnsupportedDeviceRecordError` (backed by a TypeScript exhaustive
+  switch, so a new record type added to either union without a matching
+  `case` is a compile error, not a silent fallthrough) for a record type this
+  package doesn't recognise. Both are real trust-boundary decisions — this
+  package is the first thing to touch data that crossed a native bridge from
+  a wearable — not defensive scaffolding for inputs that can't happen.
+
+  New package `packages/devices`, mirrors `health-records`' shape exactly
+  (root export used directly by both `apps/api` and `apps/mobile`, no
+  `node:`-anything so no export-condition split was needed — pure arithmetic
+  and `Date.parse`, nothing Metro can't bundle). New tests: `index.test.ts`
+  (26 cases — one per `DeviceMetricKind` per platform, the sleep-stage
+  filter, the blood-pressure split sharing `recordedAt`, both unit
+  conversions each way, the two error paths, device-label composition).
+  Verified past the unit tests: built the package and ran
+  `dist/index.js` directly against a realistic blood-pressure record (with a
+  device label) and a mmol/L glucose reading, and confirmed an unrecognised
+  `recordType` throws through the compiled output, not just the TS source.
+
+  Verified: `pnpm install` (new workspace member, lockfile updated — confirmed
+  `--frozen-lockfile` passes clean afterward), `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` (26/26 tasks green; `@swasthya/devices` contributing 26 new
+  tests from zero; every other package's test count unchanged, confirming the
+  `DeviceMetricKind` rename broke nothing downstream), `pnpm build`, all
+  green.
+
+  **For the next run:** the queue's next unchecked item is `apps/mobile`'s
+  document capture flow (camera, review, upload, confirmation queue driven by
+  `pendingConfirmations`) — unrelated to this run, this package has no mobile
+  UI. If a future run instead wants to build the device *sync* flow this
+  package enables: nothing calls `normalizeHealthConnectRecord`/
+  `normalizeHealthKitSample` yet, so wiring needs (1) an `apps/mobile` bridge
+  that actually reads from Health Connect/HealthKit (this package assumes
+  that bridge's output shape but doesn't provide it — no such native module
+  is installed in this repo yet), and (2) an `apps/api` endpoint plus a
+  `DeviceSample` repository to receive and dedupe (via `sourceRecordId`) what
+  this package produces, the same shape `RecordsRepository` already set for
+  documents. Neither exists yet; naming both here so neither is discovered by
+  accident.
 
 - 2026-08-09 — Built `packages/interop`: FHIR R4 mapping, the JSON/PDF export
   bundle, and a revocable time-limited share link. First task in "Platform

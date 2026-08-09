@@ -137,10 +137,20 @@ export interface HealthObservation {
  * Devices and wearables
  * ------------------------------------------------------------------ */
 
+/**
+ * `BLOOD_PRESSURE_SYSTOLIC`/`BLOOD_PRESSURE_DIASTOLIC` are two kinds, not one,
+ * because `DeviceSample` carries a single numeric `value` — the same shape
+ * both source platforms actually use internally (Health Connect's
+ * `BloodPressureRecord` has two fields; HealthKit represents a reading as two
+ * correlated `HKQuantitySample`s, one per identifier). A systolic/diastolic
+ * pair shares `recordedAt` and is meant to be re-paired by a reader, not
+ * merged into one row here.
+ */
 export type DeviceMetricKind =
   | 'STEPS' | 'HEART_RATE' | 'RESTING_HEART_RATE' | 'SLEEP_DURATION'
-  | 'BLOOD_OXYGEN' | 'BLOOD_GLUCOSE' | 'BLOOD_PRESSURE' | 'BODY_WEIGHT'
-  | 'BODY_TEMPERATURE' | 'RESPIRATORY_RATE';
+  | 'BLOOD_OXYGEN' | 'BLOOD_GLUCOSE'
+  | 'BLOOD_PRESSURE_SYSTOLIC' | 'BLOOD_PRESSURE_DIASTOLIC'
+  | 'BODY_WEIGHT' | 'BODY_TEMPERATURE' | 'RESPIRATORY_RATE';
 
 export type DeviceSource = 'HEALTH_CONNECT' | 'HEALTH_KIT' | 'MANUAL' | 'PARTNER_API';
 
