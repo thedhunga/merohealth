@@ -155,7 +155,7 @@ Design in
       **separate state machines** — a competent grandmother is not a
       dependent. Guardianship carries a mandatory expiry and a transition at
       18.
-- [ ] Scoped delegation: `VIEW_RECORD`, `ASK_ASSISTANT`,
+- [x] Scoped delegation: `VIEW_RECORD`, `ASK_ASSISTANT`,
       `MANAGE_APPOINTMENTS`, `UPLOAD_DOCUMENTS` granted independently.
       Booking an appointment must not require reading mental-health notes.
 - [ ] Assisted enrolment, recording **how** consent was obtained
@@ -389,6 +389,70 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task C2: scoped delegation.** First unchecked
+  task after C1. The previous run's own log note already spelled out the
+  plan — add `scopes: readonly DelegationScope[]` to `DelegationGrant` and a
+  `hasScope(grant, scope, now)` guard — so this run followed it rather than
+  re-deriving it.
+
+  **What was built.** `DelegationScope` — `VIEW_RECORD` | `ASK_ASSISTANT` |
+  `MANAGE_APPOINTMENTS` | `UPLOAD_DOCUMENTS`, the four names in
+  family-and-proxy.md §2, no fifth invented. `DelegationGrant` gained a
+  `scopes: readonly DelegationScope[]` field; `grantDelegation` now takes a
+  `scopes` parameter (inserted between `delegateId` and `grantedAt`, so every
+  existing call site needed updating — all were in this package's own test
+  file, nothing else in the repo constructs a `DelegationGrant` yet, matching
+  C1's note that the package is still unwired). Added
+  `EmptyDelegationScopeError`, thrown when `scopes` is `[]` — not named in
+  the design doc, but "a delegation that grants nothing" is a contradiction
+  in terms, and the codebase's existing pattern (`InvalidDelegationExpiryError`,
+  `WardAlreadyOfAgeError`) is to reject constructions that would be
+  meaningless rather than silently accept them, so this follows that
+  precedent rather than adding a new one. `hasScope(grant, scope, now)`
+  composes `isDelegationActive` with `scopes.includes(scope)` — a scope
+  that's technically in the array still returns `false` once the grant has
+  expired or been revoked, so a caller can't get this right by checking
+  scope membership alone and forgetting liveness, the same shape as every
+  other guard in this package.
+
+  **What this does and doesn't prove.** §2's actual requirement — "booking an
+  appointment must not require reading mental-health notes" — is now
+  representable and covered directly: a grant holding only
+  `MANAGE_APPOINTMENTS` returns `false` from `hasScope(grant, 'VIEW_RECORD',
+  now)`. What it does not yet do is enforce anything, because nothing calls
+  `hasScope` outside this package's own tests — there is still no
+  appointments module, no records route, and no UI that checks a delegation
+  before acting. That enforcement is real future work, not something to fake
+  a landing spot for now, same reasoning C1 gave for not inventing a call
+  site.
+
+  **Tests.** `packages/family/src/index.test.ts`, 16 tests (up from 11):
+  updated all five existing delegation tests for the new `scopes` parameter,
+  added a rejection test for `[]`, and a new `describe('delegation scopes')`
+  block — independent grant (appointments without record access, and the
+  reverse), holding more than one scope at once, and losing a held scope on
+  expiry and on revocation.
+
+  **Verify.** Full sequence green from the repository root:
+  `pnpm install --frozen-lockfile` (no lockfile change — no new dependency),
+  `pnpm lint` (31/31), `pnpm typecheck` (31/31), `pnpm test` (55/55 tasks,
+  `@swasthya/family` now 16 tests, every other package's count unchanged),
+  `pnpm build` (31/31).
+
+  **For the next run:** §C's next unchecked item is assisted enrolment —
+  recording **how** consent was obtained (`IN_PERSON_VERBAL`, `WITNESSED`,
+  `CLINICIAN_ATTESTED`, `WRITTEN`), never displaying a delegated relationship
+  as self-enrolment, and revocation working through a channel that doesn't
+  require the app. Read family-and-proxy.md §3 again before starting — it's
+  the "hard case" section and the consent-provenance requirement is easy to
+  under-build. Separately: the two `describe.todo`s blocked on
+  `packages/family` (`cross-subject-leakage.test.ts` and
+  `packages/evaluation/src/index.test.ts`) are still blocked — scopes alone
+  don't unblock them, since nothing yet constructs a `DelegationGrant`
+  outside this package or checks `hasScope` against a real subject/record
+  pair; they likely stay blocked until an `apps/api` route actually consumes
+  delegation, which isn't scheduled until later in §C.
 
 - 2026-08-10 — **Round two, task C1: `packages/family` — guardianship and
   delegation, modelled as two separate state machines.** First unchecked

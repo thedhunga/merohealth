@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  EmptyDelegationScopeError,
   InvalidDelegationExpiryError,
   InvalidGuardianshipExpiryError,
   SelfDelegationError,
@@ -9,6 +10,7 @@ import {
   grantGuardianshipForIncapacity,
   grantGuardianshipForMinor,
   guardianshipExpiryForMinor,
+  hasScope,
   isDelegationActive,
   isGuardianshipActive,
   revokeDelegation,
@@ -108,12 +110,20 @@ describe('guardianship — incapacity', () => {
 
 describe('delegation', () => {
   it('grants a time-bounded, revocable relationship distinct from guardianship — the delegate never gains a grounds field', () => {
-    const grant = grantDelegation('d-1', 'janaki', 'arjun', '2026-08-10T00:00:00.000Z', '2026-11-10T00:00:00.000Z');
+    const grant = grantDelegation(
+      'd-1',
+      'janaki',
+      'arjun',
+      ['MANAGE_APPOINTMENTS'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+    );
 
     expect(grant).toEqual({
       id: 'd-1',
       granterId: 'janaki',
       delegateId: 'arjun',
+      scopes: ['MANAGE_APPOINTMENTS'],
       grantedAt: '2026-08-10T00:00:00.000Z',
       expiresAt: '2026-11-10T00:00:00.000Z',
       revokedAt: null,
@@ -123,18 +133,45 @@ describe('delegation', () => {
 
   it('refuses self-delegation — a competent grandmother is not a dependent of herself either', () => {
     expect(() =>
-      grantDelegation('d-1', 'janaki', 'janaki', '2026-08-10T00:00:00.000Z', '2026-11-10T00:00:00.000Z'),
+      grantDelegation(
+        'd-1',
+        'janaki',
+        'janaki',
+        ['VIEW_RECORD'],
+        '2026-08-10T00:00:00.000Z',
+        '2026-11-10T00:00:00.000Z',
+      ),
     ).toThrow(SelfDelegationError);
+  });
+
+  it('refuses a delegation with no scopes — granting nothing is not a delegation', () => {
+    expect(() =>
+      grantDelegation('d-1', 'janaki', 'arjun', [], '2026-08-10T00:00:00.000Z', '2026-11-10T00:00:00.000Z'),
+    ).toThrow(EmptyDelegationScopeError);
   });
 
   it('rejects an expiry at or before the grant, same invariant as guardianship', () => {
     expect(() =>
-      grantDelegation('d-1', 'janaki', 'arjun', '2026-08-10T00:00:00.000Z', '2026-08-10T00:00:00.000Z'),
+      grantDelegation(
+        'd-1',
+        'janaki',
+        'arjun',
+        ['VIEW_RECORD'],
+        '2026-08-10T00:00:00.000Z',
+        '2026-08-10T00:00:00.000Z',
+      ),
     ).toThrow(InvalidDelegationExpiryError);
   });
 
   it('is active only between grantedAt and expiresAt, and lapses on its own without a revoke', () => {
-    const grant = grantDelegation('d-1', 'janaki', 'arjun', '2026-08-10T00:00:00.000Z', '2026-11-10T00:00:00.000Z');
+    const grant = grantDelegation(
+      'd-1',
+      'janaki',
+      'arjun',
+      ['VIEW_RECORD'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+    );
 
     expect(isDelegationActive(grant, '2026-08-09T00:00:00.000Z')).toBe(false);
     expect(isDelegationActive(grant, '2026-09-01T00:00:00.000Z')).toBe(true);
@@ -142,12 +179,81 @@ describe('delegation', () => {
   });
 
   it('revokeDelegation ends access before the natural expiry and is idempotent', () => {
-    const grant = grantDelegation('d-1', 'janaki', 'arjun', '2026-08-10T00:00:00.000Z', '2026-11-10T00:00:00.000Z');
+    const grant = grantDelegation(
+      'd-1',
+      'janaki',
+      'arjun',
+      ['VIEW_RECORD'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+    );
 
     const revoked = revokeDelegation(grant, '2026-09-01T00:00:00.000Z');
     expect(isDelegationActive(revoked, '2026-09-15T00:00:00.000Z')).toBe(false);
 
     const revokedAgain = revokeDelegation(revoked, '2026-10-01T00:00:00.000Z');
     expect(revokedAgain.revokedAt).toBe('2026-09-01T00:00:00.000Z');
+  });
+});
+
+describe('delegation scopes', () => {
+  it('grants scopes independently — MANAGE_APPOINTMENTS without VIEW_RECORD does not imply record access', () => {
+    // family-and-proxy.md §2: "Booking an appointment must not require
+    // reading her mental-health notes."
+    const grant = grantDelegation(
+      'd-2',
+      'janaki',
+      'arjun',
+      ['MANAGE_APPOINTMENTS'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+    );
+
+    expect(hasScope(grant, 'MANAGE_APPOINTMENTS', '2026-09-01T00:00:00.000Z')).toBe(true);
+    expect(hasScope(grant, 'VIEW_RECORD', '2026-09-01T00:00:00.000Z')).toBe(false);
+    expect(hasScope(grant, 'ASK_ASSISTANT', '2026-09-01T00:00:00.000Z')).toBe(false);
+    expect(hasScope(grant, 'UPLOAD_DOCUMENTS', '2026-09-01T00:00:00.000Z')).toBe(false);
+  });
+
+  it('a delegate may hold more than one scope at once', () => {
+    const grant = grantDelegation(
+      'd-2',
+      'janaki',
+      'arjun',
+      ['VIEW_RECORD', 'ASK_ASSISTANT'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+    );
+
+    expect(hasScope(grant, 'VIEW_RECORD', '2026-09-01T00:00:00.000Z')).toBe(true);
+    expect(hasScope(grant, 'ASK_ASSISTANT', '2026-09-01T00:00:00.000Z')).toBe(true);
+    expect(hasScope(grant, 'UPLOAD_DOCUMENTS', '2026-09-01T00:00:00.000Z')).toBe(false);
+  });
+
+  it('a held scope stops counting once the grant expires — scope membership alone is not enough', () => {
+    const grant = grantDelegation(
+      'd-2',
+      'janaki',
+      'arjun',
+      ['VIEW_RECORD'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+    );
+
+    expect(hasScope(grant, 'VIEW_RECORD', '2026-11-10T00:00:00.000Z')).toBe(false);
+  });
+
+  it('a held scope stops counting once the grant is revoked', () => {
+    const grant = grantDelegation(
+      'd-2',
+      'janaki',
+      'arjun',
+      ['UPLOAD_DOCUMENTS'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+    );
+    const revoked = revokeDelegation(grant, '2026-09-01T00:00:00.000Z');
+
+    expect(hasScope(revoked, 'UPLOAD_DOCUMENTS', '2026-09-15T00:00:00.000Z')).toBe(false);
   });
 });

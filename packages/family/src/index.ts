@@ -15,12 +15,9 @@
  * separate types with no shared base and no function that accepts either
  * interchangeably.
  *
- * Deliberately not in this file: the four independently-grantable
- * delegation scopes (`VIEW_RECORD` / `ASK_ASSISTANT` /
- * `MANAGE_APPOINTMENTS` / `UPLOAD_DOCUMENTS`, queue's next bullet, "Scoped
- * delegation"), assisted enrolment and its consent-method provenance
- * (queue bullet after that), the owner-visible access log, and family
- * history assertions. Each is its own queue item and its own task.
+ * Deliberately not in this file: assisted enrolment and its consent-method
+ * provenance (`IN_PERSON_VERBAL` etc.), the owner-visible access log, and
+ * family history assertions. Each is its own queue item and its own task.
  */
 
 /* ------------------------------------------------------------------ *
@@ -137,7 +134,22 @@ export function isGuardianshipActive(grant: GuardianshipGrant, now: string): boo
  * persisting forever"), so `expiresAt` is required here too, though — unlike
  * guardianship — nothing in the design names a specific duration, so the
  * caller supplies it.
+ *
+ * §2 also requires the grant itself to be scoped — "booking an appointment
+ * does not require reading her mental-health notes" — so unlike
+ * `GuardianshipGrant` (full access, nothing narrower to check), a
+ * `DelegationGrant` carries the exact set of `DelegationScope`s it was given.
+ * There is deliberately no route or UI checking `hasScope` yet: nothing in
+ * the repo grants access to a record, an appointment or a document upload by
+ * delegation today, so there is no real call site to wire this into. Adding
+ * one now would mean fabricating an enforcement point that doesn't exist.
  * ------------------------------------------------------------------ */
+
+/**
+ * The four scopes named in family-and-proxy.md §2, granted independently —
+ * a delegate may hold any non-empty subset, not all-or-nothing.
+ */
+export type DelegationScope = 'VIEW_RECORD' | 'ASK_ASSISTANT' | 'MANAGE_APPOINTMENTS' | 'UPLOAD_DOCUMENTS';
 
 export interface DelegationGrant {
   id: string;
@@ -145,6 +157,8 @@ export interface DelegationGrant {
   granterId: string;
   /** Who is granted access. */
   delegateId: string;
+  /** What the delegate may do. Never empty — a delegation that grants nothing is not a delegation. */
+  scopes: readonly DelegationScope[];
   grantedAt: string;
   expiresAt: string;
   /** Set the moment she revokes. §2: must work through any channel, not only the app — that is a caller concern, not this function's. */
@@ -165,16 +179,25 @@ export class InvalidDelegationExpiryError extends Error {
   }
 }
 
+export class EmptyDelegationScopeError extends Error {
+  constructor(granterId: string, delegateId: string) {
+    super(`Delegation from ${granterId} to ${delegateId} must grant at least one scope`);
+    this.name = 'EmptyDelegationScopeError';
+  }
+}
+
 export function grantDelegation(
   id: string,
   granterId: string,
   delegateId: string,
+  scopes: readonly DelegationScope[],
   grantedAt: string,
   expiresAt: string,
 ): DelegationGrant {
   if (granterId === delegateId) throw new SelfDelegationError(granterId);
+  if (scopes.length === 0) throw new EmptyDelegationScopeError(granterId, delegateId);
   if (expiresAt <= grantedAt) throw new InvalidDelegationExpiryError(expiresAt, grantedAt);
-  return { id, granterId, delegateId, grantedAt, expiresAt, revokedAt: null };
+  return { id, granterId, delegateId, scopes, grantedAt, expiresAt, revokedAt: null };
 }
 
 /** Idempotent, same reasoning as `revokeGuardianship`. */
@@ -187,4 +210,15 @@ export function isDelegationActive(grant: DelegationGrant, now: string): boolean
   if (grant.grantedAt > now) return false;
   if (grant.revokedAt !== null && grant.revokedAt <= now) return false;
   return now < grant.expiresAt;
+}
+
+/**
+ * The check a call site is expected to make before letting a delegate act:
+ * the grant must be active *and* carry the specific scope being exercised.
+ * A delegate with `MANAGE_APPOINTMENTS` but not `VIEW_RECORD` still fails
+ * this for a record read — §2's "booking does not require reading notes"
+ * only holds if the two are checked independently, never as one bundle.
+ */
+export function hasScope(grant: DelegationGrant, scope: DelegationScope, now: string): boolean {
+  return isDelegationActive(grant, now) && grant.scopes.includes(scope);
 }
