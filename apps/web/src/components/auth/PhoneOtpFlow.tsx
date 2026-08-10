@@ -5,13 +5,13 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 
 import { RecordTransform } from '@/components/art/RecordTransform';
-import { Button, ButtonLink } from '@/components/ui/Button';
-import { Link } from '@/i18n/navigation';
+import { Button } from '@/components/ui/Button';
+import { Link, useRouter } from '@/i18n/navigation';
 import { PageTemplate } from '@/components/ui/PageTemplate';
 import { Section } from '@/components/ui/Section';
 import { AuthApiError, requestOtp, verifyOtp, type AuthIntent } from '@/lib/auth-api';
 
-type Step = 'phone' | 'code' | 'success';
+type Step = 'phone' | 'code';
 
 const STEP_HEADING_ID = 'auth-step-heading';
 
@@ -31,19 +31,16 @@ const KNOWN_ERROR_CODES = [
   'VALIDATION_ERROR',
 ] as const;
 
-interface Account {
-  phone: string;
-}
-
 /**
  * Phone + OTP — `/signin` and `/register` share this: the two flows differ
  * only in whether a display name is collected up front and which intent is
  * sent to `POST /auth/otp/verify` (identity-and-credentialing.md §2 doesn't
  * distinguish them as separate mechanisms, just separate outcomes for an
- * existing vs. new phone number). There is no authenticated area on
- * `apps/web` yet — the marketing site is the front door, not the product
- * (`docs/architecture/platform-vision.md` §1) — so success ends on a plain
- * confirmation rather than a redirect into a dashboard that does not exist.
+ * existing vs. new phone number). A successful verify leaves a live
+ * `mero_session` cookie (`AuthController.verifyOtp` sets it), so this
+ * redirects straight into `/account` — the protected landing page Round two
+ * §D2 built — instead of the static confirmation panel this used to end on
+ * back when `apps/web` had nowhere authenticated to send anyone.
  */
 export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
   const t = useTranslations(intent === 'REGISTER' ? 'auth.register' : 'auth.signIn');
@@ -51,6 +48,7 @@ export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
   const nav = useTranslations('nav');
   const locale = useLocale() as 'ne' | 'en';
   const baseId = useId();
+  const router = useRouter();
 
   const [step, setStep] = useState<Step>('phone');
   const [phone, setPhone] = useState('');
@@ -58,7 +56,6 @@ export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
   const [code, setCode] = useState('');
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [debugCode, setDebugCode] = useState<string | null>(null);
-  const [account, setAccount] = useState<Account | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -99,7 +96,7 @@ export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
     setError(null);
     setSubmitting(true);
     try {
-      const result = await verifyOtp({
+      await verifyOtp({
         challengeId,
         code,
         phone,
@@ -107,11 +104,12 @@ export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
         ...(intent === 'REGISTER' ? { displayName: displayName.trim() } : {}),
         locale,
       });
-      setAccount({ phone: result.phone });
-      setStep('success');
+      // Leaves `submitting` true rather than resetting it — the form is
+      // about to unmount as the router navigates away, and re-enabling the
+      // button for the instant before that happens would just flash.
+      router.push('/account');
     } catch (err) {
       setError(localizedError(err));
-    } finally {
       setSubmitting(false);
     }
   }
@@ -247,23 +245,6 @@ export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
                 </Button>
               </div>
             </form>
-          ) : null}
-
-          {step === 'success' && account ? (
-            <div className="flex flex-col gap-6">
-              <h2 className="text-2xl font-bold text-ink md:text-3xl" id={STEP_HEADING_ID} ref={headingRef} tabIndex={-1}>
-                {t('success.heading')}
-              </h2>
-              <p className="text-lg text-ink-soft">{t('success.body', { phone: account.phone })}</p>
-              <p className="rounded-2xl bg-sand/70 p-4 text-sm leading-relaxed text-ink-soft ring-1 ring-line">
-                {t('success.noAppNotice')}
-              </p>
-              <div>
-                <ButtonLink href="/" variant="secondary">
-                  {t('success.homeCta')}
-                </ButtonLink>
-              </div>
-            </div>
           ) : null}
         </div>
       </Section>

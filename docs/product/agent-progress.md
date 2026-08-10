@@ -188,7 +188,7 @@ Design in
       only, so the footer's app links 404. Copy `apps/mobile/dist` into
       `apps/web/public/app` during the Vercel build — and do not let a failure
       there break the whole deploy.
-- [ ] `apps/web` authenticated surface: a session hook that calls the
+- [x] `apps/web` authenticated surface: a session hook that calls the
       already-built `GET /auth/me` (apps/api's `auth.controller.ts` is real
       and tested; nothing on the web side ever calls it), a protected landing
       page for `PhoneOtpFlow.tsx`'s success step to redirect into instead of
@@ -407,6 +407,134 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task D2: `apps/web` authenticated surface.**
+  First unchecked task — D1 (serve the Expo build at `/app`) was already
+  checked off by the prior run. This is the item that run itself added to
+  the queue when it closed out C6, so the "what product content does this
+  page show" decision that entry deferred was this run's first job before
+  writing anything.
+
+  **The content decision, made before any code.** Read `PhoneOtpFlow.tsx`,
+  `GET /auth/me`'s actual return shape, and `packages/family` end to end
+  first. Two things ruled out an ordinary "dashboard": `GET /auth/me`
+  returns `userId`/`phone`/`role`/`locale`/`patientProfileId`/
+  `assuranceLevel` and nothing else — no display name lives anywhere the API
+  exposes yet (it's on `PatientProfile.displayName`, never returned) — and
+  `listActiveGuardianshipsFor`/`listActiveDelegationsFor` have **zero
+  callers anywhere in the app code today**, only their own unit tests;
+  `packages/family` has no Prisma-backed store and no `apps/api` route
+  exposes a grant list to a web client. Building a fuller dashboard would
+  have meant inventing content `GET /auth/me` can't back or standing up a
+  grants API that's a separate task in its own right. So the page shows
+  exactly what's real: the person's phone and verification level, an
+  acting-subject switcher, and one CTA into `/app` — the actual Expo
+  product D1 now serves, which already has records/capture/companion
+  screens live per round two §B/§C. Nothing here is a stub dressed up to
+  look finished; every field is either a real API response or an explicit,
+  commented `[]` where no data source exists yet.
+
+  **What was built.**
+
+  1. `apps/web/src/lib/auth-api.ts`: `getCurrentUser()` (`GET /auth/me`,
+     added a `getJson` alongside the existing POST-only `requestJson`) and
+     `logout()` (`POST /auth/logout`) — both endpoints were already real and
+     tested on `apps/api`, just never called from this app.
+  2. `apps/web/src/hooks/useSession.ts`: a client hook, because `apps/web`
+     has no way to read `mero_session` server-side — it's an httpOnly
+     cookie scoped to `apps/api`'s own origin (see
+     `sessionCookieOptions()` in `apps/api`'s `auth.controller.ts`), not
+     this site's, so there's nothing for a Next server component to
+     inspect. Calls `getCurrentUser()` on mount, redirects to `/signin` on
+     any rejection — there's no protected content to half-render for a
+     session state this hook can't establish.
+  3. `apps/web/src/lib/acting-subjects.ts`: `ActingSubject`/
+     `resolveActingSubject`/`UnknownActingSubjectError`, duplicated from
+     (not imported from) `apps/mobile/src/lib/acting-subjects.ts` — the two
+     apps share no UI package, and the file is small enough that
+     duplication costs less than inventing that coupling. Also
+     `buildActingSubjects`, the actual first caller anywhere in this repo
+     of `packages/family`'s `listActiveGuardianshipsFor`/
+     `listActiveDelegationsFor`. Every call site today passes `[]` for both
+     grant lists (see the content-decision note above) — the composition
+     itself is real and tested (9 cases: empty, an active guardianship, an
+     active delegation, an expired guardianship filtered out by
+     `listActiveGuardianshipsFor` itself, a grant belonging to someone
+     else excluded), so the day a grants endpoint exists only its two
+     arguments change.
+  4. `apps/web/src/components/account/ProfileSwitcher.tsx`: the web half
+     of the switcher, a native `<select>` (accessible for free, unlike
+     mobile's hand-rolled `Modal` sheet which exists because React Native
+     has no equivalent) that degrades to a plain non-interactive pill when
+     there's nothing to switch to — true today, same `canSwitch` gate
+     mobile's version uses. Matches mobile's SELF-vs-not visual rule
+     (neutral vs. the marigold-family treatment mobile already established
+     for `saffronSoft`/`saffronDeep`, here `marigold-100`/`marigold-700` —
+     confirmed those are the same colour pair via
+     `packages/configuration`, not a new use of the art direction's
+     one-marigold-action rule since this is a status indicator, not a CTA).
+  5. `apps/web/src/components/account/AccountView.tsx` +
+     `apps/web/src/app/[locale]/account/page.tsx`: the protected page
+     itself. Deliberately **not** registered in `content/routes.ts` /
+     `sitemap.ts` — every route there is public marketing content meant to
+     be indexed once `isDemonstrationBuild` clears, and this one renders a
+     specific person's own data, so it carries an explicit
+     `robots: { index: false, follow: false }` in its own
+     `generateMetadata` that holds regardless of that flag, rather than
+     inheriting the layout's demo-build-conditional one.
+  6. `PhoneOtpFlow.tsx`: the `'success'` step, the `Account` interface and
+     the now-stale `noAppNotice` copy are gone; `handleCodeSubmit` calls
+     `router.push('/account')` on a successful verify instead. Removed the
+     matching `signIn.success`/`register.success` message keys from both
+     `messages/ne.json` and `messages/en.json` (grepped the whole app first
+     to confirm nothing else referenced them) and added a new top-level
+     `account` namespace, present and parity-checked (same key shapes) in
+     both files.
+  7. `apps/web/package.json` gained `@swasthya/family` as a real dependency
+     (it wasn't one — `apps/mobile` doesn't declare it either, since this
+     is genuinely the package's first real consumer) — regenerated
+     `pnpm-lock.yaml` via `pnpm install --no-frozen-lockfile`, then
+     confirmed `--frozen-lockfile` passes clean afterward, matching what
+     the working agreement's first verify step will do.
+
+  **What was deliberately not built.** No change to `Header.tsx`/
+  `MobileNav.tsx` to make the sign-in/register links session-aware —
+  that would mean a session-check fetch on every one of the ~70 marketing
+  routes for a task that only asked for the authenticated surface itself,
+  and it's a real, separate piece of scope worth its own line rather than
+  folding in unreviewed. Also did not touch `apps/api` — `GET /auth/me`
+  and `POST /auth/logout` were already complete and tested; nothing here
+  needed a backend change.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the lockfile
+  regeneration above; `pnpm lint` 31/31; `pnpm typecheck` 31/31; `pnpm test`
+  56/56 tasks (`@swasthya/web` 48 tests, up from 36 — the new
+  `acting-subjects.test.ts` and the `getCurrentUser`/`logout` cases added to
+  `auth-api.test.ts`); `pnpm test` note: this repo has zero `.test.tsx`
+  component-render tests anywhere in `apps/web` today (no
+  `@testing-library/react`, no jsdom environment configured in
+  `vitest.config.ts`) — followed that existing convention rather than
+  introducing new test infrastructure for one component, so
+  `AccountView`/`ProfileSwitcher`/`useSession` are exercised by the build
+  and by the manual check below, not by a unit test; `pnpm build` 31/31,
+  confirmed `/[locale]/account` present in the route output for both
+  locales. Manually built and ran `next start` against the real output:
+  `/account` and `/en/account` both 200, correct per-locale `<title>`,
+  `noindex` present, and the Nepali loading copy rendered server-side (no
+  `apps/api` running in this check, so the client fetch this hook makes
+  never resolves — expected, and the reason the loading state is what a
+  static HTML fetch sees). Did not verify the live redirect-on-401 or
+  redirect-on-success paths against a running `apps/api` + Postgres in this
+  run; that needs the compose stack up, which is a heavier manual check the
+  next run touching this surface should still do at least once.
+
+  **For the next run.** Two things worth doing, not required to unblock
+  anything: (1) the Header/MobileNav session-awareness gap noted above, and
+  (2) an actual `apps/api` grants endpoint exposing a signed-in person's
+  `GuardianshipGrant`/`DelegationGrant` rows — the moment that exists,
+  `AccountView.tsx`'s `buildActingSubjects` call is the only place that
+  needs its two `[]` arguments replaced with real data. §D's remaining item
+  (the launch-gate checklist) is next in queue order.
 
 - 2026-08-10 — **Round two, task D1: serve the Expo build at `/app`.** First
   unchecked task, per the prior run's own handoff note — took it as pointed.

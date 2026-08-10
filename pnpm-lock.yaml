@@ -253,6 +253,9 @@ importers:
       '@swasthya/entitlements':
         specifier: workspace:*
         version: link:../../packages/entitlements
+      '@swasthya/family':
+        specifier: workspace:*
+        version: link:../../packages/family
       '@swasthya/language-corpus':
         specifier: workspace:*
         version: link:../../packages/language-corpus

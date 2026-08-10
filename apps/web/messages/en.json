@@ -1198,12 +1198,6 @@
         "codePlaceholder": "000000",
         "backCta": "Change number",
         "submitCta": "Sign in"
-      },
-      "success": {
-        "heading": "You're signed in",
-        "body": "Signed in as {phone}.",
-        "noAppNotice": "Mero Health's app is still being built — this confirms your account exists, but there is nowhere to use it yet.",
-        "homeCta": "Back to home"
       }
     },
     "register": {
@@ -1230,13 +1224,39 @@
         "codePlaceholder": "000000",
         "backCta": "Change number",
         "submitCta": "Create account"
-      },
-      "success": {
-        "heading": "Account created",
-        "body": "Your account for {phone} is ready.",
-        "noAppNotice": "Mero Health's app is still being built — this confirms your account exists, but there is nowhere to use it yet.",
-        "homeCta": "Back to home"
       }
+    }
+  },
+  "account": {
+    "hero": {
+      "eyebrow": "Account",
+      "title": "You're signed in to Mero Health",
+      "body": "From here you can check your identity, open the real app, and sign out."
+    },
+    "loading": "Loading…",
+    "switcher": {
+      "label": "Whose record is open?",
+      "self": "You",
+      "guardianSuffix": "guardian",
+      "delegateSuffix": "delegate"
+    },
+    "identity": {
+      "heading": "Your identity",
+      "phoneLabel": "Phone number",
+      "assuranceLabel": "Verification level",
+      "assurance": {
+        "ANONYMOUS": "Not verified",
+        "REGISTERED": "Phone verified",
+        "IDENTITY_VERIFIED": "Identity verified"
+      }
+    },
+    "openApp": {
+      "heading": "Open the Mero Health app",
+      "body": "Your health record, documents and assistant live there.",
+      "cta": "Open the app"
+    },
+    "signOut": {
+      "cta": "Sign out"
     }
   }
 }
