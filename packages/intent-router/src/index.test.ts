@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { HealthObservation } from '@swasthya/shared-types';
+import type { Citation } from '@swasthya/retrieval';
 
-import { classifyIntent, route } from './index';
+import { citationTarget, classifyIntent, composeAnswer, route } from './index';
+import type { RoutedAnswer } from './index';
 
 function makeObservation(overrides: Partial<HealthObservation> = {}): HealthObservation {
   return {
@@ -182,5 +184,121 @@ describe('route', () => {
 
     if (result.path !== 'COMPUTED') throw new Error('unreachable');
     expect(result.trends.map((t) => t.trend.code).sort()).toEqual(['1558-6', '4548-4']);
+  });
+});
+
+function makeCitation(overrides: Partial<Citation> = {}): Citation {
+  return {
+    sourceType: 'OBSERVATION',
+    sourceId: 'obs-1',
+    documentId: 'doc-1',
+    labelNe: 'उपवास रक्त शर्करा',
+    labelEn: 'Fasting Glucose',
+    effectiveAt: '2026-03-01',
+    ...overrides,
+  };
+}
+
+describe('citationTarget', () => {
+  it('resolves an observation citation to its document, with the observation set to scroll to', () => {
+    const citation = makeCitation({ sourceType: 'OBSERVATION', sourceId: 'obs-1', documentId: 'doc-1' });
+    expect(citationTarget(citation)).toEqual({ kind: 'OBSERVATION', documentId: 'doc-1', observationId: 'obs-1' });
+  });
+
+  it('resolves a document citation to just the document, with no observation to highlight', () => {
+    const citation = makeCitation({ sourceType: 'DOCUMENT', sourceId: 'doc-1', documentId: 'doc-1' });
+    expect(citationTarget(citation)).toEqual({ kind: 'DOCUMENT', documentId: 'doc-1', observationId: null });
+  });
+});
+
+describe('composeAnswer', () => {
+  it('turns a NOT_COMPUTABLE routed answer into a refusal, passing the intent and matched concepts through', () => {
+    const routed: RoutedAnswer = { path: 'NOT_COMPUTABLE', intent: 'ADVICE', matchedConcepts: [] };
+    expect(composeAnswer(routed)).toEqual({ path: 'REFUSAL', intent: 'ADVICE', matchedConcepts: [] });
+  });
+
+  it('turns a real COMPUTED answer into cited claims with a tap-through target per citation', () => {
+    const routed = route(
+      'subject-1',
+      {
+        observations: [
+          makeObservation({ id: 'obs-old', effectiveAt: '2026-01-01', value: '150' }),
+          makeObservation({ id: 'obs-new', effectiveAt: '2026-03-01', value: '95' }),
+        ],
+        documents: [],
+      },
+      'मेरो चिनी कस्तो छ?',
+    );
+
+    const answer = composeAnswer(routed);
+    if (answer.path !== 'ANSWERED') throw new Error('unreachable');
+    expect(answer.claims).toHaveLength(1);
+    const claim = answer.claims[0];
+    expect(claim?.citations).toHaveLength(2);
+    expect(claim?.targets).toEqual([
+      { kind: 'OBSERVATION', documentId: 'doc-1', observationId: 'obs-old' },
+      { kind: 'OBSERVATION', documentId: 'doc-1', observationId: 'obs-new' },
+    ]);
+  });
+
+  it('refuses rather than emit a claim with no citation, even if a future route() regression produced one', () => {
+    // Hand-built rather than routed through `route()` on purpose — this
+    // proves the invariant holds at `composeAnswer`'s own boundary, not
+    // only for whatever `route()` happens to produce today.
+    const routed: RoutedAnswer = {
+      path: 'COMPUTED',
+      intent: 'TREND',
+      trends: [
+        {
+          trend: {
+            code: '1558-6',
+            labelNe: 'उपवास रक्त शर्करा',
+            labelEn: 'Fasting Glucose',
+            points: [],
+            direction: null,
+            units: [],
+          },
+          citations: [],
+        },
+      ],
+    };
+
+    expect(composeAnswer(routed)).toEqual({ path: 'REFUSAL', intent: 'TREND', matchedConcepts: [] });
+  });
+
+  it('drops only the uncited trend when a broad concept mixes a citable and an uncited analyte', () => {
+    const routed: RoutedAnswer = {
+      path: 'COMPUTED',
+      intent: 'TREND',
+      trends: [
+        {
+          trend: {
+            code: '1558-6',
+            labelNe: 'उपवास रक्त शर्करा',
+            labelEn: 'Fasting Glucose',
+            points: [],
+            direction: null,
+            units: [],
+          },
+          citations: [],
+        },
+        {
+          trend: {
+            code: '4548-4',
+            labelNe: 'एचबीए१सी',
+            labelEn: 'Hemoglobin A1c',
+            points: [],
+            direction: null,
+            units: [],
+          },
+          citations: [makeCitation({ sourceId: 'obs-a1c' })],
+        },
+      ],
+    };
+
+    const answer = composeAnswer(routed);
+    if (answer.path !== 'ANSWERED') throw new Error('unreachable');
+    expect(answer.claims).toHaveLength(1);
+    expect(answer.claims[0]?.trend.code).toBe('4548-4');
   });
 });

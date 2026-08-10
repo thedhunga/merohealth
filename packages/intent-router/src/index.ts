@@ -167,3 +167,91 @@ export function route(subjectId: string, corpus: RetrievalCorpus, query: string)
   }
   return { path: 'COMPUTED', intent: classification.intent as 'TREND' | 'LATEST_VALUE' | 'COMPARISON', trends };
 }
+
+/* ------------------------------------------------------------------ *
+ * Answer composition
+ *
+ * grounded-answers.md §5: "every claim carries a reference to the
+ * observation or document it came from, and the interface shows it... An
+ * answer that cannot cite is a refusal." `route`'s `RoutedAnswer` already
+ * carries citations on every `ComputedTrend`, but nothing yet turns that
+ * into what a UI actually renders — a claim with a resolvable tap-through
+ * target, plus the explicit guarantee that a claim without a citation can
+ * never reach a person as an answer. `composeAnswer` is that boundary. It
+ * does not generate phrasing (that is generation's job once it exists, per
+ * §7) or the specific "your record has no X" refusal copy (a separate
+ * unchecked queue item) — it only ever hands a caller citable claims or an
+ * explicit refusal, never a claim it cannot back.
+ * ------------------------------------------------------------------ */
+
+export type CitationTargetKind = 'OBSERVATION' | 'DOCUMENT';
+
+export interface CitationTarget {
+  kind: CitationTargetKind;
+  /** Every citation resolves to a document to open, even one about a
+   *  specific observation — §5's "tap through to the source" always lands
+   *  somewhere real. */
+  documentId: string;
+  /** Set only for an OBSERVATION citation, so the UI can scroll to or
+   *  highlight the specific reading rather than just opening the document. */
+  observationId: string | null;
+}
+
+export function citationTarget(citation: Citation): CitationTarget {
+  return {
+    kind: citation.sourceType,
+    documentId: citation.documentId,
+    observationId: citation.sourceType === 'OBSERVATION' ? citation.sourceId : null,
+  };
+}
+
+export interface Claim {
+  intent: 'TREND' | 'LATEST_VALUE' | 'COMPARISON';
+  trend: AnalyteTrend;
+  /** Never empty — `composeAnswer` drops any trend that has none rather
+   *  than let it become a claim. */
+  citations: readonly Citation[];
+  targets: readonly CitationTarget[];
+}
+
+export type GroundedAnswer =
+  | { path: 'ANSWERED'; claims: readonly Claim[] }
+  | { path: 'REFUSAL'; intent: Intent; matchedConcepts: readonly string[] };
+
+/**
+ * Turns a `RoutedAnswer` into what a caller actually hands the interface:
+ * cited claims, or an explicit refusal. `NOT_COMPUTABLE` is always a
+ * refusal here — unsupported intents, or a computable one with nothing
+ * trusted to answer from.
+ *
+ * The per-trend filter below is a real invariant, not defensive dead code:
+ * `route` only ever builds a `ComputedTrend` from observations
+ * `retrieveForSubject` already cited, so today every trend it returns
+ * already carries at least one citation. Keeping the check here means a
+ * future change to `route` that weakens that guarantee fails safe — an
+ * uncited trend drops out of the answer rather than reaching a person as a
+ * claim it cannot back.
+ */
+export function composeAnswer(routed: RoutedAnswer): GroundedAnswer {
+  if (routed.path === 'NOT_COMPUTABLE') {
+    return { path: 'REFUSAL', intent: routed.intent, matchedConcepts: routed.matchedConcepts };
+  }
+
+  const claims: Claim[] = routed.trends
+    .filter((computed) => computed.citations.length > 0)
+    .map((computed) => ({
+      intent: routed.intent,
+      trend: computed.trend,
+      citations: computed.citations,
+      targets: computed.citations.map(citationTarget),
+    }));
+
+  if (claims.length === 0) {
+    // `RoutedAnswer`'s `COMPUTED` branch carries no `matchedConcepts` (only
+    // `NOT_COMPUTABLE` does) — this path is the fail-safe described above,
+    // not one `route` can reach today, so there is nothing truer to report.
+    return { path: 'REFUSAL', intent: routed.intent, matchedConcepts: [] };
+  }
+
+  return { path: 'ANSWERED', claims };
+}

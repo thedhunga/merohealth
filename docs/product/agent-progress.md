@@ -129,7 +129,7 @@ Read it before starting; the ordering rules there are not optional.
       A trend question goes to `buildAnalyteTrend`; the model only phrases a
       result it was handed. **No number reaching a person may originate from
       the model.**
-- [ ] Citations on every claim, with tap-through to the source observation or
+- [x] Citations on every claim, with tap-through to the source observation or
       document. An answer that cannot cite is a refusal.
 - [ ] Specific refusals: "your record has no thyroid results", never a generic
       "I don't know". Include the unconfirmed-drafts case, pointing at the
@@ -389,6 +389,76 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task B3: citations on every claim, with
+  tap-through, and an answer that cannot cite is a refusal.** First unchecked
+  task after B2. Extends `packages/intent-router` (not a new package —
+  `RoutedAnswer`/`ComputedTrend`, the things this composes over, already live
+  there, and grounded-answers.md §9 doesn't reserve a separate module for
+  this) rather than touching `CompanionController`, which still isn't wired
+  to either B1's `packages/retrieval` or B2's `packages/intent-router` — a
+  background exploration pass this run confirmed that directly (grepped the
+  whole repo for `Citation`/`Claim`/`Refusal`/`tap-through`): the only
+  citation UI that exists today is `apps/mobile/app/(tabs)/companion.tsx`'s
+  rendering of Perplexity's *external* web-research citations
+  (`Linking.openURL` to a URL), and there is no in-app document/observation
+  detail screen anywhere yet for a record-grounded citation to land on. Wiring
+  the controller and building that screen is real work still queued, not
+  something to fake a landing spot for in this run.
+
+  **What was built.** Two additions to `packages/intent-router/src/index.ts`.
+  `citationTarget(citation: Citation): CitationTarget` resolves any citation
+  — `OBSERVATION` or `DOCUMENT` — to `{ kind, documentId, observationId }`:
+  every citation always has a document to open (even an observation citation
+  carries its parent `documentId`, from B1), and `observationId` is set only
+  for an `OBSERVATION` citation so a future UI can highlight the specific
+  reading rather than just opening the document. This is the tap-through
+  target as a plain data value — the thing a `Pressable`'s `onPress` will
+  eventually route on — deliberately not a navigation call, since there is no
+  screen yet to navigate to. `composeAnswer(routed: RoutedAnswer):
+  GroundedAnswer` turns B2's `RoutedAnswer` into what an interface actually
+  renders: `{ path: 'ANSWERED', claims }` where every `Claim` carries its
+  `AnalyteTrend`, its citations, and their resolved targets, or `{ path:
+  'REFUSAL', intent, matchedConcepts }`. `NOT_COMPUTABLE` is always a
+  refusal — this run does not build the *specific* "your record has no X"
+  copy for it, that's B4, a separate unchecked bullet on purpose.
+
+  **The invariant, held at this function's own boundary, not assumed from
+  upstream.** `composeAnswer` filters out any `ComputedTrend` with zero
+  citations before it can become a `Claim`, and refuses outright if every
+  trend gets filtered. Today that filter never actually fires — `route`
+  only ever builds a `ComputedTrend` from observations `retrieveForSubject`
+  already cited, so every trend it returns already carries at least one
+  citation — but the check isn't dead code: a test constructs a
+  `RoutedAnswer` by hand (bypassing `route()` entirely) with an empty
+  `citations` array on its one trend, and asserts `composeAnswer` refuses
+  rather than emit the uncited claim, plus a companion test with one citable
+  and one uncited trend asserting only the citable one survives. That's
+  "an answer that cannot cite is a refusal" as a property of this function,
+  not an accident of what `route()` happens to produce this week — if a
+  future change to `route()` ever weakens its own citation guarantee, this
+  boundary still holds. 6 new tests (`citationTarget` ×2, `composeAnswer`
+  ×4); `@swasthya/intent-router` now at 21. Full verify suite green
+  (`pnpm install --frozen-lockfile`, `lint`, `typecheck`, `test` — 52/52
+  tasks — `build`); no lockfile or new-package changes needed since this
+  extended an existing package rather than adding one.
+
+  **Deliberately not touched.** No phrasing/generation — grounded-answers.md
+  §2's "the model does not produce the numbers, it phrases" step needs an
+  actual model call, out of scope here and still ungated by
+  `clinical-safety`'s ordering rule until `CompanionController` is wired. No
+  date formatting on `Citation.effectiveAt` — same call B1 already made,
+  `apps/web/src/lib/format-date.ts` is app-local and this stays a workspace
+  package with no second formatter to drift from it. No UI, no navigation, no
+  new package.
+
+  **For the next run:** B4 (specific refusal copy, including the
+  unconfirmed-drafts case pointing at the confirmation queue) is the natural
+  next step — it can build directly on this run's `GroundedAnswer.REFUSAL`
+  shape rather than starting cold. Wiring `CompanionController` to
+  `clinical-safety → route → composeAnswer` (and only then building the
+  citation tap-through UI this run's `citationTarget` is the data layer for)
+  is still queued and still untouched by any run so far.
 
 - 2026-08-10 — **Round two, task B2: intent routing.** New package
   `packages/intent-router` (`classifyIntent`, `route`), built on top of B1's
