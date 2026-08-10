@@ -98,7 +98,7 @@ real user, or a real question. This round makes it real, in that order.
 
 ### A · Foundations — nothing below works without these
 
-- [ ] Bring up Postgres from `compose.yaml`, run the Prisma migration for the
+- [x] Bring up Postgres from `compose.yaml`, run the Prisma migration for the
       first time, and fix what the schema gets wrong when it meets a real
       database. **Every module so far is tested against in-memory fakes** —
       expect constraint, cascade and enum problems that no unit test could
@@ -389,6 +389,134 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task A1: bring up Postgres from `compose.yaml`,
+  run the Prisma migration for the first time, fix what breaks against a
+  real database.** First unchecked task, re-derived from a fresh
+  `grep -n "^\s*- \[ \]"` — the owner had appended the whole "Round two"
+  queue since the last run's entries below, so this run is not an
+  empty-queue improvement pick like the two before it.
+
+  **`compose.yaml`'s Postgres image could not be pulled.** `docker compose
+  up -d postgres` failed: the blob pull from `production.cloudfront.docker
+  .com` got a `403 Forbidden` through this environment's egress proxy —
+  confirmed via `curl http://127.0.0.1:46183/__agentproxy/status`, which
+  logged it as `connect_rejected` / "policy denial", not a transient
+  failure. Per
+  `/root/.ccr/README.md`'s own instruction ("do not retry or route around
+  it — report the blocked host"), did not fight the network policy. Used
+  Ubuntu's pre-installed `postgresql-16` instead (this image already has
+  it; a fresh session might not — check `pg_lsclusters` first), started it
+  with `service postgresql start`, and created the `swasthya`/`swasthya`
+  role and database to match `compose.yaml`'s credentials exactly so
+  `DATABASE_URL=postgresql://swasthya:swasthya@localhost:5432/swasthya`
+  (the same default `prisma.config.ts` and `.env.example` already assume)
+  needed no other change. Worth knowing for whoever next needs MinIO too:
+  `storage-adapters/src/hosted-store.test.ts`'s own comment says "no Docker
+  daemon" in this environment — that's now half-true. `dockerd` runs fine
+  (this session is root; started it directly), but Docker Hub pulls hit the
+  identical CDN block, so a real MinIO container is still unreachable here
+  either way; that comment's conclusion (use `s3rver` in-process instead)
+  still holds, just for a different reason than it states.
+
+  **What the migration found when it actually ran.** Applied cleanly —
+  `prisma migrate deploy` against real Postgres 16 with zero errors, and
+  `prisma migrate diff --from-config-datasource --to-schema
+  prisma/schema.prisma --script` came back an empty script (no drift
+  between the committed migration and `schema.prisma`). `prisma/seed.sql`
+  also ran clean. So the schema itself — the thing the task's own wording
+  bet would have "constraint, cascade and enum problems" — had none. The
+  real problem was one layer up, and only visible once something tried to
+  *use* the generated client rather than raw SQL:
+
+  **`PrismaClient` could not be constructed.** `apps/api/src/language
+  -corpus/corpus-reviewer.guard.ts` already has a doc comment establishing
+  that `grep -rn "@swasthya/database" apps/api/src` returns nothing — this
+  package has never been imported by any application code, only ever
+  validated by the Prisma CLI. This schema's generator is `provider =
+  "prisma-client"` (Prisma 7's ESM-native client, not the legacy
+  `prisma-client-js`), and that generator's `new PrismaClient()` throws
+  `PrismaClientInitializationError: ... a driver adapter is required to
+  connect to your database` the instant anything tries to use it — there is
+  no more implicit `datasources.db.url` constructor path. Since nothing
+  had ever constructed one, this had never been caught. Confirmed by
+  writing a throwaway script (not committed) that did `new PrismaClient()`
+  against the now-real database and hit exactly that error.
+
+  **The fix.** Added `@prisma/adapter-pg` (pinned to the same `7.9.1` as
+  the rest of the Prisma toolchain) and `packages/database/src/index.ts`:
+  a `createPrismaClient(connectionString?)` factory wrapping `PrismaPg` +
+  `PrismaClient`, defaulting to the same `DATABASE_URL` fallback
+  `prisma.config.ts` already uses, so there is exactly one place future
+  code should ever construct a client from rather than copy-pasting the
+  adapter wiring at each call site. Re-exports `PrismaClient` and the
+  generated enums (`DocumentStatus`, `ObservationStatus`, etc.) so a caller
+  never needs to reach into `../generated/*` directly.
+
+  **A second, smaller wrinkle this surfaced:** the new client generator
+  emits TypeScript source meant to be imported directly (its own comment:
+  "You can import this file directly"), with literal `.ts` extension
+  imports between its own files (`from "./enums.ts"`). A plain `tsc -p`
+  over `packages/database/src` hit two compounding errors trying to
+  typecheck against that: `TS5097` (`.ts` extension imports need
+  `allowImportingTsExtensions`) and `TS6059` (the generated folder sits
+  outside `rootDir: "src"`, and it's pulled into the program by the
+  import regardless of `include`). Fixed by setting `rootDir: "."`,
+  `allowImportingTsExtensions: true` and `noEmit: true` in this package's
+  `tsconfig.json` (TS refuses to combine the extension-import flag with
+  real emit, which is correct here — this package has nothing to bundle;
+  a future consumer's own bundler or NestJS's compiler will transpile
+  `src/index.ts` directly, the same way `apps/mobile`'s Metro already
+  consumes other packages' `"react-native": "./src/index.ts"` field
+  without a separate build step). `package.json`'s `main`/`types`/`exports`
+  now point straight at `src/index.ts` rather than a `dist/` this package
+  cannot produce; `build` stays `prisma generate` alone, `lint`/`typecheck`/
+  `test` each run `prisma generate` first since none of them can assume
+  another script already did (turbo's `test` task only depends on `^build`
+  — upstream packages' build, not this package's own).
+
+  **Verification.** Beyond the standard pipeline: ran a real round trip
+  through `createPrismaClient()` against the live Postgres — created a
+  `HealthDocument` (12-digit `BigInt` byte size), a `HealthObservation`
+  with Devanagari label text and a `Float` confidence, and a
+  `PrescriptionItem` with a `Decimal` quantity, read them back, deleted
+  them. Everything round-tripped with the correct JS types on the way back
+  out (BigInt stayed `bigint`, Decimal stayed comparable via
+  `.toString()`), confirming the earlier "no drift" schema check wasn't
+  hiding a client-side serialization gap. That round trip is not itself a
+  committed test — this environment cannot guarantee a live Postgres for
+  every future run the way it can guarantee `new PrismaPg({connectionString:
+  "bogus"})` never touches the network (it's lazy — `pg.Pool` doesn't open
+  a socket until the first query), so `src/index.test.ts` only asserts the
+  construction-time contract: builds without throwing given an explicit or
+  default connection string, exposes the expected model delegates,
+  disconnects cleanly without ever having connected, and the re-exported
+  enums carry the right members.
+
+  **Verify:** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm
+  typecheck`, `pnpm test` (`@swasthya/database` 0 → 4 tests; every other
+  package's test count unchanged — `@swasthya/api` still 271), `pnpm
+  build`, all green from a clean install, run as `pnpm <script>` at the
+  repo root. (Also manually confirmed `prisma migrate deploy`, `prisma
+  migrate diff`, `prisma db execute --file prisma/seed.sql`, and the ad hoc
+  client round trip above, all against the real `postgresql-16` instance
+  described earlier — none of that is part of the committed pipeline
+  since it needs a live database this repo's tooling doesn't start on its
+  own.)
+
+  **For the next run:** the next unchecked task is Round two A2, the
+  demonstration seed script — and it should build on top of the
+  `createPrismaClient()` factory this run added rather than hand-rolling
+  another way to connect. `prisma/seed.sql`'s existing single fictional
+  owner is a smoke fixture, not the "few subjects, multi-generation
+  family, genetic condition" dataset A2 asks for — don't mistake it for
+  that task already being done. A3 (auth) and A4 (entitlement guard on
+  real identity) are the first tasks that will actually need
+  `@swasthya/database` wired into `apps/api`'s DI graph via a
+  `PrismaModule`/`PrismaService` — that wiring itself was deliberately not
+  built this run, since A1 only asked to prove the schema and client work
+  against a real database, not to migrate `apps/api` off its in-memory
+  repositories.
 
 - 2026-08-10 — **The task queue was fully checked at the start of this run
   too (fresh `grep -n "^\s*- \[ \]"` over the whole file, per the previous

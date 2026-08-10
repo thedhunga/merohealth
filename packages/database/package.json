@@ -3,17 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "build": "prisma generate",
     "generate": "prisma generate",
     "validate": "prisma validate",
     "migrate": "prisma migrate dev",
     "seed": "prisma db execute --file prisma/seed.sql",
-    "lint": "prisma format --check",
-    "typecheck": "prisma validate",
-    "test": "prisma validate"
+    "lint": "prisma format --check && prisma generate && eslint src",
+    "typecheck": "prisma validate && prisma generate && tsc -p tsconfig.json",
+    "test": "prisma generate && vitest run src --passWithNoTests"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "7.9.1",
     "@prisma/client": "7.9.1"
   },
   "devDependencies": {
