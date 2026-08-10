@@ -150,7 +150,7 @@ Read it before starting; the ordering rules there are not optional.
 Design in
 [`docs/architecture/family-and-proxy.md`](../architecture/family-and-proxy.md).
 
-- [ ] `packages/family`: every person is **their own subject**, never a
+- [x] `packages/family`: every person is **their own subject**, never a
       profile inside someone else's account. Guardianship and delegation are
       **separate state machines** — a competent grandmother is not a
       dependent. Guardianship carries a mandatory expiry and a transition at
@@ -389,6 +389,99 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task C1: `packages/family` — guardianship and
+  delegation, modelled as two separate state machines.** First unchecked
+  task after §B closed out. Read `docs/architecture/family-and-proxy.md` in
+  full before starting, per the previous run's own note.
+
+  **What was built.** New package `packages/family` (`@swasthya/family`),
+  matching the shape of `packages/credentialing`/`packages/identity`
+  (plain `tsc`, no tsup, `@swasthya/shared-types` listed as a dependency for
+  convention even though nothing here imports from it yet — there is no
+  existing `Subject` type anywhere in the repo to import; §1 confirms that's
+  deliberate, a subject is just whichever plain `string` id the caller
+  already uses, e.g. `ownerId`/`subjectId`/`patientId`). Two independent
+  types, each with its own error classes and no shared base, per §2's "a
+  competent grandmother is not a dependent":
+
+  `GuardianshipGrant` (`grounds: 'MINOR' | 'INCAPACITY'`, `expiresAt`
+  mandatory on the type itself — no constructor path omits it).
+  `guardianshipExpiryForMinor(dateOfBirth)` computes the ward's 18th
+  birthday directly (18 is a fact §2 already states, not an interval this
+  codebase would be inventing, unlike `credentialing`'s `recheckDueAt`), and
+  `grantGuardianshipForMinor` uses it rather than accepting `expiresAt` as a
+  parameter, throwing `WardAlreadyOfAgeError` if the ward is already 18+ at
+  grant time. `grantGuardianshipForIncapacity` takes `expiresAt` from the
+  caller, same reasoning as `issueBadge`'s `recheckDueAt` — no reassessment
+  cadence is named in the design, so this package doesn't invent one.
+  "Must transition rather than silently continue" (§2) is enforced
+  structurally, not with a scheduled job: `isGuardianshipActive` derives
+  liveness from `expiresAt` on every read, the same pattern
+  `packages/language-corpus`'s `ConsentGrant.isLive` already uses for
+  consent — there is no code path that reads a grant as active past its
+  expiry, so there is nothing to forget to run.
+
+  `DelegationGrant` (`granterId`, `delegateId`, time-bounded `expiresAt`,
+  nullable `revokedAt`) — the opposite control direction from guardianship,
+  which is the concrete reason it cannot share that state machine.
+  `grantDelegation` throws `SelfDelegationError` on `granterId === delegateId`
+  and `InvalidDelegationExpiryError` on a non-positive window. Both grant
+  types get an idempotent `revoke*` (mirrors `ConsentGrant`'s revoke: a
+  second call is a no-op, not an error) and an `is*Active(grant, now)` guard
+  that checks `grantedAt`, `revokedAt` and `expiresAt` together.
+
+  **Deliberately not built this run**, so the ledger's own bullets stay
+  truthful about what each run actually shipped: `DelegationScope`
+  (`VIEW_RECORD`/`ASK_ASSISTANT`/`MANAGE_APPOINTMENTS`/`UPLOAD_DOCUMENTS`) —
+  the queue's very next bullet, "Scoped delegation" — is not on
+  `DelegationGrant` yet; a delegation this run grants is all-or-nothing.
+  Adding `scopes` next run is a non-breaking extension of this shape, the
+  same way B4 added fields onto B1-B3's types without touching their
+  existing behaviour. Also not built: assisted-enrolment consent-method
+  provenance (`IN_PERSON_VERBAL` etc., a later bullet), the owner-visible
+  access log, family history assertions, the profile switcher UI, and any
+  `apps/api`/`apps/mobile` wiring or `ModuleDescriptor` — nothing in the
+  repo references `@swasthya/family` yet, matching how B1's
+  `packages/retrieval` and B2's `packages/intent-router` also shipped
+  unwired.
+
+  **Tests.** `packages/family/src/index.test.ts`, 11 tests: the MINOR path
+  (18th-birthday computation against Roshani's real seed date of birth from
+  `packages/database/src/seed-data.ts`'s `caregiverRelationships[0]`, the
+  already-of-age refusal, active/inactive at the exact boundary — active up
+  to the instant of the birthday, inactive from that instant — and
+  idempotent revoke), the INCAPACITY path (caller-supplied expiry, rejected
+  if non-positive), and delegation (grant shape, self-delegation refusal,
+  invalid-window refusal, the active window, and idempotent revoke). Uses
+  Roshani's real fixture date rather than an invented one, per "invent no
+  facts."
+
+  **Verify.** Full sequence green from the repository root:
+  `pnpm install` (new workspace package, lockfile updated) then
+  `pnpm install --frozen-lockfile`, `pnpm lint` (31/31, up from 30),
+  `pnpm typecheck` (31/31), `pnpm test` (55/55 tasks, `@swasthya/family` new
+  at 11 tests, every other package's count unchanged), `pnpm build`
+  (31/31).
+
+  **For the next run:** §C's next unchecked item is "Scoped delegation:
+  `VIEW_RECORD`, `ASK_ASSISTANT`, `MANAGE_APPOINTMENTS`, `UPLOAD_DOCUMENTS`
+  granted independently. Booking an appointment must not require reading
+  mental-health notes." Add `scopes: readonly DelegationScope[]` to this
+  run's `DelegationGrant` and a `hasScope(grant, scope, now)` guard; no
+  route or UI exists yet to enforce it against (no appointments module
+  consumes delegation), so — as with prior B-round tasks — that enforcement
+  is likely its own later task once there's a real call site, not something
+  to fake a landing spot for now. Once scopes exist, the two outstanding
+  `describe.todo`s blocked on `packages/family`
+  (`packages/intent-router/src/cross-subject-leakage.test.ts` and
+  `packages/evaluation/src/index.test.ts`) can start being written for
+  real — both need a delegate acting for another subject, which needs
+  scopes to be a meaningful test (an unscoped, all-or-nothing grant makes
+  "under an active delegation" trivially the same as no delegation at all
+  for `ASK_ASSISTANT` purposes). `CompanionController` is still unwired to
+  any of B1-B6's deterministic layer, unchanged from every prior run's
+  finding.
 
 - 2026-08-10 — **Round two, task B6: evaluation set — real Nepali questions
   paired with the record state they should be answered from, including
