@@ -6,6 +6,7 @@ import { CredentialingModule } from './credentialing/credentialing.module.js';
 import { DirectoryController } from './directory.controller.js';
 import { HealthController } from './health.controller.js';
 import { LanguageCorpusModule } from './language-corpus/language-corpus.module.js';
+import { MedicationSafetyModule } from './medication-safety/medication-safety.module.js';
 import { PatientRegistryModule } from './patient-registry/patient-registry.module.js';
 import { PerplexityHealthService } from './perplexity-health.service.js';
 import { RecordsModule } from './records/records.module.js';
@@ -19,6 +20,7 @@ import { SchedulingModule } from './scheduling/scheduling.module.js';
     SchedulingModule,
     ClinicalChartingModule,
     ClinicalSummaryModule,
+    MedicationSafetyModule,
     LanguageCorpusModule,
   ],
   controllers: [HealthController, CompanionController, DirectoryController],

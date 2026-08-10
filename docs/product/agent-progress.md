@@ -263,7 +263,7 @@ suite grows. A module that "works" but has no outage test is not finished.
 - [x] `clinical-charting`: encounters, SOAP notes, templates.
 - [x] `clinical-summary`: problem list, allergies, medications — extending
       `digital-twin` with clinician-authored provenance.
-- [ ] `medication-safety`: interaction and allergy checking. Built **before**
+- [x] `medication-safety`: interaction and allergy checking. Built **before**
       prescribing, so prescribing degrades to `MANUAL` against it rather than
       depending on it.
 - [ ] `prescribing`: Nepali formulary. Safety-critical — `docs/compliance/`
@@ -276,6 +276,98 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **`medication-safety`: interaction and allergy checking
+  (clinical-suite.md capability map row 5, the first unchecked task,
+  re-derived from a fresh top-to-bottom `grep -n "^- \["` per every prior
+  entry's own instruction).** Built before `prescribing` as the queue
+  requires, so the next run can make prescribing degrade to `MANUAL`
+  against this rather than depend on it.
+
+  **The "invent no facts" constraint shaped the whole design.** A real
+  drug-interaction checker needs a drug-interaction dataset, and this
+  repository has no licensed one. Fabricating even one real pair (e.g.
+  "warfarin raises bleeding risk with aspirin") would be exactly the kind
+  of invented clinical claim the standing constraints forbid — true in the
+  world, but not sourced from anything in this repo, which is the bar the
+  ledger sets. So the module ships as a **complete, working checking
+  engine with an honestly empty interaction ruleset**, not a stub: allergy
+  conflict and duplicate-therapy detection are fully functional today
+  because they check a patient's own already-recorded data (no external
+  fact needed), while drug-drug interaction checking is real
+  infrastructure — a `DrugInteractionRule` shape, a matcher, a
+  per-check `interactionRulesConsulted` count — waiting on a real dataset
+  a future run can load without touching this code. `MedicationSafetyCheckResult.checked`
+  exists so a caller can tell "checked, zero findings" apart from "not
+  checked at all," and `interactionRulesConsulted: 0` is the honest report
+  of a ruleset with nothing in it yet, not a bug to silence.
+
+  **New package `packages/medication-safety`** (pure domain layer,
+  matching `clinical-summary`'s own split): `checkMedicationSafety` takes a
+  proposed label plus a patient's already-resolved active allergies,
+  active medications and an interaction ruleset, and returns
+  `ALLERGY_CONFLICT` / `DUPLICATE_THERAPY` / `DRUG_INTERACTION` findings.
+  Matching is exact-after-normalisation (NFKC + case-fold, same
+  normalisation `clinical-safety` already uses) — deliberately *not* a
+  drug-name synonym or brand/generic matcher, since asserting two names
+  refer to the same substance is itself a clinical claim this repo has no
+  source for.
+
+  **`apps/api/src/medication-safety/`**, the first clinical-suite module
+  with no data of its own to own: `MedicationSafetyService` is injected
+  `ClinicalSummaryService` — its port, never its repository, per §2 rule 3
+  — to read the patient's ACTIVE allergy/medication items (row 4). No
+  `patient-registry`-style repository for that data; `MedicationSafetyRepository`
+  exists only to hold the (currently empty) interaction ruleset, matching
+  the file-set shape every sibling module already established. Module
+  descriptor: `MEDICATION_SAFETY` requires nothing, `degradesWith:
+  [{ key: 'CLINICAL_SUMMARY', mode: 'MANUAL' }]` — **`MANUAL`, not `HIDE`**,
+  because when clinical-summary is unavailable this module doesn't refuse
+  the call (there is no clinician-authored-only action to refuse, unlike
+  clinical-summary's own dependency on clinical-charting); it returns
+  `checked: false` and says so, which is exactly clinical-suite.md §2's own
+  worked example ("the interaction panel shows an explicit 'checks
+  unavailable, verify manually' state") applied one hop earlier than the
+  doc's prescribing-vs-medication-safety framing. Routes: `POST
+  /medication-safety/check`, `GET /medication-safety/health`. Registered
+  in `app.module.ts` after `ClinicalSummaryModule`, and added
+  `@swasthya/medication-safety` as an `apps/api` dependency.
+
+  **Deliberately not built:** any way to add interaction rules (no admin
+  UI, no ingestion endpoint) — nothing in this codebase has real rule data
+  to load, so building ingestion for data that does not exist would be
+  speculative scope ahead of an actual source. Also did not attempt
+  drug-name/brand-generic matching for allergy or duplicate-therapy
+  detection, for the same "invent no facts" reason the interaction ruleset
+  stayed empty — matching stays exact-after-normalisation, which is honest
+  about what it actually checks. No UI in `apps/web` or `apps/mobile`:
+  same precedent `clinical-summary` set — this stays an API-only module
+  until the suite reaches a clinician-facing shell.
+
+  **Verify:** `pnpm install` (lockfile needed updating for the new
+  workspace package — confirmed clean afterward with `pnpm install
+  --frozen-lockfile`), `pnpm lint` (first pass failed:
+  `@typescript-eslint/no-unsafe-assignment` on `expect.stringContaining`/
+  `expect.any` in three new test files — no other test in this repo uses
+  either matcher, so replaced all with exact literal strings/ids, which is
+  also just more precise), `pnpm typecheck`, `pnpm test`
+  (`@swasthya/medication-safety` 0 → 7 tests; a first draft of one test
+  wrongly asserted the *pure domain function* filters out a `RESOLVED`
+  allergy — it doesn't, by design, since status-filtering is
+  `MedicationSafetyService`'s job against real `ClinicalSummaryItem`
+  data — fixed the test rather than the function; `@swasthya/api` 222 →
+  238), `pnpm build`, all green from a clean install, run as `pnpm
+  <script>` at the repo root.
+
+  **For the next run:** re-derive the first unchecked task from a fresh
+  `grep -n "^- \["` over the whole file, not from this pointer. The next
+  item in file order is `prescribing` (row 6, "Nepali formulary,
+  safety-critical — `docs/compliance/` must lead this module, not trail
+  it") — read `docs/compliance/compliance-gap-register.md`'s
+  "E-prescribing" row before starting anything. The ledger's own
+  instruction after this row is **"Stop after prescribing and reassess"** —
+  worth rereading `docs/architecture/clinical-suite.md` §4 in full before
+  starting, not just this pointer.
 
 - 2026-08-09 — **`clinical-summary`: problem list, allergies, medications —
   extending `digital-twin` with clinician-authored provenance (clinical-suite.md

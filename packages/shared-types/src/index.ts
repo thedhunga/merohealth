@@ -602,3 +602,62 @@ export interface RecordClinicianSummaryItemInput {
   label: string;
   value: string;
 }
+
+/* ------------------------------------------------------------------ *
+ * Medication safety (clinical-suite.md capability map row 5)
+ *
+ * "Drug interaction / allergy checking ... Built before prescribing, so
+ * prescribing can degrade against it." Unlike every other clinical-suite
+ * module built so far, this one owns no patient data of its own — it reads
+ * a patient's ACTIVE `ClinicalSummaryItem` allergies and medications
+ * through `clinical-summary`'s port (row 4) and checks a proposed
+ * medication label against them.
+ *
+ * `DrugInteractionRule` is a shape for a future licensed drug-interaction
+ * dataset, deliberately unpopulated in this codebase today. Fabricating
+ * even one real interaction pair (e.g. "warfarin raises bleeding risk with
+ * aspirin") would violate agent-progress.md's "invent no facts" constraint
+ * exactly as a fake statistic would — it is a clinical claim this repository
+ * holds no source for. `MedicationSafetyCheckResult.interactionRulesConsulted`
+ * exists so a caller can tell "checked against a ruleset of size zero" apart
+ * from "not checked at all," rather than the empty ruleset silently reading
+ * as "verified safe."
+ * ------------------------------------------------------------------ */
+export type MedicationSafetyFindingKind = 'ALLERGY_CONFLICT' | 'DUPLICATE_THERAPY' | 'DRUG_INTERACTION';
+
+export interface MedicationSafetyFinding {
+  kind: MedicationSafetyFindingKind;
+  /** The existing ClinicalSummaryItem (allergy or medication) this finding was raised against. */
+  conflictsWithItemId: string;
+  /** Built only from the two recorded labels being compared — never a fabricated clinical explanation. */
+  detail: string;
+}
+
+/**
+ * One row of a drug-drug interaction dataset. `medicationA`/`medicationB`
+ * are unordered — "A interacts with B" is symmetric, and the checker
+ * matches either direction.
+ */
+export interface DrugInteractionRule {
+  id: string;
+  medicationA: string;
+  medicationB: string;
+  detail: string;
+}
+
+export interface MedicationSafetyCheckResult {
+  proposedLabel: string;
+  findings: readonly MedicationSafetyFinding[];
+  /** Ruleset size at check time — 0 today, honestly, per this section's own comment. */
+  interactionRulesConsulted: number;
+  /**
+   * False under the MANUAL degradation clinical-suite.md §2 uses as its own
+   * worked example, applied one hop earlier than the doc's own
+   * prescribing-vs-medication-safety framing: clinical-summary (the owner of
+   * the patient's allergy and medication list) was unavailable, so no
+   * automated check ran at all. `findings` is always `[]` when this is
+   * false — an empty array here must never be read as "checked, nothing
+   * found."
+   */
+  checked: boolean;
+}
