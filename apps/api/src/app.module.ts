@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from './auth/auth.module.js';
 import { ClinicalChartingModule } from './clinical-charting/clinical-charting.module.js';
 import { ClinicalSuiteModule } from './clinical-suite/clinical-suite.module.js';
 import { ClinicalSummaryModule } from './clinical-summary/clinical-summary.module.js';
@@ -11,11 +12,14 @@ import { MedicationSafetyModule } from './medication-safety/medication-safety.mo
 import { PatientRegistryModule } from './patient-registry/patient-registry.module.js';
 import { PerplexityHealthService } from './perplexity-health.service.js';
 import { PrescribingModule } from './prescribing/prescribing.module.js';
+import { PrismaModule } from './prisma/prisma.module.js';
 import { RecordsModule } from './records/records.module.js';
 import { SchedulingModule } from './scheduling/scheduling.module.js';
 
 @Module({
   imports: [
+    PrismaModule,
+    AuthModule,
     RecordsModule,
     CredentialingModule,
     PatientRegistryModule,

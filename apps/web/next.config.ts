@@ -5,6 +5,10 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Next.js 16 writes AGENTS.md/CLAUDE.md into this directory on every
+  // `next build` otherwise — noise this scheduled agent's own `git status`
+  // would trip over on every future run.
+  agentRules: false,
   // The shared workspace packages ship TypeScript sources for the React Native
   // condition, so Next has to compile them rather than treat them as external.
   transpilePackages: [

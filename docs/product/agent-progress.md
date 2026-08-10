@@ -107,7 +107,7 @@ real user, or a real question. This round makes it real, in that order.
       subjects, lab reports with Devanagari and English labels, a
       multi-generation family, and at least one condition with genetic
       relevance. This is what every later task tests against.
-- [ ] Authentication: phone + OTP to `REGISTERED`, session handling, and a
+- [x] Authentication: phone + OTP to `REGISTERED`, session handling, and a
       real `subjectId` on every request. `/signin` and `/register` are
       currently marketing pages with nothing behind them.
 - [ ] Wire the entitlement guard to real identity. It enforces tiers at the
@@ -389,6 +389,103 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task A3: phone + OTP authentication, session
+  handling, a real `subjectId` on every request, and `/signin`/`/register`
+  on `apps/web`.** First unchecked task after A2. This is the first task to
+  actually wire `@swasthya/database` into `apps/api`'s DI graph (A1's log
+  flagged this as the milestone A3/A4 would hit) and the first time
+  `apps/web` calls `apps/api` over HTTP at all — before this, `/signin` and
+  `/register` didn't exist as routes.
+
+  **What was built.** `packages/auth` (new, server-only — deliberately no
+  `"react-native"` export, unlike every sibling domain package, since an OTP
+  secret and a session-token key must never be reachable from a device):
+  pure OTP generation/HMAC-hashing/verification, Nepali phone
+  normalisation, session-token generation/hashing, and a small
+  dependency-free cookie-header parser, all taking `now`/`secret` as
+  parameters rather than reading the clock or the environment — 32 tests,
+  no I/O. `packages/database`: two new tables, `OtpChallenge` and `Session`,
+  added the same way A1 established (`prisma migrate diff --from-config-datasource
+  --to-schema` against the live local Postgres, applied with `migrate
+  deploy`, re-checked for zero drift) — migration
+  `20260810000000_add_auth_tables`. `apps/api`: `PrismaModule`/
+  `PrismaService` (the first real `PrismaClient` construction in this app,
+  composing `createPrismaClient()` rather than duplicating its adapter
+  wiring), and `AuthModule` — `AuthController` (`POST otp/request`, `POST
+  otp/verify`, `GET me`, `POST logout`), `AuthService`, `SessionAuthGuard` +
+  `@CurrentUser()`, an `AuthStore` port with a real `PrismaAuthStore`
+  adapter (module wiring always uses the real one — no in-memory production
+  fallback the way `RecordsModule`'s storage port has one, since Round
+  two's whole point is moving auth *onto* real persistence) and a
+  `MockSmsProvider` behind `SMS_PROVIDER=mock` that logs instead of
+  delivering. Session token travels as both an httpOnly cookie
+  (`mero_session`, `SameSite=Lax` in dev so it works across `localhost`
+  ports without extra config, `SameSite=None; Secure` in production) and a
+  bearer token in the response body, so a future mobile screen (not built
+  this run) has a carrier that doesn't depend on cookies. `apps/web`:
+  `/signin` and `/register` (new `[locale]` routes), a shared
+  `PhoneOtpFlow` client component (phone/name → code → success, parameterised
+  by `SIGN_IN`/`REGISTER` intent) and `lib/auth-api.ts` — the first fetch
+  call from `apps/web` to `apps/api`, `credentials: 'include'` for the
+  cookie. Every server error code maps to a translated string via a
+  `auth.errors` namespace rather than ever rendering the API's raw English
+  `message`; both `messages/en.json` and `ne.json` got the full `auth` tree
+  (53 keys each, checked for parity by script). Register vs. sign-in is a
+  real product distinction, not just copy: `REGISTER` on an already-registered
+  phone 409s (`ALREADY_REGISTERED`), `SIGN_IN` on an unregistered phone 404s
+  (`NOT_REGISTERED`) — no silent auto-create on sign-in.
+
+  **What A3 deliberately does not do**, left for later runs: no
+  `apps/mobile` screen (no existing scaffolding to build on, and the ledger
+  entry naming this gap only called out the web marketing pages as 404s);
+  no route on `apps/api` besides `AuthController` itself actually requires
+  `SessionAuthGuard` yet — `EntitlementsGuard`'s `extractOwnerId` and
+  `RecordsController`'s `requireOwnerId` still trust a client-supplied
+  string, unchanged. That wiring is explicitly A4 ("wire the entitlement
+  guard to real identity"), the next unchecked task, and now has a real
+  guard/service to wire to instead of nothing.
+
+  **A tsc wrinkle worth knowing about.** `apps/api`'s own `tsconfig.json`
+  needed `allowImportingTsExtensions` + `rewriteRelativeImportExtensions`
+  added — this is the first time anything in `apps/api` imports
+  `@swasthya/database`, whose generated Prisma client (per A1's log) is raw
+  `.ts` with literal `.ts`-extension internal imports and no `dist`.
+  `packages/database`'s own `tsconfig.json` handles this with `noEmit`,
+  which `apps/api` can't use (it has to emit real `dist/main.js`) —
+  `rewriteRelativeImportExtensions` is the flag that allows both at once.
+  Any future package that imports `@swasthya/database` for the first time
+  will likely hit the identical error.
+
+  **Verification.** Beyond the standard pipeline (`pnpm install
+  --frozen-lockfile`, `lint`, `typecheck`, `test`, `build`, all green —
+  `@swasthya/auth` new at 32 tests, `@swasthya/api` 271 → 299, `@swasthya/web`
+  32 → 36): stood up the same local Postgres A1/A2 used
+  (`postgresql-16`/`swasthya`/`swasthya`), applied the new migration,
+  booted the real compiled `apps/api` against it and curled the full
+  `otp/request → otp/verify → me (bearer) → me (cookie) → logout → me
+  (401)` sequence, confirming the `User`/`Session`/`OtpChallenge` rows
+  landed correctly via `psql`. Then, per the "start the dev server and use
+  the feature in a browser" guidance for UI changes: ran `apps/web`'s dev
+  server against that same live API through a real headless Chromium
+  (Playwright, pre-installed in this environment) and drove both
+  `/en/register` and `/en/signin` end to end — screenshots confirmed the
+  Nepali-default hero renders correctly at `/register` (bare path), the
+  English flow completes register → code → "Account created", a second
+  session signs back in with the same phone, and signing in with an
+  unregistered phone shows the correct localized `NOT_REGISTERED` refusal
+  text. One incidental finding: `next build` (Next.js 16) writes
+  `AGENTS.md`/`CLAUDE.md` into `apps/web/` on every build unless disabled;
+  added `agentRules: false` to `next.config.ts` so future runs' `git
+  status` doesn't pick up build noise.
+
+  **For the next run:** A4, "wire the entitlement guard to real identity,"
+  is next — `SessionAuthGuard`/`AuthService` now exist for it to use in
+  place of `EntitlementsGuard`'s `extractOwnerId` stub. The seeded
+  demonstration patients (Janaki/Sunita/Roshani/Arjun) still have no
+  `phone` set (seed-data.ts's `SeedUser` doesn't set one), so none of them
+  can sign in through this flow yet — worth deciding whether A4 needs that
+  or whether it's a separate small follow-up.
 
 - 2026-08-10 — **Round two, task A2: seed script producing a realistic
   Nepali demonstration dataset.** First unchecked task after A1. Same
