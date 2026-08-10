@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ClinicalChartingModule } from './clinical-charting/clinical-charting.module.js';
+import { ClinicalSuiteModule } from './clinical-suite/clinical-suite.module.js';
 import { ClinicalSummaryModule } from './clinical-summary/clinical-summary.module.js';
 import { CompanionController } from './companion.controller.js';
 import { CredentialingModule } from './credentialing/credentialing.module.js';
@@ -23,6 +24,7 @@ import { SchedulingModule } from './scheduling/scheduling.module.js';
     ClinicalSummaryModule,
     MedicationSafetyModule,
     PrescribingModule,
+    ClinicalSuiteModule,
     LanguageCorpusModule,
   ],
   controllers: [HealthController, CompanionController, DirectoryController],

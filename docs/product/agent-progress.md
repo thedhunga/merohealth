@@ -268,6 +268,13 @@ suite grows. A module that "works" but has no outage test is not finished.
       depending on it.
 - [x] `prescribing`: Nepali formulary. Safety-critical — `docs/compliance/`
       must lead this module, not trail it.
+- [x] `apps/api`: a `clinical-suite` aggregate module exposing
+      `GET /clinical-suite/modules`, the one real registry over all seven
+      modules built so far (`HEALTH_RECORDS` plus rows 1-6), computed from
+      the same DI-wired services the rest of the app runs on — §2 rule 5's
+      "the shell renders around holes" had no single data source to render
+      from until this; every prior fault-isolation test only proves its own
+      module's edges in an ad hoc registry built just for that test.
 
 Stop after prescribing and reassess. Modules 7-20 in the capability map are
 sequenced but must not be started while anything above is unfinished.
@@ -276,6 +283,100 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **The task queue was fully checked at the start of this run
+  (`grep -n "^\s*- \[ \]"` over the whole file returned nothing) — the
+  scheduled-run instructions say that means pick the highest-value
+  improvement to work already done, do it, and add it to the queue as a
+  completed task, rather than open a new capability-map module. Chose:
+  **an aggregate `clinical-suite` endpoint in `apps/api` over the six
+  clinical modules built so far.**
+
+  **Why this and not module 7.** The previous run's own note says "stop
+  after prescribing and reassess," and `clinical-suite.md` §4 doesn't
+  actually forbid continuing — that stop was the ledger's own added
+  caution, not the architecture doc's. But the scheduled-run instructions
+  for an empty queue point at improving existing work, not opening a new
+  multi-module feature, so the deciding question was: what's unfinished
+  about the six modules already shipped? Answer: `clinical-suite.md` §2
+  rule 5, "the shell renders around holes," has no data source. Every
+  module's own fault-isolation test builds its own ad hoc
+  `buildModuleRegistry([...])` covering only the two or three descriptors
+  its own `degradesWith` edges touch (e.g. `prescribing.fault-isolation
+  .test.ts` registers five of the seven built modules, `clinical-summary`'s
+  registers three) — proven correct per-edge, but there was no single
+  place in the running app that ever assembled the *whole* graph from live
+  services. That gap is real, small, and touches nothing outside its own
+  new files plus one import in `app.module.ts` — the shape of thing this
+  branch point calls for.
+
+  **What was built.** `apps/api/src/clinical-suite/`: `ClinicalSuiteService`
+  is injected all seven already-exported services (`RecordsService`
+  `HEALTH_RECORDS`, `PatientRegistryService`, `SchedulingService`,
+  `ClinicalChartingService`, `ClinicalSummaryService`,
+  `MedicationSafetyService`, `PrescribingService` — `HEALTH_RECORDS` is
+  included because `clinical-charting`'s own descriptor already declares a
+  `degradesWith` on it, and `buildModuleRegistry` throws
+  `UnknownModuleReferenceError` on a referenced-but-unregistered key) and
+  calls each module's existing `create*ModuleDescriptor` factory to build
+  one real `ModuleRegistry` **once, in the constructor** — deliberately
+  matching `module-registry`'s own doc comment that wiring-time is where a
+  typo'd dependency key should fail loudly, not at first request.
+  `resolve()` runs `collectHealthStates` then `resolveAvailability` and
+  returns the full array. `ClinicalSuiteController` exposes it as `GET
+  /clinical-suite/modules`. `ClinicalSuiteModule` imports the seven
+  modules purely to reuse Nest's already-constructed service instances and
+  owns no data of its own — same "aggregator, not a capability" reasoning
+  that means it needs no `ModuleDescriptor` of its own, since it is not
+  itself one of the capability map's numbered rows.
+
+  **Tests**, `clinical-suite.service.test.ts` (real service instances, the
+  same "wire the real classes" shape every other fault-isolation test in
+  this app uses, just for all seven at once): all-up gives 7 modules with
+  every `available: true` / `degradations: []`; forcing
+  `charting.health` to `DOWN` asserts **both** dependents that declare a
+  `CLINICAL_CHARTING` edge (`clinical-summary` and `prescribing`) show the
+  `HIDE` degradation while the three modules with no such edge
+  (`patient-registry`, `scheduling`, `health-records`) read fully
+  available — the specific thing no single module's own test could show,
+  since each only knows about its own edges; and forcing
+  `patients.health` to *throw* (not reject) asserts `collectHealthStates`'s
+  documented catch-and-report-DOWN behaviour holds through this service
+  too, cascading to `scheduling`'s `READ_ONLY` degradation. Plus a trivial
+  `clinical-suite.controller.test.ts` proving the controller is pure
+  delegation.
+
+  **Deliberately not built:** any UI consuming this endpoint — same
+  "API-only until the suite reaches a clinician-facing shell" precedent
+  every module in this section has already set; a `GET
+  /clinical-suite/health` single-status rollup — the per-module array *is*
+  the honest shape per §2's "each degradation reported separately, not
+  collapsed into an invented severity ranking," so inventing one combined
+  status here would contradict the resolver's own stated design; wiring
+  `DIAGNOSTICS_ORDERS` or any row-7+ descriptor into the registry — those
+  modules don't exist yet, and a descriptor for an unbuilt module would be
+  exactly the "fake completeness" this ledger's constraints warn against.
+
+  **Verify:** `pnpm install --frozen-lockfile` (no new workspace package,
+  lockfile already current), `pnpm lint` (first pass failed:
+  `@typescript-eslint/no-unsafe-assignment` on `expect.arrayContaining` in
+  the new service test — same matcher `medication-safety`'s own log entry
+  already flagged as unused elsewhere in this repo; replaced with an exact
+  array literal, which is also more precise about what that scenario
+  actually asserts), `pnpm typecheck`, `pnpm test` (`@swasthya/api` 263 →
+  267), `pnpm build`, all green from a clean install, run as `pnpm
+  <script>` at the repo root.
+
+  **For the next run:** re-derive the first unchecked task from a fresh
+  `grep -n "^\s*- \[ \]"` over the whole file — this run's addition is
+  already ticked, so the queue is fully checked again. If it still is when
+  you read this, `clinical-suite.md` §4's sequencing note ("modules 1-4 are
+  the smallest thing a clinic can actually use... nothing before module 5
+  touches prescribing") together with this run's own reasoning above
+  suggests row 7 (`diagnostics-orders`) is the next real capability-map
+  item once a run is willing to open a new module rather than improve
+  existing ones — but that is a judgement call for whichever run reads
+  this next, not a decision this entry is making for it.
 
 - 2026-08-10 — **`prescribing`: Nepali formulary (clinical-suite.md
   capability map row 6, the first unchecked task, re-derived from a fresh
