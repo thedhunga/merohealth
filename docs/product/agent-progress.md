@@ -119,7 +119,7 @@ Design in
 [`docs/architecture/grounded-answers.md`](../architecture/grounded-answers.md).
 Read it before starting; the ordering rules there are not optional.
 
-- [ ] `packages/retrieval`: query expansion across ne / ne-Latn / en, the
+- [x] `packages/retrieval`: query expansion across ne / ne-Latn / en, the
       hand-curated Nepali ↔ English clinical term map (मिर्गौला ↔ kidney ↔
       renal, चिनी ↔ glucose ↔ sugar), scoped retrieval, citation assembly.
       **No embeddings** — the per-person corpus is small enough that lexical
@@ -389,6 +389,84 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task B1: `packages/retrieval` — query expansion,
+  the Nepali ↔ English clinical term map, scoped retrieval, citation
+  assembly.** First unchecked task after A4. Design in
+  `docs/architecture/grounded-answers.md`, read first per that section's own
+  instruction. This is the first package B builds; intent routing,
+  citations-in-the-UI, refusal construction, the cross-subject leakage test
+  over the whole assistant flow, and the evaluation set are separate
+  unchecked bullets under B, deliberately left for later runs.
+
+  **What was built.** `packages/retrieval` (new): a hand-curated
+  `clinicalTermMap` of 11 concepts, each with Devanagari, romanized-Nepali,
+  and English surface forms — `expandQuery()` normalizes a raw question,
+  tokenizes it script-agnostically, and where a surface form matches (whole
+  token for a single word, phrase substring for a multi-word form like
+  "rakta sharkara"), pulls in every other form of that concept so a query in
+  one register can retrieve a record labelled in another. Every concept is
+  either the design doc's own worked example (मिर्गौला/kidney/renal,
+  चिनी-सुगर/glucose/blood sugar) or a term that appears verbatim in
+  `packages/database`'s seed data (हेमोग्लोबिन, कोलेस्ट्रोल, थाइरोइड,
+  भिटामिन डी) — nothing invented beyond what the design doc or the repo's own
+  demonstration data already asserts. `retrieveForSubject(subjectId, corpus,
+  query)` matches expanded terms against `HealthObservation.labelNe`/`labelEn`
+  and `HealthDocument.title`, and builds a `Citation` (source type, id, the
+  owning document id, both labels, `effectiveAt` left as a raw ISO string —
+  formatting into Nepali-locale copy already has one implementation,
+  `apps/web/src/lib/format-date.ts`, and this package adds no second one).
+
+  **The security property, not left to callers.** grounded-answers.md §3
+  calls cross-subject leakage the system's highest-severity failure class,
+  the same one the cross-owner records-routes gap already surfaced once. So
+  `retrieveForSubject` filters `ownerId === subjectId` and
+  `@swasthya/health-records`' `selectTrusted` (CONFIRMED/CORRECTED only, the
+  same definition `packages/interop` already reuses — no second definition
+  of "trusted" to drift from the first) **inside itself**, rather than
+  trusting the caller's corpus to already be scoped. Two tests construct a
+  corpus containing both subjects' rows on purpose and assert only the
+  matching subject's rows ever come back — this is retrieval's slice of the
+  leakage property, not the full-flow test the queue still has as a separate
+  unchecked B bullet once intent routing and generation exist to test
+  end-to-end.
+
+  **A real bug the tests caught before commit, worth flagging for whoever
+  touches Devanagari tokenization next.** The first `tokenize()` split on
+  `[^\p{L}\p{N}]+` ("not a letter or digit") to be script-agnostic between
+  Devanagari and Latin. That's wrong for Devanagari specifically: a matra
+  (मिर्गौला's ि, ौ) is Unicode category Mn (combining mark), not L, so the
+  regex tore every Devanagari word apart at its own vowel signs — चिनी
+  tokenized to fragments that matched nothing. Four tests failed with empty
+  results (not a crash, which is what made it worth calling out) until the
+  split class became `[^\p{L}\p{M}\p{N}]+`. `\b` in JS regex has the same
+  blind spot (`\w` is `[A-Za-z0-9_]`), so anything reaching for it against
+  Nepali text later will hit this again.
+
+  **Deliberately not touched.** No device-sample retrieval —
+  `DeviceSample.kind` is an enum (`BLOOD_GLUCOSE`, `HEART_RATE`, ...) with no
+  `labelNe`/`labelEn` the way `HealthObservation` has, and grounded-answers.md
+  §4 scopes the bilingual-label approach to observations specifically; giving
+  device samples the same treatment would mean inventing a second translation
+  table beyond the term map this task actually asked for. No health-library
+  or family-history retrieval — health-library content lives in `apps/web` as
+  marketing content with no id space a `Citation` could point at yet, and
+  `packages/family` (round two, section C) doesn't exist yet. Both are named
+  in scope by grounded-answers.md §3 but need their own modules built first;
+  noting the gap here rather than stubbing something half-real.
+
+  **Verification.** Standard pipeline: `pnpm install` needed
+  `--no-frozen-lockfile` once to pick up the new package (then verified
+  `--frozen-lockfile` passes clean against the updated lock), `lint`,
+  `typecheck`, `test` (`@swasthya/retrieval` new at 16 tests, every other
+  package's count unchanged), `build`, all green.
+
+  **For the next run:** the queue's next item is B2, intent routing
+  (`buildAnalyteTrend` for computable questions, "no number reaching a person
+  may originate from the model"). It's the natural consumer of
+  `retrieveForSubject` — the retrieved observations are what a trend query
+  would run over — so it can build directly on this package rather than
+  starting cold.
 
 - 2026-08-10 — **Round two, task A4: wire the entitlement guard to real
   identity.** First unchecked task after A3. `EntitlementsGuard` previously
