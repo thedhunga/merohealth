@@ -20,6 +20,14 @@ const nextConfig: NextConfig = {
   images: {
     formats: ['image/avif', 'image/webp'],
   },
+  // The Expo web export lands in public/app as static HTML files (see
+  // scripts/vercel-build.sh), and Next's public folder serves those by their
+  // literal filename only — it never resolves a bare directory request to
+  // its index.html the way a static host would. Without this the footer's
+  // `/app` link 404s even though `public/app/index.html` exists.
+  async rewrites() {
+    return [{ source: '/app', destination: '/app/index.html' }];
+  },
   async headers() {
     return [
       {

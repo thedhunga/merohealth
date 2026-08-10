@@ -184,7 +184,7 @@ Design in
 
 ### D · Deployment and the launch gate
 
-- [ ] Serve the Expo build at `/app`. `vercel.json` now builds `apps/web`
+- [x] Serve the Expo build at `/app`. `vercel.json` now builds `apps/web`
       only, so the footer's app links 404. Copy `apps/mobile/dist` into
       `apps/web/public/app` during the Vercel build — and do not let a failure
       there break the whole deploy.
@@ -407,6 +407,84 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task D1: serve the Expo build at `/app`.** First
+  unchecked task, per the prior run's own handoff note — took it as pointed.
+
+  **What was built.** Three pieces, each verified empirically rather than
+  assumed:
+
+  1. `apps/mobile/app.json` gained `experiments.baseUrl: "/app"`. Checked the
+     installed `@expo/cli` source before touching anything: `expo export
+     --platform web` reads this one config key
+     (`getBaseUrlFromExpoConfig`) and threads it through both the generated
+     HTML's asset URLs and the client bundle's `EXPO_BASE_URL`-driven router
+     (`getPathFromState.js`'s `appendBaseUrl`) — so setting it once makes the
+     *entire* exported app, assets and in-app navigation alike,
+     self-contained under `/app` instead of assuming it owns the domain root.
+     Confirmed this doesn't touch native builds — `exportEmbedAsync.js` never
+     reads `baseUrl` — so it's safe to set globally rather than needing a
+     platform-specific override. Verified by rebuilding and diffing the
+     output: before, `index.html` loaded
+     `/_expo/static/js/web/entry-*.js` and the bundle's internal route table
+     held bare `/records`; after, both are `/app`-prefixed, and the literal
+     string `"/app"` is baked into the bundle three times where
+     `appendBaseUrl` needed it.
+  2. `scripts/vercel-build.sh` (new): builds `@swasthya/mobile` and its
+     package dependencies via `pnpm turbo build --filter=@swasthya/mobile...`
+     (plain `pnpm --filter @swasthya/mobile build` fails outside turbo — the
+     workspace packages resolve to a `dist/` their own build step hasn't
+     produced yet, since pnpm doesn't know to build them first), then copies
+     `apps/mobile/dist/.` into `apps/web/public/app/` before running the
+     original `pnpm turbo build --filter=@swasthya/web...`. No `set -e`,
+     deliberately: the mobile build's success is checked with a plain `if`,
+     and every failure path (build fails, or copy fails) falls through to
+     the real web build rather than aborting the script — proved this with a
+     real test, not by reading the script and assuming: temporarily made
+     `apps/mobile`'s `build` script `exit 1`, ran the script, and confirmed
+     `apps/web/public/app` was correctly never created while
+     `apps/web/.next/BUILD_ID` still landed. `vercel.json`'s `buildCommand`
+     now calls this script instead of building `@swasthya/web` directly.
+  3. `apps/web/next.config.ts` gained one `rewrites()` entry, `/app` →
+     `/app/index.html`. This was not obvious from the task description and
+     only surfaced by actually serving the built output: Next's `public/`
+     folder serves files by their literal name only, so
+     `public/app/index.html` exists and answers on that exact path, but the
+     footer's actual link target, bare `/app`, 404s without a rewrite — Next
+     has no static-host-style directory-index fallback. Verified with
+     `next start` against the real build output: `/app` was a 404 before the
+     rewrite and a 200 serving the Expo shell after, with the shell's own
+     script tag correctly resolving to
+     `/app/_expo/static/js/web/entry-*.js` (200) once loaded. `proxy.ts`'s
+     middleware matcher already excluded `app` from locale-prefix handling
+     (a prior run had anticipated this), so no change was needed there.
+
+  **Why `apps/web/public/app/` isn't committed.** It's the copy's output, not
+  source — added to `.gitignore` alongside the existing `dist/` entry it
+  mirrors. A committed copy would silently go stale the moment
+  `apps/mobile`'s app code changes without a run remembering to regenerate
+  it; the build step is the only thing that should ever produce it.
+
+  **What this does and doesn't prove.** The five links currently pointing at
+  `/app` (`Footer.tsx` ×2, `FinalCta.tsx`, and three `IndividualsPageView`-
+  family CTAs) all point at the bare path, and that's the only path this run
+  verified end-to-end. Deep links into specific in-app routes
+  (`/app/records`, `/app/companion`, ...) do resolve — every generated
+  `*.html` file carries the same `/app`-prefixed asset URL — but nothing in
+  `apps/web` currently links to one directly, so that path is verified by
+  construction (same generator, same baseUrl) rather than by a targeted
+  check.
+
+  **Verify.** Full sequence green from the repository root:
+  `pnpm install --frozen-lockfile` (no lockfile change), `pnpm lint`
+  (31/31), `pnpm typecheck` (31/31), `pnpm test` (55/55 tasks, no count
+  changes — this task touched no test-bearing source), `pnpm build` (31/31,
+  `@swasthya/mobile` and `@swasthya/web` both included as before). No new
+  `index.test.ts`: the change is Vercel build wiring and a static Next.js
+  rewrite table, not business logic, and `apps/web`'s own test script
+  (`vitest run src`) doesn't reach `next.config.ts` at the app root — the
+  correctness claim here rests on the `next start` + `curl` verification
+  above and the deliberate build-failure rehearsal, not on a unit test.
 
 - 2026-08-10 — **Round two, task C6: profile switcher — closing the box the
   prior run deliberately left open.** The prior run (below) built a real,
