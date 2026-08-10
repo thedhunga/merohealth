@@ -661,3 +661,89 @@ export interface MedicationSafetyCheckResult {
    */
   checked: boolean;
 }
+
+/* ------------------------------------------------------------------ *
+ * Prescribing (clinical-suite.md capability map row 6)
+ *
+ * "Nepali formulary, not US EPCS. Safety-critical." §1 is explicit that
+ * `docs/compliance/` must lead this module, not trail it — the compliance
+ * gap register's "E-prescribing" row names the interim engineering control
+ * before any legal sign-off exists: "signed state machine; controlled items
+ * disabled." Both are load-bearing in the types below, not aspirational
+ * comments:
+ *
+ * - The state machine (`DRAFT` → `SIGNED` → `VOIDED`) makes a signed
+ *   prescription immutable, the same "sign and lock" property
+ *   `clinical-charting`'s `Encounter` already established for a closed
+ *   encounter.
+ * - `PrescriptionLineInput.isControlledSubstance` exists so the domain layer
+ *   can refuse it unconditionally (see `packages/prescribing`'s
+ *   `ControlledSubstanceDisabledError`) — a structural refusal that holds
+ *   regardless of what a future formulary dataset contains, since no
+ *   pharmacy/counsel approval for controlled items exists in this repo
+ *   today (register launch gate: "counsel/pharmacy approval").
+ *
+ * Every prescription is written against a `clinical-charting` encounter —
+ * unlike `ClinicalSummaryItem`, there is no patient-reported prescribing, so
+ * `encounterId` is never null. `signedAttestation` is a typed confirmation
+ * of intent, not a cryptographic signature: this repository has no PKI, and
+ * inventing one to satisfy "signed" would be exactly the kind of unearned
+ * assurance the standing constraints warn against.
+ * ------------------------------------------------------------------ */
+export type PrescriptionStatus = 'DRAFT' | 'SIGNED' | 'VOIDED';
+
+export interface PrescriptionLine {
+  id: string;
+  label: string;
+  dosageInstructions: string;
+  quantity: string;
+  isControlledSubstance: boolean;
+}
+
+export interface PrescriptionLineInput {
+  label: string;
+  dosageInstructions: string;
+  quantity: string;
+  isControlledSubstance: boolean;
+}
+
+/**
+ * clinical-suite.md §2's own worked example, transcribed almost verbatim:
+ * "the prescription records that it was written without automated
+ * checking." `UNAVAILABLE` is what signing while `medication-safety`
+ * reports `checked: false` produces; it is not an error state, just an
+ * honest record of what could and could not be verified at sign time.
+ */
+export type PrescriptionSafetyCheckStatus = 'CHECKED' | 'UNAVAILABLE';
+
+export interface Prescription {
+  id: string;
+  patientId: string;
+  clinicianId: string;
+  encounterId: string;
+  status: PrescriptionStatus;
+  lines: readonly PrescriptionLine[];
+  /** Set together, only once signing runs a safety check pass. Both stay null/[] on a DRAFT. */
+  safetyCheckStatus: PrescriptionSafetyCheckStatus | null;
+  safetyFindings: readonly MedicationSafetyFinding[];
+  /** Set together, only once signed. */
+  signedAttestation: string | null;
+  signedAt: string | null;
+  /** Set together, only once voided; both stay null on a DRAFT or a SIGNED-but-not-voided prescription. */
+  voidedAt: string | null;
+  voidReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+/**
+ * `patientId` is deliberately absent, the same precedent
+ * `RecordClinicianSummaryItemInput` set: the API boundary derives it from
+ * the `clinical-charting` encounter the prescription is opened against,
+ * rather than trusting a client-supplied `patientId` that could disagree
+ * with the encounter it is nested under.
+ */
+export interface OpenPrescriptionInput {
+  clinicianId: string;
+}

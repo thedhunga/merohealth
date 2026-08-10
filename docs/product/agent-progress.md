@@ -266,7 +266,7 @@ suite grows. A module that "works" but has no outage test is not finished.
 - [x] `medication-safety`: interaction and allergy checking. Built **before**
       prescribing, so prescribing degrades to `MANUAL` against it rather than
       depending on it.
-- [ ] `prescribing`: Nepali formulary. Safety-critical — `docs/compliance/`
+- [x] `prescribing`: Nepali formulary. Safety-critical — `docs/compliance/`
       must lead this module, not trail it.
 
 Stop after prescribing and reassess. Modules 7-20 in the capability map are
@@ -276,6 +276,122 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **`prescribing`: Nepali formulary (clinical-suite.md
+  capability map row 6, the first unchecked task, re-derived from a fresh
+  top-to-bottom `grep -n "^- \["` per every prior entry's own
+  instruction).** Ledger and clinical-suite.md §1 both say
+  `docs/compliance/` must lead this module, not trail it — read
+  `docs/compliance/compliance-gap-register.md`'s "E-prescribing" row
+  first, and it names the interim engineering control before any
+  counsel/pharmacy sign-off exists: **"signed state machine; controlled
+  items disabled."** Both are load-bearing in the code, not just quoted
+  in a comment.
+
+  **The state machine.** `packages/prescribing` (pure domain layer,
+  matching `clinical-charting`'s split): `DRAFT → SIGNED → VOIDED`.
+  `openPrescription` takes an already-resolved `patientId`/`encounterId`
+  (derived from a real `clinical-charting` encounter at the API
+  boundary, never a client-supplied `patientId`, same precedent
+  `ClinicalSummaryService.recordClinicianAuthored` set). `addPrescriptionLine`
+  only works on a `DRAFT`. `signPrescription` is the "sign and lock"
+  transition — `clinical-charting`'s `closeEncounter` already established
+  this shape for an encounter, this is the same property for a
+  prescription — refuses an empty prescription
+  (`EmptyPrescriptionError`) and, once signed, no further line can be
+  added (`PrescriptionNotDraftError`). `signedAttestation` is a typed
+  confirmation of intent, not a cryptographic signature: this repo has
+  no PKI, and building one to satisfy "signed" would be exactly the kind
+  of unearned assurance the standing constraints warn against — an
+  honest scope cut, not a shortcut. `voidPrescription` only reaches a
+  `SIGNED` prescription (a `DRAFT` is abandoned by simply never signing
+  it) and is rejected on an already-voided one
+  (`PrescriptionAlreadyVoidedError`), same "did my write actually do
+  anything" precedent every sibling state machine already uses.
+
+  **"Controlled items disabled," enforced unconditionally, not via a
+  formulary lookup.** No Nepali formulary dataset exists in this
+  repository — same "invent no facts" gap `medication-safety`'s own
+  empty interaction ruleset already documented — so there is nothing to
+  look up a drug's controlled-substance status against. Instead,
+  `PrescriptionLineInput.isControlledSubstance` is a flag the caller must
+  assert, and `addPrescriptionLine` refuses `true` unconditionally
+  (`ControlledSubstanceDisabledError`), regardless of what a future
+  formulary says, until that compliance-register row clears its launch
+  gate. This is the compliance-leads-the-module requirement made
+  literal: the control exists in code today, before the dataset that
+  would otherwise make it necessary even arrives.
+
+  **Signing runs clinical-suite.md §2's own worked example, almost
+  verbatim.** That section's example *is* prescribing degrading against
+  the drug database: "prescribing does not stop — it switches to MANUAL
+  ... the prescription records that it was written without automated
+  checking." `PrescribingService.signPrescription` calls
+  `MedicationSafetyService.checkMedication` (row 5, built last run
+  specifically so this run could depend on it) for every line against
+  the patient's own record; if any line comes back `checked: false` the
+  whole signature records `safetyCheckStatus: 'UNAVAILABLE'` with
+  `safetyFindings: []` rather than a partial, misleadingly-specific
+  list; otherwise `'CHECKED'` with every finding gathered. Either way
+  **signing still succeeds** — a finding or an unavailable check is
+  recorded on the permanent record, never silently enforced, because the
+  clinician remains the one accountable for the prescription regardless
+  of what the automated check could or could not see.
+
+  **`apps/api/src/prescribing/`**, mirroring the established file set
+  (repository/service/controller/module-descriptor/module, each with its
+  own test, plus the fault-isolation test the standing constraints
+  require). Two real dependencies, both injected as their public port
+  per §2 rule 3: `ClinicalChartingService` (only `openPrescription`
+  touches it, to resolve the encounter — adding a line, signing and
+  voiding never do, so composing and locking a draft keeps working even
+  if clinical-charting is down) and `MedicationSafetyService` (only
+  `signPrescription` touches it). Module descriptor: `PRESCRIBING`
+  requires nothing, `degradesWith: [{ key: 'CLINICAL_CHARTING', mode:
+  'HIDE' }, { key: 'MEDICATION_SAFETY', mode: 'MANUAL' }]` — `HIDE`
+  matching row 4's own descriptor for the same "one action gated on a
+  dependency, no literal surface to hide yet" shape, `MANUAL` matching
+  §2's worked example by name. Routes: `POST
+  /prescribing/encounters/:encounterId/prescriptions`, `GET
+  /prescribing/prescriptions` (filterable by `patientId`), `GET
+  /prescribing/prescriptions/:prescriptionId`, `POST
+  .../lines`, `POST .../sign`, `POST .../void`, `GET
+  /prescribing/health`. Registered in `app.module.ts` after
+  `MedicationSafetyModule`, and added `@swasthya/prescribing` as an
+  `apps/api` dependency.
+
+  **Deliberately not built:** any formulary content, ingestion or lookup
+  — no real Nepali formulary dataset exists to load, so building one
+  would be inventing clinical facts; a `removePrescriptionLine` action —
+  a wrong `DRAFT` line is cheap to work around today (start over; nothing
+  is dispensed from a draft) and adding it would be scope beyond what
+  this task needs; any admin path to re-enable controlled substances —
+  that flips only when the compliance register's launch gate
+  ("counsel/pharmacy approval") actually clears, not by an engineering
+  decision. No UI in `apps/web` or `apps/mobile` — same precedent
+  `clinical-summary` and `medication-safety` both already set: API-only
+  until the suite reaches a clinician-facing shell.
+
+  **Verify:** `pnpm install` (lockfile needed updating for the new
+  workspace package; confirmed clean afterward with `pnpm install
+  --frozen-lockfile`), `pnpm lint` (first pass failed: an unused
+  `summary` destructure in the fault-isolation test's last `it` block —
+  removed it), `pnpm typecheck`, `pnpm test` (`@swasthya/prescribing`
+  0 → 13 tests; `@swasthya/api` 238 → 263; a first draft of two
+  controller tests wrongly used `await expect(...).rejects.toThrow(...)`
+  against a synchronous `parseOrThrow` throw — the same non-async
+  `openPrescription`/`sign` controller methods `medication-safety`'s own
+  controller tests already show as `expect(() => ...).toThrow(...)` —
+  fixed the tests, not the controller), `pnpm build`, all green from a
+  clean install, run as `pnpm <script>` at the repo root.
+
+  **For the next run: the ledger's own instruction here is "Stop after
+  prescribing and reassess."** Re-derive the first unchecked task from a
+  fresh `grep -n "^- \["` over the whole file as always, but read
+  `docs/architecture/clinical-suite.md` §4 in full first — modules 7-20
+  are sequenced but explicitly must not start while anything above is
+  unfinished, and reassessing whether that's still true is the point of
+  stopping here, not a formality to skip past.
 
 - 2026-08-10 — **`medication-safety`: interaction and allergy checking
   (clinical-suite.md capability map row 5, the first unchecked task,

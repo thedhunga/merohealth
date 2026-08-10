@@ -27,6 +27,7 @@
     "@swasthya/medication-safety": "workspace:*",
     "@swasthya/module-registry": "workspace:*",
     "@swasthya/patient-registry": "workspace:*",
+    "@swasthya/prescribing": "workspace:*",
     "@swasthya/scheduling": "workspace:*",
     "@swasthya/shared-types": "workspace:*",
     "@swasthya/storage-adapters": "workspace:*",
