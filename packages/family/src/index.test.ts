@@ -4,23 +4,29 @@ import {
   EmptyDelegationScopeError,
   InvalidDelegationExpiryError,
   InvalidGuardianshipExpiryError,
+  SelfConditionShareError,
   SelfDelegationError,
   SelfRecordedAssistedEnrolmentError,
   UnauthorizedAccessError,
   WardAlreadyOfAgeError,
   accessLogForOwner,
+  assertFamilyHistory,
+  conditionSharesVisibleTo,
   grantDelegation,
   grantDelegationByAssistedEnrolment,
   grantGuardianshipForIncapacity,
   grantGuardianshipForMinor,
   guardianshipExpiryForMinor,
   hasScope,
+  isConditionShareActive,
   isDelegationActive,
   isGuardianshipActive,
   recordDelegatedAccess,
   recordGuardianshipAccess,
+  revokeConditionShare,
   revokeDelegation,
   revokeGuardianship,
+  shareCondition,
   wasAssistedEnrolment,
 } from './index';
 
@@ -516,5 +522,140 @@ describe('access log — owner visibility (family-and-proxy.md §4)', () => {
     const earlier = recordDelegatedAccess('a-1', grant, 'VIEW_RECORD', 'first visit', '2026-08-12T00:00:00.000Z');
 
     expect(accessLogForOwner([later, earlier], 'janaki')).toEqual([earlier, later]);
+  });
+});
+
+// packages/database/src/seed-data.ts's own family: janaki has Type 2 diabetes
+// mellitus recorded on her own record with geneticRelevance: true; sunita is
+// her daughter (and roshani's mother). Reusing that scenario rather than
+// inventing a second condition, per the standing "invent no facts" constraint.
+describe('family history assertions (family-and-proxy.md §5)', () => {
+  it("records the asking person's own statement about a relative, on her own record — never the relative's", () => {
+    const assertion = assertFamilyHistory(
+      'fh-1',
+      'sunita',
+      'MOTHER',
+      'Type 2 diabetes mellitus',
+      '60s',
+      '2026-08-10T00:00:00.000Z',
+    );
+
+    expect(assertion).toEqual({
+      id: 'fh-1',
+      subjectId: 'sunita',
+      relation: 'MOTHER',
+      condition: 'Type 2 diabetes mellitus',
+      onsetAgeApprox: '60s',
+      provenance: 'PATIENT_REPORTED',
+      sensitivity: 'RESTRICTED',
+      recordedAt: '2026-08-10T00:00:00.000Z',
+    });
+  });
+
+  it('accepts a null onsetAgeApprox rather than requiring a precise age nobody confirmed', () => {
+    const assertion = assertFamilyHistory(
+      'fh-2',
+      'sunita',
+      'MOTHER',
+      'Type 2 diabetes mellitus',
+      null,
+      '2026-08-10T00:00:00.000Z',
+    );
+
+    expect(assertion.onsetAgeApprox).toBeNull();
+  });
+
+  it('provenance and sensitivity are always the fixed §5 values, never caller-supplied', () => {
+    // The function signature has no parameter for either — this is a
+    // compile-time guarantee as much as a runtime one, exercised here so a
+    // future refactor that widens the signature fails a visible assertion.
+    const assertion = assertFamilyHistory('fh-3', 'sunita', 'MOTHER', 'Type 2 diabetes mellitus', null, '2026-08-10T00:00:00.000Z');
+
+    expect(assertion.provenance).toBe('PATIENT_REPORTED');
+    expect(assertion.sensitivity).toBe('RESTRICTED');
+  });
+
+  it("does not read or depend on the relative's own record — janaki need not exist as a Mero Health subject at all", () => {
+    // §5: "does not require her to be a Mero Health user at all." There is
+    // no janakiId parameter anywhere in assertFamilyHistory's signature —
+    // the relative is named only inside the free-text relation/condition,
+    // never resolved against an id.
+    const assertion = assertFamilyHistory(
+      'fh-4',
+      'sunita',
+      'MATERNAL_GRANDMOTHER',
+      'breast cancer',
+      '60s',
+      '2026-08-10T00:00:00.000Z',
+    );
+
+    expect(assertion.subjectId).toBe('sunita');
+    expect(assertion).not.toHaveProperty('relativeId');
+  });
+});
+
+describe('explicit condition sharing (family-and-proxy.md §5)', () => {
+  it('shares one named condition with one named relative, distinct from a family history assertion', () => {
+    const share = shareCondition('cs-1', 'janaki', 'sunita', 'Type 2 diabetes mellitus', '2026-08-10T00:00:00.000Z');
+
+    expect(share).toEqual({
+      id: 'cs-1',
+      ownerId: 'janaki',
+      sharedWithId: 'sunita',
+      condition: 'Type 2 diabetes mellitus',
+      sharedAt: '2026-08-10T00:00:00.000Z',
+      revokedAt: null,
+      sensitivity: 'RESTRICTED',
+    });
+  });
+
+  it('refuses self-sharing, the same shape SelfDelegationError already guards for delegation', () => {
+    expect(() => shareCondition('cs-1', 'janaki', 'janaki', 'Type 2 diabetes mellitus', '2026-08-10T00:00:00.000Z')).toThrow(
+      SelfConditionShareError,
+    );
+  });
+
+  it('is active from sharedAt until revoked, with no expiry to also satisfy', () => {
+    const share = shareCondition('cs-1', 'janaki', 'sunita', 'Type 2 diabetes mellitus', '2026-08-10T00:00:00.000Z');
+
+    expect(isConditionShareActive(share, '2026-08-09T00:00:00.000Z')).toBe(false);
+    expect(isConditionShareActive(share, '2026-08-10T00:00:00.000Z')).toBe(true);
+    expect(isConditionShareActive(share, '2030-01-01T00:00:00.000Z')).toBe(true);
+  });
+
+  it('revokeConditionShare ends visibility and is idempotent on a second call', () => {
+    const share = shareCondition('cs-1', 'janaki', 'sunita', 'Type 2 diabetes mellitus', '2026-08-10T00:00:00.000Z');
+
+    const revoked = revokeConditionShare(share, '2026-09-01T00:00:00.000Z');
+    expect(isConditionShareActive(revoked, '2026-09-15T00:00:00.000Z')).toBe(false);
+
+    const revokedAgain = revokeConditionShare(revoked, '2026-10-01T00:00:00.000Z');
+    expect(revokedAgain.revokedAt).toBe('2026-09-01T00:00:00.000Z');
+  });
+
+  it('conditionSharesVisibleTo returns only what was explicitly shared with the viewer, never what was merely delegated', () => {
+    const share = shareCondition('cs-1', 'janaki', 'sunita', 'Type 2 diabetes mellitus', '2026-08-10T00:00:00.000Z');
+    // arjun holds every delegation scope janaki can grant, including
+    // ASK_ASSISTANT — §5: "ASK_ASSISTANT access does not entitle anyone to
+    // a genetic finding." conditionSharesVisibleTo never even looks at this
+    // grant, since it takes ConditionShare[], not DelegationGrant[].
+    grantDelegation(
+      'd-1',
+      'janaki',
+      'arjun',
+      ['VIEW_RECORD', 'ASK_ASSISTANT', 'MANAGE_APPOINTMENTS', 'UPLOAD_DOCUMENTS'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+    );
+
+    expect(conditionSharesVisibleTo([share], 'sunita', '2026-08-15T00:00:00.000Z')).toEqual([share]);
+    expect(conditionSharesVisibleTo([share], 'arjun', '2026-08-15T00:00:00.000Z')).toEqual([]);
+  });
+
+  it('a revoked share stops appearing in conditionSharesVisibleTo', () => {
+    const share = shareCondition('cs-1', 'janaki', 'sunita', 'Type 2 diabetes mellitus', '2026-08-10T00:00:00.000Z');
+    const revoked = revokeConditionShare(share, '2026-08-12T00:00:00.000Z');
+
+    expect(conditionSharesVisibleTo([revoked], 'sunita', '2026-08-15T00:00:00.000Z')).toEqual([]);
   });
 });

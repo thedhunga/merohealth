@@ -15,8 +15,10 @@
  * separate types with no shared base and no function that accepts either
  * interchangeably.
  *
- * Deliberately not in this file: family history assertions. That is its own
- * queue item and its own task.
+ * §5's family history and explicit condition sharing are also here (bottom
+ * of file) — two more types with no shared base, following the same
+ * "conflating these is the failure mode" reasoning as guardianship versus
+ * delegation above.
  */
 
 /* ------------------------------------------------------------------ *
@@ -447,4 +449,162 @@ export function recordDelegatedAccess(
  */
 export function accessLogForOwner(entries: readonly AccessLogEntry[], viewerId: string): readonly AccessLogEntry[] {
   return entries.filter((entry) => entry.ownerId === viewerId).toSorted((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+}
+
+/* ------------------------------------------------------------------ *
+ * Family history and explicit condition sharing (family-and-proxy.md §5)
+ *
+ * "The wrong design: a shared family health graph where the grandmother's
+ * diagnoses automatically appear on her descendants' records." §5's fix is
+ * two deliberately separate mechanisms, mirroring guardianship-versus-
+ * delegation above: no shared base type, no function that accepts either
+ * interchangeably, because collapsing them is exactly the failure this
+ * section exists to prevent ("reported by you" and "shared by your
+ * grandmother" are different claims with different evidentiary weight).
+ *
+ * `FamilyHistoryAssertion` is the granddaughter's own statement, living on
+ * her own record — it never reads from the grandmother's record and does
+ * not require the grandmother to be a Mero Health user at all.
+ * `ConditionShare` is the opposite direction: the grandmother, who does
+ * have an account and does have the diagnosis, explicitly grants one named
+ * relative visibility of that one condition. Neither is built on top of
+ * `DelegationGrant` — §5 is explicit that `ASK_ASSISTANT` access "does not
+ * entitle anyone to a genetic finding," so nothing here reads `scopes` or
+ * calls `hasScope`.
+ * ------------------------------------------------------------------ */
+
+/**
+ * Free text, not a closed enum. §5's own example is a single illustration
+ * ("MATERNAL_GRANDMOTHER"), not an exhaustive list the way §3's four
+ * `ConsentMethod` values are — inventing a full kinship taxonomy the design
+ * doc never enumerated would be the same fabricated precision that section's
+ * own comment already rules out, just in the opposite direction (there, too
+ * few values would be wrong; here, a closed set at all would be).
+ */
+export type FamilialRelation = string;
+
+/**
+ * The granddaughter's own statement about her family, held on her own
+ * record. Constructible only through `assertFamilyHistory` below — every
+ * field that could otherwise be mistaken for a clinical fact about the
+ * relative is fixed rather than caller-supplied: `provenance` is always
+ * `PATIENT_REPORTED` (this mechanism has no clinician-authored path — §5's
+ * worked example is deliberately "exactly how family history is taken in a
+ * clinic," i.e. asked of the patient, never pulled from the relative's own
+ * chart), and `sensitivity` is always `RESTRICTED` (§5's rule, not a
+ * judgement call left to the caller).
+ */
+export interface FamilyHistoryAssertion {
+  id: string;
+  /** Whose record this lives on — the person making the statement. Never the relative it is about. */
+  subjectId: string;
+  relation: FamilialRelation;
+  /**
+   * Free text, the same unstructured-label convention
+   * `MedicationSafetyFinding.detail` and `ClinicalSummaryItem.label` already
+   * use elsewhere in this codebase for clinical text with no coded system
+   * behind it yet.
+   */
+  condition: string;
+  /** Approximate, as reported ("60s", "mid-40s") — never a precise age nobody actually confirmed. Null when not given. */
+  onsetAgeApprox: string | null;
+  provenance: 'PATIENT_REPORTED';
+  sensitivity: 'RESTRICTED';
+  recordedAt: string;
+}
+
+/**
+ * Records a family history assertion on the asking person's own record.
+ * Pure and total — there is no invariant here to violate the way self-
+ * delegation or an empty scope set are, because a `subjectId` stating
+ * something about a `relation` that is free text has nothing to compare
+ * against itself.
+ */
+export function assertFamilyHistory(
+  id: string,
+  subjectId: string,
+  relation: FamilialRelation,
+  condition: string,
+  onsetAgeApprox: string | null,
+  recordedAt: string,
+): FamilyHistoryAssertion {
+  return {
+    id,
+    subjectId,
+    relation,
+    condition,
+    onsetAgeApprox,
+    provenance: 'PATIENT_REPORTED',
+    sensitivity: 'RESTRICTED',
+    recordedAt,
+  };
+}
+
+/**
+ * §5's other half: the person who actually has the diagnosis chooses to
+ * share that one named condition with one named relative. Narrow (one
+ * condition, one recipient — sharing with several relatives means several
+ * `ConditionShare`s, the same one-delegate-per-grant shape `DelegationGrant`
+ * already uses) and revocable. There is deliberately no `expiresAt`: unlike
+ * guardianship and delegation, §5 never says this needs a mandatory
+ * duration, and inventing one here would add a constraint the design doc
+ * does not state.
+ */
+export interface ConditionShare {
+  id: string;
+  /** Whose diagnosis this is — the person sharing it. */
+  ownerId: string;
+  /** The one named relative granted visibility. */
+  sharedWithId: string;
+  /** Free text, same convention as `FamilyHistoryAssertion.condition`. */
+  condition: string;
+  sharedAt: string;
+  /** Null while active. Revocation is permanent, same as `DelegationGrant.revokedAt`. */
+  revokedAt: string | null;
+  sensitivity: 'RESTRICTED';
+}
+
+export class SelfConditionShareError extends Error {
+  constructor(ownerId: string) {
+    super(`${ownerId} cannot share a condition with themself`);
+    this.name = 'SelfConditionShareError';
+  }
+}
+
+/** Shares one named condition with one named relative. Refuses self-sharing, the same shape `SelfDelegationError` already guards for delegation. */
+export function shareCondition(
+  id: string,
+  ownerId: string,
+  sharedWithId: string,
+  condition: string,
+  sharedAt: string,
+): ConditionShare {
+  if (ownerId === sharedWithId) throw new SelfConditionShareError(ownerId);
+  return { id, ownerId, sharedWithId, condition, sharedAt, revokedAt: null, sensitivity: 'RESTRICTED' };
+}
+
+/** Idempotent, same reasoning as `revokeDelegation`. */
+export function revokeConditionShare(share: ConditionShare, now: string): ConditionShare {
+  return share.revokedAt === null ? { ...share, revokedAt: now } : share;
+}
+
+/** True from `sharedAt` until revoked — there is no expiry to also check, per the type's own comment. */
+export function isConditionShareActive(share: ConditionShare, now: string): boolean {
+  if (share.sharedAt > now) return false;
+  return share.revokedAt === null || now < share.revokedAt;
+}
+
+/**
+ * The read side a relative's own view would call: every condition
+ * currently shared *with* her, and nothing merely delegated to her — the
+ * structural proof that a share is "never implied by a delegation" is that
+ * this function takes `ConditionShare[]`, not `DelegationGrant[]`, so a
+ * `DelegationGrant` with every scope set still returns nothing here.
+ */
+export function conditionSharesVisibleTo(
+  shares: readonly ConditionShare[],
+  viewerId: string,
+  now: string,
+): readonly ConditionShare[] {
+  return shares.filter((share) => share.sharedWithId === viewerId && isConditionShareActive(share, now));
 }

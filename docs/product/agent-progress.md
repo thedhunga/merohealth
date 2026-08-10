@@ -167,7 +167,7 @@ Design in
       can see her grandson opened her record and what he viewed. This is the
       check that makes delegation safe; elder abuse is usually committed by a
       relative with legitimate-looking access.
-- [ ] Family history assertions on the asking person's **own** record. A
+- [x] Family history assertions on the asking person's **own** record. A
       diagnosis never propagates between records automatically. Sharing a
       named condition with a named relative is a separate, narrow, revocable
       grant — never implied by a delegation. Genetic findings are
@@ -389,6 +389,100 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task C5: family history assertions and
+  explicit condition sharing.** First unchecked task after C4, per that
+  run's own handoff note. Read family-and-proxy.md §5 before starting.
+
+  **What was built.** `packages/family` gained two more types, deliberately
+  with no shared base and no function that accepts either interchangeably —
+  the same separation guardianship and delegation already established, for
+  the same reason: §5's whole point is that conflating "reported by you"
+  with "shared by your grandmother" misrepresents the evidence.
+  `FamilyHistoryAssertion` (built only through `assertFamilyHistory`) lives
+  on the *asking* person's own record: `subjectId`, a free-text `relation`
+  and `condition`, an optional `onsetAgeApprox`, and two fields the function
+  signature gives the caller no way to override — `provenance` is always
+  `'PATIENT_REPORTED'` (this mechanism has no clinician-authored path) and
+  `sensitivity` is always `'RESTRICTED'` (§5's rule stated as a literal
+  type, not a runtime check a caller could get wrong). There is no
+  relative-id field anywhere on the type: §5 says the assertion "does not
+  require her to be a Mero Health user at all," so the relative is named
+  only inside the free-text `relation`/`condition`, never resolved against
+  an id the way `DelegationGrant.delegateId` is. `ConditionShare` (built
+  through `shareCondition`) is the opposite direction — the person who
+  actually has the diagnosis explicitly grants one named relative
+  visibility of one named condition, refusing self-sharing via
+  `SelfConditionShareError` the same shape `SelfDelegationError` already
+  established. It carries no `expiresAt`: unlike guardianship and
+  delegation, §5 never states a mandatory duration for this, and adding one
+  anyway would have been inventing a constraint the design doc doesn't
+  make. `isConditionShareActive`/`revokeConditionShare` mirror the
+  delegation lifecycle functions; `conditionSharesVisibleTo` is the read
+  side, and is the structural proof of "never implied by a delegation" —
+  it takes `ConditionShare[]`, not `DelegationGrant[]`, so nothing it does
+  can be satisfied by a scope. `relation` (and `FamilialRelation`, its
+  exported alias) is free text rather than a closed enum, the mirror image
+  of §3's `ConsentMethod` reasoning: there, four *exhaustively* named values
+  meant a closed enum was correct and a fifth would be fabricated; here,
+  §5 gives exactly one illustrative example ("MATERNAL_GRANDMOTHER") rather
+  than an exhaustive list, so inventing a full kinship taxonomy around that
+  one example would be the same fabrication in the other direction.
+
+  **Why "excluded from every default share and export scope" needed no new
+  code.** Checked `packages/interop` before assuming this: `ShareLink`
+  scopes only to `documentIds`, and `buildFhirExportBundle` takes only
+  `HealthDocument[]`/`HealthObservation[]`. Neither `FamilyHistoryAssertion`
+  nor `ConditionShare` has a document or observation representation, so
+  there is no code path by which either could enter a share link or export
+  bundle — the exclusion holds by construction, the same way §4's access
+  log needed no interop change because nothing wires it in yet either.
+
+  **What this does and doesn't prove.** Same caveat as every §C task so
+  far: nothing outside this package's own tests calls
+  `assertFamilyHistory`, `shareCondition` or `conditionSharesVisibleTo`.
+  `packages/retrieval` (Round two B) does not yet read
+  `FamilyHistoryAssertion`s when answering a question on the current
+  subject's record, so §5's last rule — "the assistant may reason over
+  assertions on the current subject's record [but] may never reach across
+  into a relative's record" — is not yet a real enforcement point; there is
+  nothing today for it to enforce against. That wiring belongs to whichever
+  future task actually connects `packages/family` to `apps/api` and
+  `packages/retrieval`, matching every prior §C entry's own honesty about
+  the same gap.
+
+  **Tests.** `packages/family/src/index.test.ts`, 54 tests (up from 44):
+  a `family history assertions` block covering the fixed shape, a null
+  `onsetAgeApprox`, that `provenance`/`sensitivity` are fixed rather than
+  caller-supplied, and that no relative-id field exists on the type; and an
+  `explicit condition sharing` block covering construction, self-share
+  refusal, the no-expiry liveness window, idempotent revocation, and —the
+  one that actually exercises the "never implied by a delegation" rule —
+  a scenario where `arjun` holds every `DelegationScope` including
+  `ASK_ASSISTANT` on `janaki`'s record and still gets `[]` back from
+  `conditionSharesVisibleTo`, while `sunita`, who was actually granted a
+  `ConditionShare`, gets it back. Both scenarios reuse
+  `packages/database/src/seed-data.ts`'s own family (janaki's Type 2
+  diabetes, `geneticRelevance: true`) rather than inventing a second
+  fictional condition.
+
+  **Verify.** Full sequence green from the repository root:
+  `pnpm install --frozen-lockfile` (no lockfile change), `pnpm lint`
+  (31/31), `pnpm typecheck` (31/31), `pnpm test` (55/55 tasks,
+  `@swasthya/family` now 54 tests, every other package's count unchanged),
+  `pnpm build` (31/31).
+
+  **For the next run:** §C's queue is now down to its last item — the
+  profile switcher in `apps/mobile` and `apps/web` (streaming-service
+  convenience over correct ownership underneath; must never let acting for
+  someone else look like acting for yourself). After that, §D's two
+  deployment items are all that remains before Round two's clinical suite
+  work resumes. `CompanionController` is still unwired to B1-B6's
+  deterministic layer, `RecordsController` still takes a bare `ownerId`
+  with no delegate/guardian distinction, and now also: no route anywhere
+  reads a `FamilyHistoryAssertion` or `ConditionShare` — all unchanged
+  findings from prior runs, repeated here because nothing has touched any
+  of them yet.
 
 - 2026-08-10 — **Round two, task C4: owner-visible access log.** First
   unchecked task after C3, per that run's own handoff note. Read
