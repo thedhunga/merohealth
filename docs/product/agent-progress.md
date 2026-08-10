@@ -201,7 +201,7 @@ Design in
       deciding what product content it actually shows — an empty dashboard
       built solely to hold a switcher repeats the mistake this note exists to
       avoid.
-- [ ] Launch-gate checklist in `docs/product/promotion-readiness.md`: what
+- [x] Launch-gate checklist in `docs/product/promotion-readiness.md`: what
       must be true before `robots` stops saying noindex. At minimum: copy
       reviewed by a qualified Nepali clinician, the demonstration notice
       removed only when nothing fictional remains, substantiated figures or no
@@ -407,6 +407,45 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task D3: launch-gate checklist for the robots
+  noindex flip.** First unchecked task — D2 (the `apps/web` authenticated
+  surface) was already checked off by the prior run. This was the only
+  remaining unchecked task anywhere in the queue; grepped the whole file for
+  `- [ ]` to confirm before starting.
+
+  `docs/product/promotion-readiness.md` already existed (it predates this
+  ledger's Round two work — its own git history traces back to the
+  Individuals-utility-routes commit) with a fairly thorough Gate A/B/C
+  regulatory checklist, but nothing in it named the actual code mechanism
+  that drives indexing, and none of the four items the task called out by
+  name were present. Read `apps/web/src/app/robots.ts` and
+  `apps/web/src/lib/seo.ts` first: both key `noindex` off a single signal,
+  `isDemonstrationBuild`, which is `packages/configuration`'s
+  `legalEntity.registrationId === null`. That is necessary but nowhere near
+  sufficient — registering a legal entity says nothing about whether the
+  copy has been clinically reviewed, whether marketing figures are real, or
+  whether fictional content has actually been replaced.
+
+  Added a lead-in paragraph to Gate A naming that code mechanism explicitly,
+  plus four new checklist items ahead of the existing ones, matching the
+  task's list in order: clinician review of clinical copy, substantiated (or
+  removed) quantitative claims — tied explicitly to the standing
+  invent-no-facts constraint — the demonstration notice (`footer.demoNotice`)
+  staying up until no fictional provider/testimonial/facility content remains
+  in the indexed build, and a real registered address on `legalEntity` (today
+  there is no address field at all, and `displayName` is still the literal
+  placeholder `"Demonstration entity — configure before launch"`). Did not
+  touch the pre-existing Gate A/B/C items — they're a broader regulatory
+  checklist for later promotion stages and already cover ground the task
+  didn't ask to revisit. Doc-only change; no code, no messages files, nothing
+  to test.
+
+  Queue is now fully checked except for the "stop after prescribing and
+  reassess" note under Clinical suite — modules 7-20 are explicitly deferred,
+  not blocked, so the next run should re-read that note and the current state
+  of the clinical suite before deciding whether to resume it or find other
+  work.
 
 - 2026-08-10 — **Round two, task D2: `apps/web` authenticated surface.**
   First unchecked task — D1 (serve the Expo build at `/app`) was already
