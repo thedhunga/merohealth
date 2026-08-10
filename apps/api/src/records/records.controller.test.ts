@@ -78,20 +78,34 @@ describe('RecordsController reads', () => {
 
   it('404s for observations of an unknown document', () => {
     const controller = buildController();
-    expect(() => controller.observationsForDocument('missing')).toThrow(NotFoundException);
+    expect(() => controller.observationsForDocument('missing', 'owner-1')).toThrow(NotFoundException);
+  });
+
+  it('requires ownerId on the document-observations endpoint', () => {
+    const controller = buildController();
+    expect(() => controller.observationsForDocument('missing', undefined)).toThrow(BadRequestException);
   });
 });
 
 describe('RecordsController observation actions', () => {
   it('confirm/correct/reject 404 for an unknown observation', () => {
     const controller = buildController();
-    expect(() => controller.confirm('missing')).toThrow(NotFoundException);
-    expect(() => controller.correct('missing', { value: '1' })).toThrow(NotFoundException);
-    expect(() => controller.reject('missing')).toThrow(NotFoundException);
+    expect(() => controller.confirm('missing', { ownerId: 'owner-1' })).toThrow(NotFoundException);
+    expect(() => controller.correct('missing', { ownerId: 'owner-1', value: '1' })).toThrow(
+      NotFoundException,
+    );
+    expect(() => controller.reject('missing', { ownerId: 'owner-1' })).toThrow(NotFoundException);
   });
 
   it('rejects a correct body with no value', () => {
     const controller = buildController();
-    expect(() => controller.correct('any-id', {})).toThrow(BadRequestException);
+    expect(() => controller.correct('any-id', { ownerId: 'owner-1' })).toThrow(BadRequestException);
+  });
+
+  it('rejects confirm/correct/reject bodies with no ownerId', () => {
+    const controller = buildController();
+    expect(() => controller.confirm('any-id', {})).toThrow(BadRequestException);
+    expect(() => controller.correct('any-id', { value: '1' })).toThrow(BadRequestException);
+    expect(() => controller.reject('any-id', {})).toThrow(BadRequestException);
   });
 });

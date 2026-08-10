@@ -88,8 +88,15 @@ export class RecordsService {
     return document;
   }
 
-  listDocumentObservations(documentId: string): HealthObservation[] {
-    if (!this.repository.findDocument(documentId)) {
+  /**
+   * `ownerId` is not just a filter here — it is the only access-control this
+   * app has until real auth lands, so a document that exists but belongs to
+   * someone else must 404 exactly like one that does not exist at all, never
+   * reveal its observations to the wrong caller.
+   */
+  listDocumentObservations(documentId: string, ownerId: string): HealthObservation[] {
+    const document = this.repository.findDocument(documentId);
+    if (!document || document.ownerId !== ownerId) {
       throw new NotFoundException(`No document ${documentId}`);
     }
     return this.repository.listObservationsForDocument(documentId);
@@ -102,24 +109,41 @@ export class RecordsService {
     );
   }
 
-  confirm(observationId: string): HealthObservation {
-    return this.repository.saveObservation(confirmObservation(this.#requireObservation(observationId)));
+  confirm(observationId: string, ownerId: string): HealthObservation {
+    return this.repository.saveObservation(
+      confirmObservation(this.#requireObservation(observationId, ownerId)),
+    );
   }
 
-  correct(observationId: string, value: string, unit: string | null | undefined): HealthObservation {
-    const observation = this.#requireObservation(observationId);
+  correct(
+    observationId: string,
+    ownerId: string,
+    value: string,
+    unit: string | null | undefined,
+  ): HealthObservation {
+    const observation = this.#requireObservation(observationId, ownerId);
     return this.repository.saveObservation(
       correctObservation(observation, value, unit === undefined ? observation.unit : unit),
     );
   }
 
-  reject(observationId: string): HealthObservation {
-    return this.repository.saveObservation(rejectObservation(this.#requireObservation(observationId)));
+  reject(observationId: string, ownerId: string): HealthObservation {
+    return this.repository.saveObservation(
+      rejectObservation(this.#requireObservation(observationId, ownerId)),
+    );
   }
 
-  #requireObservation(observationId: string): HealthObservation {
+  /**
+   * Same "belongs to someone else 404s like it doesn't exist" rule as
+   * `listDocumentObservations` — an observation id leaked or guessed by a
+   * caller who isn't its owner must not be confirmable, correctable or
+   * rejectable by them.
+   */
+  #requireObservation(observationId: string, ownerId: string): HealthObservation {
     const observation = this.repository.findObservation(observationId);
-    if (!observation) throw new NotFoundException(`No observation ${observationId}`);
+    if (!observation || observation.ownerId !== ownerId) {
+      throw new NotFoundException(`No observation ${observationId}`);
+    }
     return observation;
   }
 

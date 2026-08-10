@@ -164,6 +164,13 @@ work.
       samples into `DeviceSample`.
 - [x] `apps/mobile`: document capture flow — camera, review, upload, and the
       confirmation queue driven by `pendingConfirmations`.
+- [x] Fix a cross-owner access-control gap on `apps/api`'s records module:
+      `GET /records/documents/:id/observations` and the confirm/correct/reject
+      routes trusted the opaque id alone with no ownership check, so anyone
+      who learned another owner's `documentId`/`observationId` could read
+      DRAFT observations or mutate someone else's confirmed record. Every
+      route now requires and verifies `ownerId`, 404ing (not 403ing) a
+      mismatch so existence isn't leaked.
 
 ### Photography wiring
 
@@ -283,6 +290,78 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **The task queue was fully checked at the start of this run
+  too (fresh `grep -n "^\s*- \[ \]"` over the whole file, per the previous
+  entry's own instruction, returned nothing) — same branch point as last
+  run: pick the highest-value improvement to work already done, not a new
+  capability-map module. Ran an Explore agent to survey the whole repo
+  for candidates rather than picking from memory; it checked ne/en message
+  key parity (clean), every `degradesWith` edge in the clinical suite
+  against its fault-isolation tests (all covered), entitlement guard
+  coverage on mutating routes, and every place a health-records observation
+  is read or written. It surfaced a real bug in already-shipped code.
+
+  **What was wrong.** `apps/api/src/records/records.controller.ts`'s
+  `GET documents/:documentId/observations` and the three
+  `observations/:observationId/{confirm,correct,reject}` routes took only
+  the opaque id from the URL — no `ownerId` was ever checked against it.
+  `list`/`timeline`/`capture` on the same controller already require and
+  filter by `ownerId` via the existing `requireOwnerId` helper; these four
+  routes were the exception, not by design, just missed. Since this app
+  has no auth layer yet, `ownerId` *is* the only access-control there is —
+  so this was a real cross-owner bug, not a hypothetical one: a caller who
+  learned another owner's `documentId` could read that owner's DRAFT
+  observations (the route's own summary says "draft included"), and a
+  caller who learned an `observationId` could confirm, correct or reject
+  another owner's confirmed lab result. Directly touches two standing
+  constraints at once — "only CONFIRMED/CORRECTED may be reasoned over,
+  DRAFT must never leak" (a cross-owner DRAFT read is exactly that leak) and
+  general data integrity (a stranger correcting a real person's medication
+  or lab value is a patient-safety issue, not just a privacy one).
+
+  **The fix.** `RecordsService.listDocumentObservations` now takes
+  `ownerId` and 404s (matching the existing "unknown id" NotFoundException,
+  not a 403) when the resolved document's `ownerId` doesn't match — a
+  403 would confirm the id exists for someone, which is its own small leak.
+  `confirm`/`correct`/`reject` route through a new
+  `#requireObservation(observationId, ownerId)` with the same rule. The
+  controller now requires `ownerId` as a query param on the GET and in the
+  body on the three POST routes (`ownerActionSchema`/`correctSchema`
+  extended), reusing the file's existing `requireOwnerId`/`parseOrThrow`
+  helpers rather than inventing a new validation shape. Threaded the same
+  `ownerId` through `apps/mobile/src/lib/records-api.ts`'s
+  `listDocumentObservations`/`confirmObservation`/`correctObservation`/
+  `rejectObservation` and their one caller, `app/records.tsx` (`ownerId`
+  was already in scope there via `useAppState()`, so this is a pure
+  threading change, no new state).
+
+  **Tests.** Added to `records.service.test.ts`: a document-observations
+  404 across owners, and a confirm/correct/reject-all-404 case for a
+  non-owning caller. Added to `records.controller.test.ts`: missing-`ownerId`
+  400s on all four routes. Updated `records-api.test.ts` and every existing
+  call site to the new signatures — nothing was weakened, every prior
+  assertion still holds, these are net-new cases.
+
+  **Verify:** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm
+  typecheck`, `pnpm test` (`@swasthya/api` 267 → 271, `@swasthya/mobile`
+  unchanged at 16 since it's the same 5 tests in `records-api.test.ts` with
+  one updated), `pnpm build`, all green from a clean install, run as `pnpm
+  <script>` at the repo root.
+
+  **For the next run:** re-derive the first unchecked task from a fresh
+  `grep -n "^\s*- \[ \]"` — this run's addition is already ticked, so the
+  queue is fully checked again. The Explore agent's survey also flagged two
+  things *not* fixed here, worth a look next time the queue is empty: (1)
+  `apps/api` has zero real HTTP/e2e tests — every controller test
+  constructs the class directly rather than booting `AppModule`, so a guard
+  that's declared but never actually attached to a route would pass every
+  existing test; a `test/app.e2e-spec.ts` booting the real Nest app would
+  close that. (2) `companion.controller.ts`'s `assess`/`research` routes
+  have no `EntitlementsGuard` at all, while `ASSISTANT_MESSAGES_PER_MONTH`
+  is priced on the pricing page — `RecordsUsageReader` already documents
+  why it refuses to meter this dimension, so confirm whether that's still
+  a deliberate deferral before treating it as a bug.
 
 - 2026-08-10 — **The task queue was fully checked at the start of this run
   (`grep -n "^\s*- \[ \]"` over the whole file returned nothing) — the

@@ -150,17 +150,17 @@ describe('listPendingConfirmations', () => {
 });
 
 describe('confirmObservation', () => {
-  it('posts to the confirm endpoint for the given observation id', async () => {
+  it('posts the owner id to the confirm endpoint for the given observation id', async () => {
     const confirmed = makeObservation({ status: 'CONFIRMED' });
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, confirmed));
     vi.stubGlobal('fetch', fetchMock);
 
-    const result = await confirmObservation('obs-1');
+    const result = await confirmObservation('obs-1', 'owner-1');
 
     expect(result.status).toBe('CONFIRMED');
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/records/observations/obs-1/confirm',
-      expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ ownerId: 'owner-1' }) }),
     );
   });
 });

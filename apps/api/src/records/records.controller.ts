@@ -32,9 +32,14 @@ const captureSchema = z.object({
 });
 
 const correctSchema = z.object({
+  ownerId: z.string().trim().min(1),
   value: z.string().trim().min(1),
   // Omitted keeps the observation's existing unit; explicit null clears it.
   unit: z.string().trim().min(1).nullable().optional(),
+});
+
+const ownerActionSchema = z.object({
+  ownerId: z.string().trim().min(1),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
@@ -110,8 +115,12 @@ export class RecordsController {
   @Get('documents/:documentId/observations')
   @ApiOperation({ summary: 'List every observation extracted from one document, draft included' })
   @ApiParam({ name: 'documentId' })
-  observationsForDocument(@Param('documentId') documentId: string) {
-    const items = this.records.listDocumentObservations(documentId);
+  @ApiQuery({ name: 'ownerId', required: true })
+  observationsForDocument(
+    @Param('documentId') documentId: string,
+    @Query('ownerId') ownerId?: string,
+  ) {
+    const items = this.records.listDocumentObservations(documentId, requireOwnerId(ownerId));
     return { items, total: items.length };
   }
 
@@ -126,8 +135,10 @@ export class RecordsController {
   @Post('observations/:observationId/confirm')
   @ApiOperation({ summary: 'Confirm an observation as-extracted' })
   @ApiParam({ name: 'observationId' })
-  confirm(@Param('observationId') observationId: string) {
-    return this.records.confirm(observationId);
+  @ApiBody({ schema: { type: 'object', required: ['ownerId'], properties: { ownerId: { type: 'string' } } } })
+  confirm(@Param('observationId') observationId: string, @Body() body: unknown) {
+    const input = parseOrThrow(ownerActionSchema, body);
+    return this.records.confirm(observationId, input.ownerId);
   }
 
   @Post('observations/:observationId/correct')
@@ -136,19 +147,25 @@ export class RecordsController {
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['value'],
-      properties: { value: { type: 'string' }, unit: { type: 'string', nullable: true } },
+      required: ['ownerId', 'value'],
+      properties: {
+        ownerId: { type: 'string' },
+        value: { type: 'string' },
+        unit: { type: 'string', nullable: true },
+      },
     },
   })
   correct(@Param('observationId') observationId: string, @Body() body: unknown) {
     const input = parseOrThrow(correctSchema, body);
-    return this.records.correct(observationId, input.value, input.unit);
+    return this.records.correct(observationId, input.ownerId, input.value, input.unit);
   }
 
   @Post('observations/:observationId/reject')
   @ApiOperation({ summary: 'Reject an observation extracted in error' })
   @ApiParam({ name: 'observationId' })
-  reject(@Param('observationId') observationId: string) {
-    return this.records.reject(observationId);
+  @ApiBody({ schema: { type: 'object', required: ['ownerId'], properties: { ownerId: { type: 'string' } } } })
+  reject(@Param('observationId') observationId: string, @Body() body: unknown) {
+    const input = parseOrThrow(ownerActionSchema, body);
+    return this.records.reject(observationId, input.ownerId);
   }
 }

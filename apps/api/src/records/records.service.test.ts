@@ -83,7 +83,14 @@ describe('RecordsService document and timeline reads', () => {
 
   it('throws for observations of an unknown document', () => {
     const { service } = buildService();
-    expect(() => service.listDocumentObservations('missing')).toThrow(NotFoundException);
+    expect(() => service.listDocumentObservations('missing', 'owner-1')).toThrow(NotFoundException);
+  });
+
+  it('404s observations of a document that belongs to a different owner', async () => {
+    const { service } = buildService();
+    const document = await service.captureDocument(makeCapture({ ownerId: 'owner-1' }));
+
+    expect(() => service.listDocumentObservations(document.id, 'owner-2')).toThrow(NotFoundException);
   });
 
   it('resolves a document by id, and throws for an unknown one', async () => {
@@ -109,14 +116,14 @@ describe('RecordsService confirm/correct/reject', () => {
     const { service, repository } = buildService();
     repository.saveObservation(draftObservation());
 
-    expect(service.confirm('obs-1').status).toBe('CONFIRMED');
+    expect(service.confirm('obs-1', 'owner-1').status).toBe('CONFIRMED');
   });
 
   it('corrects a draft observation, re-attributing it to the patient', () => {
     const { service, repository } = buildService();
     repository.saveObservation(draftObservation());
 
-    const corrected = service.correct('obs-1', '2.4', undefined);
+    const corrected = service.correct('obs-1', 'owner-1', '2.4', undefined);
     expect(corrected.value).toBe('2.4');
     expect(corrected.unit).toBe('mg/dL');
     expect(corrected.provenance).toBe('PATIENT_REPORTED');
@@ -126,21 +133,30 @@ describe('RecordsService confirm/correct/reject', () => {
     const { service, repository } = buildService();
     repository.saveObservation(draftObservation());
 
-    expect(service.correct('obs-1', '2.4', null).unit).toBeNull();
+    expect(service.correct('obs-1', 'owner-1', '2.4', null).unit).toBeNull();
   });
 
   it('rejects a draft observation', () => {
     const { service, repository } = buildService();
     repository.saveObservation(draftObservation());
 
-    expect(service.reject('obs-1').status).toBe('REJECTED');
+    expect(service.reject('obs-1', 'owner-1').status).toBe('REJECTED');
   });
 
   it('throws NotFoundException for an unknown observation on every action', () => {
     const { service } = buildService();
-    expect(() => service.confirm('missing')).toThrow(NotFoundException);
-    expect(() => service.correct('missing', '1', null)).toThrow(NotFoundException);
-    expect(() => service.reject('missing')).toThrow(NotFoundException);
+    expect(() => service.confirm('missing', 'owner-1')).toThrow(NotFoundException);
+    expect(() => service.correct('missing', 'owner-1', '1', null)).toThrow(NotFoundException);
+    expect(() => service.reject('missing', 'owner-1')).toThrow(NotFoundException);
+  });
+
+  it('404s every action for a caller who is not the observation’s owner', () => {
+    const { service, repository } = buildService();
+    repository.saveObservation(draftObservation());
+
+    expect(() => service.confirm('obs-1', 'owner-2')).toThrow(NotFoundException);
+    expect(() => service.correct('obs-1', 'owner-2', '1', null)).toThrow(NotFoundException);
+    expect(() => service.reject('obs-1', 'owner-2')).toThrow(NotFoundException);
   });
 });
 

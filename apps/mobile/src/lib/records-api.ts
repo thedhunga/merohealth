@@ -84,9 +84,10 @@ export async function listDocuments(ownerId: string): Promise<readonly HealthDoc
 
 export async function listDocumentObservations(
   documentId: string,
+  ownerId: string,
 ): Promise<readonly HealthObservation[]> {
   const { items } = await requestJson<{ items: HealthObservation[] }>(
-    `/documents/${encodeURIComponent(documentId)}/observations`,
+    `/documents/${encodeURIComponent(documentId)}/observations?ownerId=${encodeURIComponent(ownerId)}`,
   );
   return items;
 }
@@ -111,30 +112,33 @@ export async function listPendingConfirmations(
 ): Promise<readonly HealthObservation[]> {
   const documents = await listDocuments(ownerId);
   const perDocument = await Promise.all(
-    documents.map((document) => listDocumentObservations(document.id)),
+    documents.map((document) => listDocumentObservations(document.id, ownerId)),
   );
   return pendingConfirmations(perDocument.flat());
 }
 
-export function confirmObservation(observationId: string): Promise<HealthObservation> {
+export function confirmObservation(observationId: string, ownerId: string): Promise<HealthObservation> {
   return requestJson<HealthObservation>(`/observations/${encodeURIComponent(observationId)}/confirm`, {
     method: 'POST',
+    body: JSON.stringify({ ownerId }),
   });
 }
 
 export function correctObservation(
   observationId: string,
+  ownerId: string,
   value: string,
   unit: string | null,
 ): Promise<HealthObservation> {
   return requestJson<HealthObservation>(`/observations/${encodeURIComponent(observationId)}/correct`, {
     method: 'POST',
-    body: JSON.stringify({ value, unit }),
+    body: JSON.stringify({ ownerId, value, unit }),
   });
 }
 
-export function rejectObservation(observationId: string): Promise<HealthObservation> {
+export function rejectObservation(observationId: string, ownerId: string): Promise<HealthObservation> {
   return requestJson<HealthObservation>(`/observations/${encodeURIComponent(observationId)}/reject`, {
     method: 'POST',
+    body: JSON.stringify({ ownerId }),
   });
 }

@@ -81,7 +81,7 @@ export default function RecordsScreen() {
   const submitCorrection = (observation: HealthObservation) => {
     if (!draftValue.trim()) return;
     void runAction(observation.id, () =>
-      correctObservation(observation.id, draftValue.trim(), draftUnit.trim() || null),
+      correctObservation(observation.id, ownerId, draftValue.trim(), draftUnit.trim() || null),
     );
   };
 
@@ -175,7 +175,7 @@ export default function RecordsScreen() {
                     <Pressable
                       disabled={busyId === observation.id}
                       onPress={() =>
-                        void runAction(observation.id, () => confirmObservation(observation.id))
+                        void runAction(observation.id, () => confirmObservation(observation.id, ownerId))
                       }
                       style={[styles.actionButton, styles.confirmButton]}
                     >
@@ -197,7 +197,7 @@ export default function RecordsScreen() {
                     <Pressable
                       disabled={busyId === observation.id}
                       onPress={() =>
-                        void runAction(observation.id, () => rejectObservation(observation.id))
+                        void runAction(observation.id, () => rejectObservation(observation.id, ownerId))
                       }
                       style={[styles.actionButton, styles.rejectButton]}
                     >
