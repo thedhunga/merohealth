@@ -163,7 +163,7 @@ Design in
       merely that it was. Never display a delegated relationship as if the
       person self-enrolled. Revocation must work through a channel that does
       not require using the app.
-- [ ] Access log **visible to the record's owner**, not only to an admin. She
+- [x] Access log **visible to the record's owner**, not only to an admin. She
       can see her grandson opened her record and what he viewed. This is the
       check that makes delegation safe; elder abuse is usually committed by a
       relative with legitimate-looking access.
@@ -389,6 +389,93 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task C4: owner-visible access log.** First
+  unchecked task after C3, per that run's own handoff note. Read
+  family-and-proxy.md §4 before starting.
+
+  **What was built.** `packages/family` gained a third piece of state
+  alongside guardianship and delegation: `AccessLogEntry`, produced only
+  through `recordGuardianshipAccess(id, grant, resource, occurredAt)` or
+  `recordDelegatedAccess(id, grant, scope, resource, occurredAt)`. Both
+  re-check the authorizing grant against `isGuardianshipActive`/`hasScope`
+  before constructing anything, and throw a new `UnauthorizedAccessError`
+  instead of logging an access the grant doesn't currently cover — an
+  entry that could exist for an unauthorized read would misrepresent what
+  §4 says the log is *for* ("the check that makes delegation safe"), so
+  fabricating one on request rather than refusing was rejected the same
+  way every other invariant in this package is enforced at construction.
+  `AccessAuthority` is a discriminated union (`{ type: 'GUARDIANSHIP',
+  grantId }` | `{ type: 'DELEGATION', grantId, scope }`) rather than a flat
+  shape, because guardianship has no scope to record (§2: nothing narrower
+  than full access to check) and a delegated entry's scope is exactly which
+  of the four `DelegationScope`s was exercised — inventing a placeholder
+  scope for the guardianship case would have been a fabricated fact of
+  exactly the kind the standing constraint rules out. `resource: string` is
+  deliberately untyped free text ("what he viewed") rather than a fixed
+  resource taxonomy, because — same as every §C task so far — nothing in
+  `apps/api` reads a record via delegation yet, so there is no real
+  document/observation/appointment identifier shape to constrain it to.
+  The read side, `accessLogForOwner(entries, viewerId)`, is the literal
+  translation of "visible to the record's owner, not only to an admin": it
+  filters strictly on `entry.ownerId === viewerId`, so a guardian or
+  delegate querying with their own id as `viewerId` sees nothing — the
+  entries recording *their* access belong to the person they accessed, not
+  to them. No separate "admin" function was added: an administrator needs
+  no filtering, so the raw `entries` array already serves that case, and
+  §4's actual gap was the *narrower* owner-only view.
+
+  **What this does and doesn't prove.** Same caveat as C1-C3: nothing in
+  the repo calls `recordGuardianshipAccess`, `recordDelegatedAccess` or
+  `accessLogForOwner` outside this package's own tests. `RecordsController`
+  in `apps/api` still takes a bare caller-supplied `ownerId` on every read
+  route with no delegate/guardian distinction at all — confirmed by reading
+  `records.controller.ts`/`records.service.ts` before starting — so there
+  is no real call site anywhere in the repo today where someone reads a
+  record *via* delegation or guardianship for this log to attach to. This
+  domain model is real and tested; the enforcement point is still future
+  work, exactly the pattern every §C task has followed so far. No Prisma
+  model was added either: the schema's existing generic `AuditEvent` model
+  is unused by any application code and its `subjectId` is `@db.Uuid`,
+  which doesn't match this section's `ownerId: String` convention (see the
+  Prisma schema's own comment on why health-platform ids are plain
+  strings) — reconciling that mismatch belongs to whichever future task
+  actually wires this package to a database, not this one.
+
+  **Tests.** `packages/family/src/index.test.ts`, 34 tests (up from 25):
+  three new `describe` blocks — `access log — guardianship`, covering a
+  successful log, refusal on lapsed-at-18 guardianship, and refusal on a
+  revoked grant; `access log — delegation`, covering a successful log
+  under one specific scope, refusal on a scope the delegate was never
+  granted (the §2 "booking an appointment must not require reading
+  mental-health notes" case, exercised directly against the log this
+  time), and refusal on a revoked grant; and `access log — owner
+  visibility`, covering that an owner sees only her own record's entries
+  across a mixed guardianship/delegation log, that the actor of an access
+  never sees it in *her own* log (Sunita accessing Roshani's record must
+  not appear when querying as Sunita), and that multiple entries come back
+  oldest-first.
+
+  **Verify.** Full sequence green from the repository root:
+  `pnpm install --frozen-lockfile` (no lockfile change), `pnpm lint`
+  (31/31), `pnpm typecheck` (31/31), `pnpm test` (55/55 tasks,
+  `@swasthya/family` now 34 tests, every other package's count unchanged),
+  `pnpm build` (31/31).
+
+  **For the next run:** §C's next unchecked item is family history
+  assertions — a `FamilyHistoryAssertion` living on the *asking* person's
+  own record (never read from the relative's), with `PATIENT_REPORTED`
+  provenance, `RESTRICTED` sensitivity, and excluded from every default
+  share/export scope. Read family-and-proxy.md §5 before starting; it's
+  explicit that "a diagnosis never propagates between records
+  automatically" and that this is a different mechanism from both
+  guardianship and delegation, not built on top of either. After that,
+  §C's last two items are the profile switcher (mobile + web) and §D's
+  deployment items. `CompanionController` remains unwired to B1-B6's
+  deterministic layer, and `RecordsController` still takes a bare
+  `ownerId` with no delegate/guardian distinction on every read route —
+  both unchanged findings from every prior run, repeated here because nothing
+  has touched either yet.
 
 - 2026-08-10 — **Round two, task C3: assisted enrolment — consent
   provenance.** First unchecked task after C2. Read family-and-proxy.md §3

@@ -15,8 +15,8 @@
  * separate types with no shared base and no function that accepts either
  * interchangeably.
  *
- * Deliberately not in this file: the owner-visible access log and family
- * history assertions. Each is its own queue item and its own task.
+ * Deliberately not in this file: family history assertions. That is its own
+ * queue item and its own task.
  */
 
 /* ------------------------------------------------------------------ *
@@ -314,4 +314,137 @@ export function isDelegationActive(grant: DelegationGrant, now: string): boolean
  */
 export function hasScope(grant: DelegationGrant, scope: DelegationScope, now: string): boolean {
   return isDelegationActive(grant, now) && grant.scopes.includes(scope);
+}
+
+/* ------------------------------------------------------------------ *
+ * Owner-visible access log
+ *
+ * §4: every access to someone else's record is logged, and the log is
+ * visible to the record's **owner** — not only to an administrator. "This
+ * is the check that makes delegation safe in practice": elder abuse is
+ * usually committed by a relative with legitimate-looking access, so the
+ * owner herself must be able to see that her grandson opened her record
+ * and what he looked at, not merely trust that someone else is watching on
+ * her behalf.
+ *
+ * An `AccessLogEntry` is produced only through `recordGuardianshipAccess`
+ * or `recordDelegatedAccess` below, and both re-check the authorizing
+ * grant is actually active at `occurredAt` before logging anything — an
+ * entry that could exist for an access that was never actually authorized
+ * would be worse than no log at all, since it would misrepresent what "the
+ * check that makes delegation safe" is checking. There is no third
+ * constructor for a subject reading their own record: §4 is about access
+ * to *someone else's* record, and `DelegationGrant`/`GuardianshipGrant`
+ * already make granterId/delegateId and wardId/guardianId distinct, so an
+ * entry logged through either constructor can never have `ownerId ===
+ * actorId`.
+ *
+ * `accessLogForOwner` is the read side: exactly what a rendering surface
+ * may show when the caller is the record's owner. There is deliberately no
+ * "admin" variant here — an administrator needs no filtering at all, so
+ * the unfiltered `entries` array already serves that case; this function
+ * exists to name the *narrower* one, which is the actual gap §4 identifies
+ * ("not only to an administrator").
+ * ------------------------------------------------------------------ */
+
+/**
+ * Which grant authorized the access, and — for a delegate, who only ever
+ * holds a subset of scopes — which one was exercised. Guardianship carries
+ * no scope of its own (§2: nothing narrower than full access to check), so
+ * only the `DELEGATION` case names one.
+ */
+export type AccessAuthority =
+  | { readonly type: 'GUARDIANSHIP'; readonly grantId: string }
+  | { readonly type: 'DELEGATION'; readonly grantId: string; readonly scope: DelegationScope };
+
+export interface AccessLogEntry {
+  id: string;
+  /** Whose record this is — the person this entry is visible to. */
+  ownerId: string;
+  /** Who accessed it. Never equal to `ownerId`; see the section note above. */
+  actorId: string;
+  /**
+   * What was looked at — a document id, an observation id, "assistant
+   * conversation", whatever identifies the thing to the caller. This
+   * package fixes no resource taxonomy of its own; nothing in the repo yet
+   * reads a record via delegation, so there is no real call site to derive
+   * one from (see `apps/api`'s `RecordsController`, which today only
+   * accepts a caller-supplied `ownerId` with no delegate distinction).
+   */
+  resource: string;
+  occurredAt: string;
+  authority: AccessAuthority;
+}
+
+export class UnauthorizedAccessError extends Error {
+  constructor(actorId: string, ownerId: string, occurredAt: string) {
+    super(`${actorId} has no active authority over ${ownerId}'s record at ${occurredAt}`);
+    this.name = 'UnauthorizedAccessError';
+  }
+}
+
+/**
+ * Logs a guardian's access to their ward's record. Guardianship that has
+ * expired or been revoked by `occurredAt` throws `UnauthorizedAccessError`
+ * instead of producing an entry — see the section note on why a log entry
+ * must never outrun what the grant actually authorized.
+ */
+export function recordGuardianshipAccess(
+  id: string,
+  grant: GuardianshipGrant,
+  resource: string,
+  occurredAt: string,
+): AccessLogEntry {
+  if (!isGuardianshipActive(grant, occurredAt)) {
+    throw new UnauthorizedAccessError(grant.guardianId, grant.wardId, occurredAt);
+  }
+  return {
+    id,
+    ownerId: grant.wardId,
+    actorId: grant.guardianId,
+    resource,
+    occurredAt,
+    authority: { type: 'GUARDIANSHIP', grantId: grant.id },
+  };
+}
+
+/**
+ * Logs a delegate's access to the granter's record under one specific
+ * scope. `hasScope` already composes liveness with scope membership, so a
+ * delegate acting outside what she was granted — an expired grant, a
+ * revoked one, or simply a scope she never held — throws the same
+ * `UnauthorizedAccessError` rather than logging an unauthorized read as if
+ * it were a legitimate one.
+ */
+export function recordDelegatedAccess(
+  id: string,
+  grant: DelegationGrant,
+  scope: DelegationScope,
+  resource: string,
+  occurredAt: string,
+): AccessLogEntry {
+  if (!hasScope(grant, scope, occurredAt)) {
+    throw new UnauthorizedAccessError(grant.delegateId, grant.granterId, occurredAt);
+  }
+  return {
+    id,
+    ownerId: grant.granterId,
+    actorId: grant.delegateId,
+    resource,
+    occurredAt,
+    authority: { type: 'DELEGATION', grantId: grant.id, scope },
+  };
+}
+
+/**
+ * §4's read side: every entry the record's owner is entitled to see, and
+ * nothing she is not — an entry where she was only the *actor* (what she
+ * looked at in someone else's record) belongs to that other person's log,
+ * not hers. Oldest first, so "your grandson opened your record on ..."
+ * reads as a chronological history rather than a shuffled dump; the same
+ * ordering `apps/api`'s `CredentialingRepository.listAuditEntries` already
+ * uses for the same reason.
+ */
+export function accessLogForOwner(entries: readonly AccessLogEntry[], viewerId: string): readonly AccessLogEntry[] {
+  return entries.filter((entry) => entry.ownerId === viewerId).toSorted((a, b) => a.occurredAt.localeCompare(b.occurredAt));
 }

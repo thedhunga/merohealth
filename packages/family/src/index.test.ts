@@ -6,7 +6,9 @@ import {
   InvalidGuardianshipExpiryError,
   SelfDelegationError,
   SelfRecordedAssistedEnrolmentError,
+  UnauthorizedAccessError,
   WardAlreadyOfAgeError,
+  accessLogForOwner,
   grantDelegation,
   grantDelegationByAssistedEnrolment,
   grantGuardianshipForIncapacity,
@@ -15,6 +17,8 @@ import {
   hasScope,
   isDelegationActive,
   isGuardianshipActive,
+  recordDelegatedAccess,
+  recordGuardianshipAccess,
   revokeDelegation,
   revokeGuardianship,
   wasAssistedEnrolment,
@@ -374,5 +378,143 @@ describe('assisted enrolment (family-and-proxy.md §3)', () => {
     const revokedByPhoneSupport = revokeDelegation(grant, '2026-09-01T00:00:00.000Z');
 
     expect(isDelegationActive(revokedByPhoneSupport, '2026-09-15T00:00:00.000Z')).toBe(false);
+  });
+});
+
+describe('access log — guardianship (family-and-proxy.md §4)', () => {
+  it("logs a guardian opening the ward's record, attributed to the guardianship grant", () => {
+    const grant = grantGuardianshipForMinor('g-1', 'roshani', 'sunita', roshaniDateOfBirth, '2026-08-10T00:00:00.000Z');
+
+    const entry = recordGuardianshipAccess('a-1', grant, 'lab report — 2026-07-01', '2026-08-11T09:00:00.000Z');
+
+    expect(entry).toEqual({
+      id: 'a-1',
+      ownerId: 'roshani',
+      actorId: 'sunita',
+      resource: 'lab report — 2026-07-01',
+      occurredAt: '2026-08-11T09:00:00.000Z',
+      authority: { type: 'GUARDIANSHIP', grantId: 'g-1' },
+    });
+  });
+
+  it('refuses to log an access under guardianship that has already lapsed at 18', () => {
+    const grant = grantGuardianshipForMinor('g-1', 'roshani', 'sunita', roshaniDateOfBirth, '2026-08-10T00:00:00.000Z');
+
+    expect(() => recordGuardianshipAccess('a-1', grant, 'lab report', '2032-03-10T00:00:00.000Z')).toThrow(
+      UnauthorizedAccessError,
+    );
+  });
+
+  it('refuses to log an access after guardianship was revoked', () => {
+    const grant = grantGuardianshipForMinor('g-1', 'roshani', 'sunita', roshaniDateOfBirth, '2026-08-10T00:00:00.000Z');
+    const revoked = revokeGuardianship(grant, '2027-01-01T00:00:00.000Z');
+
+    expect(() => recordGuardianshipAccess('a-1', revoked, 'lab report', '2027-06-01T00:00:00.000Z')).toThrow(
+      UnauthorizedAccessError,
+    );
+  });
+});
+
+describe('access log — delegation (family-and-proxy.md §4)', () => {
+  it("logs a delegate's access under the specific scope exercised", () => {
+    const grant = grantDelegation(
+      'd-1',
+      'janaki',
+      'arjun',
+      ['VIEW_RECORD', 'MANAGE_APPOINTMENTS'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+    );
+
+    const entry = recordDelegatedAccess('a-2', grant, 'VIEW_RECORD', 'discharge summary', '2026-08-15T00:00:00.000Z');
+
+    expect(entry).toEqual({
+      id: 'a-2',
+      ownerId: 'janaki',
+      actorId: 'arjun',
+      resource: 'discharge summary',
+      occurredAt: '2026-08-15T00:00:00.000Z',
+      authority: { type: 'DELEGATION', grantId: 'd-1', scope: 'VIEW_RECORD' },
+    });
+  });
+
+  it('refuses to log access under a scope the delegate was never granted', () => {
+    // family-and-proxy.md §2: booking an appointment must not require
+    // reading mental-health notes — a MANAGE_APPOINTMENTS-only delegate
+    // exercising VIEW_RECORD is exactly the access this must catch.
+    const grant = grantDelegation(
+      'd-1',
+      'janaki',
+      'arjun',
+      ['MANAGE_APPOINTMENTS'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+    );
+
+    expect(() =>
+      recordDelegatedAccess('a-2', grant, 'VIEW_RECORD', 'discharge summary', '2026-08-15T00:00:00.000Z'),
+    ).toThrow(UnauthorizedAccessError);
+  });
+
+  it('refuses to log access after the delegation was revoked', () => {
+    const grant = grantDelegation(
+      'd-1',
+      'janaki',
+      'arjun',
+      ['VIEW_RECORD'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+    );
+    const revoked = revokeDelegation(grant, '2026-09-01T00:00:00.000Z');
+
+    expect(() =>
+      recordDelegatedAccess('a-2', revoked, 'VIEW_RECORD', 'discharge summary', '2026-09-15T00:00:00.000Z'),
+    ).toThrow(UnauthorizedAccessError);
+  });
+});
+
+describe('access log — owner visibility (family-and-proxy.md §4)', () => {
+  it("shows the owner every access to her own record, not only to an administrator", () => {
+    const delegation = grantDelegation(
+      'd-1',
+      'janaki',
+      'arjun',
+      ['VIEW_RECORD'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+    );
+    const guardianship = grantGuardianshipForMinor('g-1', 'roshani', 'sunita', roshaniDateOfBirth, '2026-08-10T00:00:00.000Z');
+
+    const janakiEntry = recordDelegatedAccess('a-2', delegation, 'VIEW_RECORD', 'discharge summary', '2026-08-15T00:00:00.000Z');
+    const roshaniEntry = recordGuardianshipAccess('a-1', guardianship, 'lab report', '2026-08-11T09:00:00.000Z');
+
+    // janaki's own log — only the entry on her record, never roshani's.
+    expect(accessLogForOwner([janakiEntry, roshaniEntry], 'janaki')).toEqual([janakiEntry]);
+  });
+
+  it('never surfaces an entry where the viewer was only the actor, not the owner', () => {
+    // Sunita is the guardian (the actor) here, not the owner — her own log
+    // must not show her own access to roshani's record; that entry belongs
+    // to roshani's log, since visibility belongs to the person, not the helper.
+    const guardianship = grantGuardianshipForMinor('g-1', 'roshani', 'sunita', roshaniDateOfBirth, '2026-08-10T00:00:00.000Z');
+    const entry = recordGuardianshipAccess('a-1', guardianship, 'lab report', '2026-08-11T09:00:00.000Z');
+
+    expect(accessLogForOwner([entry], 'sunita')).toEqual([]);
+    expect(accessLogForOwner([entry], 'roshani')).toEqual([entry]);
+  });
+
+  it('orders entries on the same record oldest first, so the history reads chronologically', () => {
+    const grant = grantDelegation(
+      'd-1',
+      'janaki',
+      'arjun',
+      ['VIEW_RECORD'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+    );
+    const later = recordDelegatedAccess('a-2', grant, 'VIEW_RECORD', 'second visit', '2026-08-20T00:00:00.000Z');
+    const earlier = recordDelegatedAccess('a-1', grant, 'VIEW_RECORD', 'first visit', '2026-08-12T00:00:00.000Z');
+
+    expect(accessLogForOwner([later, earlier], 'janaki')).toEqual([earlier, later]);
   });
 });
