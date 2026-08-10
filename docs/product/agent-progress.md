@@ -140,7 +140,7 @@ Read it before starting; the ordering rules there are not optional.
       have and gets an explicit test, not a code review. The cross-owner gap
       already found on the records routes is the same bug class with a smaller
       blast radius.
-- [ ] Evaluation set: real Nepali questions paired with the record state they
+- [x] Evaluation set: real Nepali questions paired with the record state they
       should be answered from, **including cases whose correct answer is a
       refusal**. Build this before tuning anything, or there is no way to tell
       a real improvement from one that merely sounds better.
@@ -389,6 +389,102 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task B6: evaluation set — real Nepali questions
+  paired with the record state they should be answered from, including
+  refusal cases.** Last unchecked item under B. grounded-answers.md §8: build
+  this before tuning anything, or there is no way to tell a real improvement
+  from one that merely sounds better.
+
+  **What was built.** New package `packages/evaluation` (`@swasthya/evaluation`),
+  depending on `@swasthya/intent-router`, `@swasthya/retrieval` and
+  `@swasthya/shared-types` — no new dependency on `@swasthya/database`, whose
+  only export is a Prisma-generated client requiring `prisma generate`, and
+  whose `seed-data.ts` isn't in its package `exports` map for another
+  workspace package to reach anyway. `demonstrationCorpus` is a typed,
+  dependency-free copy of `packages/database/src/seed-data.ts`'s four
+  subjects — same ids, same observation values, same labels, not a second
+  invented dataset — following the precedent every B1-B5 test file already
+  set of keeping its own fixture copy rather than sharing one across
+  packages. 13 `EvaluationCase` entries, each a real question run through the
+  actual `route` → `composeAnswer` pipeline (not a mock): Devanagari,
+  romanized-Nepali and English scripts; all three computable intents
+  (`TREND`/`LATEST_VALUE`/`COMPARISON`); the three refusal reasons a real
+  corpus can actually produce (`NOT_UNDERSTOOD`, `NO_MATCHING_RECORD`,
+  `UNCONFIRMED_DRAFTS_ONLY` — `NOTHING_CITABLE` is the fail-safe branch
+  `intent-router`'s own tests already cover directly, since `route` can never
+  reach it from a real corpus); all four demonstration subjects; and one case
+  (`roshani-thyroid-no-leak-ne`) that checks cross-subject scoping at the
+  product-question level — Sunita has a thyroid result, Roshani does not, so
+  asking from Roshani's context must refuse, never answer from Sunita's
+  record. This complements rather than duplicates B5's
+  `cross-subject-leakage.test.ts`, which exercises the same property against
+  an adversarial corpus built to fail loudly on a wrong *value*; this is the
+  same property from a real, unremarkable question.
+
+  Every `expected` outcome is empirically verified against the real pipeline
+  before being hardcoded — not guessed from reading the classifier's keyword
+  lists, which turned out to matter: two cases found genuine, reproducible
+  gaps between the classifier's actual behaviour and what it should ideally
+  do, kept as cases with an `idealNote` documenting the gap rather than fixed
+  here (fixing them is real work belonging to its own task, not something to
+  smuggle into the run that built the eval set that found them):
+
+  1. `janaki-advice-suffix-gap` — "मेरो सुगरको लागि के गर्ने?" (what should I
+     do for my sugar) comes back fully unrecognised (`NOT_UNDERSTOOD`, zero
+     matched concepts) because `expandQuery`'s `termAppears` requires a whole
+     *token* match and Nepali glues the possessive suffix directly onto the
+     noun — "सुगरको" tokenizes as one token, not "सुगर" + "को" — so "सुगर"
+     never matches. Needs either suffix-stripping in `tokenize`/`termAppears`
+     or inflected forms per term in `clinicalTermMap` (`packages/retrieval`).
+  2. `janaki-definition-marker-collision` — "What is my current blood
+     sugar?" classifies as `DEFINITION` (refuses `NO_MATCHING_RECORD`)
+     instead of `LATEST_VALUE`, because `classifyIntent` checks
+     `DEFINITION_MARKERS` before `LATEST_VALUE_MARKERS` and English "what is"
+     is on the `DEFINITION` list for the genuine case ("what is thyroid") but
+     also matches the opening of any "what is my current X" value question —
+     a collision the Nepali markers don't have (के हो/अर्थ vs.
+     कस्तो/अहिले/कति do not overlap). Needs a marker-precedence or
+     phrase-level fix in `classifyIntent` (`packages/intent-router`).
+
+  `runEvaluationCase`/`runEvaluationSet` run the real pipeline and diff the
+  result against `expected`, returning a human-readable mismatch string
+  rather than a bare boolean. `index.test.ts`: the 11 cases with no
+  `idealNote` must be 100% clean (this is the regression gate — a future
+  change to `retrieval`/`intent-router` that breaks any of these fails
+  `pnpm test`); the 2 `idealNote` cases are asserted to match their
+  documented *current* behaviour separately, with a comment explaining that
+  if that assertion ever starts failing, the gap was resolved (or changed)
+  and the fix is to promote the case out of the known-gaps list, not weaken
+  the assertion. Plus four structural checks (every case's subject exists in
+  the corpus, no duplicate ids, every script/intent/refusal-reason class is
+  covered) and a `describe.todo` for delegate-asked questions, blocked on
+  `packages/family` same as B5's own `describe.todo`. 9 tests total.
+
+  **Verify.** `pnpm install` (new workspace package — `pnpm-lock.yaml`
+  updated; a first `--frozen-lockfile` correctly rejected the stale lock
+  before this, confirming the check works), then the full sequence green:
+  `pnpm install --frozen-lockfile`, `pnpm lint` (30/30), `pnpm typecheck`
+  (30/30 — caught a real issue on the first pass, a relative import with an
+  explicit `.ts` extension the repo's TS config rejects, and a `Set<literal
+  union>.has(string)` call that needed a widened `ReadonlySet<string>`
+  annotation; both fixed before this counts as green), `pnpm test` (54/54
+  tasks, `@swasthya/evaluation` new at 9 tests, every other package's count
+  unchanged), `pnpm build` (30/30).
+
+  **For the next run:** Round two §B is now fully checked. §C
+  (`packages/family` — guardianship, scoped delegation, access log, family
+  history assertions, profile switcher) is next and is a bigger lift than
+  any single B task — read `docs/architecture/family-and-proxy.md` in full
+  before starting, and note it unblocks two outstanding `describe.todo`s
+  already in the repo (this run's own, and B5's
+  `cross-subject-leakage.test.ts`) that should become real tests once
+  delegation exists, not stay `.todo` forever. Separately, and not part of
+  §C: this run's two `idealNote` gaps in `packages/evaluation` are concrete,
+  reproducible, already-diagnosed bugs in the classifier that a future run
+  could pick up as their own small task — the suffix-matching gap especially,
+  since it likely affects more than the one query it was found on (any
+  possessive-suffixed Nepali noun).
 
 - 2026-08-10 — **Round two, task B5: cross-subject leakage test.** First
   unchecked task after B4, named by grounded-answers.md §3 as "the
