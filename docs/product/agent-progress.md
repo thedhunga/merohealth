@@ -110,7 +110,7 @@ real user, or a real question. This round makes it real, in that order.
 - [x] Authentication: phone + OTP to `REGISTERED`, session handling, and a
       real `subjectId` on every request. `/signin` and `/register` are
       currently marketing pages with nothing behind them.
-- [ ] Wire the entitlement guard to real identity. It enforces tiers at the
+- [x] Wire the entitlement guard to real identity. It enforces tiers at the
       route boundary today with no identity to enforce them against.
 
 ### B · Grounded answers — retrieval over the person's own record
@@ -389,6 +389,79 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task A4: wire the entitlement guard to real
+  identity.** First unchecked task after A3. `EntitlementsGuard` previously
+  resolved a plan tier from `ownerId` read straight off a client-supplied
+  `body`/`query` field — a caller could name any owner and get that owner's
+  tier checked, and the checked identity had no relationship at all to who
+  the write actually landed on. A3 built `SessionAuthGuard`/`AuthService`
+  for exactly this but left every route trusting the old field; this task
+  is the wiring.
+
+  **What changed.** `EntitlementsGuard.extractOwnerId`
+  (`apps/api/src/entitlements/entitlements.guard.ts`) now reads
+  `request.subjectId` — set only by `SessionAuthGuard`, from a verified
+  session token — and throws `UnauthorizedException` (`UNAUTHENTICATED`) if
+  it is absent, rather than `BadRequestException` for a missing body field.
+  `RecordsController.capture()` (`POST /records/documents`, the one route
+  currently carrying `@RequireModule`/`@RequireQuota`) now runs
+  `@UseGuards(SessionAuthGuard, EntitlementsGuard)` — guard order matters —
+  and takes the document's `ownerId` from `@CurrentUser()`'s `subjectId`,
+  not the request body. `captureSchema` no longer has an `ownerId` field at
+  all: the body has nothing left to say about who owns the document, and a
+  client that sends one anyway (mimicking the old contract, or an attempted
+  spoof) has it silently ignored — verified below, not just asserted.
+  `RecordsModule` now imports `AuthModule` to get `SessionAuthGuard` into
+  its DI graph, the exact "import the module, get the guard" wiring
+  `AuthModule`'s own doc comment named this task for.
+
+  **Deliberately narrow scope.** Only the capture route is
+  entitlement-gated today, so only it changed. `RecordsController`'s other
+  five routes (`list`, `timeline`, `observationsForDocument`, `confirm`,
+  `correct`, `reject`) still trust a client-supplied `ownerId` via the
+  controller's own `requireOwnerId` — the same bug class, smaller blast
+  radius, already flagged in the prior cross-owner-gap log entry as
+  separate follow-up work, not silently absorbed into this task.
+
+  **The real consequence: `apps/mobile`'s capture screen now 401s.**
+  `apps/mobile` has no sign-in flow at all yet (confirmed by grep — A3
+  never touched it) — `app-state.tsx` generates a random local `ownerId`
+  client-side and `capture.tsx` sent it as the trusted owner. That was
+  never a real identity, and letting it keep working would have meant this
+  guard still enforced nothing. Removed `ownerId` from
+  `apps/mobile/src/lib/records-api.ts`'s `CaptureDocumentInput` (dead now
+  that the server ignores it) and from `capture.tsx`'s call, and documented
+  in that file's own doc comment why the screen will 401 against a real
+  server until mobile gets a sign-in flow of its own — reusing
+  `packages/auth`'s primitives and mirroring `apps/web`'s `PhoneOtpFlow`
+  would be the natural next step, but building it is a second task, not
+  this one. `apps/web` never called this endpoint at all (grep confirmed),
+  so nothing there regresses.
+
+  **Verification.** Standard pipeline green (install, lint, typecheck,
+  `@swasthya/api` 299 → 300 tests, build). Then live, per the "make it
+  real" mandate rather than trusting the unit tests alone: stood up the
+  same local Postgres A1-A3 used, applied migrations (already current — no
+  new migration this run, this task only touches `apps/api` route wiring),
+  booted the compiled API, and curled four cases against it —
+  `POST /records/documents` with no session (401 `UNAUTHENTICATED`), the
+  same with a spoofed `ownerId` in the body and still no session (401,
+  proving the body field is never even read), a real
+  `otp/request → otp/verify` to get a session token, then a capture with
+  that token *and* a spoofed `ownerId: "someone-else"` in the body — the
+  stored document came back owned by the real session's `userId`, not the
+  spoofed value. That fourth call is the whole task, confirmed against a
+  running server rather than only against mocks.
+
+  **For the next run:** the queue's next item, B's `packages/retrieval`,
+  is unrelated to auth and can start cold. If a future run wants to pick up
+  mobile capture again, it needs a mobile sign-in screen first — there is
+  no scaffolding for one yet, same gap A3's log already named for the
+  wider mobile app. The seeded demonstration patients
+  (Janaki/Sunita/Roshani/Arjun) still have no `phone` set, so they still
+  can't sign in through the OTP flow — still worth a decision, still
+  unrelated to this task.
 
 - 2026-08-10 — **Round two, task A3: phone + OTP authentication, session
   handling, a real `subjectId` on every request, and `/signin`/`/register`

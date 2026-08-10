@@ -62,8 +62,16 @@ async function requestJson<T>(path: string, options?: RequestOptions): Promise<T
   return body as T;
 }
 
+/**
+ * No `ownerId`: Round two A4 moved `POST /documents` to owning the document
+ * by the caller's verified session identity rather than a client-supplied
+ * field (`apps/api/src/records/records.controller.ts`'s `capture()`). This
+ * screen has no session to send yet — `apps/mobile` still has no sign-in
+ * flow (see the ledger's A4 log entry) — so capture will 401 against a real
+ * server until one exists. Left as-is rather than papering over it, since a
+ * capture flow that quietly worked would misrepresent that gap as closed.
+ */
 export interface CaptureDocumentInput {
-  ownerId: string;
   filename: string;
   kind: HealthDocumentKind;
   title: string;

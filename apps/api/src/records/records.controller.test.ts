@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
+import type { CurrentUserResult } from '../auth/auth.service.js';
 import { RecordsController } from './records.controller.js';
 import { RecordsRepository } from './records.repository.js';
 import { RecordsService } from './records.service.js';
@@ -10,8 +11,18 @@ function buildController(store = new InMemoryDocumentStore('HOSTED')) {
   return new RecordsController(service);
 }
 
+// `capture()` reads its owner from `@CurrentUser()`, populated by
+// `SessionAuthGuard` on a real request — this is that same shape, stood up
+// directly the way `auth.controller.test.ts`'s `me()` test does, since a
+// plain method call bypasses Nest's guard/decorator pipeline entirely.
+const currentUser: CurrentUserResult = {
+  subjectId: 'owner-1',
+  user: { id: 'owner-1', phone: '9812345678', role: 'PATIENT', locale: 'ne' },
+  patientProfileId: null,
+  assuranceLevel: 'REGISTERED',
+};
+
 const validCapture = {
-  ownerId: 'owner-1',
   filename: 'report.jpg',
   kind: 'LAB_REPORT',
   title: 'Blood panel',
@@ -26,25 +37,33 @@ describe('RecordsController health', () => {
 });
 
 describe('RecordsController capture', () => {
-  it('decodes base64 bytes and stores the document', async () => {
+  it('decodes base64 bytes and stores the document, owned by the current session', async () => {
     const controller = buildController();
-    const document = await controller.capture(validCapture);
+    const document = await controller.capture(currentUser, validCapture);
 
     expect(document.status).toBe('STORED');
     expect(document.title).toBe('Blood panel');
+    expect(document.ownerId).toBe('owner-1');
+  });
+
+  it('ignores a client-supplied ownerId — the session identity always wins', async () => {
+    const controller = buildController();
+    const document = await controller.capture(currentUser, { ...validCapture, ownerId: 'someone-else' });
+
+    expect(document.ownerId).toBe('owner-1');
   });
 
   it('rejects a request missing a required field', async () => {
     const controller = buildController();
-    await expect(controller.capture({ ...validCapture, ownerId: undefined })).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      controller.capture(currentUser, { ...validCapture, filename: undefined }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects an unknown document kind rather than silently accepting it', async () => {
     const controller = buildController();
     await expect(
-      controller.capture({ ...validCapture, kind: 'NOT_A_REAL_KIND' }),
+      controller.capture(currentUser, { ...validCapture, kind: 'NOT_A_REAL_KIND' }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
@@ -57,7 +76,7 @@ describe('RecordsController reads', () => {
 
   it('lists documents captured for the given owner', async () => {
     const controller = buildController();
-    await controller.capture(validCapture);
+    await controller.capture(currentUser, validCapture);
 
     const result = controller.list('owner-1');
     expect(result.total).toBe(1);
@@ -70,7 +89,7 @@ describe('RecordsController reads', () => {
 
   it('returns a timeline entry per captured document', async () => {
     const controller = buildController();
-    await controller.capture(validCapture);
+    await controller.capture(currentUser, validCapture);
 
     const result = controller.timeline('owner-1');
     expect(result.total).toBe(1);

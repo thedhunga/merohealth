@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { InMemoryDocumentStore, type HealthDocumentStore } from '@swasthya/storage-adapters';
 import { MinioDocumentStore, minioConfigFromEnv } from '@swasthya/storage-adapters/hosted';
+import { AuthModule } from '../auth/auth.module.js';
 import { EntitlementsGuard } from '../entitlements/entitlements.guard.js';
 import { FreeTierSubscriptionResolver, SUBSCRIPTION_RESOLVER } from '../entitlements/subscription-resolver.js';
 import { USAGE_READER } from '../entitlements/usage-reader.js';
@@ -29,8 +30,15 @@ function createDocumentStore(): HealthDocumentStore {
  * module can meter honestly today. `EntitlementsGuard` itself is generic and
  * lives outside this module — provided here only because Nest resolves a
  * controller's `@UseGuards` providers from its own module's container.
+ *
+ * Imports `AuthModule` for `SessionAuthGuard` — Round two A4's wiring.
+ * `RecordsController.capture()` now runs `SessionAuthGuard` ahead of
+ * `EntitlementsGuard` so the latter has a verified `subjectId` to resolve a
+ * tier against, exactly the "import the module, get the guard" pattern
+ * `AuthModule`'s own doc comment anticipated for this module.
  */
 @Module({
+  imports: [AuthModule],
   controllers: [RecordsController],
   providers: [
     RecordsRepository,

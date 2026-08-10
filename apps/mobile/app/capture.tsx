@@ -34,7 +34,7 @@ interface CapturedPhoto {
 }
 
 export default function CaptureScreen() {
-  const { ownerId, language } = useAppState();
+  const { language } = useAppState();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [step, setStep] = useState<Step>('camera');
@@ -64,7 +64,6 @@ export default function CaptureScreen() {
     setUploadError(null);
     try {
       const document = await captureDocument({
-        ownerId,
         filename: `capture-${Date.now()}.jpg`,
         kind,
         title: title.trim(),
