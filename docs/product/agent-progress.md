@@ -88,9 +88,108 @@ read that before the first task.
 
 ## Task queue
 
-Tasks are ordered. Later ones assume earlier ones are done.
+Tasks are ordered. Later ones assume earlier ones are done. **Everything below
+"Round one" is complete** — start at Round two.
 
-### Visual system — highest priority
+# Round two
+
+Round one built a great deal of code that has never run against a database, a
+real user, or a real question. This round makes it real, in that order.
+
+### A · Foundations — nothing below works without these
+
+- [ ] Bring up Postgres from `compose.yaml`, run the Prisma migration for the
+      first time, and fix what the schema gets wrong when it meets a real
+      database. **Every module so far is tested against in-memory fakes** —
+      expect constraint, cascade and enum problems that no unit test could
+      have caught.
+- [ ] Seed script producing a realistic Nepali demonstration dataset: a few
+      subjects, lab reports with Devanagari and English labels, a
+      multi-generation family, and at least one condition with genetic
+      relevance. This is what every later task tests against.
+- [ ] Authentication: phone + OTP to `REGISTERED`, session handling, and a
+      real `subjectId` on every request. `/signin` and `/register` are
+      currently marketing pages with nothing behind them.
+- [ ] Wire the entitlement guard to real identity. It enforces tiers at the
+      route boundary today with no identity to enforce them against.
+
+### B · Grounded answers — retrieval over the person's own record
+
+Design in
+[`docs/architecture/grounded-answers.md`](../architecture/grounded-answers.md).
+Read it before starting; the ordering rules there are not optional.
+
+- [ ] `packages/retrieval`: query expansion across ne / ne-Latn / en, the
+      hand-curated Nepali ↔ English clinical term map (मिर्गौला ↔ kidney ↔
+      renal, चिनी ↔ glucose ↔ sugar), scoped retrieval, citation assembly.
+      **No embeddings** — the per-person corpus is small enough that lexical
+      matching over the bilingual labels will beat a vector index and stays
+      inspectable.
+- [ ] Intent routing so anything computable is computed, never generated.
+      A trend question goes to `buildAnalyteTrend`; the model only phrases a
+      result it was handed. **No number reaching a person may originate from
+      the model.**
+- [ ] Citations on every claim, with tap-through to the source observation or
+      document. An answer that cannot cite is a refusal.
+- [ ] Specific refusals: "your record has no thyroid results", never a generic
+      "I don't know". Include the unconfirmed-drafts case, pointing at the
+      confirmation queue.
+- [ ] **Cross-subject leakage test.** A question asked in one subject's
+      context must be unanswerable from another's record, including under an
+      active delegation. This is the highest-severity failure the system can
+      have and gets an explicit test, not a code review. The cross-owner gap
+      already found on the records routes is the same bug class with a smaller
+      blast radius.
+- [ ] Evaluation set: real Nepali questions paired with the record state they
+      should be answered from, **including cases whose correct answer is a
+      refusal**. Build this before tuning anything, or there is no way to tell
+      a real improvement from one that merely sounds better.
+
+### C · Family, proxy and inherited risk
+
+Design in
+[`docs/architecture/family-and-proxy.md`](../architecture/family-and-proxy.md).
+
+- [ ] `packages/family`: every person is **their own subject**, never a
+      profile inside someone else's account. Guardianship and delegation are
+      **separate state machines** — a competent grandmother is not a
+      dependent. Guardianship carries a mandatory expiry and a transition at
+      18.
+- [ ] Scoped delegation: `VIEW_RECORD`, `ASK_ASSISTANT`,
+      `MANAGE_APPOINTMENTS`, `UPLOAD_DOCUMENTS` granted independently.
+      Booking an appointment must not require reading mental-health notes.
+- [ ] Assisted enrolment, recording **how** consent was obtained
+      (`IN_PERSON_VERBAL`, `WITNESSED`, `CLINICIAN_ATTESTED`, `WRITTEN`) — not
+      merely that it was. Never display a delegated relationship as if the
+      person self-enrolled. Revocation must work through a channel that does
+      not require using the app.
+- [ ] Access log **visible to the record's owner**, not only to an admin. She
+      can see her grandson opened her record and what he viewed. This is the
+      check that makes delegation safe; elder abuse is usually committed by a
+      relative with legitimate-looking access.
+- [ ] Family history assertions on the asking person's **own** record. A
+      diagnosis never propagates between records automatically. Sharing a
+      named condition with a named relative is a separate, narrow, revocable
+      grant — never implied by a delegation. Genetic findings are
+      `RESTRICTED` and excluded from every default share and export scope.
+- [ ] Profile switcher in `apps/mobile` and `apps/web`: streaming-service
+      convenience over correct ownership underneath. Show clearly whose record
+      is open — acting for someone else must never look like acting for
+      yourself.
+
+### D · Deployment and the launch gate
+
+- [ ] Serve the Expo build at `/app`. `vercel.json` now builds `apps/web`
+      only, so the footer's app links 404. Copy `apps/mobile/dist` into
+      `apps/web/public/app` during the Vercel build — and do not let a failure
+      there break the whole deploy.
+- [ ] Launch-gate checklist in `docs/product/promotion-readiness.md`: what
+      must be true before `robots` stops saying noindex. At minimum: copy
+      reviewed by a qualified Nepali clinician, the demonstration notice
+      removed only when nothing fictional remains, substantiated figures or no
+      figures, and a real registered address.
+
+### Visual system — Round one, complete
 
 The owner's verdict on the first pass was that it looked terrible and generic.
 The palette, type and hero have since been rebuilt (see Art direction). These
