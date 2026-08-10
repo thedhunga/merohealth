@@ -2,7 +2,9 @@ import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['**/node_modules/**', '**/dist/**', '**/.expo/**', '**/generated/**'] },
+  {
+    ignores: ['**/node_modules/**', '**/dist/**', '**/.expo/**', '**/.next/**', '**/generated/**'],
+  },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {

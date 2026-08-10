@@ -78,7 +78,7 @@ export function SathiOrb({ size = 68 }: { size?: number }) {
         ]}
       />
       <LinearGradient
-        colors={['#FFE4A3', '#A6E0CE', '#5FB4A3']}
+        colors={[colors.saffronSoft, colors.mintStrong, colors.primarySoft]}
         end={{ x: 1, y: 1 }}
         style={[
           styles.orb,
@@ -92,7 +92,7 @@ export function SathiOrb({ size = 68 }: { size?: number }) {
         ]}
       >
         <LinearGradient
-          colors={['#0C7C6E', '#07534C']}
+          colors={[colors.primary, colors.primaryDark]}
           style={[
             styles.orbCore,
             {
@@ -123,7 +123,7 @@ interface ActionCardProps extends PressableProps {
   icon: LucideIcon;
   title: string;
   subtitle?: string;
-  tone?: 'default' | 'danger' | 'warm' | 'blue' | 'violet';
+  tone?: 'default' | 'danger' | 'warm' | 'forest' | 'jade';
   badge?: string;
 }
 
@@ -135,15 +135,18 @@ export function ActionCard({
   badge,
   ...props
 }: ActionCardProps) {
+  // Five tones, all within the forest/jade/marigold family — the previous
+  // 'blue'/'violet' names mapped to off-brand hues the health-tech-blue rule
+  // forbids, so the tones were renamed to match what they actually render.
   const palette =
     tone === 'danger'
       ? [colors.dangerSoft, colors.danger]
       : tone === 'warm'
-        ? [colors.saffronSoft, '#8A5A00']
-        : tone === 'blue'
-          ? ['#E7EFFD', '#315D9D']
-          : tone === 'violet'
-            ? ['#F1E8FA', '#704399']
+        ? [colors.saffronSoft, colors.saffronDeep]
+        : tone === 'forest'
+          ? [colors.mintFaint, colors.primaryDeep]
+          : tone === 'jade'
+            ? [colors.mintStrong, colors.info]
             : [colors.mint, colors.primary];
 
   return (
@@ -223,7 +226,7 @@ export const uiStyles = StyleSheet.create({
     borderRadius: radii.lg,
     borderWidth: 1,
     padding: spacing.xl,
-    shadowColor: '#123B36',
+    shadowColor: colors.primaryDark,
     shadowOffset: { height: 10, width: 0 },
     shadowOpacity: 0.06,
     shadowRadius: 24,
@@ -256,7 +259,7 @@ const styles = StyleSheet.create({
   },
   orbWrap: { position: 'relative' },
   orbOuterRing: {
-    borderColor: 'rgba(120,213,190,.35)',
+    borderColor: 'rgba(169,223,201,.35)',
     borderWidth: 1,
     position: 'absolute',
   },

@@ -1,19 +1,12 @@
 import { useState } from 'react';
-import {
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import {
   ArrowRight,
   BadgeCheck,
+  BookOpen,
   BrainCircuit,
   Building2,
   Camera,
@@ -40,17 +33,18 @@ import {
 import * as Speech from 'expo-speech';
 import { colors } from '@swasthya/configuration';
 
-import companionImage from '../assets/imagery/mero-health-companion.webp';
-import bodyImage from '../assets/imagery/digital-health-body.webp';
-import careTeamImage from '../assets/imagery/nepali-care-team.webp';
-
+// Three journey steps, three brand tiers — forest, jade, marigold — instead
+// of the arbitrary blue/violet accents this screen used before. `saffronDeep`
+// is a muted marigold, matching the quiet marigold-on-marigold-100 badge
+// convention `apps/web`'s PartnerMarquee already established rather than
+// spending the loud `saffron` itself outside the hero's one CTA.
 const journey = [
   {
     number: '01',
     icon: Mic,
     title: 'आफ्नै भाषामा भन्नुहोस्',
     body: 'नेपाली, रोमन नेपाली, अंग्रेजी वा मिसाएर—आवाज वा अक्षरमा आफ्नो कुरा भन्नुहोस्।',
-    color: '#DDF5EC',
+    color: colors.mint,
     accent: colors.primary,
   },
   {
@@ -58,16 +52,16 @@ const journey = [
     icon: BrainCircuit,
     title: 'स्वास्थ्य चित्र बनाउनुहोस्',
     body: 'साथीले तपाईंको सहमतिमा आवश्यक कुरा मात्र एक–एक स्पष्ट कदममा जोड्छ।',
-    color: '#E8EEFF',
-    accent: '#3659A8',
+    color: colors.mintFaint,
+    accent: colors.info,
   },
   {
     number: '03',
     icon: Stethoscope,
     title: 'सही सेवासम्म पुग्नुहोस्',
     body: 'उपयुक्त सेवा खोज्नुहोस्, भेटघाटको तयारी गर्नुहोस् र आफूले चाहेको कुरा मात्र बाँड्नुहोस्।',
-    color: '#FFF0D6',
-    accent: '#A46008',
+    color: colors.saffronSoft,
+    accent: colors.saffronDeep,
   },
 ];
 
@@ -76,21 +70,26 @@ const services = [
     icon: Stethoscope,
     label: 'डाक्टर र विशेषज्ञ',
     detail: 'खोज्नुहोस्, बुझ्नुहोस् र तयारी गर्नुहोस्',
-    tone: '#DDF5EC',
+    tone: colors.mint,
   },
   {
     icon: Building2,
     label: 'नजिकको स्वास्थ्य सेवा',
     detail: 'अस्पताल, क्लिनिक र घरमै सेवा',
-    tone: '#E8EEFF',
+    tone: colors.mintFaint,
   },
   {
     icon: FileHeart,
     label: 'तपाईंको स्वास्थ्य कथा',
     detail: 'आफैले बुझ्न सक्ने विवरण',
-    tone: '#F4E8FF',
+    tone: colors.canvas,
   },
-  { icon: Video, label: 'भिडियो परामर्श', detail: 'निजी कक्षको नमुना', tone: '#FFF0D6' },
+  {
+    icon: Video,
+    label: 'भिडियो परामर्श',
+    detail: 'निजी कक्षको नमुना',
+    tone: colors.saffronSoft,
+  },
 ];
 
 export default function WebWelcomeScreen() {
@@ -142,13 +141,23 @@ export default function WebWelcomeScreen() {
       <View style={styles.auroraOne} />
       <View style={styles.auroraTwo} />
 
+      <View style={styles.announcement}>
+        <Text style={styles.announcementText}>
+          New: Evidence-backed health research is now available in Mero Health
+        </Text>
+        <Pressable onPress={() => router.push('/(tabs)/companion')} style={styles.announcementLink}>
+          <Text style={styles.announcementLinkText}>Try it now</Text>
+          <ArrowRight color={colors.primaryDark} size={15} />
+        </Pressable>
+      </View>
+
       <View style={styles.nav}>
         <Pressable
           accessibilityLabel="मेरो स्वास्थ्य गृहपृष्ठ"
           onPress={() => router.replace('/')}
           style={styles.brandLockup}
         >
-          <LinearGradient colors={['#0C7C6E', '#07534C']} style={styles.brandMark}>
+          <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.brandMark}>
             <Text style={styles.brandGlyph}>म</Text>
           </LinearGradient>
           <View>
@@ -201,9 +210,9 @@ export default function WebWelcomeScreen() {
 
           <View style={[styles.heroActions, compact && styles.heroActionsCompact]}>
             <Pressable onPress={() => router.push('/(tabs)/companion')} style={styles.primaryCta}>
-              <Sparkles color="white" size={18} />
+              <Sparkles color={colors.primaryDark} size={18} />
               <Text style={styles.primaryCtaText}>स्वास्थ्य साथीसँग कुरा गर्नुहोस्</Text>
-              <ArrowRight color="white" size={17} />
+              <ArrowRight color={colors.primaryDark} size={17} />
             </Pressable>
             <Pressable onPress={() => router.push('/consultation')} style={styles.secondaryCta}>
               <Camera color={colors.primaryDark} size={18} />
@@ -225,24 +234,21 @@ export default function WebWelcomeScreen() {
 
         <View style={[styles.heroVisual, !wide && styles.heroVisualNarrow]}>
           <View style={styles.visualCanvas}>
-            <Image
-              accessibilityLabel="नेपाली व्यक्ति, मानव शरीरको स्वास्थ्य चित्र र एआई स्वास्थ्य साथी"
-              resizeMode="cover"
-              source={companionImage}
-              style={styles.heroImage}
-            />
             <LinearGradient
-              colors={['rgba(5,35,35,.04)', 'rgba(5,35,35,.28)', 'rgba(5,35,35,.82)']}
-              style={styles.heroImageShade}
+              colors={[colors.primary, colors.primaryDeep, colors.primaryDark]}
+              style={styles.heroBackdrop}
             />
+            <View style={styles.visualGrid} />
+            <View style={styles.orbitOne} />
+            <View style={styles.orbitTwo} />
 
             <View style={styles.languageChip}>
-              <Globe2 color="#E8F7F1" size={16} />
+              <Globe2 color={colors.mint} size={16} />
               <Text style={styles.languageChipText}>नेपाली पहिलो · रोमन नेपाली · English</Text>
             </View>
 
             <View style={styles.aiBadge}>
-              <Sparkles color="#063B3B" size={16} />
+              <Sparkles color={colors.primaryDark} size={16} />
               <Text style={styles.aiBadgeText}>एआई स्वास्थ्य साथी · निर्णय तपाईंको</Text>
             </View>
 
@@ -295,7 +301,7 @@ export default function WebWelcomeScreen() {
                 <Text style={styles.doctorStatus}>स्वास्थ्य सेवासँग जोडिँदै</Text>
                 <Text style={styles.doctorTitle}>आवश्यक पर्दा सही स्वास्थ्यकर्मी</Text>
               </View>
-              <BadgeCheck color="#7EE4C9" size={21} />
+              <BadgeCheck color={colors.jadeBright} size={21} />
             </View>
           </View>
         </View>
@@ -314,6 +320,51 @@ export default function WebWelcomeScreen() {
         <View style={styles.signalItem}>
           <Text style={styles.signalValue}>0</Text>
           <Text style={styles.signalLabel}>स्वचालित निदान</Text>
+        </View>
+      </View>
+      <View style={styles.careOverview}>
+        <View style={styles.careOverviewHead}>
+          <Text style={styles.careKicker}>CARE, ALL IN ONE PLACE</Text>
+          <Text style={styles.careTitle}>The care you need, all in one place.</Text>
+          <Text style={styles.careBody}>
+            From a health question to finding the right care, every step stays clear, safe, and
+            under your control.
+          </Text>
+        </View>
+        <View style={[styles.careGrid, !wide && styles.stack]}>
+          {services.map((service, index) => {
+            const Icon = service.icon;
+            return (
+              <Pressable
+                key={service.label}
+                onPress={() =>
+                  router.push(
+                    index === 0
+                      ? '/(tabs)/companion'
+                      : index === 1
+                        ? '/(tabs)/care'
+                        : index === 2
+                          ? '/(tabs)/twin'
+                          : '/consultation',
+                  )
+                }
+                style={({ pressed }) => [
+                  styles.careCard,
+                  { backgroundColor: service.tone, opacity: pressed ? 0.82 : 1 },
+                ]}
+              >
+                <View style={styles.careCardTop}>
+                  <View style={styles.careIcon}>
+                    <Icon color={colors.primaryDark} size={24} />
+                  </View>
+                  <ArrowRight color={colors.primaryDark} size={19} />
+                </View>
+                <Text style={styles.careCardTitle}>{service.label}</Text>
+                <Text style={styles.careCardBody}>{service.detail}</Text>
+                <Text style={styles.careCardLink}>Get started</Text>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
 
@@ -353,13 +404,11 @@ export default function WebWelcomeScreen() {
             compact && styles.bodyStoryCompact,
           ]}
         >
-          <Image
-            accessibilityLabel="मानव शरीरका मुख्य अंग र हड्डीको शैक्षिक स्वास्थ्य चित्र"
-            resizeMode="cover"
-            source={bodyImage}
-            style={styles.storyImage}
+          <LinearGradient
+            colors={[colors.primary, colors.primaryDeep]}
+            end={{ x: 1, y: 1 }}
+            style={styles.storyBackdrop}
           />
-          <LinearGradient colors={['transparent', 'rgba(4,35,39,.88)']} style={styles.imageShade} />
           <View style={styles.storyCopy}>
             <Text style={styles.storyKicker}>तपाईंको डिजिटल स्वास्थ्य चित्र</Text>
             <Text style={styles.storyTitle}>शरीरलाई बुझ्ने, एक–एक तथ्यबाट।</Text>
@@ -376,13 +425,11 @@ export default function WebWelcomeScreen() {
             compact && styles.careStoryCompact,
           ]}
         >
-          <Image
-            accessibilityLabel="नेपाली डाक्टरले बिरामी र परिवारसँग कुरा गर्दै"
-            resizeMode="cover"
-            source={careTeamImage}
-            style={styles.storyImage}
+          <LinearGradient
+            colors={[colors.primaryDeep, colors.primaryDark]}
+            end={{ x: 1, y: 1 }}
+            style={styles.storyBackdrop}
           />
-          <LinearGradient colors={['transparent', 'rgba(4,35,39,.86)']} style={styles.imageShade} />
           <View style={styles.storyCopy}>
             <Text style={styles.storyKicker}>मानिससँग जोडिएको सेवा</Text>
             <Text style={styles.storyTitle}>एआईले तयारी गर्छ, स्वास्थ्यकर्मीले निर्णय गर्छन्।</Text>
@@ -393,7 +440,7 @@ export default function WebWelcomeScreen() {
         </View>
       </View>
       <View style={[styles.bento, !wide && styles.stack]}>
-        <LinearGradient colors={['#0B7668', '#07514B']} style={styles.bentoLead}>
+        <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.bentoLead}>
           <Text style={styles.bentoKicker}>सामान्य जवाफ होइन, मार्गदर्शन</Text>
           <Text style={styles.bentoTitle}>
             कहिले रोकिएर स्वास्थ्यकर्मी खोज्नुपर्छ भन्ने बुझ्ने साथी।
@@ -407,11 +454,11 @@ export default function WebWelcomeScreen() {
             <Text style={styles.listenButtonText}>साथीको परिचय सुन्नुहोस्</Text>
           </Pressable>
           <View style={styles.safetyLine}>
-            <Check color="#BFEBDD" size={17} />
+            <Check color={colors.mintStrong} size={17} />
             <Text style={styles.safetyLineText}>अनुमानलाई निश्चित निदान बनाइँदैन</Text>
           </View>
           <View style={styles.safetyLine}>
-            <Check color="#BFEBDD" size={17} />
+            <Check color={colors.mintStrong} size={17} />
             <Text style={styles.safetyLineText}>स्पष्ट उद्देश्यबिना जानकारी बाँडिँदैन</Text>
           </View>
         </LinearGradient>
@@ -433,6 +480,53 @@ export default function WebWelcomeScreen() {
                 </View>
               );
             })}
+          </View>
+        </View>
+      </View>
+
+      <View style={[styles.perplexityBand, !wide && styles.stack]}>
+        <View style={styles.perplexityCopy}>
+          <View style={styles.perplexityBadge}>
+            <Sparkles color={colors.mintStrong} size={16} />
+            <Text style={styles.perplexityBadgeText}>MERO HEALTH × PERPLEXITY</Text>
+          </View>
+          <Text style={styles.perplexityTitle}>Not just search. Health answers with sources.</Text>
+          <Text style={styles.perplexityBody}>
+            Mero Health screens urgent warning signs first. For safe questions, Perplexity Sonar
+            finds current sources and returns an answer with citations. Records, wearables, and
+            personal health trends hand off to Perplexity Health.
+          </Text>
+          <Pressable onPress={() => router.push('/(tabs)/companion')} style={styles.perplexityCta}>
+            <Sparkles color={colors.primaryDark} size={18} />
+            <Text style={styles.perplexityCtaText}>Ask with cited research</Text>
+            <ArrowRight color={colors.primaryDark} size={17} />
+          </Pressable>
+        </View>
+        <View style={styles.perplexityFeatures}>
+          <View style={styles.perplexityFeature}>
+            <ShieldCheck color={colors.mintStrong} size={22} />
+            <View style={styles.perplexityFeatureCopy}>
+              <Text style={styles.perplexityFeatureTitle}>Safety before AI</Text>
+              <Text style={styles.perplexityFeatureBody}>
+                Urgent signals stop the normal answer flow.
+              </Text>
+            </View>
+          </View>
+          <View style={styles.perplexityFeature}>
+            <BookOpen color={colors.mintStrong} size={22} />
+            <View style={styles.perplexityFeatureCopy}>
+              <Text style={styles.perplexityFeatureTitle}>Citations you can open</Text>
+              <Text style={styles.perplexityFeatureBody}>Inspect every source for yourself.</Text>
+            </View>
+          </View>
+          <View style={styles.perplexityFeature}>
+            <FileHeart color={colors.mintStrong} size={22} />
+            <View style={styles.perplexityFeatureCopy}>
+              <Text style={styles.perplexityFeatureTitle}>Personal health handoff</Text>
+              <Text style={styles.perplexityFeatureBody}>
+                Records and wearables continue in Perplexity Health.
+              </Text>
+            </View>
           </View>
         </View>
       </View>
@@ -472,17 +566,17 @@ export default function WebWelcomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { backgroundColor: '#F6F8F3' },
+  scroll: { backgroundColor: colors.canvas },
   page: {
     alignItems: 'center',
-    backgroundColor: '#F6F8F3',
+    backgroundColor: colors.canvas,
     minHeight: '100%',
     overflow: 'hidden',
     paddingBottom: 28,
     position: 'relative',
   },
   auroraOne: {
-    backgroundColor: '#CFEFE4',
+    backgroundColor: colors.mintStrong,
     borderRadius: 420,
     height: 620,
     opacity: 0.56,
@@ -492,7 +586,7 @@ const styles = StyleSheet.create({
     width: 620,
   },
   auroraTwo: {
-    backgroundColor: '#FFE5B3',
+    backgroundColor: colors.saffronSoft,
     borderRadius: 360,
     height: 480,
     left: -300,
@@ -517,20 +611,20 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     height: 46,
     justifyContent: 'center',
-    shadowColor: '#083F3B',
+    shadowColor: colors.primaryDark,
     shadowOffset: { height: 6, width: 0 },
     shadowOpacity: 0.18,
     shadowRadius: 12,
     width: 46,
   },
   brandGlyph: { color: 'white', fontSize: 23, fontWeight: '900' },
-  brandName: { color: '#0C3735', fontSize: 13, fontWeight: '900', letterSpacing: 1.4 },
-  brandNepali: { color: '#647774', fontSize: 11, fontWeight: '700', marginTop: 1 },
+  brandName: { color: colors.ink, fontSize: 13, fontWeight: '900', letterSpacing: 1.4 },
+  brandNepali: { color: colors.muted, fontSize: 11, fontWeight: '700', marginTop: 1 },
   navLinks: { alignItems: 'center', flexDirection: 'row', gap: 32 },
-  navLink: { color: '#395956', fontSize: 13, fontWeight: '700' },
+  navLink: { color: colors.muted, fontSize: 13, fontWeight: '700' },
   navButton: {
     alignItems: 'center',
-    backgroundColor: '#0B6C61',
+    backgroundColor: colors.primary,
     borderRadius: 999,
     flexDirection: 'row',
     gap: 8,
@@ -539,19 +633,26 @@ const styles = StyleSheet.create({
   },
   navButtonText: { color: 'white', fontSize: 13, fontWeight: '800' },
   hero: {
+    backgroundColor: colors.primary,
+    borderRadius: 36,
+    marginTop: 12,
+    overflow: 'hidden',
+    paddingBottom: 34,
+    paddingLeft: 18,
+    paddingRight: 18,
     gap: 38,
     maxWidth: 1240,
     paddingHorizontal: 24,
     paddingTop: 48,
     width: '100%',
   },
-  heroWide: { alignItems: 'center', flexDirection: 'row', minHeight: 620, paddingTop: 20 },
+  heroWide: { alignItems: 'center', flexDirection: 'row', minHeight: 650, paddingTop: 34 },
   heroCopy: { flex: 1, minWidth: 0 },
   eyebrow: {
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,.76)',
-    borderColor: '#D9E8E2',
+    backgroundColor: 'rgba(255,255,255,.10)',
+    borderColor: 'rgba(255,255,255,.18)',
     borderRadius: 999,
     borderWidth: 1,
     flexDirection: 'row',
@@ -560,40 +661,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     paddingVertical: 8,
   },
-  liveDot: { backgroundColor: '#14A78F', borderRadius: 5, height: 8, width: 8 },
-  eyebrowText: { color: '#35605B', fontSize: 10, fontWeight: '900', letterSpacing: 1.15 },
+  liveDot: { backgroundColor: colors.jadeBright, borderRadius: 5, height: 8, width: 8 },
+  eyebrowText: { color: colors.mint, fontSize: 10, fontWeight: '900', letterSpacing: 1.15 },
   heroTitle: {
-    color: '#0A302F',
+    color: 'white',
     fontSize: 58,
     fontWeight: '900',
     letterSpacing: -2,
     lineHeight: 68,
   },
   heroTitleCompact: { fontSize: 43, letterSpacing: -1.3, lineHeight: 54 },
-  heroAccent: { color: '#0B7668' },
-  heroNepali: { color: '#1B514C', fontSize: 24, fontWeight: '800', marginTop: 19 },
-  heroBody: { color: '#5D706D', fontSize: 18, lineHeight: 29, marginTop: 20, maxWidth: 590 },
+  heroAccent: { color: colors.mintStrong },
+  heroNepali: { color: 'white', fontSize: 24, fontWeight: '800', marginTop: 19 },
+  heroBody: { color: colors.mint, fontSize: 18, lineHeight: 29, marginTop: 20, maxWidth: 590 },
   heroActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 30 },
   heroActionsCompact: { alignItems: 'stretch', flexDirection: 'column' },
+  // The hero's one marigold moment — the single loudest action on this
+  // screen, matching apps/web's Hero CTA. `navButton` above stays a solid
+  // forest pill so marigold is spent only once, per the art-direction rule.
   primaryCta: {
     alignItems: 'center',
-    backgroundColor: '#0B6C61',
+    backgroundColor: colors.saffron,
     borderRadius: 16,
     flexDirection: 'row',
     gap: 10,
     justifyContent: 'center',
     minHeight: 56,
     paddingHorizontal: 20,
-    shadowColor: '#0B6C61',
+    shadowColor: colors.primaryDark,
     shadowOffset: { height: 10, width: 0 },
     shadowOpacity: 0.22,
     shadowRadius: 20,
   },
-  primaryCtaText: { color: 'white', fontSize: 14, fontWeight: '900' },
+  primaryCtaText: { color: colors.primaryDark, fontSize: 14, fontWeight: '900' },
   secondaryCta: {
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,.8)',
-    borderColor: '#D4E3DE',
+    borderColor: colors.line,
     borderRadius: 16,
     borderWidth: 1,
     flexDirection: 'row',
@@ -605,7 +709,7 @@ const styles = StyleSheet.create({
   secondaryCtaText: { color: colors.primaryDark, fontSize: 14, fontWeight: '900' },
   trustRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 18, marginTop: 28 },
   trustItem: { alignItems: 'center', flexDirection: 'row', gap: 7 },
-  trustText: { color: '#496461', fontSize: 12, fontWeight: '700' },
+  trustText: { color: colors.mint, fontSize: 12, fontWeight: '700' },
   heroVisual: { flex: 0.93, minWidth: 0 },
   heroVisualNarrow: { minHeight: 500 },
   visualCanvas: {
@@ -613,7 +717,7 @@ const styles = StyleSheet.create({
     height: 590,
     overflow: 'hidden',
     position: 'relative',
-    shadowColor: '#082F34',
+    shadowColor: colors.primaryDark,
     shadowOffset: { height: 24, width: 0 },
     shadowOpacity: 0.28,
     shadowRadius: 38,
@@ -629,7 +733,7 @@ const styles = StyleSheet.create({
     top: 22,
   },
   orbitOne: {
-    borderColor: 'rgba(185,237,222,.18)',
+    borderColor: 'rgba(169,223,201,.18)',
     borderRadius: 180,
     borderWidth: 1,
     height: 360,
@@ -641,7 +745,7 @@ const styles = StyleSheet.create({
     width: 360,
   },
   orbitTwo: {
-    borderColor: 'rgba(255,224,162,.13)',
+    borderColor: 'rgba(244,166,42,.13)',
     borderRadius: 125,
     borderWidth: 1,
     height: 250,
@@ -652,18 +756,11 @@ const styles = StyleSheet.create({
     top: '43%',
     width: 250,
   },
-  orbPosition: {
-    alignItems: 'center',
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 108,
-  },
   languageChip: {
     alignItems: 'center',
     alignSelf: 'center',
-    backgroundColor: 'rgba(4,38,41,.74)',
-    borderColor: 'rgba(191,235,221,.22)',
+    backgroundColor: 'rgba(7,35,26,.74)',
+    borderColor: 'rgba(169,223,201,.22)',
     borderRadius: 999,
     borderWidth: 1,
     flexDirection: 'row',
@@ -672,8 +769,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     paddingVertical: 9,
   },
-  languageChipText: { color: '#E8F7F1', fontSize: 11, fontWeight: '800' },
-  heroImage: {
+  languageChipText: { color: colors.mint, fontSize: 11, fontWeight: '800' },
+  heroBackdrop: {
     bottom: 0,
     height: '100%',
     left: 0,
@@ -682,16 +779,9 @@ const styles = StyleSheet.create({
     top: 0,
     width: '100%',
   },
-  heroImageShade: {
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 0,
-  },
   aiBadge: {
     alignItems: 'center',
-    backgroundColor: 'rgba(232,247,241,.94)',
+    backgroundColor: 'rgba(216,240,229,.94)',
     borderRadius: 999,
     flexDirection: 'row',
     gap: 7,
@@ -701,7 +791,7 @@ const styles = StyleSheet.create({
     right: 22,
     top: 82,
   },
-  aiBadgeText: { color: '#063B3B', fontSize: 10, fontWeight: '900' },
+  aiBadgeText: { color: colors.primaryDark, fontSize: 10, fontWeight: '900' },
   voiceCard: {
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,.96)',
@@ -716,22 +806,22 @@ const styles = StyleSheet.create({
   },
   micButton: {
     alignItems: 'center',
-    backgroundColor: '#0B7668',
+    backgroundColor: colors.primary,
     borderRadius: 18,
     height: 54,
     justifyContent: 'center',
     width: 54,
   },
-  micButtonActive: { backgroundColor: '#D64B42' },
+  micButtonActive: { backgroundColor: colors.danger },
   voiceCopy: { flex: 1, minWidth: 0 },
-  voiceLabel: { color: '#66807C', fontSize: 9, fontWeight: '900', letterSpacing: 0.7 },
-  voiceTitle: { color: '#103735', fontSize: 13, fontWeight: '900', marginTop: 3 },
-  voiceError: { color: '#B42318', fontSize: 9, marginTop: 3 },
+  voiceLabel: { color: colors.muted, fontSize: 9, fontWeight: '900', letterSpacing: 0.7 },
+  voiceTitle: { color: colors.ink, fontSize: 13, fontWeight: '900', marginTop: 3 },
+  voiceError: { color: colors.danger, fontSize: 9, marginTop: 3 },
   waveform: { alignItems: 'center', flexDirection: 'row', gap: 3, height: 40 },
-  waveBar: { backgroundColor: '#0B7668', borderRadius: 3, width: 3 },
+  waveBar: { backgroundColor: colors.primary, borderRadius: 3, width: 3 },
   doctorCard: {
     alignItems: 'center',
-    backgroundColor: 'rgba(4,35,39,.84)',
+    backgroundColor: 'rgba(7,35,26,.84)',
     borderColor: 'rgba(255,255,255,.13)',
     borderRadius: 19,
     borderWidth: 1,
@@ -745,19 +835,19 @@ const styles = StyleSheet.create({
   },
   doctorAvatar: {
     alignItems: 'center',
-    backgroundColor: '#BFEBDD',
+    backgroundColor: colors.mintStrong,
     borderRadius: 15,
     height: 43,
     justifyContent: 'center',
     width: 43,
   },
   doctorCopy: { flex: 1 },
-  doctorStatus: { color: '#80C9B8', fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
+  doctorStatus: { color: colors.mintStrong, fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
   doctorTitle: { color: 'white', fontSize: 12, fontWeight: '800', marginTop: 2 },
   signalStrip: {
     alignItems: 'center',
     backgroundColor: 'white',
-    borderColor: '#DFE9E4',
+    borderColor: colors.line,
     borderRadius: 22,
     borderWidth: 1,
     flexDirection: 'row',
@@ -769,20 +859,20 @@ const styles = StyleSheet.create({
     width: '88%',
   },
   signalItem: { alignItems: 'center', flex: 1 },
-  signalValue: { color: '#0B6C61', fontSize: 23, fontWeight: '900' },
+  signalValue: { color: colors.primary, fontSize: 23, fontWeight: '900' },
   signalLabel: {
-    color: '#657875',
+    color: colors.muted,
     fontSize: 11,
     fontWeight: '700',
     marginTop: 2,
     textAlign: 'center',
   },
-  signalDivider: { backgroundColor: '#DFE9E4', height: 34, width: 1 },
+  signalDivider: { backgroundColor: colors.line, height: 34, width: 1 },
   section: { maxWidth: 1240, paddingHorizontal: 24, paddingTop: 120, width: '100%' },
   sectionHeading: { alignItems: 'center', alignSelf: 'center', maxWidth: 720 },
-  sectionEyebrow: { color: '#0B7668', fontSize: 10, fontWeight: '900', letterSpacing: 1.45 },
+  sectionEyebrow: { color: colors.info, fontSize: 10, fontWeight: '900', letterSpacing: 1.45 },
   sectionTitle: {
-    color: '#0A302F',
+    color: colors.ink,
     fontSize: 43,
     fontWeight: '900',
     letterSpacing: -1.6,
@@ -790,7 +880,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
     textAlign: 'center',
   },
-  sectionBody: { color: '#687B78', fontSize: 16, marginTop: 12, textAlign: 'center' },
+  sectionBody: { color: colors.muted, fontSize: 16, marginTop: 12, textAlign: 'center' },
   journeyGrid: { flexDirection: 'row', gap: 16, marginTop: 46 },
   stack: { flexDirection: 'column' },
   journeyCard: { borderRadius: 27, flex: 1, minHeight: 258, padding: 24 },
@@ -803,8 +893,8 @@ const styles = StyleSheet.create({
     width: 48,
   },
   journeyNumber: { fontSize: 13, fontWeight: '900', letterSpacing: 1 },
-  journeyTitle: { color: '#113A37', fontSize: 21, fontWeight: '900', marginTop: 35 },
-  journeyBody: { color: '#536966', fontSize: 14, lineHeight: 22, marginTop: 10 },
+  journeyTitle: { color: colors.ink, fontSize: 21, fontWeight: '900', marginTop: 35 },
+  journeyBody: { color: colors.muted, fontSize: 14, lineHeight: 22, marginTop: 10 },
   imagerySection: {
     flexDirection: 'row',
     gap: 18,
@@ -830,14 +920,7 @@ const styles = StyleSheet.create({
   storyCardNarrow: { flexBasis: 'auto', flexGrow: 0, flexShrink: 0, width: '100%' },
   bodyStoryCompact: { height: 560 },
   careStoryCompact: { height: 400 },
-  storyImage: { height: '100%', width: '100%' },
-  imageShade: {
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 0,
-  },
+  storyBackdrop: { height: '100%', width: '100%' },
   storyCopy: {
     bottom: 0,
     left: 0,
@@ -846,7 +929,7 @@ const styles = StyleSheet.create({
     right: 0,
   },
   storyKicker: {
-    color: '#9DE2D2',
+    color: colors.mintStrong,
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 1.1,
@@ -860,7 +943,7 @@ const styles = StyleSheet.create({
     maxWidth: 580,
   },
   storyBody: {
-    color: '#D7ECE7',
+    color: colors.mint,
     fontSize: 13,
     lineHeight: 21,
     marginTop: 10,
@@ -875,7 +958,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   bentoLead: { borderRadius: 30, flex: 0.92, minHeight: 500, padding: 30 },
-  bentoKicker: { color: '#A7DCD0', fontSize: 10, fontWeight: '900', letterSpacing: 1.3 },
+  bentoKicker: { color: colors.mintStrong, fontSize: 10, fontWeight: '900', letterSpacing: 1.3 },
   bentoTitle: {
     color: 'white',
     fontSize: 38,
@@ -884,11 +967,11 @@ const styles = StyleSheet.create({
     lineHeight: 44,
     marginTop: 18,
   },
-  bentoBody: { color: '#D4EEE7', fontSize: 15, lineHeight: 24, marginTop: 18 },
+  bentoBody: { color: colors.mint, fontSize: 15, lineHeight: 24, marginTop: 18 },
   listenButton: {
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: '#EAF8F3',
+    backgroundColor: colors.mintFaint,
     borderRadius: 15,
     flexDirection: 'row',
     gap: 9,
@@ -899,11 +982,11 @@ const styles = StyleSheet.create({
   },
   listenButtonText: { color: colors.primaryDark, fontSize: 12, fontWeight: '900' },
   safetyLine: { alignItems: 'center', flexDirection: 'row', gap: 9, marginTop: 12 },
-  safetyLineText: { color: '#E9F7F3', fontSize: 12, fontWeight: '700' },
+  safetyLineText: { color: colors.mint, fontSize: 12, fontWeight: '700' },
   servicesPanel: { backgroundColor: 'white', borderRadius: 30, flex: 1.08, padding: 30 },
-  servicesEyebrow: { color: '#0B7668', fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
+  servicesEyebrow: { color: colors.info, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
   servicesTitle: {
-    color: '#0A302F',
+    color: colors.ink,
     fontSize: 31,
     fontWeight: '900',
     letterSpacing: -1,
@@ -911,11 +994,11 @@ const styles = StyleSheet.create({
   },
   servicesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 28 },
   serviceCard: { borderRadius: 19, minHeight: 145, padding: 17, width: '48%' },
-  serviceLabel: { color: '#173E3B', fontSize: 14, fontWeight: '900', marginTop: 18 },
-  serviceDetail: { color: '#617572', fontSize: 10, lineHeight: 15, marginTop: 5 },
+  serviceLabel: { color: colors.ink, fontSize: 14, fontWeight: '900', marginTop: 18 },
+  serviceDetail: { color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: 5 },
   finalCta: {
     alignItems: 'flex-start',
-    backgroundColor: '#102F3E',
+    backgroundColor: colors.primaryDark,
     borderRadius: 30,
     gap: 18,
     marginTop: 110,
@@ -926,7 +1009,7 @@ const styles = StyleSheet.create({
   finalCtaWide: { alignItems: 'center', flexDirection: 'row' },
   finalOrb: {
     alignItems: 'center',
-    backgroundColor: '#0B7668',
+    backgroundColor: colors.primary,
     borderRadius: 24,
     height: 64,
     justifyContent: 'center',
@@ -934,10 +1017,10 @@ const styles = StyleSheet.create({
   },
   finalCopy: { flex: 1 },
   finalTitle: { color: 'white', fontSize: 26, fontWeight: '900' },
-  finalBody: { color: '#C8D8DD', fontSize: 13, marginTop: 5 },
+  finalBody: { color: colors.mint, fontSize: 13, marginTop: 5 },
   finalButton: {
     alignItems: 'center',
-    backgroundColor: '#DDF5EC',
+    backgroundColor: colors.mint,
     borderRadius: 15,
     flexDirection: 'row',
     gap: 9,
@@ -955,13 +1038,126 @@ const styles = StyleSheet.create({
   },
   footerMark: {
     alignItems: 'center',
-    backgroundColor: '#0B6C61',
+    backgroundColor: colors.primary,
     borderRadius: 11,
     height: 36,
     justifyContent: 'center',
     width: 36,
   },
-  footerBrand: { color: '#173E3B', fontSize: 16, fontWeight: '900' },
-  footerNote: { color: '#657875', fontSize: 11, textAlign: 'center' },
-  footerLegal: { color: '#8A9997', fontSize: 10, fontWeight: '700' },
+  footerBrand: { color: colors.ink, fontSize: 16, fontWeight: '900' },
+  footerNote: { color: colors.muted, fontSize: 11, textAlign: 'center' },
+  announcement: {
+    alignItems: 'center',
+    backgroundColor: colors.primaryDeep,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    minHeight: 43,
+    paddingHorizontal: 18,
+    width: '100%',
+    zIndex: 3,
+  },
+  announcementText: { color: colors.mint, fontSize: 11, fontWeight: '800', textAlign: 'center' },
+  announcementLink: {
+    alignItems: 'center',
+    backgroundColor: colors.mintStrong,
+    borderRadius: 999,
+    flexDirection: 'row',
+    gap: 6,
+    marginLeft: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  announcementLinkText: { color: colors.primaryDark, fontSize: 10, fontWeight: '900' },
+  careOverview: { maxWidth: 1240, paddingHorizontal: 24, paddingTop: 105, width: '100%' },
+  careOverviewHead: { maxWidth: 740 },
+  careKicker: { color: colors.info, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 },
+  careTitle: {
+    color: colors.ink,
+    fontSize: 44,
+    fontWeight: '900',
+    letterSpacing: -1.5,
+    lineHeight: 51,
+    marginTop: 14,
+  },
+  careBody: { color: colors.muted, fontSize: 16, lineHeight: 25, marginTop: 14, maxWidth: 660 },
+  careGrid: { flexDirection: 'row', gap: 14, marginTop: 38 },
+  careCard: { borderRadius: 24, flex: 1, minHeight: 270, padding: 23 },
+  careCardTop: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  careIcon: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,.72)',
+    borderRadius: 18,
+    height: 52,
+    justifyContent: 'center',
+    width: 52,
+  },
+  careCardTitle: { color: colors.ink, fontSize: 20, fontWeight: '900', marginTop: 32 },
+  careCardBody: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 9 },
+  careCardLink: { color: colors.primary, fontSize: 12, fontWeight: '900', marginTop: 24 },
+  perplexityBand: {
+    backgroundColor: colors.primaryDeep,
+    borderRadius: 32,
+    flexDirection: 'row',
+    gap: 34,
+    marginTop: 110,
+    maxWidth: 1192,
+    overflow: 'hidden',
+    padding: 38,
+    width: '88%',
+  },
+  perplexityCopy: { flex: 1.15 },
+  perplexityBadge: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(169,223,201,.12)',
+    borderColor: 'rgba(169,223,201,.22)',
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  perplexityBadgeText: {
+    color: colors.mintStrong,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.1,
+  },
+  perplexityTitle: {
+    color: 'white',
+    fontSize: 39,
+    fontWeight: '900',
+    letterSpacing: -1.2,
+    lineHeight: 46,
+    marginTop: 22,
+  },
+  perplexityBody: { color: colors.mint, fontSize: 14, lineHeight: 23, marginTop: 16 },
+  perplexityCta: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: colors.mintStrong,
+    borderRadius: 15,
+    flexDirection: 'row',
+    gap: 9,
+    marginTop: 26,
+    minHeight: 52,
+    paddingHorizontal: 17,
+  },
+  perplexityCtaText: { color: colors.primaryDark, fontSize: 13, fontWeight: '900' },
+  perplexityFeatures: { flex: 0.85, gap: 13, justifyContent: 'center' },
+  perplexityFeature: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,.07)',
+    borderColor: 'rgba(255,255,255,.09)',
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 13,
+    padding: 16,
+  },
+  perplexityFeatureCopy: { flex: 1 },
+  perplexityFeatureTitle: { color: 'white', fontSize: 13, fontWeight: '900' },
+  perplexityFeatureBody: { color: colors.mint, fontSize: 11, lineHeight: 17, marginTop: 3 },
+  footerLegal: { color: colors.muted, fontSize: 10, fontWeight: '700' },
 });

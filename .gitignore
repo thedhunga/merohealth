@@ -1,6 +1,8 @@
 node_modules/
 .turbo/
 .expo/
+.next/
+next-env.d.ts
 dist/
 coverage/
 .env
@@ -9,3 +11,4 @@ coverage/
 apps/mobile/.expo/
 packages/database/generated/
 
+*.tsbuildinfo

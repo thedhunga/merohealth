@@ -1,0 +1,160 @@
+import type { ComponentType } from 'react';
+
+import { AroundTheClockCare } from '@/components/art/AroundTheClockCare';
+import { CalmMind } from '@/components/art/CalmMind';
+import { DiagnosticFocus } from '@/components/art/DiagnosticFocus';
+import { HabitSprout } from '@/components/art/HabitSprout';
+import { HomeFirstVisit } from '@/components/art/HomeFirstVisit';
+import { HospitalReach } from '@/components/art/HospitalReach';
+import { MemberRouting } from '@/components/art/MemberRouting';
+import { VitalsTrend } from '@/components/art/VitalsTrend';
+import { WorkplaceInvestment } from '@/components/art/WorkplaceInvestment';
+
+export interface ServiceCard {
+  /** Key into `home.services.items` */
+  key: string;
+  href: string;
+  /** Editorial SVG composition for the card, aria-hidden. */
+  Art: ComponentType<{ className?: string }>;
+  /** Optional sub-links, keyed into `nav.items`. */
+  links?: Array<{ key: string; href: string }>;
+}
+
+export const serviceCards: readonly ServiceCard[] = [
+  {
+    key: 'care247',
+    href: '/individuals/24-7-care',
+    Art: AroundTheClockCare,
+  },
+  {
+    key: 'primaryCare',
+    href: '/individuals/primary-care',
+    Art: HomeFirstVisit,
+  },
+  {
+    key: 'mentalHealth',
+    href: '/individuals/mental-health',
+    Art: CalmMind,
+  },
+  {
+    key: 'conditionManagement',
+    href: '/individuals/diabetes-management',
+    Art: VitalsTrend,
+    links: [
+      { key: 'diabetesManagement', href: '/individuals/diabetes-management' },
+      { key: 'weightManagement', href: '/individuals/weight-management' },
+      { key: 'hypertensionManagement', href: '/individuals/hypertension-management' },
+    ],
+  },
+  {
+    key: 'specialtyCare',
+    href: '/individuals/specialty-wellness',
+    Art: DiagnosticFocus,
+    links: [
+      { key: 'dermatology', href: '/individuals/specialty-wellness/dermatology' },
+      {
+        key: 'expertMedicalOpinion',
+        href: '/individuals/specialty-wellness/expert-medical-opinion',
+      },
+    ],
+  },
+  {
+    key: 'healthyHabits',
+    href: '/individuals/weight-management/nutrition',
+    Art: HabitSprout,
+    links: [
+      { key: 'nutrition', href: '/individuals/weight-management/nutrition' },
+      { key: 'sleep', href: '/individuals/specialty-wellness/sleep' },
+    ],
+  },
+];
+
+export interface OrganizationTab {
+  /** Key into `home.organizations.tabs` */
+  key: string;
+  href: string;
+  /** Editorial SVG composition for the tab panel, aria-hidden. */
+  Art: ComponentType<{ className?: string }>;
+  /**
+   * Illustrative figures for the demonstration build.
+   *
+   * These are NOT verified claims. Every value must be replaced with a
+   * substantiated figure, or the section removed, before publication — see the
+   * demonstration notice in the footer.
+   */
+  stats: ReadonlyArray<{ value: string; labelNe: string; labelEn: string }>;
+}
+
+export const organizationTabs: readonly OrganizationTab[] = [
+  {
+    key: 'healthPlans',
+    href: '/organizations/health-plans',
+    Art: MemberRouting,
+    stats: [
+      {
+        value: '—',
+        labelNe: 'साझेदार बीमा योजना (प्रकाशन अघि प्रमाणित गर्नुपर्ने)',
+        labelEn: 'Partner health plans (to be substantiated before launch)',
+      },
+      {
+        value: '—',
+        labelNe: 'पहुँच भएका सदस्य (प्रकाशन अघि प्रमाणित गर्नुपर्ने)',
+        labelEn: 'Members with access (to be substantiated before launch)',
+      },
+    ],
+  },
+  {
+    key: 'employers',
+    href: '/organizations/employers',
+    Art: WorkplaceInvestment,
+    stats: [
+      {
+        value: '—',
+        labelNe: 'साझेदार रोजगारदाता (प्रकाशन अघि प्रमाणित गर्नुपर्ने)',
+        labelEn: 'Partner employers (to be substantiated before launch)',
+      },
+      {
+        value: '—',
+        labelNe: 'कर्मचारी सन्तुष्टि (प्रकाशन अघि प्रमाणित गर्नुपर्ने)',
+        labelEn: 'Employee satisfaction (to be substantiated before launch)',
+      },
+    ],
+  },
+  {
+    key: 'hospitals',
+    href: '/organizations/hospitals-health-systems',
+    Art: HospitalReach,
+    stats: [
+      {
+        value: '—',
+        labelNe: 'साझेदार अस्पताल (प्रकाशन अघि प्रमाणित गर्नुपर्ने)',
+        labelEn: 'Partner hospitals (to be substantiated before launch)',
+      },
+      {
+        value: '—',
+        labelNe: 'सेवा पुगेका जिल्ला (प्रकाशन अघि प्रमाणित गर्नुपर्ने)',
+        labelEn: 'Districts reached (to be substantiated before launch)',
+      },
+    ],
+  },
+];
+
+/** Fictional demonstration testimonials. Keys index `home.testimonials.items`. */
+export const testimonialKeys = ['sabina', 'raju', 'mina', 'prakash'] as const;
+
+/**
+ * Placeholder partner names.
+ *
+ * Deliberately generic and clearly fictional. Real partner and insurer
+ * listings require signed agreements before they may appear.
+ */
+export const partnerPlaceholders = [
+  'Demo Health Plan',
+  'Demo District Hospital',
+  'Demo Polyclinic',
+  'Demo Diagnostics',
+  'Demo Community Care',
+  'Demo Employer Group',
+  'Demo Pharmacy Network',
+  'Demo Teaching Hospital',
+] as const;

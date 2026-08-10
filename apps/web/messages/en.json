@@ -1,0 +1,1135 @@
+{
+  "brand": {
+    "name": "Mero Health",
+    "nameLatin": "MERO HEALTH",
+    "tagline": "Empowering all people everywhere to live their healthiest lives"
+  },
+  "nav": {
+    "skipToContent": "Skip to main content",
+    "primaryLabel": "Primary navigation",
+    "segments": {
+      "individuals": "Individuals",
+      "organizations": "Organizations",
+      "clinicians": "Clinicians"
+    },
+    "headings": {
+      "waysWeHelp": "Ways we help",
+      "explore": "Explore",
+      "partners": "Partners",
+      "ourTeam": "Our team"
+    },
+    "items": {
+      "care247": "24/7 Care",
+      "getCareNow": "Get care now",
+      "primaryCare": "Primary Care",
+      "mentalHealth": "Mental Health",
+      "weightManagement": "Weight Management",
+      "nutrition": "Nutrition",
+      "diabetesPrevention": "Diabetes Prevention",
+      "diabetesManagement": "Diabetes Management",
+      "hypertensionManagement": "Hypertension Management",
+      "specialtyWellness": "Specialty & Wellness",
+      "dermatology": "Dermatology",
+      "expertMedicalOpinion": "Expert Medical Opinion",
+      "sleep": "Sleep",
+      "withoutInsurance": "Care Without Insurance",
+      "howItWorks": "How It Works",
+      "faqs": "FAQs",
+      "pricing": "Pricing",
+      "aboutUs": "About Us",
+      "ourImpact": "Our Impact",
+      "healthLibrary": "Health Library",
+      "contactUs": "Contact Us",
+      "employers": "Employers",
+      "healthPlans": "Health Plans",
+      "hospitals": "Hospitals & Health Systems",
+      "integratedCare": "Integrated Care",
+      "care247Org": "24/7 Care",
+      "chronicCare": "Chronic Care",
+      "virtualCarePlatform": "Virtual Care Platform",
+      "emergencyServices": "Emergency Services",
+      "inpatientOutpatient": "Inpatient & Outpatient Services",
+      "ourApproach": "Our Approach",
+      "connectedPartners": "Connected Care Partners",
+      "resourceCenter": "Resource Center",
+      "events": "Events",
+      "register": "Register as a Clinician",
+      "ourProviders": "Our Providers",
+      "clinicalLeadership": "Clinical Leadership",
+      "providerCareers": "Provider Careers",
+      "joinOurTeam": "Join Our Team",
+      "commitmentToQuality": "Commitment to Quality",
+      "ourCompany": "Our Company",
+      "leadership": "Leadership",
+      "careers": "Careers",
+      "newsroom": "Newsroom",
+      "helpCenter": "Help Center",
+      "legal": "Legal & Compliance",
+      "privacy": "Privacy",
+      "dataConsent": "Data consent",
+      "accessibility": "Accessibility",
+      "communityGuidelines": "Community Guidelines"
+    },
+    "promos": {
+      "individuals": {
+        "eyebrow": "New",
+        "title": "Stop racing thoughts and start sleeping better",
+        "cta": "Explore the sleep programme"
+      },
+      "organizations": {
+        "eyebrow": "Resource",
+        "title": "How virtual care is transforming rural health",
+        "cta": "Visit the resource centre"
+      },
+      "clinicians": {
+        "eyebrow": "Careers",
+        "title": "Simplify your work. Amplify your impact.",
+        "cta": "See open roles"
+      }
+    },
+    "actions": {
+      "signIn": "Sign in",
+      "register": "Register now",
+      "openMenu": "Open menu",
+      "closeMenu": "Close menu",
+      "menuLabel": "Menu",
+      "languageLabel": "Choose language",
+      "back": "Back"
+    }
+  },
+  "footer": {
+    "headings": {
+      "individuals": "Individuals",
+      "organizations": "Organizations",
+      "clinicians": "Clinicians",
+      "whoWeAre": "Who we are",
+      "helpfulLinks": "Helpful links"
+    },
+    "downloadApp": "Download the app",
+    "followUs": "Follow us",
+    "headquarters": "Headquarters",
+    "addressPlaceholder": "Configure the registered address before launch",
+    "copyright": "© {year} Mero Health. All rights reserved.",
+    "demoNotice": "This is a demonstration build. It is not a medical device, an emergency service, or a diagnostic system. Providers, organisations and figures shown are fictional."
+  },
+  "home": {
+    "announcement": {
+      "badge": "New",
+      "text": "Evidence-backed health research is now available",
+      "cta": "Try it now"
+    },
+    "hero": {
+      "eyebrow": "Built for Nepal · useful anywhere",
+      "title": "Connecting you to better health",
+      "body": "Mero Health connects patients and care providers for medical care, mental health, chronic condition management and more.",
+      "primaryCta": "Get care now",
+      "secondaryCta": "No insurance needed",
+      "liveLabel": "Health companion · live",
+      "artCaption": "Photograph a paper report and it becomes a health record you can actually read, in your own language, tracked over time.",
+      "trustOne": "Safety checks before any answer",
+      "trustTwo": "Your consent before anything is shared"
+    },
+    "services": {
+      "heading": "The care you need, when you need it",
+      "body": "Start from one place, whether it is an everyday complaint or a long-term condition.",
+      "learnMore": "Learn more",
+      "items": {
+        "care247": {
+          "title": "24/7 Care",
+          "body": "Talk to a medical provider any time, day or night — from a common cold to an urgent worry."
+        },
+        "primaryCare": {
+          "title": "Primary Care",
+          "body": "Stay on top of your health with board-certified providers, building a relationship with one clinician."
+        },
+        "mentalHealth": {
+          "title": "Mental Health",
+          "body": "Access a network of licensed therapists and psychiatrists — private, and in your own language."
+        },
+        "conditionManagement": {
+          "title": "Condition Management",
+          "body": "Personalised coaching, connected devices and continuous support for long-term conditions."
+        },
+        "specialtyCare": {
+          "title": "Specialty Care",
+          "body": "Consult specialists, from dermatology through to a second opinion on a complex diagnosis."
+        },
+        "healthyHabits": {
+          "title": "Everyday healthy habits",
+          "body": "Small, durable steps for nutrition, sleep and habits that hold over the long run."
+        }
+      }
+    },
+    "organizations": {
+      "heading": "Turning virtual care into a catalyst for better health",
+      "body": "We make it easier for health plans, employers and hospitals to reach the people they serve.",
+      "learnMore": "Learn more",
+      "tabsLabel": "Organisation type",
+      "tabs": {
+        "healthPlans": {
+          "label": "Health Plans",
+          "title": "Get members to the right care sooner",
+          "body": "Simplify the member journey, reduce avoidable visits and improve outcomes."
+        },
+        "employers": {
+          "label": "Employers",
+          "title": "A real investment in employee health",
+          "body": "Give your team care without leaving work — from the office, from home, or from the district."
+        },
+        "hospitals": {
+          "label": "Hospitals & Health Systems",
+          "title": "Extend your own service with virtual reach",
+          "body": "Bring your team's capability to places where specialists are scarce."
+        }
+      }
+    },
+    "testimonials": {
+      "heading": "Helping people live their healthiest lives",
+      "watchVideo": "Watch the short video",
+      "previous": "Previous",
+      "next": "Next",
+      "items": {
+        "sabina": {
+          "quote": "I photographed the report and understood the result in Nepali straight away. I no longer have to ask a doctor every time.",
+          "name": "Sabina (fictional example)",
+          "context": "Lalitpur"
+        },
+        "raju": {
+          "quote": "All of my father's old reports are in one place. We don't carry a folder to the hospital any more.",
+          "name": "Raju (fictional example)",
+          "context": "Morang"
+        },
+        "mina": {
+          "quote": "Asking in my own language made it far less daunting. The answer shows its sources too.",
+          "name": "Mina (fictional example)",
+          "context": "Pokhara"
+        },
+        "prakash": {
+          "quote": "I can finally see what my sugar levels have done over months, all in one place.",
+          "name": "Prakash (fictional example)",
+          "context": "Kathmandu"
+        }
+      },
+      "disclaimer": "These experiences, opinions and statements are fictional examples prepared for demonstration. They are not statements from real patients and do not guarantee any outcome."
+    },
+    "partners": {
+      "heading": "Partners and acceptance",
+      "body": "Real partner and insurer listings must be configured here before publication.",
+      "placeholderNote": "Demonstration placeholder"
+    },
+    "finalCta": {
+      "heading": "Making better health possible — everywhere",
+      "body": "Ask in your own language, understand what you are told, and reach the right care.",
+      "primaryCta": "Get started",
+      "secondaryCta": "Download the app"
+    }
+  },
+  "common": {
+    "learnMore": "Learn more",
+    "getStarted": "Get started",
+    "contactUs": "Contact us",
+    "readMore": "Read more",
+    "comingSoon": "Coming soon",
+    "placeholderContent": "The content on this page is demonstration material and must be replaced following qualified review before publication."
+  },
+  "individuals": {
+    "sectionHeadings": {
+      "highlights": "What this includes",
+      "children": "Related care"
+    },
+    "cta": {
+      "heading": "Ready to get care in your language?",
+      "body": "Create an account and reach a clinician or the assistant whenever you need to.",
+      "primaryCta": "Get started",
+      "secondaryCta": "Download the app"
+    },
+    "care247": {
+      "hero": {
+        "title": "Care whenever you need it",
+        "body": "Reach a Nepali-speaking clinician by voice or video call, day or night, without scheduling a clinic visit first."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Open around the clock",
+            "body": "The queue stays open through nights, weekends and public holidays, not just office hours."
+          },
+          "two": {
+            "title": "In your own language",
+            "body": "Every call happens in Nepali, so you can describe how you feel in the words you actually use."
+          },
+          "three": {
+            "title": "Added to your record",
+            "body": "Notes from the call join your personal health record, so the next clinician you see already has the context."
+          }
+        }
+      }
+    },
+    "primaryCare": {
+      "hero": {
+        "title": "One clinician, over time",
+        "body": "Book routine check-ups and follow-ups with a provider who gets to know your history, instead of starting over with someone new each visit."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Continuity, not a new stranger",
+            "body": "Return to the same clinician for follow-ups, so context carries over from one visit to the next."
+          },
+          "two": {
+            "title": "Preventive, not just reactive",
+            "body": "Regular check-ins catch small things early instead of waiting for a problem to become urgent."
+          },
+          "three": {
+            "title": "Referrals when you need one",
+            "body": "If something is outside primary care, your clinician can point you to the right specialty."
+          }
+        }
+      }
+    },
+    "mentalHealth": {
+      "hero": {
+        "title": "Support, in private",
+        "body": "Talk with a licensed therapist or psychiatrist through a private video or voice call, in Nepali, at a time that works for you."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Private by default",
+            "body": "Sessions are confidential, and nothing about your visit is shared without your say-so."
+          },
+          "two": {
+            "title": "Talk it through in Nepali",
+            "body": "Describing feelings is hard enough without translating them — every session happens in your language."
+          },
+          "three": {
+            "title": "Choose who you talk to",
+            "body": "Browse provider profiles and pick someone you're comfortable with, rather than being assigned at random."
+          }
+        }
+      }
+    },
+    "weightManagement": {
+      "hero": {
+        "title": "A plan you can actually keep",
+        "body": "Coaching, tracking and clinical support for weight, built around habits that hold over months, not a diet you abandon in a week."
+      },
+      "children": {
+        "nutrition": {
+          "body": "Practical eating guidance that fits Nepali meals and routines, not a generic diet plan."
+        },
+        "diabetesPrevention": {
+          "body": "Support for lowering your risk before diabetes develops, built on your own numbers over time."
+        }
+      }
+    },
+    "diabetesManagement": {
+      "hero": {
+        "title": "Keep your numbers where you want them",
+        "body": "Ongoing coaching and clinician support for diabetes, with your readings and visits gathered in one place instead of scattered across paper slips."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Track without the spreadsheet",
+            "body": "Log readings from home and see them alongside your visit history, not in a separate notebook."
+          },
+          "two": {
+            "title": "A coach between visits",
+            "body": "Check in with a coach on the weeks you don't see a clinician, instead of going quiet until the next appointment."
+          },
+          "three": {
+            "title": "Clinicians who see the trend",
+            "body": "Your provider reviews the pattern over time, not just the single number from today's visit."
+          }
+        }
+      }
+    },
+    "hypertensionManagement": {
+      "hero": {
+        "title": "Steady care for your blood pressure",
+        "body": "Regular check-ins and clinician support to manage hypertension over the long run, with your readings kept in one running record."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Readings that tell a story",
+            "body": "One reading says little on its own; a running record shows whether your numbers are actually improving."
+          },
+          "two": {
+            "title": "Medication support",
+            "body": "Talk through side effects or timing with a clinician instead of guessing on your own."
+          },
+          "three": {
+            "title": "Lifestyle support included",
+            "body": "Coaching on salt, activity and stress sits alongside the medical care, not as an afterthought."
+          }
+        }
+      }
+    },
+    "specialtyWellness": {
+      "hero": {
+        "title": "Specialists, when general care isn't enough",
+        "body": "Reach a specialist or a second opinion without a long referral chain, for the moments primary care alone can't fully answer."
+      },
+      "children": {
+        "dermatology": {
+          "body": "Show a specialist what's on your skin and get guidance without waiting weeks for an in-person slot."
+        },
+        "expertMedicalOpinion": {
+          "body": "Have a complex diagnosis or treatment plan reviewed by a second, independent clinician."
+        },
+        "sleep": {
+          "body": "Work through ongoing sleep trouble with a clinician, rather than living with it indefinitely."
+        }
+      }
+    },
+    "nutrition": {
+      "hero": {
+        "title": "Eating that fits your life",
+        "body": "Guidance built around Nepali meals and your actual routine, from a provider who adjusts the plan as your life changes."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Built around your plate",
+            "body": "Guidance starts from what you actually eat, not a generic meal plan translated after the fact."
+          },
+          "two": {
+            "title": "Adjusts as you go",
+            "body": "Check in and revise the plan as your routine, schedule or goals change."
+          },
+          "three": {
+            "title": "One record, not a separate app",
+            "body": "Nutrition guidance sits inside the same health record as the rest of your care."
+          }
+        }
+      }
+    },
+    "diabetesPrevention": {
+      "hero": {
+        "title": "Lower your risk before it becomes diabetes",
+        "body": "Coaching built around your own readings and habits, for the window before prediabetes turns into a diagnosis."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Starts from your own numbers",
+            "body": "The plan is built around your readings and history, not a generic risk checklist."
+          },
+          "two": {
+            "title": "Small changes, tracked",
+            "body": "See whether the changes you're making are actually moving your numbers, visit over visit."
+          },
+          "three": {
+            "title": "A clinician when you need one",
+            "body": "Escalate to a clinician directly the moment coaching alone isn't enough."
+          }
+        }
+      }
+    },
+    "dermatology": {
+      "hero": {
+        "title": "Show a specialist what you're seeing",
+        "body": "Send photos of a skin concern and talk it through with a dermatology specialist, without a long wait for an in-person slot."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Photos do the first job",
+            "body": "Share clear photos of the concern so the specialist has something concrete to look at before you even talk."
+          },
+          "two": {
+            "title": "Ask about anything visible",
+            "body": "From a persistent rash to a mole you're unsure about, bring whatever is on your skin."
+          },
+          "three": {
+            "title": "A record of how it changes",
+            "body": "Photos and notes from each visit stay in your record, so it's easy to see how something has changed."
+          }
+        }
+      }
+    },
+    "expertMedicalOpinion": {
+      "hero": {
+        "title": "A second, independent read",
+        "body": "Have a diagnosis or treatment plan reviewed by another clinician before you decide, especially when the stakes are high."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Bring what you already have",
+            "body": "Share existing reports and records so the second review starts from what's already known, not from scratch."
+          },
+          "two": {
+            "title": "An independent review",
+            "body": "The reviewing clinician wasn't involved in the original diagnosis, so the opinion is genuinely separate."
+          },
+          "three": {
+            "title": "Something to bring back",
+            "body": "Take the written opinion back to your existing care team to decide together what happens next."
+          }
+        }
+      }
+    },
+    "sleep": {
+      "hero": {
+        "title": "Work through what's keeping you up",
+        "body": "Talk to a clinician about ongoing sleep trouble and get a plan, instead of living with poor sleep as normal."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Start with what's actually happening",
+            "body": "Describe your nights honestly — the plan starts from your actual pattern, not a generic sleep checklist."
+          },
+          "two": {
+            "title": "Not just ‘try to relax’",
+            "body": "Get a real plan to work through, beyond advice you've probably already heard."
+          },
+          "three": {
+            "title": "Follow up as it changes",
+            "body": "Check back in as sleep improves or doesn't, and adjust the plan instead of starting over each time."
+          }
+        }
+      }
+    },
+    "howItWorks": {
+      "hero": {
+        "title": "Four steps, start to care",
+        "body": "From creating an account to talking with a clinician, here's exactly what happens along the way."
+      },
+      "stepsHeading": "Step by step",
+      "steps": {
+        "one": {
+          "title": "Create your account",
+          "body": "Sign up in Nepali or English — Nepali is the default, and you can switch at any time."
+        },
+        "two": {
+          "title": "Add your health record",
+          "body": "Capture photos of lab reports, prescriptions and discharge summaries, kept in your own Google Drive or in Mero Health's storage — your choice."
+        },
+        "three": {
+          "title": "Ask the Nepali assistant",
+          "body": "Ask about your own results in Nepali. A deterministic safety check runs before every answer, so anything urgent is caught first."
+        },
+        "four": {
+          "title": "Reach a clinician when it matters",
+          "body": "Request a voice or video call, day or night, and the notes join your record for next time."
+        }
+      }
+    },
+    "withoutInsurance": {
+      "hero": {
+        "title": "No insurance required to start",
+        "body": "Create an account and use Mero Health directly — no insurer approval, referral or employer plan needed to begin."
+      },
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Direct, self-service access",
+            "body": "Create your account and start straight away — no referral or insurer sign-off stands between you and the app."
+          },
+          "two": {
+            "title": "Start on the free plan",
+            "body": "The Nepali assistant, a health record kept in your own storage, and care search are available at no cost to begin with."
+          },
+          "three": {
+            "title": "Pay only for what you add",
+            "body": "Hosted storage, automatic document extraction, device sync and clinician consultations are separate modules you add only when you need them."
+          }
+        }
+      }
+    },
+    "faqs": {
+      "hero": {
+        "title": "Questions people ask before they start",
+        "body": "Straight answers about language, cost, storage and safety — the things people usually want to know first."
+      },
+      "heading": "Frequently asked questions",
+      "items": {
+        "one": {
+          "question": "Is Mero Health available in Nepali?",
+          "answer": "Yes. Nepali is the default language across the site and the assistant; switch to English at any time from the language toggle."
+        },
+        "two": {
+          "question": "Do I need health insurance to use it?",
+          "answer": "No. You can create an account and start on the free plan directly, without an insurer, referral or employer plan."
+        },
+        "three": {
+          "question": "Where is my health record stored?",
+          "answer": "Wherever you choose — your own Google Drive, kept client-encrypted so only you can read it, or Mero Health's hosted storage. You can change this later."
+        },
+        "four": {
+          "question": "Can the assistant handle a medical emergency?",
+          "answer": "The assistant does not diagnose. A deterministic safety check runs before every answer, and anything that looks like an emergency is intercepted first and pointed to appropriate care."
+        },
+        "five": {
+          "question": "Does the assistant read everything I upload automatically?",
+          "answer": "Extraction produces a draft first. Only observations you've confirmed or corrected are ever used by the assistant, a share link or an export — a draft never reaches any of those on its own."
+        },
+        "six": {
+          "question": "What if the free plan isn't enough?",
+          "answer": "Add hosted storage, automatic document extraction, device sync or clinician consultations as separate modules whenever you need them — an upgrade only adds what you choose."
+        }
+      }
+    }
+  },
+  "organizations": {
+    "contactCta": "Talk to our team",
+    "cta": {
+      "heading": "Ready to bring Mero Health to your organisation?",
+      "body": "Tell us about your members, employees or patients, and we'll help you figure out where to start.",
+      "primaryCta": "Talk to our team",
+      "secondaryCta": "Explore the resource center"
+    },
+    "employers": {
+      "sections": {
+        "integratedCare": {
+          "body": "Employees reach primary care, mental health support and chronic condition management in one Nepali-first place, instead of juggling a separate provider for each."
+        },
+        "care247Org": {
+          "body": "Whether it's a night shift or a weekend, employees can reach a clinician or the Nepali assistant without waiting for the next working day."
+        },
+        "chronicCare": {
+          "body": "Ongoing conditions like diabetes and hypertension get continuous support between visits, not just a once-a-year check-up."
+        }
+      }
+    },
+    "healthPlans": {
+      "sections": {
+        "integratedCare": {
+          "body": "Members reach primary care, mental health support and chronic condition management in one Nepali-first place, so fewer visits get routed to the wrong service."
+        },
+        "chronicCare": {
+          "body": "Members managing diabetes, hypertension or their weight get continuous support between visits — where most avoidable complications start."
+        }
+      }
+    },
+    "hospitals": {
+      "sections": {
+        "virtualCarePlatform": {
+          "body": "Your team's own capability extends beyond your walls — a Nepali-first virtual visit and assistant platform reaches patients wherever they are."
+        },
+        "emergencyServices": {
+          "body": "A deterministic safety layer runs ahead of every assistant response and recognises signs of an emergency, directing the person toward urgent care immediately rather than waiting on a model to decide."
+        },
+        "inpatientOutpatient": {
+          "body": "Discharge summaries and follow-up plans stay in a record the patient controls, so outpatient follow-up after a stay doesn't start from zero."
+        }
+      }
+    },
+    "ourApproach": {
+      "hero": {
+        "title": "Nepali-first, not Nepali-translated",
+        "body": "We build for the language, the record-keeping habits and the storage choices that make sense here, rather than adapting a platform built for somewhere else."
+      },
+      "highlightsHeading": "How we work with you",
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Nepali by default, not an afterthought",
+            "body": "The assistant and the entire experience default to Nepali. English is a toggle away, not the other way around."
+          },
+          "two": {
+            "title": "The person keeps their own record",
+            "body": "Every health document belongs to the person it's about, stored in their own Google Drive or in Mero Health's storage — their choice, and changeable."
+          },
+          "three": {
+            "title": "Safety runs before the model, every time",
+            "body": "A deterministic safety check intercepts every assistant response before it's shown, so urgent situations are caught by rules, not by a language model's judgement."
+          }
+        }
+      }
+    },
+    "partners": {
+      "hero": {
+        "title": "Partnerships in progress",
+        "body": "We're building relationships with health plans, employers, hospitals and clinics across Nepal — each shown here only once a real agreement is signed and confirmed."
+      }
+    },
+    "resourceCenter": {
+      "hero": {
+        "title": "Resources by organisation type",
+        "body": "Explore what Mero Health offers health plans, employers, and hospitals and health systems — pick where you fit to see the details."
+      },
+      "gridHeading": "Explore by organisation type"
+    },
+    "events": {
+      "hero": {
+        "title": "Where we'll be next",
+        "body": "Webinars, briefings and in-person sessions for health plans, employers and hospital partners — announced here as they're scheduled."
+      },
+      "emptyState": {
+        "heading": "Nothing scheduled yet",
+        "body": "Check back soon, or talk to our team if you'd like to host or co-host a session with us."
+      }
+    }
+  },
+  "clinicians": {
+    "cta": {
+      "heading": "Interested in joining Mero Health's clinical team?",
+      "body": "We're building the clinicians behind Nepali-first care. Get in touch to learn where you might fit.",
+      "primaryCta": "Talk to our team",
+      "secondaryCta": "See open roles"
+    },
+    "verifiedBadge": {
+      "statusVerified": "Verified",
+      "statusUnverified": "Recheck due",
+      "councilLine": "Registered with {council}",
+      "numberLine": "Registration number {number}",
+      "lastCheckedLine": "Last checked {date}"
+    },
+    "register": {
+      "hero": {
+        "title": "Register as a verified clinician",
+        "body": "Select your council, submit your registration number and evidence, and a trained reviewer checks it against the public register before any badge is issued."
+      },
+      "stepsLabel": "Registration steps",
+      "steps": {
+        "details": "Council & number",
+        "evidence": "Evidence",
+        "review": "Review",
+        "status": "Status"
+      },
+      "professions": {
+        "NMC": "Doctors",
+        "NNC": "Nurses and midwives",
+        "NHPC": "Allied health professionals",
+        "PHARMACY_COUNCIL": "Pharmacists",
+        "AYURVEDIC_COUNCIL": "Ayurvedic practitioners"
+      },
+      "details": {
+        "heading": "Which council are you registered with?",
+        "body": "Pick the statutory council that matches your profession.",
+        "councilLegend": "Council",
+        "registrationNumberLabel": "Registration number",
+        "registrationNumberPlaceholder": "As printed on your certificate",
+        "continueCta": "Continue"
+      },
+      "evidence": {
+        "heading": "Photograph your certificate and ID",
+        "body": "Blurred photographs are the most common reason an application is rejected — make sure both are flat, well-lit and fully in frame.",
+        "certificateLabel": "Council certificate",
+        "certificateHint": "The certificate issued by your council.",
+        "identityLabel": "Photo ID",
+        "identityHint": "National ID, citizenship certificate, passport or driving licence.",
+        "chooseFile": "Choose photo",
+        "changeFile": "Change photo",
+        "backCta": "Back",
+        "continueCta": "Continue"
+      },
+      "review": {
+        "heading": "Review before submitting",
+        "body": "Check the details below. A trained reviewer checks your registration number against the council's public register — nothing here is approved automatically.",
+        "councilLabel": "Council",
+        "registrationNumberLabel": "Registration number",
+        "certificateLabel": "Council certificate",
+        "identityLabel": "Photo ID",
+        "backCta": "Back",
+        "submitCta": "Submit application"
+      },
+      "status": {
+        "heading": "Application submitted",
+        "body": "Your application is waiting for a trained reviewer to check your registration number against {council}'s public register. Nobody has reviewed it yet, and no badge is issued until they do.",
+        "referenceLabel": "Application reference",
+        "demoNotice": "This demonstration build isn't connected to a live review team yet, so this application only exists in this browser tab — reloading the page will clear it.",
+        "startOverCta": "Start a new application"
+      }
+    },
+    "ourProviders": {
+      "hero": {
+        "title": "The clinicians behind Mero Health",
+        "body": "Board-certified providers and licensed therapists and psychiatrists, reachable in Nepali by voice or video — the same clinician, visit after visit, whenever possible."
+      },
+      "highlightsHeading": "What our clinicians provide",
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Board-certified primary care",
+            "body": "Stay on top of your health with a board-certified clinician, building a relationship over time rather than starting over at every visit."
+          },
+          "two": {
+            "title": "Licensed therapists and psychiatrists",
+            "body": "Access a network of licensed therapists and psychiatrists — private, and in your own language."
+          },
+          "three": {
+            "title": "Reachable in Nepali, day or night",
+            "body": "Request a voice or video call any time, day or night, without scheduling a clinic visit first — notes join your record so the next clinician has the context."
+          }
+        }
+      }
+    },
+    "clinicalLeadership": {
+      "hero": {
+        "title": "Clinical leadership",
+        "body": "The people setting clinical standards for Mero Health will be introduced here — with their names and credentials — once those roles are filled and confirmed."
+      },
+      "emptyState": {
+        "heading": "Not yet announced",
+        "body": "Check back soon, or get in touch if you're interested in a clinical leadership role at Mero Health."
+      }
+    },
+    "careers": {
+      "hero": {
+        "title": "Simplify your work. Amplify your impact.",
+        "body": "We're building the clinical team behind Mero Health's Nepali-first care. Open roles will be listed here as they become available."
+      },
+      "emptyState": {
+        "heading": "No open roles right now",
+        "body": "Check back soon, or write in if you'd like to be considered as roles open up."
+      }
+    },
+    "commitmentToQuality": {
+      "hero": {
+        "title": "Safety and quality, by design",
+        "body": "Every assistant answer passes a deterministic safety check first, and only confirmed health records are ever reasoned over — quality isn't a promise added on top, it's how the system is built."
+      },
+      "highlightsHeading": "How we hold the line on quality",
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "A deterministic check before every answer",
+            "body": "A deterministic safety layer runs ahead of every assistant response and recognises signs of an emergency, directing the person toward urgent care immediately rather than waiting on a model to decide."
+          },
+          "two": {
+            "title": "Only confirmed records are reasoned over",
+            "body": "A document extraction is a draft until the person confirms or corrects it. Only confirmed records ever reach the assistant, a share link or an export."
+          },
+          "three": {
+            "title": "The assistant doesn't diagnose",
+            "body": "The assistant does not diagnose. Anything that looks like an emergency is intercepted first and pointed to appropriate care."
+          }
+        }
+      }
+    }
+  },
+  "company": {
+    "cta": {
+      "heading": "Ready to bring Mero Health into your life?",
+      "body": "Whether you're looking for care, considering a partnership, or curious about joining the team, we're here to help you find where to start.",
+      "primaryCta": "Talk to our team",
+      "secondaryCta": "See open roles"
+    },
+    "about": {
+      "hero": {
+        "title": "A personal health platform, built for Nepal",
+        "body": "Mero Health is a personal health record and a Nepali-first assistant together — not a telehealth website. A photograph of a lab report becomes part of a record you keep, in a language you speak, with safety checked before any answer."
+      },
+      "highlightsHeading": "What Mero Health is built on",
+      "highlights": {
+        "items": {
+          "one": {
+            "title": "Your record, not ours",
+            "body": "Photographs of lab reports, prescriptions, discharge summaries and imaging become one structured, searchable health record — captured once, kept for as long as you need it."
+          },
+          "two": {
+            "title": "Your storage, your choice",
+            "body": "Every health document belongs to the person it's about, stored in their own Google Drive or in Mero Health's storage — their choice, and changeable."
+          },
+          "three": {
+            "title": "Nepali first, safety before the model",
+            "body": "The assistant defaults to Nepali, and a deterministic safety check runs ahead of every response — so urgent situations are caught by rules, not a language model's judgement."
+          }
+        }
+      }
+    },
+    "impact": {
+      "hero": {
+        "title": "The impact we'll report, once there's real usage to report",
+        "body": "Mero Health hasn't reached real patients yet. Once it has, the figures shown here will be real and verifiable — not projections."
+      },
+      "emptyState": {
+        "heading": "No figures to report yet",
+        "body": "We publish impact numbers once care has actually happened and they can be verified — not before. Check back as the platform reaches real patients."
+      }
+    },
+    "leadership": {
+      "hero": {
+        "title": "Leadership",
+        "body": "The people leading Mero Health will be introduced here — with their names and roles — once those positions are filled and confirmed."
+      },
+      "emptyState": {
+        "heading": "Not yet announced",
+        "body": "Check back soon, or get in touch if you'd like to be part of building Mero Health's leadership team."
+      }
+    },
+    "careers": {
+      "hero": {
+        "title": "Build Mero Health with us",
+        "body": "We're building a personal health platform for Nepal, from engineering and design to clinical safety. Open roles will be listed here as they become available."
+      },
+      "emptyState": {
+        "heading": "No open roles right now",
+        "body": "Check back soon, or get in touch if you'd like to be considered when roles open up across the team."
+      }
+    },
+    "newsroom": {
+      "hero": {
+        "title": "Newsroom",
+        "body": "Announcements, press coverage and company news will appear here as they happen. Nothing has been published yet."
+      },
+      "emptyState": {
+        "heading": "Nothing published yet",
+        "body": "Check back soon, or get in touch if you're a journalist looking for information about Mero Health."
+      }
+    },
+    "contact": {
+      "hero": {
+        "title": "Get in touch",
+        "body": "This demonstration build doesn't have a live contact channel configured yet. Here's where to go depending on why you're reaching out."
+      },
+      "routesHeading": "Where to go depending on why you're here",
+      "routes": {
+        "items": {
+          "careers": {
+            "title": "Looking for a role?",
+            "body": "Open roles for the team and for clinicians are listed on our Careers pages."
+          },
+          "partnerships": {
+            "title": "Exploring a partnership?",
+            "body": "See how Mero Health works with employers, health plans, and hospitals and health systems."
+          },
+          "press": {
+            "title": "Writing about Mero Health?",
+            "body": "Newsroom is where announcements and press information will appear."
+          }
+        }
+      }
+    }
+  },
+  "legal": {
+    "index": {
+      "hero": {
+        "title": "Legal documents",
+        "body": "These pages describe how Mero Health actually works today. This is a demonstration build without a registered legal entity yet, so treat them as a plain description of behaviour, not a signed legal contract."
+      },
+      "routesHeading": "Choose what you're looking for",
+      "routes": {
+        "items": {
+          "privacy": {
+            "title": "Privacy",
+            "body": "How your health documents and data are stored, and what the assistant is and isn't allowed to use."
+          },
+          "dataConsent": {
+            "title": "Data consent",
+            "body": "Choose whether your conversations may be used to train the Nepali assistant — each purpose separate, off by default."
+          },
+          "communityGuidelines": {
+            "title": "Community Guidelines",
+            "body": "Rules for interacting with others on Mero Health — published once a community feature actually exists."
+          },
+          "accessibility": {
+            "title": "Accessibility",
+            "body": "What's already built for screen readers and keyboards, and where the work is still ongoing."
+          }
+        }
+      }
+    },
+    "privacy": {
+      "hero": {
+        "title": "Privacy",
+        "body": "A plain description of how your health data is stored and used today — not a lawyer-drafted policy yet, since Mero Health doesn't have a registered legal entity to issue one from."
+      },
+      "principlesHeading": "What's already true",
+      "highlights": {
+        "items": {
+          "storage": {
+            "title": "Your storage, your choice",
+            "body": "Keep your record in your own Google Drive, encrypted before it ever leaves your device, or in Mero Health's hosted storage. Either way, you can change your mind later."
+          },
+          "confirmed": {
+            "title": "Nothing is used until you confirm it",
+            "body": "Extraction from an uploaded document produces a draft first. Only observations you've confirmed or corrected are ever reasoned over by the assistant, placed in a share link, or included in an export."
+          },
+          "safety": {
+            "title": "A safety check runs before every answer",
+            "body": "A deterministic check runs ahead of every assistant response, independent of the language model, and intercepts anything that looks like an emergency before it reaches you."
+          }
+        }
+      },
+      "contactPrompt": {
+        "heading": "Questions about your data?",
+        "body": "If anything here is unclear, or you want to know more about how a specific document is handled, reach out."
+      }
+    },
+    "dataConsent": {
+      "hero": {
+        "title": "Data consent",
+        "body": "Give or withhold permission for your conversations to be used to train the Nepali health assistant, right here. Each purpose is separate, off by default, and none of it is part of accepting any terms."
+      },
+      "purposesHeading": "Every purpose is separate",
+      "guide": "Nothing below is used for a purpose while it's off. You can turn any of these off again at any time, and the app's core service works the same either way.",
+      "onLabel": "On",
+      "offLabel": "Off",
+      "purposes": {
+        "modelTrainingText": {
+          "title": "Written messages — to improve the Nepali assistant",
+          "body": "Messages you write, after clear identifiers like phone numbers and emails are automatically removed, may be used to train the Nepali health assistant. Because things like names or places can still remain, anything that might identify you is checked by a person before it is used."
+        },
+        "modelTrainingVoice": {
+          "title": "Voice — a separate permission",
+          "body": "The same purpose as written messages, but for the text transcribed from your voice, not the recording itself. Because voice is more identifying, every voice sample is always checked by a person before use — not only sometimes, the way written messages are."
+        },
+        "humanReview": {
+          "title": "Human review",
+          "body": "Someone at Mero Health may read your de-identified conversation — to check quality, or before it is used for the purposes above. If this is off, anything that might identify you is never used."
+        }
+      },
+      "contactPrompt": {
+        "heading": "Questions about these purposes?",
+        "body": "If you want to know more about what's kept and what isn't, reach out."
+      }
+    },
+    "communityGuidelines": {
+      "hero": {
+        "title": "Community Guidelines",
+        "body": "Rules for how people interact with each other on Mero Health."
+      },
+      "emptyState": {
+        "heading": "Not yet needed",
+        "body": "Mero Health doesn't have a feature yet where you interact with other users — no forums, reviews or public profiles. Guidelines will be published here before any feature like that ships, not after."
+      }
+    },
+    "accessibility": {
+      "hero": {
+        "title": "Accessibility",
+        "body": "Some things are already built the right way. A full audit hasn't happened yet. Both are true, and this page says so rather than picking one."
+      },
+      "highlightsHeading": "Already built in",
+      "highlights": {
+        "items": {
+          "semantic": {
+            "title": "Real headings and landmarks",
+            "body": "Every page uses proper heading levels and section landmarks, so a screen reader can navigate it the same way a sighted visitor scans it."
+          },
+          "noTextAsImage": {
+            "title": "Text is never an image",
+            "body": "Illustrations are decorative and hidden from screen readers; the words next to them always carry the meaning, so nothing is lost to a screen reader or to translation."
+          },
+          "nativeControls": {
+            "title": "Native controls where it counts",
+            "body": "Disclosures like our FAQ list use standard <details> and <summary> elements instead of custom widgets, so they respond to a keyboard the same way any browser control does."
+          }
+        }
+      },
+      "outstanding": {
+        "heading": "Still ahead",
+        "body": "A full audit — heading order across every route, focus order in the mobile menu, and colour contrast — hasn't happened yet. If something doesn't work with your assistive technology in the meantime, tell us."
+      }
+    },
+    "help": {
+      "hero": {
+        "title": "Help Center",
+        "body": "Find an answer, or a person, depending on what you need."
+      },
+      "routesHeading": "Where to go",
+      "routes": {
+        "items": {
+          "faqs": {
+            "title": "Frequently asked questions",
+            "body": "Straight answers about language, cost, storage and safety."
+          },
+          "howItWorks": {
+            "title": "How Mero Health works",
+            "body": "A walkthrough of what happens from your first upload to your first answer."
+          },
+          "contact": {
+            "title": "Still stuck?",
+            "body": "Route your question to the right place on our contact page."
+          }
+        }
+      }
+    }
+  },
+  "healthLibrary": {
+    "hero": {
+      "title": "The health library",
+      "body": "Short explainers on how Mero Health actually handles your documents, your record and your safety — grounded in what's built today, not what's planned."
+    },
+    "gridHeading": "Start here",
+    "cta": {
+      "heading": "Ready to see it in your own record?",
+      "body": "Create an account and reach the assistant or a clinician whenever you need to.",
+      "primaryCta": "Get started",
+      "secondaryCta": "See FAQs"
+    },
+    "articles": {
+      "storageChoice": {
+        "title": "Choosing where your record lives",
+        "summary": "Your own Google Drive or Mero Health's hosted storage — both are your choice, and you can change it later.",
+        "body": {
+          "paragraphOne": "Every document you capture ends up in one of two places: your own Google Drive, or Mero Health's hosted storage. Google Drive stays entirely yours — the file is encrypted on your device before it ever leaves it, so it's opaque to anyone but you, including Mero Health.",
+          "paragraphTwo": "Hosted storage is where extraction, search and sharing are offered as part of the product, which is why it's a separate paid module rather than the default. Either way, the choice is yours, and you can change it later."
+        },
+        "relatedPrompt": {
+          "heading": "See the full picture",
+          "body": "This is one of three principles behind how Mero Health handles your data — see all three on the Privacy page."
+        }
+      },
+      "confirmedRecords": {
+        "title": "Why nothing is used until you confirm it",
+        "summary": "Extraction from an uploaded document produces a draft first — only what you confirm or correct is ever used.",
+        "body": {
+          "paragraphOne": "When you upload a lab report or prescription, the first thing that happens is extraction — turning a photograph into structured values. That result is a draft, not a fact. It sits in a queue for you to review.",
+          "paragraphTwo": "Only after you confirm a value, or correct it, does it become part of your record — something the assistant can reason over, a share link can include, or an export can contain. A draft never reaches any of those on its own; the confirmation step is not optional and cannot be skipped."
+        },
+        "relatedPrompt": {
+          "heading": "More questions like this",
+          "body": "This is one of the questions people ask most before they start — see the rest on the FAQ page."
+        }
+      },
+      "safetyCheck": {
+        "title": "The safety check that runs before every answer",
+        "summary": "A deterministic check, independent of the language model, runs ahead of every assistant response — and it doesn't diagnose.",
+        "body": {
+          "paragraphOne": "Before the assistant's response ever reaches you, a separate, deterministic check runs first — rules, not a language model, deciding whether what's about to be shown needs to be intercepted. This runs on every single response, not just the ones that look risky in hindsight.",
+          "paragraphTwo": "If anything looks like it could be a medical emergency, that check catches it before the model's answer is shown, and points you to appropriate care instead. The assistant itself does not diagnose — its job is to help you understand your own record, not to replace a clinician."
+        },
+        "relatedPrompt": {
+          "heading": "How we think about quality",
+          "body": "This safety check is one part of how Mero Health approaches clinical quality — read more on the Commitment to Quality page."
+        }
+      }
+    }
+  },
+  "pricing": {
+    "hero": {
+      "title": "One record. Modules you add when you need them.",
+      "body": "The Nepali assistant, a health record in your own storage and care search are free to start. Hosted storage, automatic extraction, device sync and consultations are separate modules you add as you go."
+    },
+    "gridHeading": "Compare plans",
+    "gridBody": "Every price and module below comes straight from the plan catalogue — nothing here is written by hand.",
+    "perMonth": "/month",
+    "cardCta": "Get started",
+    "includedHeading": "What's included",
+    "limitsHeading": "Usage limits",
+    "unlimited": "Unlimited",
+    "footnote": "Bring-your-own storage stays free on every plan — hosted storage, extraction, device sync, sharing, provider export and teleconsultation are the modules that separate the tiers.",
+    "modules": {
+      "ASSISTANT": { "label": "Nepali assistant" },
+      "HEALTH_RECORD": { "label": "Health record" },
+      "BRING_YOUR_OWN_STORAGE": { "label": "Bring your own storage" },
+      "CARE_DIRECTORY": { "label": "Care search" },
+      "HOSTED_STORAGE": { "label": "Hosted storage" },
+      "DOCUMENT_EXTRACTION": { "label": "Automatic document extraction" },
+      "DEVICE_SYNC": { "label": "Device sync" },
+      "RECORD_SHARING": { "label": "Record sharing" },
+      "PROVIDER_EXPORT": { "label": "Provider-ready export" },
+      "TELECONSULTATION": { "label": "Teleconsultation" }
+    },
+    "quotas": {
+      "DOCUMENTS_STORED": { "label": "Documents stored" },
+      "EXTRACTION_PAGES_PER_MONTH": { "label": "Extraction pages / month" },
+      "ASSISTANT_MESSAGES_PER_MONTH": { "label": "Assistant messages / month" },
+      "ACTIVE_SHARE_LINKS": { "label": "Active share links" },
+      "CONNECTED_DEVICES": { "label": "Connected devices" }
+    },
+    "cta": {
+      "heading": "Ready to start on the free plan?",
+      "body": "Create an account and reach the assistant or a clinician whenever you need to. Add a paid module later, only if you need it.",
+      "primaryCta": "Get started",
+      "secondaryCta": "See FAQs"
+    }
+  }
+}

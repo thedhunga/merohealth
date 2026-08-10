@@ -1,0 +1,13 @@
+FROM node:24-bookworm-slim
+WORKDIR /app
+ENV NODE_ENV=production
+RUN corepack enable
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY packages packages
+RUN pnpm install --frozen-lockfile
+COPY apps/api apps/api
+RUN pnpm --filter @swasthya/api... build
+USER node
+EXPOSE 4000
+CMD ["node", "apps/api/dist/main.js"]

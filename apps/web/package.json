@@ -1,0 +1,34 @@
+{
+  "name": "@swasthya/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run src --passWithNoTests"
+  },
+  "dependencies": {
+    "@swasthya/configuration": "workspace:*",
+    "@swasthya/credentialing": "workspace:*",
+    "@swasthya/entitlements": "workspace:*",
+    "@swasthya/language-corpus": "workspace:*",
+    "@swasthya/shared-types": "workspace:*",
+    "lucide-react": "1.30.0",
+    "next": "16.3.0",
+    "next-intl": "4.13.5",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "24.1.0",
+    "@types/react": "~19.2.2",
+    "@types/react-dom": "19.2.4",
+    "tailwindcss": "4.3.3",
+    "typescript": "~6.0.3",
+    "vitest": "4.1.10"
+  }
+}

@@ -22,7 +22,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0B685C"
+          "backgroundColor": "#0B4F3A"
         }
       ],
       [
@@ -34,7 +34,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Mero Health to show your camera in a private consultation preview.",
+          "cameraPermission": "Allow Mero Health to use your camera for a private consultation preview and to photograph documents you add to your record.",
           "microphonePermission": "Allow Mero Health to use your microphone during a private consultation.",
           "recordAudioAndroid": true
         }
