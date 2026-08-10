@@ -125,7 +125,7 @@ Read it before starting; the ordering rules there are not optional.
       **No embeddings** — the per-person corpus is small enough that lexical
       matching over the bilingual labels will beat a vector index and stays
       inspectable.
-- [ ] Intent routing so anything computable is computed, never generated.
+- [x] Intent routing so anything computable is computed, never generated.
       A trend question goes to `buildAnalyteTrend`; the model only phrases a
       result it was handed. **No number reaching a person may originate from
       the model.**
@@ -389,6 +389,38 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task B2: intent routing.** New package
+  `packages/intent-router` (`classifyIntent`, `route`), built on top of B1's
+  `packages/retrieval` and `health-records`'s `buildAnalyteTrend`, deliberately
+  **not yet wired into `apps/api`** — B1 wasn't either, and one task per run
+  means composing the deterministic layer now, wiring it into
+  `CompanionController` later. `classifyIntent` is a small keyword
+  classifier (question-form markers, not clinical facts, so "invent no
+  facts" doesn't apply) over six intents: `TREND`, `LATEST_VALUE`,
+  `COMPARISON`, `DEFINITION`, `ADVICE`, `UNSUPPORTED`. Only `ADVICE` doesn't
+  require a recognised clinical concept (`expandQuery`'s `matchedConcepts`)
+  — a "what should I do" question can be conceptless, everything else
+  presupposes something in the record to ask about. `route` executes the
+  three computable intents by calling `retrieveForSubject` (already
+  subject-scoped and trusted-only) then grouping the matches by
+  `observation.code` and calling `buildAnalyteTrend` once per distinct code
+  — deliberately one shared computation for all three intents, since
+  `TREND`/`LATEST_VALUE`/`COMPARISON` only differ in which slice of the same
+  trustworthy series the phrasing step should foreground, not in what gets
+  computed. `DEFINITION`/`ADVICE`/`UNSUPPORTED`, and any computable intent
+  that matches nothing trusted, return `NOT_COMPUTABLE` for the caller to
+  fall through to retrieval-backed generation or a refusal — B2 does not
+  build refusal copy or the citations UI, both separate unchecked bullets.
+  15 new tests, including one asserting a broad concept ("sugar") correctly
+  yields two separate trends (fasting glucose and HbA1c both matched the
+  same query term in the seed labels) and one asserting a DRAFT observation
+  never reaches `buildAnalyteTrend` via this path. Full verify suite green
+  (`pnpm install --frozen-lockfile`, `lint`, `typecheck`, `test` — 300+15
+  tests — `build`); `pnpm-lock.yaml` updated for the new workspace package.
+  Next run: citations on every claim with tap-through (B3), refusal
+  construction (B4) — both are natural companions to wiring this router into
+  `CompanionController`, which no run has done yet for either B1 or B2.
 
 - 2026-08-10 — **Round two, task B1: `packages/retrieval` — query expansion,
   the Nepali ↔ English clinical term map, scoped retrieval, citation
