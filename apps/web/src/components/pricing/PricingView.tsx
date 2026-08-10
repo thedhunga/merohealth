@@ -78,7 +78,7 @@ export function PricingView() {
                 </ButtonLink>
 
                 <div>
-                  <h4 className="text-sm font-semibold tracking-wide text-forest-600 uppercase">
+                  <h4 className="text-sm font-semibold tracking-wide text-indigo-700 uppercase">
                     {t('includedHeading')}
                   </h4>
                   <ul className="mt-3 flex flex-col gap-2">
@@ -93,7 +93,7 @@ export function PricingView() {
                           key={moduleKey}
                         >
                           {included ? (
-                            <Check aria-hidden className="size-4 shrink-0 text-jade-500" />
+                            <Check aria-hidden className="size-4 shrink-0 text-indigo-600" />
                           ) : (
                             <Minus aria-hidden className="size-4 shrink-0 text-ink-soft/40" />
                           )}
@@ -105,7 +105,7 @@ export function PricingView() {
                 </div>
 
                 <div>
-                  <h4 className="text-sm font-semibold tracking-wide text-forest-600 uppercase">
+                  <h4 className="text-sm font-semibold tracking-wide text-indigo-700 uppercase">
                     {t('limitsHeading')}
                   </h4>
                   <dl className="mt-3 flex flex-col gap-2 text-sm">

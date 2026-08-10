@@ -23,7 +23,7 @@ export function HabitSprout({ className }: { className?: string }) {
         cy="80"
         opacity="0.35"
         r="58"
-        stroke="#0B4F3A"
+        stroke="#221C4B"
         strokeDasharray="4 6"
         strokeWidth="2"
       />
@@ -31,14 +31,14 @@ export function HabitSprout({ className }: { className?: string }) {
       <path
         d="M60 92 Q120 128 180 92 L172 96 Q120 118 68 96 Z"
         fill="#FFFCF7"
-        stroke="#0B4F3A"
+        stroke="#221C4B"
         strokeLinejoin="round"
         strokeWidth="3.5"
       />
 
-      <line stroke="#17916B" strokeLinecap="round" strokeWidth="4" x1="120" x2="120" y1="92" y2="54" />
-      <path d="M120 64 C104 58 96 44 104 32 C118 40 122 54 120 64 Z" fill="#2FB287" />
-      <path d="M120 64 C136 58 144 44 136 32 C122 40 118 54 120 64 Z" fill="#17916B" />
+      <line stroke="#3D3480" strokeLinecap="round" strokeWidth="4" x1="120" x2="120" y1="92" y2="54" />
+      <path d="M120 64 C104 58 96 44 104 32 C118 40 122 54 120 64 Z" fill="#6B5FD0" />
+      <path d="M120 64 C136 58 144 44 136 32 C122 40 118 54 120 64 Z" fill="#3D3480" />
 
       <path
         clipRule="evenodd"

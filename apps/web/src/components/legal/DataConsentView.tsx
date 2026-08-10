@@ -121,7 +121,7 @@ export function DataConsentView() {
                     aria-hidden
                     className={cn(
                       'relative inline-flex h-7 w-12 items-center rounded-pill transition-colors',
-                      checked ? 'bg-forest-600' : 'bg-line',
+                      checked ? 'bg-indigo-700' : 'bg-line',
                     )}
                   >
                     <span

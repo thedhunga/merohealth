@@ -16,10 +16,10 @@ export function AroundTheClockCare({ className }: { className?: string }) {
       viewBox="0 0 240 160"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <rect fill="#D8F0E5" height="160" rx="14" width="240" />
+      <rect fill="#DEDAF7" height="160" rx="14" width="240" />
 
-      <circle cx="120" cy="80" fill="#FFFCF7" r="54" stroke="#0B4F3A" strokeWidth="4" />
-      <path d="M120 26 A54 54 0 0 1 120 134 Z" fill="#0A3628" />
+      <circle cx="120" cy="80" fill="#FFFCF7" r="54" stroke="#221C4B" strokeWidth="4" />
+      <path d="M120 26 A54 54 0 0 1 120 134 Z" fill="#171233" />
 
       {/* Night-half stars. */}
       <circle cx="142" cy="55" fill="#FFFCF7" fillOpacity="0.8" r="2" />
@@ -37,7 +37,7 @@ export function AroundTheClockCare({ className }: { className?: string }) {
       {/* Hour ticks at 12/3/6/9. */}
       <path
         d="M120 26 L120 32 M174 80 L168 80 M120 134 L120 128 M66 80 L72 80"
-        stroke="#0B4F3A"
+        stroke="#221C4B"
         strokeLinecap="round"
         strokeWidth="3"
       />
@@ -45,7 +45,7 @@ export function AroundTheClockCare({ className }: { className?: string }) {
       {/* The pulse crossing the dial. */}
       <path
         d="M66 80 L85 80 L92 58 L100 100 L108 66 L116 80 L174 80"
-        stroke="#17916B"
+        stroke="#3D3480"
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="3"

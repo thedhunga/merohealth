@@ -7,8 +7,8 @@ type Tone = 'surface' | 'canvas' | 'mint' | 'deep';
 const tones: Record<Tone, string> = {
   surface: 'bg-paper text-ink',
   canvas: 'bg-sand text-ink',
-  mint: 'bg-jade-50 text-ink',
-  deep: 'bg-forest-800 text-white',
+  mint: 'bg-indigo-50 text-ink',
+  deep: 'bg-indigo-900 text-white',
 };
 
 interface SectionProps {
@@ -64,7 +64,7 @@ export function SectionHeading({
         <span
           className={cn(
             'text-sm font-semibold tracking-wide uppercase',
-            tone === 'dark' ? 'text-jade-500' : 'text-jade-200',
+            tone === 'dark' ? 'text-indigo-600' : 'text-indigo-200',
           )}
         >
           {eyebrow}
@@ -80,7 +80,7 @@ export function SectionHeading({
         {title}
       </h2>
       {body ? (
-        <p className={cn('text-lg', tone === 'dark' ? 'text-ink-soft' : 'text-jade-100')}>{body}</p>
+        <p className={cn('text-lg', tone === 'dark' ? 'text-ink-soft' : 'text-indigo-100')}>{body}</p>
       ) : null}
     </div>
   );

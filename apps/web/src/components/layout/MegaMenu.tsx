@@ -56,14 +56,14 @@ export function MegaMenu({ segment, onNavigate, panelId }: MegaMenuProps) {
               {column.items.map((item) => (
                 <li key={`${item.key}-${item.href}`}>
                   <Link
-                    className="group flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-[0.9375rem] font-semibold text-ink transition-colors hover:bg-jade-50 hover:text-forest-700"
+                    className="group flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-[0.9375rem] font-semibold text-ink transition-colors hover:bg-indigo-50 hover:text-indigo-800"
                     href={item.href}
                     onClick={onNavigate}
                   >
                     {t(`items.${item.key}`)}
                     <ChevronRight
                       aria-hidden
-                      className="size-4 shrink-0 text-jade-200 opacity-0 transition-opacity group-hover:opacity-100"
+                      className="size-4 shrink-0 text-indigo-200 opacity-0 transition-opacity group-hover:opacity-100"
                     />
                   </Link>
 
@@ -72,7 +72,7 @@ export function MegaMenu({ segment, onNavigate, panelId }: MegaMenuProps) {
                       {item.children.map((child) => (
                         <li key={`${child.key}-${child.href}`}>
                           <Link
-                            className="block rounded-md px-2 py-1.5 text-sm text-ink-soft transition-colors hover:text-forest-700"
+                            className="block rounded-md px-2 py-1.5 text-sm text-ink-soft transition-colors hover:text-indigo-800"
                             href={child.href}
                             onClick={onNavigate}
                           >
@@ -90,17 +90,17 @@ export function MegaMenu({ segment, onNavigate, panelId }: MegaMenuProps) {
 
         <div className="lg:col-span-3">
           <Link
-            className="group flex h-full flex-col justify-between gap-6 rounded-card bg-linear-to-br from-jade-500 to-forest-700 p-6 text-white transition-transform hover:-translate-y-0.5"
+            className="group flex h-full flex-col justify-between gap-6 rounded-card bg-linear-to-br from-indigo-600 to-indigo-800 p-6 text-white transition-transform hover:-translate-y-0.5"
             href={segment.promo.href}
             onClick={onNavigate}
           >
             <div className="flex flex-col gap-3">
-              <span className="text-xs font-bold tracking-[0.12em] text-jade-200 uppercase">
+              <span className="text-xs font-bold tracking-[0.12em] text-indigo-200 uppercase">
                 {promo.eyebrow}
               </span>
               <span className="text-xl leading-snug font-bold text-balance">{promo.title}</span>
             </div>
-            <span className="inline-flex items-center gap-2 text-sm font-semibold text-jade-100">
+            <span className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-100">
               {promo.cta}
               <ArrowRight
                 aria-hidden

@@ -20,29 +20,29 @@ export function CalmMind({ className }: { className?: string }) {
 
       <path
         d="M78 130 Q120 150 162 130"
-        stroke="#0B4F3A"
+        stroke="#221C4B"
         strokeLinecap="round"
         strokeWidth="4"
       />
-      <ellipse cx="120" cy="88" fill="#FFFCF7" rx="42" ry="48" stroke="#0B4F3A" strokeWidth="4" />
+      <ellipse cx="120" cy="88" fill="#FFFCF7" rx="42" ry="48" stroke="#221C4B" strokeWidth="4" />
 
       <path
         d="M84 70 q8 -10 16 0 t16 0 t16 0 t16 0"
-        stroke="#17916B"
+        stroke="#3D3480"
         strokeLinecap="round"
         strokeOpacity="0.8"
         strokeWidth="3"
       />
       <path
         d="M84 86 q8 -10 16 0 t16 0 t16 0 t16 0"
-        stroke="#2FB287"
+        stroke="#6B5FD0"
         strokeLinecap="round"
         strokeOpacity="0.6"
         strokeWidth="3"
       />
       <path
         d="M84 102 q8 -10 16 0 t16 0 t16 0 t16 0"
-        stroke="#A9DFC9"
+        stroke="#BDB4EE"
         strokeLinecap="round"
         strokeOpacity="0.7"
         strokeWidth="3"

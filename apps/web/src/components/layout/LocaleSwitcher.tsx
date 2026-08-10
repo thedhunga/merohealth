@@ -41,7 +41,7 @@ export function LocaleSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     >
       <Globe
         aria-hidden
-        className={cn('ms-2 size-4', tone === 'dark' ? 'text-ink-soft' : 'text-jade-100')}
+        className={cn('ms-2 size-4', tone === 'dark' ? 'text-ink-soft' : 'text-indigo-100')}
       />
       {locales.map((locale) => (
         <button
@@ -50,11 +50,11 @@ export function LocaleSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
             'rounded-pill px-3 py-1.5 text-sm font-semibold transition-colors',
             locale === active
               ? tone === 'dark'
-                ? 'bg-white text-forest-700 shadow-sm'
-                : 'bg-white text-forest-700'
+                ? 'bg-white text-indigo-800 shadow-sm'
+                : 'bg-white text-indigo-800'
               : tone === 'dark'
                 ? 'text-ink-soft hover:text-ink'
-                : 'text-jade-100 hover:text-white',
+                : 'text-indigo-100 hover:text-white',
           )}
           key={locale}
           onClick={() => {

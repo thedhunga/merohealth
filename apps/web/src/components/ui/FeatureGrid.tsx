@@ -34,7 +34,7 @@ export function FeatureGrid({ items, learnMoreLabel, className }: FeatureGridPro
     <ul className={cn('grid gap-6 md:grid-cols-2 lg:grid-cols-3', className)}>
       {items.map(({ key, href, Art, title, body, links }) => (
         <li key={key}>
-          <article className="group relative flex h-full flex-col gap-4 rounded-card border border-line bg-white p-7 transition-all duration-200 hover:-translate-y-1 hover:border-jade-200 hover:shadow-card">
+          <article className="group relative flex h-full flex-col gap-4 rounded-card border border-line bg-white p-7 transition-all duration-200 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-card">
             <Art className="aspect-[3/2] w-full rounded-2xl" />
 
             <h3 className="text-xl font-bold text-ink">
@@ -56,7 +56,7 @@ export function FeatureGrid({ items, learnMoreLabel, className }: FeatureGridPro
                 {links.map((link) => (
                   <li key={`${key}-${link.key}`}>
                     <Link
-                      className="inline-block rounded-pill bg-sand px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-jade-100 hover:text-forest-700"
+                      className="inline-block rounded-pill bg-sand px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-indigo-100 hover:text-indigo-800"
                       href={link.href}
                     >
                       {link.label}
@@ -66,7 +66,7 @@ export function FeatureGrid({ items, learnMoreLabel, className }: FeatureGridPro
               </ul>
             ) : null}
 
-            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-forest-600">
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-700">
               {learnMoreLabel}
               <ArrowRight
                 aria-hidden

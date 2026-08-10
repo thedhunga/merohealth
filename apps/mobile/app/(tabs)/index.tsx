@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     paddingVertical: 7,
   },
-  voicePulse: { backgroundColor: colors.jadeBright, borderRadius: 4, height: 7, width: 7 },
+  voicePulse: { backgroundColor: colors.irisBright, borderRadius: 4, height: 7, width: 7 },
   voiceChipText: { color: colors.mint, fontSize: 9, fontWeight: '900', letterSpacing: 0.6 },
   contextRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   contextCard: {

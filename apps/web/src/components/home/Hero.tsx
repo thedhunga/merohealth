@@ -15,9 +15,9 @@ export function Hero() {
 
   return (
     <>
-      <div className="bg-forest-900 text-white">
+      <div className="bg-indigo-950 text-white">
         <div className="container-site flex flex-wrap items-center justify-center gap-x-4 gap-y-1 py-3 text-center text-sm">
-          <span className="text-jade-100">{announcement('text')}</span>
+          <span className="text-indigo-100">{announcement('text')}</span>
           <Link
             className="inline-flex items-center gap-1 font-semibold text-marigold-500 underline-offset-4 hover:underline"
             href="/health-library"
@@ -28,7 +28,7 @@ export function Hero() {
         </div>
       </div>
 
-      <section className="relative overflow-hidden bg-forest-700 text-white">
+      <section className="relative overflow-hidden bg-indigo-800 text-white">
         {/*
           Ambient footage, sitting behind everything.
 
@@ -57,7 +57,7 @@ export function Hero() {
             </video>
             <span
               aria-hidden
-              className="pointer-events-none absolute inset-0 bg-forest-700/75"
+              className="pointer-events-none absolute inset-0 bg-indigo-800/75"
             />
           </>
         ) : null}
@@ -76,8 +76,8 @@ export function Hero() {
 
         <div className="container-site relative grid items-center gap-14 py-20 md:py-28 lg:grid-cols-[1.05fr_1fr] lg:gap-20">
           <div className="flex flex-col items-start gap-7">
-            <span className="inline-flex items-center gap-2.5 rounded-pill bg-white/10 py-2 ps-2.5 pe-4 text-sm font-medium text-jade-100 ring-1 ring-white/15">
-              <span className="rounded-pill bg-marigold-500 px-2.5 py-0.5 text-xs font-bold text-forest-900">
+            <span className="inline-flex items-center gap-2.5 rounded-pill bg-white/10 py-2 ps-2.5 pe-4 text-sm font-medium text-indigo-100 ring-1 ring-white/15">
+              <span className="rounded-pill bg-marigold-500 px-2.5 py-0.5 text-xs font-bold text-indigo-950">
                 {announcement('badge')}
               </span>
               {t('eyebrow')}
@@ -92,7 +92,7 @@ export function Hero() {
               {t('title')}
             </h1>
 
-            <p className="max-w-lg text-lg leading-relaxed text-jade-100 sm:text-xl">
+            <p className="max-w-lg text-lg leading-relaxed text-indigo-100 sm:text-xl">
               {t('body')}
             </p>
 
@@ -107,11 +107,11 @@ export function Hero() {
             </div>
 
             <ul className="flex flex-wrap gap-x-7 gap-y-2 pt-3">
-              <li className="inline-flex items-center gap-2 text-sm text-jade-200">
+              <li className="inline-flex items-center gap-2 text-sm text-indigo-200">
                 <ShieldCheck aria-hidden className="size-5 text-marigold-500" />
                 {t('trustOne')}
               </li>
-              <li className="inline-flex items-center gap-2 text-sm text-jade-200">
+              <li className="inline-flex items-center gap-2 text-sm text-indigo-200">
                 <LockKeyhole aria-hidden className="size-5 text-marigold-500" />
                 {t('trustTwo')}
               </li>
@@ -120,7 +120,7 @@ export function Hero() {
 
           <div className="relative">
             <RecordTransform className="w-full drop-shadow-2xl" />
-            <p className="mt-5 max-w-sm text-sm leading-relaxed text-jade-200">
+            <p className="mt-5 max-w-sm text-sm leading-relaxed text-indigo-200">
               {t('artCaption')}
             </p>
           </div>

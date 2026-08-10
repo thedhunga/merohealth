@@ -23,7 +23,7 @@ const walkthroughSteps = [
     eyebrow: 'STEP 1 · ASK',
     title: 'आफ्नो कुरा आवाज वा शब्दमा भन्नुहोस्',
     body: 'मुख्य कुरा मात्र सुरुमा भन्नुहोस्। साथीले आवश्यक परे एक–एक छोटो प्रश्न सोध्छ।',
-    accent: colors.jadeBright,
+    accent: colors.irisBright,
   },
   {
     eyebrow: 'STEP 2 · UNDERSTAND',
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
     height: 6,
     overflow: 'hidden',
   },
-  progressFill: { backgroundColor: colors.jadeBright, height: 6 },
+  progressFill: { backgroundColor: colors.irisBright, height: 6 },
   playerControls: { alignItems: 'center', flexDirection: 'row', gap: 9, marginTop: spacing.lg },
   playButton: {
     alignItems: 'center',

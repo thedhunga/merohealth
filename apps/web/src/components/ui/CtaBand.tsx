@@ -37,7 +37,7 @@ export function CtaBand({ id, heading, body, primaryCta, secondaryCta, className
     <section
       aria-labelledby={id}
       className={cn(
-        'relative overflow-hidden bg-linear-to-br from-forest-600 to-forest-800 py-20 md:py-28',
+        'relative overflow-hidden bg-linear-to-br from-indigo-700 to-indigo-900 py-20 md:py-28',
         className,
       )}
     >
@@ -48,7 +48,7 @@ export function CtaBand({ id, heading, body, primaryCta, secondaryCta, className
         <h2 className="max-w-3xl text-3xl font-bold text-balance text-white md:text-5xl" id={id}>
           {heading}
         </h2>
-        {body ? <p className="max-w-2xl text-lg text-jade-100">{body}</p> : null}
+        {body ? <p className="max-w-2xl text-lg text-indigo-100">{body}</p> : null}
 
         <div className="mt-2 flex flex-wrap justify-center gap-3">
           <ButtonLink

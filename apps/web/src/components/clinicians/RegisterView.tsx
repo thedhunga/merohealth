@@ -63,7 +63,7 @@ function EvidenceCapture({
         />
       ) : null}
       <label
-        className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-pill bg-jade-50 px-4 py-2 text-sm font-semibold text-forest-700 hover:bg-jade-100"
+        className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-pill bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-800 hover:bg-indigo-100"
         htmlFor={id}
       >
         {captured ? changeLabel : chooseLabel}
@@ -176,7 +176,7 @@ export function RegisterView() {
                   aria-current={isCurrent ? 'step' : undefined}
                   className={cn(
                     'flex items-center gap-2',
-                    isCurrent ? 'text-forest-700' : isComplete ? 'text-jade-600' : 'text-ink-soft',
+                    isCurrent ? 'text-indigo-800' : isComplete ? 'text-success-600' : 'text-ink-soft',
                   )}
                   key={key}
                 >
@@ -184,9 +184,9 @@ export function RegisterView() {
                     className={cn(
                       'grid size-6 shrink-0 place-items-center rounded-full text-xs',
                       isCurrent
-                        ? 'bg-forest-700 text-white'
+                        ? 'bg-indigo-800 text-white'
                         : isComplete
-                          ? 'bg-jade-100 text-jade-700'
+                          ? 'bg-indigo-100 text-success-700'
                           : 'bg-sand text-ink-soft',
                     )}
                   >
@@ -218,7 +218,7 @@ export function RegisterView() {
                     <label
                       className={cn(
                         'flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-colors',
-                        selected ? 'border-forest-600 bg-jade-50' : 'border-line bg-white hover:border-jade-200',
+                        selected ? 'border-indigo-700 bg-indigo-50' : 'border-line bg-white hover:border-indigo-200',
                       )}
                       htmlFor={optionId}
                       key={key}

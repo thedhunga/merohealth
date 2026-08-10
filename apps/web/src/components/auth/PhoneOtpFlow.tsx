@@ -188,14 +188,14 @@ export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
                 {intent === 'REGISTER' ? (
                   <>
                     {t('phone.switchPrompt')}{' '}
-                    <Link className="font-semibold text-forest-700 underline" href="/signin">
+                    <Link className="font-semibold text-indigo-800 underline" href="/signin">
                       {nav('actions.signIn')}
                     </Link>
                   </>
                 ) : (
                   <>
                     {t('phone.switchPrompt')}{' '}
-                    <Link className="font-semibold text-forest-700 underline" href="/register">
+                    <Link className="font-semibold text-indigo-800 underline" href="/register">
                       {nav('actions.register')}
                     </Link>
                   </>

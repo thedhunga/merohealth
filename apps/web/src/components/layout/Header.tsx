@@ -92,9 +92,9 @@ export function Header() {
   return (
     <header
       // Forest chrome book-ends the paper content: the footer is already
-      // `bg-forest-800`, so the header matches it rather than the paler
-      // `forest-700` Hero panel underneath, keeping the two distinct.
-      className="sticky top-0 z-50 bg-forest-800 text-white"
+      // `bg-indigo-900`, so the header matches it rather than the paler
+      // `indigo-800` Hero panel underneath, keeping the two distinct.
+      className="sticky top-0 z-50 bg-indigo-900 text-white"
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node)) closeAll();
       }}
@@ -102,7 +102,7 @@ export function Header() {
       ref={headerRef}
     >
       <a
-        className="sr-only rounded-md bg-white px-4 py-2 font-semibold text-forest-700 focus:not-sr-only focus:absolute focus:start-4 focus:top-3 focus:z-10"
+        className="sr-only rounded-md bg-white px-4 py-2 font-semibold text-indigo-800 focus:not-sr-only focus:absolute focus:start-4 focus:top-3 focus:z-10"
         href="#main"
       >
         {t('skipToContent')}
@@ -125,8 +125,8 @@ export function Header() {
                     className={cn(
                       'inline-flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-[0.9375rem] font-semibold transition-colors',
                       expanded
-                        ? 'bg-white text-forest-700'
-                        : 'text-jade-100 hover:bg-white/10 hover:text-white',
+                        ? 'bg-white text-indigo-800'
+                        : 'text-indigo-100 hover:bg-white/10 hover:text-white',
                     )}
                     onClick={() => {
                       // Not a toggle: `onFocus`/`onMouseEnter` already open the

@@ -17,17 +17,17 @@ export function VitalsTrend({ className }: { className?: string }) {
       viewBox="0 0 240 160"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <rect fill="#D8F0E5" height="160" rx="14" width="240" />
+      <rect fill="#DEDAF7" height="160" rx="14" width="240" />
 
       <path
         d="M95 34 C118 66 130 84 130 102 A35 35 0 1 1 60 102 C60 84 72 66 95 34 Z"
         fill="#FFFCF7"
-        stroke="#0B4F3A"
+        stroke="#221C4B"
         strokeWidth="4"
       />
       <path
         d="M72 100 L84 92 L94 96 L104 80 L116 86"
-        stroke="#17916B"
+        stroke="#3D3480"
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="3"
@@ -36,7 +36,7 @@ export function VitalsTrend({ className }: { className?: string }) {
 
       <path
         d="M150 80 L162 80 L168 60 L174 100 L180 80 L196 80"
-        stroke="#0B4F3A"
+        stroke="#221C4B"
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="3"

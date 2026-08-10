@@ -72,7 +72,7 @@ export default function ConsultationPreviewScreen() {
             <Text style={styles.roomTitle}>Consultation experience</Text>
           </View>
           <View style={styles.secure}>
-            <LockKeyhole color={colors.jadeBright} size={15} />
+            <LockKeyhole color={colors.irisBright} size={15} />
             <Text style={styles.secureText}>No call is connected</Text>
           </View>
         </View>
@@ -126,7 +126,7 @@ export default function ConsultationPreviewScreen() {
 
         {captionsOn ? (
           <View accessibilityLiveRegion="polite" style={styles.captionBar}>
-            <Captions color={colors.jadeBright} size={18} />
+            <Captions color={colors.irisBright} size={18} />
             <Text style={styles.captionText}>
               Live captions will appear here when a secure video provider is configured.
             </Text>
@@ -135,7 +135,7 @@ export default function ConsultationPreviewScreen() {
 
         <View style={styles.statusRow}>
           <View style={styles.safetyStatus}>
-            <ShieldCheck color={colors.jadeBright} size={18} />
+            <ShieldCheck color={colors.irisBright} size={18} />
             <Text style={styles.safetyText}>Consent and participant authorization required</Text>
           </View>
           <Text style={styles.timer}>{started ? timerLabel : 'PREVIEW'}</Text>

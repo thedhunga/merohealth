@@ -34,14 +34,14 @@ export function VerifiedBadge({ badge, now }: { badge: CredentialingBadge; now: 
     <div
       className={cn(
         'flex flex-col gap-1 rounded-2xl p-4 ring-1',
-        verified ? 'bg-jade-50 ring-jade-200' : 'bg-sand/70 ring-line',
+        verified ? 'bg-indigo-50 ring-indigo-200' : 'bg-sand/70 ring-line',
       )}
       role="status"
     >
       <p
         className={cn(
           'text-sm font-semibold tracking-wide uppercase',
-          verified ? 'text-jade-700' : 'text-ink-soft',
+          verified ? 'text-success-700' : 'text-ink-soft',
         )}
       >
         {verified ? t('statusVerified') : t('statusUnverified')}

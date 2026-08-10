@@ -35,13 +35,13 @@ export function RecordTransform({ className }: { className?: string }) {
         </linearGradient>
         <linearGradient id="rt-card" x1="0" x2="0.6" y1="0" y2="1">
           <stop offset="0%" stopColor="#FFFFFF" />
-          <stop offset="100%" stopColor="#F4FBF7" />
+          <stop offset="100%" stopColor="#F1EFFB" />
         </linearGradient>
         <filter height="160%" id="rt-shadow" width="160%" x="-30%" y="-30%">
           <feDropShadow
             dx="0"
             dy="18"
-            floodColor="#07231A"
+            floodColor="#0E0B1F"
             floodOpacity="0.22"
             stdDeviation="22"
           />
@@ -96,16 +96,16 @@ export function RecordTransform({ className }: { className?: string }) {
         />
 
         {/* Header bar. */}
-        <rect fill="#0B4F3A" height="52" rx="20" width="290" x="210" y="96" />
-        <rect fill="#0B4F3A" height="26" width="290" x="210" y="122" />
+        <rect fill="#221C4B" height="52" rx="20" width="290" x="210" y="96" />
+        <rect fill="#221C4B" height="26" width="290" x="210" y="122" />
         <circle cx="238" cy="122" fill="#F4A62A" r="7" />
         <rect fill="#FFFFFF" fillOpacity="0.85" height="7" rx="3.5" width="84" x="256" y="118" />
 
         {rows.map(({ label, value, y, flagged }) => (
           <g key={y}>
-            <rect fill="#132A21" fillOpacity="0.16" height="8" rx="4" width={label * 2} x="238" y={y} />
+            <rect fill="#171429" fillOpacity="0.16" height="8" rx="4" width={label * 2} x="238" y={y} />
             <rect
-              fill={flagged ? '#F4A62A' : '#17916B'}
+              fill={flagged ? '#F4A62A' : '#3D3480'}
               height="12"
               rx="6"
               width={value * 2.4}
@@ -121,7 +121,7 @@ export function RecordTransform({ className }: { className?: string }) {
         {/* Trend sparkline — the analyte series the assistant reasons over. */}
         <polyline
           points="240,352 274,342 308,346 342,326 376,330 410,306 444,296"
-          stroke="#17916B"
+          stroke="#3D3480"
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth="3.5"
@@ -132,7 +132,7 @@ export function RecordTransform({ className }: { className?: string }) {
           [376, 330],
           [444, 296],
         ].map(([cx, cy]) => (
-          <circle cx={cx} cy={cy} fill="#FFFCF7" key={`${cx}`} r="4.5" stroke="#17916B" strokeWidth="3" />
+          <circle cx={cx} cy={cy} fill="#FFFCF7" key={`${cx}`} r="4.5" stroke="#3D3480" strokeWidth="3" />
         ))}
       </g>
     </svg>

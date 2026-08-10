@@ -40,15 +40,15 @@ const toneStyles: Record<
   { section: string; eyebrow: string; title: string; body: string; caption: string }
 > = {
   forest: {
-    section: 'bg-forest-700 text-white',
-    eyebrow: 'text-jade-200',
+    section: 'bg-indigo-800 text-white',
+    eyebrow: 'text-indigo-200',
     title: 'text-white',
-    body: 'text-jade-100',
-    caption: 'text-jade-200',
+    body: 'text-indigo-100',
+    caption: 'text-indigo-200',
   },
   paper: {
     section: 'bg-paper text-ink',
-    eyebrow: 'text-jade-600',
+    eyebrow: 'text-success-600',
     title: 'text-ink',
     body: 'text-ink-soft',
     caption: 'text-ink-soft',

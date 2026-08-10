@@ -15,13 +15,13 @@ export function HospitalReach({ className }: { className?: string }) {
       viewBox="0 0 240 160"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <rect fill="#D8F0E5" height="160" rx="14" width="240" />
+      <rect fill="#DEDAF7" height="160" rx="14" width="240" />
 
       {/* Signal rings, widest first so the cross reads as their origin. */}
-      <path d="M78 80 A48 48 0 0 1 174 80" stroke="#0B4F3A" strokeLinecap="round" strokeOpacity="0.18" strokeWidth="5" />
-      <path d="M92 80 A34 34 0 0 1 160 80" stroke="#0B4F3A" strokeLinecap="round" strokeOpacity="0.32" strokeWidth="5" />
+      <path d="M78 80 A48 48 0 0 1 174 80" stroke="#221C4B" strokeLinecap="round" strokeOpacity="0.18" strokeWidth="5" />
+      <path d="M92 80 A34 34 0 0 1 160 80" stroke="#221C4B" strokeLinecap="round" strokeOpacity="0.32" strokeWidth="5" />
 
-      <rect fill="#FFFCF7" height="72" rx="10" stroke="#0B4F3A" strokeWidth="4" width="84" x="84" y="60" />
+      <rect fill="#FFFCF7" height="72" rx="10" stroke="#221C4B" strokeWidth="4" width="84" x="84" y="60" />
       <path
         d="M126 76 L126 108 M110 92 L142 92"
         stroke="#C4573A"

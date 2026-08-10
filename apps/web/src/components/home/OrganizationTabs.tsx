@@ -19,7 +19,7 @@ export function OrganizationTabs() {
   if (!current) return null;
 
   return (
-    <section aria-labelledby="orgs-heading" className="bg-forest-700 py-16 text-white md:py-24">
+    <section aria-labelledby="orgs-heading" className="bg-indigo-800 py-16 text-white md:py-24">
       <div className="container-site">
         <SectionHeading
           body={t('body')}
@@ -43,7 +43,7 @@ export function OrganizationTabs() {
                 className={cn(
                   'rounded-pill px-5 py-2.5 text-[0.9375rem] font-semibold transition-colors',
                   selected
-                    ? 'bg-white text-forest-700'
+                    ? 'bg-white text-indigo-800'
                     : 'bg-white/10 text-white ring-1 ring-inset ring-white/25 hover:bg-white/20',
                 )}
                 id={`${baseId}-tab-${tab.key}`}
@@ -85,7 +85,7 @@ export function OrganizationTabs() {
                   className="flex items-center gap-3 rounded-2xl bg-sand/70 p-4 ring-1 ring-line"
                   key={stat.labelEn}
                 >
-                  <dt className="grid size-11 shrink-0 place-items-center rounded-full bg-jade-50 text-lg font-bold text-forest-600">
+                  <dt className="grid size-11 shrink-0 place-items-center rounded-full bg-indigo-50 text-lg font-bold text-indigo-700">
                     {stat.value}
                   </dt>
                   <dd className="text-sm leading-snug text-ink-soft">
@@ -96,7 +96,7 @@ export function OrganizationTabs() {
             </dl>
 
             <Link
-              className="group inline-flex items-center gap-2 font-semibold text-forest-700"
+              className="group inline-flex items-center gap-2 font-semibold text-indigo-800"
               href={current.href}
             >
               {t('learnMore')}

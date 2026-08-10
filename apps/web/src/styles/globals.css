@@ -3,34 +3,49 @@
 /*
  * Design tokens.
  *
- * Direction: warm, human and Nepali, not clinical. The palette is built from
- * Nepali material life rather than health-tech convention — deep forest as a
- * confident ground, and सयपत्री marigold (in every festival doorway) as the
- * accent. The base is a warm paper white; the previous greenish-white made
- * every surface read grey.
+ * Direction: warm, human and Nepali, not clinical. Deep indigo as a confident
+ * ground, सयपत्री marigold (in every festival doorway) as the accent, on a
+ * warm paper base.
  *
- * Deliberately NOT the health-tech teal/blue that every competitor uses.
+ * Deliberately NOT the teal/blue every competitor in this category uses, and
+ * no longer the green this replaced — green here read as pharmacy and
+ * insurance, institutional rather than warm, and it had only ever been
+ * inherited from the first draft rather than actually chosen.
  */
 @theme {
   /* Ink and ground */
-  --color-ink: #132a21;
-  --color-ink-soft: #465b51;
+  --color-ink: #171429;
+  --color-ink-soft: #55506e;
   --color-paper: #fffcf7;
-  --color-sand: #f6f0e5;
-  --color-line: #e4ddd0;
+  --color-sand: #f5f0e6;
+  --color-line: #e6e0d6;
 
-  /* Forest — the brand ground, used full-bleed */
-  --color-forest-900: #07231a;
-  --color-forest-800: #0a3628;
-  --color-forest-700: #0b4f3a;
-  --color-forest-600: #0f6a4d;
+  /*
+   * Indigo — the brand ground, used full-bleed.
+   *
+   * Indigo against saffron is a South Asian pairing long before it was a
+   * palette: temple cloth, block-printed textile, the दुई colours that sit
+   * next to each other in a festival stall. It also avoids the green this
+   * replaced, which read as pharmacy and insurance — institutional rather
+   * than warm — and the teal every competitor in this category uses.
+   */
+  --color-indigo-950: #0e0b1f;
+  --color-indigo-900: #171233;
+  --color-indigo-800: #221c4b;
+  --color-indigo-700: #2e2663;
+  --color-indigo-600: #3d3480;
+  --color-indigo-400: #6b5fd0;
+  --color-indigo-200: #bdb4ee;
+  --color-indigo-100: #dedaf7;
+  --color-indigo-50: #f1effb;
 
-  /* Jade — interaction and action */
-  --color-jade-500: #17916b;
-  --color-jade-400: #2fb287;
-  --color-jade-200: #a9dfc9;
-  --color-jade-100: #d8f0e5;
-  --color-jade-50: #eefaf4;
+  /*
+   * Success is its own hue, not a tint of the brand. A verified badge or a
+   * completed step reads green by universal convention, and borrowing the
+   * brand colour for it would make "verified" and "branded" look identical.
+   */
+  --color-success-700: #146c43;
+  --color-success-600: #198754;
 
   /* Marigold — the accent. Used sparingly and never for body text. */
   --color-marigold-700: #9a5c08;
@@ -54,9 +69,9 @@
   --radius-card: 1.25rem;
   --radius-pill: 999px;
 
-  --shadow-card: 0 1px 2px rgb(19 42 33 / 0.05), 0 18px 40px -18px rgb(19 42 33 / 0.22);
-  --shadow-menu: 0 28px 64px -24px rgb(19 42 33 / 0.34);
-  --shadow-lift: 0 2px 4px rgb(19 42 33 / 0.06), 0 28px 56px -20px rgb(19 42 33 / 0.3);
+  --shadow-card: 0 1px 2px rgb(23 20 41 / 0.05), 0 18px 40px -18px rgb(23 20 41 / 0.22);
+  --shadow-menu: 0 28px 64px -24px rgb(23 20 41 / 0.34);
+  --shadow-lift: 0 2px 4px rgb(23 20 41 / 0.06), 0 28px 56px -20px rgb(23 20 41 / 0.3);
 
   --container-site: 80rem;
 }

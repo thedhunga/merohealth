@@ -45,13 +45,23 @@ These hold for every task and override any instinct to the contrary.
 
 The visual identity was set deliberately. Every new page inherits it.
 
-- **Palette:** deep forest (`forest-700` `#0B4F3A`) as a confident full-bleed
-  ground, jade for interaction, **marigold `#F4A62A`** as the accent — सयपत्री,
-  in every Nepali festival doorway. Warm paper `#FFFCF7` base, never a grey or
-  greenish white. Tokens live in `apps/web/src/styles/globals.css` and are
-  mirrored in `packages/configuration`. **Never reintroduce the old teal
-  `#0B685C`, and never add a health-tech blue** — every competitor uses one,
-  which is the reason we do not.
+- **Palette:** deep indigo (`indigo-800` `#221C4B`) as a confident full-bleed
+  ground, `indigo-600` for interaction, **marigold `#F4A62A`** as the accent —
+  सयपत्री, in every Nepali festival doorway. Indigo against saffron is a South
+  Asian pairing long before it was a palette. Warm paper `#FFFCF7` base, never
+  a grey or greenish white. Tokens live in `apps/web/src/styles/globals.css`
+  and are mirrored in `packages/configuration`.
+- **The green is gone and must not come back.** An earlier draft used forest
+  `#0B4F3A`; the owner rejected it and was right — green here read as pharmacy
+  and insurance, institutional rather than warm, and it had only ever been
+  inherited from the first teal draft rather than actually chosen. **Never
+  reintroduce `#0B4F3A`, `#17916B` or the original teal `#0B685C`, and never
+  add a health-tech blue** — every competitor uses one, which is the reason we
+  do not.
+- **Success is its own hue, not a tint of the brand.** `success-600/700` is
+  green because a verified badge or completed step reads green by universal
+  convention. That is the *only* green in the system, and it must never be
+  borrowed for brand or decorative use.
 - **Marigold is for one action per screen.** It is the loudest thing in the
   palette; spend it once. Never on body text.
 - **Type:** Martel (display, 800/900) and Mukta (body). Both Devanagari-native

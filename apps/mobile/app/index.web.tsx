@@ -301,7 +301,7 @@ export default function WebWelcomeScreen() {
                 <Text style={styles.doctorStatus}>स्वास्थ्य सेवासँग जोडिँदै</Text>
                 <Text style={styles.doctorTitle}>आवश्यक पर्दा सही स्वास्थ्यकर्मी</Text>
               </View>
-              <BadgeCheck color={colors.jadeBright} size={21} />
+              <BadgeCheck color={colors.irisBright} size={21} />
             </View>
           </View>
         </View>
@@ -661,7 +661,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     paddingVertical: 8,
   },
-  liveDot: { backgroundColor: colors.jadeBright, borderRadius: 5, height: 8, width: 8 },
+  liveDot: { backgroundColor: colors.irisBright, borderRadius: 5, height: 8, width: 8 },
   eyebrowText: { color: colors.mint, fontSize: 10, fontWeight: '900', letterSpacing: 1.15 },
   heroTitle: {
     color: 'white',

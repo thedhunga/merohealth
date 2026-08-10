@@ -21,7 +21,7 @@ export function Testimonials() {
   const storyReady = hasAsset(STORY_VIDEO);
 
   return (
-    <section aria-labelledby="testimonials-heading" className="bg-forest-800 py-16 md:py-24">
+    <section aria-labelledby="testimonials-heading" className="bg-indigo-900 py-16 md:py-24">
       <div className="container-site">
         <SectionHeading
           align="center"
@@ -47,7 +47,7 @@ export function Testimonials() {
               and a decorative badge sitting over them would be a second,
               non-functional play button.
             */}
-            <div className="group relative aspect-video overflow-hidden rounded-card bg-forest-900 shadow-menu">
+            <div className="group relative aspect-video overflow-hidden rounded-card bg-indigo-950 shadow-menu">
               <video
                 aria-label={t('watchVideo')}
                 className="size-full object-cover"
@@ -63,13 +63,13 @@ export function Testimonials() {
                   aria-hidden
                   className="pointer-events-none absolute inset-0 grid place-items-center"
                 >
-                  <span className="grid size-16 place-items-center rounded-full bg-white/90 text-forest-700 transition-transform group-hover:scale-110">
+                  <span className="grid size-16 place-items-center rounded-full bg-white/90 text-indigo-800 transition-transform group-hover:scale-110">
                     <Play className="size-6 translate-x-0.5 fill-current" />
                   </span>
                 </span>
               )}
             </div>
-            <p className="mt-3 text-sm text-jade-200">{t('watchVideo')}</p>
+            <p className="mt-3 text-sm text-indigo-200">{t('watchVideo')}</p>
           </div>
 
           <div className="lg:col-span-7">
@@ -82,11 +82,11 @@ export function Testimonials() {
                   className="w-[min(21rem,80vw)] shrink-0 snap-start rounded-card bg-white/10 p-7 backdrop-blur-sm"
                   key={key}
                 >
-                  <Quote aria-hidden className="size-7 text-jade-200" />
+                  <Quote aria-hidden className="size-7 text-indigo-200" />
                   <blockquote className="mt-4 text-lg leading-relaxed text-white text-pretty">
                     {t(`items.${key}.quote`)}
                   </blockquote>
-                  <footer className="mt-5 flex items-center gap-3 text-sm text-jade-200">
+                  <footer className="mt-5 flex items-center gap-3 text-sm text-indigo-200">
                     {/*
                       Portraits land one at a time, so each avatar falls back
                       to a neutral placeholder rather than a broken image. The
@@ -103,7 +103,7 @@ export function Testimonials() {
                           src={`/imagery/portrait-${key}.webp`}
                         />
                       ) : (
-                        <User aria-hidden className="absolute inset-0 m-auto size-5 text-jade-200" />
+                        <User aria-hidden className="absolute inset-0 m-auto size-5 text-indigo-200" />
                       )}
                     </span>
                     <span>
@@ -119,7 +119,7 @@ export function Testimonials() {
           </div>
         </div>
 
-        <p className="mt-8 max-w-3xl text-xs leading-relaxed text-jade-200">
+        <p className="mt-8 max-w-3xl text-xs leading-relaxed text-indigo-200">
           {t('disclaimer')}
         </p>
       </div>
