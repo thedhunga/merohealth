@@ -120,7 +120,12 @@ describe('route', () => {
   it('never lets an advice question reach buildAnalyteTrend', () => {
     const result = route('subject-1', { observations: [makeObservation()], documents: [] }, 'मलाई के गर्ने?');
 
-    expect(result).toEqual({ path: 'NOT_COMPUTABLE', intent: 'ADVICE', matchedConcepts: [] });
+    expect(result).toEqual({
+      path: 'NOT_COMPUTABLE',
+      intent: 'ADVICE',
+      matchedConcepts: [],
+      unconfirmedDraftsOnly: false,
+    });
   });
 
   it('is NOT_COMPUTABLE for a computable intent when the record has nothing trusted matching it', () => {
@@ -130,7 +135,12 @@ describe('route', () => {
       'मेरो मुटु कस्तो छ?',
     );
 
-    expect(result).toEqual({ path: 'NOT_COMPUTABLE', intent: 'TREND', matchedConcepts: ['heart'] });
+    expect(result).toEqual({
+      path: 'NOT_COMPUTABLE',
+      intent: 'TREND',
+      matchedConcepts: ['heart'],
+      unconfirmedDraftsOnly: false,
+    });
   });
 
   it('never computes a trend from another subject observation, even one matching the same code and query', () => {
@@ -151,7 +161,7 @@ describe('route', () => {
     expect(result.trends[0]?.citations.map((c) => c.sourceId)).toEqual(['obs-mine']);
   });
 
-  it('never computes a trend from a DRAFT observation', () => {
+  it('never computes a trend from a DRAFT observation, and flags it as the unconfirmed-drafts-only case', () => {
     const result = route(
       'subject-1',
       {
@@ -161,7 +171,12 @@ describe('route', () => {
       'मेरो चिनी कस्तो छ?',
     );
 
-    expect(result).toEqual({ path: 'NOT_COMPUTABLE', intent: 'TREND', matchedConcepts: ['glucose'] });
+    expect(result).toEqual({
+      path: 'NOT_COMPUTABLE',
+      intent: 'TREND',
+      matchedConcepts: ['glucose'],
+      unconfirmedDraftsOnly: true,
+    });
   });
 
   it('returns one trend per distinct analyte code when a broad concept matches more than one', () => {
@@ -213,8 +228,67 @@ describe('citationTarget', () => {
 
 describe('composeAnswer', () => {
   it('turns a NOT_COMPUTABLE routed answer into a refusal, passing the intent and matched concepts through', () => {
-    const routed: RoutedAnswer = { path: 'NOT_COMPUTABLE', intent: 'ADVICE', matchedConcepts: [] };
-    expect(composeAnswer(routed)).toEqual({ path: 'REFUSAL', intent: 'ADVICE', matchedConcepts: [] });
+    const routed: RoutedAnswer = {
+      path: 'NOT_COMPUTABLE',
+      intent: 'ADVICE',
+      matchedConcepts: [],
+      unconfirmedDraftsOnly: false,
+    };
+    expect(composeAnswer(routed)).toEqual({
+      path: 'REFUSAL',
+      intent: 'ADVICE',
+      matchedConcepts: [],
+      reason: 'NOT_UNDERSTOOD',
+      concepts: [],
+    });
+  });
+
+  it('names the reason NO_MATCHING_RECORD, with a resolved concept label, when a concept was recognised but nothing in the record matches', () => {
+    const routed: RoutedAnswer = {
+      path: 'NOT_COMPUTABLE',
+      intent: 'TREND',
+      matchedConcepts: ['thyroid'],
+      unconfirmedDraftsOnly: false,
+    };
+    expect(composeAnswer(routed)).toEqual({
+      path: 'REFUSAL',
+      intent: 'TREND',
+      matchedConcepts: ['thyroid'],
+      reason: 'NO_MATCHING_RECORD',
+      concepts: [{ concept: 'thyroid', labelNe: 'थाइरोइड', labelEn: 'thyroid' }],
+    });
+  });
+
+  it('names the reason UNCONFIRMED_DRAFTS_ONLY, pointing at the confirmation queue, when only a draft observation matched', () => {
+    const routed: RoutedAnswer = {
+      path: 'NOT_COMPUTABLE',
+      intent: 'LATEST_VALUE',
+      matchedConcepts: ['glucose'],
+      unconfirmedDraftsOnly: true,
+    };
+    const answer = composeAnswer(routed);
+    expect(answer).toEqual({
+      path: 'REFUSAL',
+      intent: 'LATEST_VALUE',
+      matchedConcepts: ['glucose'],
+      reason: 'UNCONFIRMED_DRAFTS_ONLY',
+      concepts: [{ concept: 'glucose', labelNe: 'चिनी', labelEn: 'glucose' }],
+    });
+  });
+
+  it('end-to-end: a DRAFT-only match through route() composes to the unconfirmed-drafts refusal', () => {
+    const routed = route(
+      'subject-1',
+      { observations: [makeObservation({ id: 'obs-draft', status: 'DRAFT' })], documents: [] },
+      'मेरो चिनी कस्तो छ?',
+    );
+    expect(composeAnswer(routed)).toEqual({
+      path: 'REFUSAL',
+      intent: 'TREND',
+      matchedConcepts: ['glucose'],
+      reason: 'UNCONFIRMED_DRAFTS_ONLY',
+      concepts: [{ concept: 'glucose', labelNe: 'चिनी', labelEn: 'glucose' }],
+    });
   });
 
   it('turns a real COMPUTED answer into cited claims with a tap-through target per citation', () => {
@@ -263,7 +337,13 @@ describe('composeAnswer', () => {
       ],
     };
 
-    expect(composeAnswer(routed)).toEqual({ path: 'REFUSAL', intent: 'TREND', matchedConcepts: [] });
+    expect(composeAnswer(routed)).toEqual({
+      path: 'REFUSAL',
+      intent: 'TREND',
+      matchedConcepts: [],
+      reason: 'NOTHING_CITABLE',
+      concepts: [],
+    });
   });
 
   it('drops only the uncited trend when a broad concept mixes a citable and an uncited analyte', () => {

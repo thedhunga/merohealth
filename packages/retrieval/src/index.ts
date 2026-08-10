@@ -165,6 +165,24 @@ export function expandQuery(query: string): ExpandedQuery {
   return { original: query, terms: [...terms], matchedConcepts };
 }
 
+/**
+ * Resolves a `matchedConcepts` id (e.g. `"thyroid"`) to the single
+ * Nepali/English label a refusal names it by — grounded-answers.md §6's
+ * "your record has no thyroid results" needs one canonical name per concept,
+ * not the whole surface-form list `expandQuery` matches against. Deliberately
+ * the first `ne`/`en` entry rather than a hand-picked "most formal" one: every
+ * entry already exists for matching, so this reuses it rather than curating a
+ * second, possibly-drifting label per concept.
+ */
+export function conceptLabel(concept: string): { labelNe: string; labelEn: string } | null {
+  const term = clinicalTermMap.find((candidate) => candidate.concept === concept);
+  if (!term) return null;
+  const labelNe = term.ne[0];
+  const labelEn = term.en[0];
+  if (labelNe === undefined || labelEn === undefined) return null;
+  return { labelNe, labelEn };
+}
+
 /* ------------------------------------------------------------------ *
  * Scoped retrieval
  *
@@ -213,6 +231,15 @@ export interface RetrievalResult {
   expansion: ExpandedQuery;
   observations: readonly RetrievedObservation[];
   documents: readonly RetrievedDocument[];
+  /** True when the subject has a `DRAFT` observation matching the query's
+   *  terms that `observations` above excludes for being untrusted —
+   *  grounded-answers.md §6's specific case, "the only relevant observations
+   *  are unconfirmed drafts," which needs a refusal that points at the
+   *  confirmation queue rather than the generic "nothing in your record."
+   *  False whenever `observations` is non-empty: a trusted match already
+   *  answers the question, so whether an *additional* draft also matched is
+   *  not the caller's concern. */
+  hasUnconfirmedMatches: boolean;
 }
 
 function citeObservation(observation: HealthObservation): Citation {
@@ -267,9 +294,14 @@ export function retrieveForSubject(
 ): RetrievalResult {
   const expansion = expandQuery(query);
 
-  const observations: RetrievedObservation[] = selectTrusted(corpus.observations)
+  // Computed once, ahead of the trust filter, so the DRAFT-only signal below
+  // can reuse the exact same ownership + term-match rows the trusted branch
+  // does rather than running the match twice with a chance of drifting.
+  const matchingSubjectObservations = corpus.observations
     .filter((observation) => observation.ownerId === subjectId)
-    .filter((observation) => matchesAnyTerm(expansion.terms, `${observation.labelNe} ${observation.labelEn}`))
+    .filter((observation) => matchesAnyTerm(expansion.terms, `${observation.labelNe} ${observation.labelEn}`));
+
+  const observations: RetrievedObservation[] = selectTrusted(matchingSubjectObservations)
     .map((observation) => ({ observation, citation: citeObservation(observation) }))
     .toSorted((a, b) => byEffectiveAtDescending(a.citation, b.citation));
 
@@ -279,5 +311,8 @@ export function retrieveForSubject(
     .map((document) => ({ document, citation: citeDocument(document) }))
     .toSorted((a, b) => byEffectiveAtDescending(a.citation, b.citation));
 
-  return { expansion, observations, documents };
+  const hasUnconfirmedMatches =
+    observations.length === 0 && matchingSubjectObservations.some((observation) => observation.status === 'DRAFT');
+
+  return { expansion, observations, documents, hasUnconfirmedMatches };
 }

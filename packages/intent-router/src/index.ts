@@ -1,6 +1,6 @@
 import { buildAnalyteTrend } from '@swasthya/health-records';
 import type { AnalyteTrend } from '@swasthya/health-records';
-import { expandQuery, retrieveForSubject } from '@swasthya/retrieval';
+import { conceptLabel, expandQuery, retrieveForSubject } from '@swasthya/retrieval';
 import type { Citation, RetrievalCorpus } from '@swasthya/retrieval';
 
 /* ------------------------------------------------------------------ *
@@ -116,6 +116,12 @@ export type RoutedAnswer =
       path: 'NOT_COMPUTABLE';
       intent: Intent;
       matchedConcepts: readonly string[];
+      /** True only when a computable intent matched a concept and the
+       *  subject's *only* matching observations are still `DRAFT` — the
+       *  grounded-answers.md §6 case that needs a refusal pointing at the
+       *  confirmation queue rather than "nothing in your record." Always
+       *  false for a non-computable intent, since those never retrieve. */
+      unconfirmedDraftsOnly: boolean;
     };
 
 const COMPUTABLE_INTENTS: ReadonlySet<Intent> = new Set(['TREND', 'LATEST_VALUE', 'COMPARISON']);
@@ -137,7 +143,12 @@ function byEffectiveAtAscending(a: { effectiveAt: string | null }, b: { effectiv
 export function route(subjectId: string, corpus: RetrievalCorpus, query: string): RoutedAnswer {
   const classification = classifyIntent(query);
   if (!COMPUTABLE_INTENTS.has(classification.intent)) {
-    return { path: 'NOT_COMPUTABLE', intent: classification.intent, matchedConcepts: classification.matchedConcepts };
+    return {
+      path: 'NOT_COMPUTABLE',
+      intent: classification.intent,
+      matchedConcepts: classification.matchedConcepts,
+      unconfirmedDraftsOnly: false,
+    };
   }
 
   const retrieval = retrieveForSubject(subjectId, corpus, query);
@@ -163,7 +174,12 @@ export function route(subjectId: string, corpus: RetrievalCorpus, query: string)
   }
 
   if (trends.length === 0) {
-    return { path: 'NOT_COMPUTABLE', intent: classification.intent, matchedConcepts: classification.matchedConcepts };
+    return {
+      path: 'NOT_COMPUTABLE',
+      intent: classification.intent,
+      matchedConcepts: classification.matchedConcepts,
+      unconfirmedDraftsOnly: retrieval.hasUnconfirmedMatches,
+    };
   }
   return { path: 'COMPUTED', intent: classification.intent as 'TREND' | 'LATEST_VALUE' | 'COMPARISON', trends };
 }
@@ -214,14 +230,63 @@ export interface Claim {
   targets: readonly CitationTarget[];
 }
 
+/**
+ * grounded-answers.md §6: refusals are specific — "your record has no
+ * thyroid results" — never a generic "I don't know." Each reason names a
+ * distinct situation a future UI phrases differently:
+ *
+ * - `NOT_UNDERSTOOD`: no clinical concept was recognised in the query at
+ *   all, so there is nothing specific to name — the one case where a
+ *   general "I didn't understand that" is honestly the best available.
+ * - `NO_MATCHING_RECORD`: a concept was recognised (e.g. "thyroid"), but
+ *   nothing in the subject's record — trusted or otherwise — matches it.
+ * - `UNCONFIRMED_DRAFTS_ONLY`: a concept was recognised and matches, but
+ *   only `DRAFT` observations do. This refusal must point at the
+ *   confirmation queue, not report an empty record.
+ * - `NOTHING_CITABLE`: the fail-safe path below — a computed trend existed
+ *   but carried no citation. Distinct from `NOT_UNDERSTOOD` because the
+ *   question *was* understood; nothing about the record was unclear, only
+ *   uncitable.
+ */
+export type RefusalReason = 'NOT_UNDERSTOOD' | 'NO_MATCHING_RECORD' | 'UNCONFIRMED_DRAFTS_ONLY' | 'NOTHING_CITABLE';
+
+export interface RefusalConcept {
+  concept: string;
+  labelNe: string;
+  labelEn: string;
+}
+
+/** Resolves each matched concept id to its display label once, so a caller
+ *  building "your record has no X results" copy has no second lookup into
+ *  `packages/retrieval`'s term map to do. Silently drops an id `conceptLabel`
+ *  cannot resolve rather than throw — `matchedConcepts` always comes from
+ *  `expandQuery` today so this never actually fires, but a refusal is not
+ *  the place to let a lookup miss become an unhandled exception. */
+function refusalConcepts(matchedConcepts: readonly string[]): readonly RefusalConcept[] {
+  const concepts: RefusalConcept[] = [];
+  for (const concept of matchedConcepts) {
+    const label = conceptLabel(concept);
+    if (label) concepts.push({ concept, ...label });
+  }
+  return concepts;
+}
+
 export type GroundedAnswer =
   | { path: 'ANSWERED'; claims: readonly Claim[] }
-  | { path: 'REFUSAL'; intent: Intent; matchedConcepts: readonly string[] };
+  | {
+      path: 'REFUSAL';
+      intent: Intent;
+      matchedConcepts: readonly string[];
+      reason: RefusalReason;
+      /** Empty exactly when `reason` is `NOT_UNDERSTOOD` or
+       *  `NOTHING_CITABLE` — the two reasons with no concept to name. */
+      concepts: readonly RefusalConcept[];
+    };
 
 /**
  * Turns a `RoutedAnswer` into what a caller actually hands the interface:
- * cited claims, or an explicit refusal. `NOT_COMPUTABLE` is always a
- * refusal here — unsupported intents, or a computable one with nothing
+ * cited claims, or an explicit, specific refusal. `NOT_COMPUTABLE` is always
+ * a refusal here — unsupported intents, or a computable one with nothing
  * trusted to answer from.
  *
  * The per-trend filter below is a real invariant, not defensive dead code:
@@ -234,7 +299,19 @@ export type GroundedAnswer =
  */
 export function composeAnswer(routed: RoutedAnswer): GroundedAnswer {
   if (routed.path === 'NOT_COMPUTABLE') {
-    return { path: 'REFUSAL', intent: routed.intent, matchedConcepts: routed.matchedConcepts };
+    const reason: RefusalReason =
+      routed.matchedConcepts.length === 0
+        ? 'NOT_UNDERSTOOD'
+        : routed.unconfirmedDraftsOnly
+          ? 'UNCONFIRMED_DRAFTS_ONLY'
+          : 'NO_MATCHING_RECORD';
+    return {
+      path: 'REFUSAL',
+      intent: routed.intent,
+      matchedConcepts: routed.matchedConcepts,
+      reason,
+      concepts: refusalConcepts(routed.matchedConcepts),
+    };
   }
 
   const claims: Claim[] = routed.trends
@@ -249,8 +326,16 @@ export function composeAnswer(routed: RoutedAnswer): GroundedAnswer {
   if (claims.length === 0) {
     // `RoutedAnswer`'s `COMPUTED` branch carries no `matchedConcepts` (only
     // `NOT_COMPUTABLE` does) — this path is the fail-safe described above,
-    // not one `route` can reach today, so there is nothing truer to report.
-    return { path: 'REFUSAL', intent: routed.intent, matchedConcepts: [] };
+    // not one `route` can reach today. `NOTHING_CITABLE`, not
+    // `NOT_UNDERSTOOD`: the question *was* understood, every trend just got
+    // filtered for lacking a citation.
+    return {
+      path: 'REFUSAL',
+      intent: routed.intent,
+      matchedConcepts: [],
+      reason: 'NOTHING_CITABLE',
+      concepts: [],
+    };
   }
 
   return { path: 'ANSWERED', claims };

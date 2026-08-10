@@ -131,7 +131,7 @@ Read it before starting; the ordering rules there are not optional.
       the model.**
 - [x] Citations on every claim, with tap-through to the source observation or
       document. An answer that cannot cite is a refusal.
-- [ ] Specific refusals: "your record has no thyroid results", never a generic
+- [x] Specific refusals: "your record has no thyroid results", never a generic
       "I don't know". Include the unconfirmed-drafts case, pointing at the
       confirmation queue.
 - [ ] **Cross-subject leakage test.** A question asked in one subject's
@@ -389,6 +389,97 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task B4: specific refusals — "your record has no
+  thyroid results," never a generic "I don't know," including the
+  unconfirmed-drafts case pointing at the confirmation queue.** First
+  unchecked task after B3. Builds directly on B3's `GroundedAnswer.REFUSAL`
+  shape, per that entry's own "for the next run" note.
+
+  **What was built.** Two packages changed, no new package. `packages/retrieval`:
+  `retrieveForSubject` used to run `selectTrusted` before the owner/term-match
+  filters, which meant a `DRAFT` observation that matched the query's terms
+  was discarded before anything could tell the caller it had ever matched at
+  all — indistinguishable from "nothing in the record even mentions this."
+  Reordered so ownership + term-matching runs once into
+  `matchingSubjectObservations`, then the trusted branch filters *that* (same
+  result as before, order of independent filters doesn't change it — no
+  regression), and a new `hasUnconfirmedMatches` field on `RetrievalResult` is
+  true exactly when the trusted branch came back empty but a `DRAFT` was among
+  the matches. False whenever a trusted match exists (nothing to point at the
+  confirmation queue for) and false for a `REJECTED`-only match (the person
+  already dismissed that value; there's nothing pending). Also added
+  `conceptLabel(concept)`, resolving a `matchedConcepts` id (e.g. `"thyroid"`)
+  to one canonical `{ labelNe, labelEn }` pair — deliberately just the first
+  `ne`/`en` entry already in `clinicalTermMap` for that concept, not a new
+  hand-picked label, so there is no second curated value to drift from the
+  entries the term map already carries for matching.
+
+  `packages/intent-router`: `RoutedAnswer`'s `NOT_COMPUTABLE` branch gained
+  `unconfirmedDraftsOnly: boolean` — false for a non-computable intent (no
+  retrieval ever runs for `DEFINITION`/`ADVICE`/`UNSUPPORTED`), and
+  `retrieval.hasUnconfirmedMatches` for a computable intent that found nothing
+  trusted. `composeAnswer`'s `GroundedAnswer.REFUSAL` gained `reason` (a new
+  `RefusalReason` union) and `concepts` (matched concepts resolved to labels
+  via `conceptLabel`, so a future UI needs no second lookup). Four reasons,
+  one per distinct situation rather than collapsing them into a boolean:
+  `NOT_UNDERSTOOD` (no concept recognised at all — the one case where a
+  general "I didn't understand that" is honestly the best available, since
+  there is nothing specific to name), `NO_MATCHING_RECORD` (a concept was
+  recognised, nothing in the record matches it, trusted or not),
+  `UNCONFIRMED_DRAFTS_ONLY` (a concept was recognised and matches, but only a
+  `DRAFT` does — this is the queue item's confirmation-queue case), and
+  `NOTHING_CITABLE` for the pre-existing fail-safe branch (a computed trend
+  existed but every point got filtered for lacking a citation) — kept
+  separate from `NOT_UNDERSTOOD` because that question *was* understood,
+  which `matchedConcepts: []` alone doesn't convey.
+
+  **Deliberately still no rendered copy, no messages/*.json entries.** The
+  queue item's own example sentence ("your record has no thyroid results") is
+  illustrative of what a UI eventually renders, not literal output text this
+  run produces — same restraint B3 documented for its own citation
+  tap-through target: `CompanionController` still is not wired to
+  `clinical-safety → route → composeAnswer` (confirmed unchanged by grep, same
+  as B3 found), so there is no component anywhere yet for
+  "every user-visible string goes in ne.json and en.json" to apply to. What
+  this run built is the *data* a refusal needs to be specific — a reason code
+  plus resolved bilingual concept labels — mirroring the precedent
+  `packages/auth` already set (error codes in the package, translated strings
+  in `apps/web`'s own message namespace) rather than inventing prose in a
+  backend package with no i18n system of its own.
+
+  **Tests.** `@swasthya/retrieval`: 3 new (`conceptLabel` resolves a known
+  concept, returns null for an unknown one, resolves every concept in the
+  map) plus 4 new on `retrieveForSubject` (flags `hasUnconfirmedMatches` for a
+  DRAFT-only match, does not for a REJECTED-only match, does not when a
+  trusted match already exists alongside a draft, does not for another
+  subject's draft). `@swasthya/intent-router`: updated the three existing
+  `NOT_COMPUTABLE`/`REFUSAL` exact-equality tests for the new fields, added 4
+  new (`NO_MATCHING_RECORD` with a resolved label, `UNCONFIRMED_DRAFTS_ONLY`
+  with a resolved label, an end-to-end `route()` → `composeAnswer()` case for
+  the DRAFT scenario, and the `NOTHING_CITABLE` fail-safe branch). Full verify
+  suite green (`pnpm install --frozen-lockfile`, `lint`, `typecheck`, `test` —
+  `@swasthya/retrieval` and `@swasthya/intent-router` both up by their new
+  test counts, every other package's count unchanged — `build`); grepped both
+  `apps/api` and `apps/web` for any existing consumer of `GroundedAnswer`,
+  `RoutedAnswer` or `RetrievalResult` before changing their shapes — none
+  exists yet, confirming this was safe to reshape without a second caller to
+  update.
+
+  **For the next run:** the queue's next unchecked item is the cross-subject
+  leakage test — "a question asked in one subject's context must be
+  unanswerable from another's record, including under an active delegation,"
+  named as the system's highest-severity failure class. `packages/family`
+  (round two C, delegation) doesn't exist yet, so the "under an active
+  delegation" half of that test may need to be scoped to what's buildable
+  today (subject isolation through `retrieveForSubject`/`route` without a
+  delegation layer to test against) or treated as a partial pass — worth
+  deciding explicitly rather than silently narrowing the test's own
+  description. `CompanionController` still isn't wired to any of B1-B4's
+  deterministic layer, and the evaluation set (the last item under B) still
+  needs real Nepali question/record-state pairs, including refusal cases —
+  this run's `RefusalReason` values are exactly what those refusal cases
+  would assert against.
 
 - 2026-08-10 — **Round two, task B3: citations on every claim, with
   tap-through, and an answer that cannot cite is a refusal.** First unchecked

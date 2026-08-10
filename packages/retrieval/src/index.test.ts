@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { HealthDocument, HealthObservation } from '@swasthya/shared-types';
 
-import { clinicalTermMap, expandQuery, retrieveForSubject } from './index';
+import { clinicalTermMap, conceptLabel, expandQuery, retrieveForSubject } from './index';
 
 function makeObservation(overrides: Partial<HealthObservation> = {}): HealthObservation {
   return {
@@ -59,6 +59,22 @@ describe('clinicalTermMap', () => {
   it('has no duplicate concept ids', () => {
     const concepts = clinicalTermMap.map((term) => term.concept);
     expect(new Set(concepts).size).toBe(concepts.length);
+  });
+});
+
+describe('conceptLabel', () => {
+  it('resolves a recognised concept to its Nepali and English display label', () => {
+    expect(conceptLabel('thyroid')).toEqual({ labelNe: 'थाइरोइड', labelEn: 'thyroid' });
+  });
+
+  it('returns null for an id not in the term map', () => {
+    expect(conceptLabel('not-a-real-concept')).toBeNull();
+  });
+
+  it('resolves every concept in the term map, for whatever a future refusal names', () => {
+    for (const term of clinicalTermMap) {
+      expect(conceptLabel(term.concept), term.concept).not.toBeNull();
+    }
   });
 });
 
@@ -203,6 +219,59 @@ describe('retrieveForSubject', () => {
     );
 
     expect(result.observations).toEqual([]);
+    expect(result.hasUnconfirmedMatches).toBe(false);
+  });
+
+  it('flags hasUnconfirmedMatches when the only matching observation is a DRAFT', () => {
+    const result = retrieveForSubject(
+      'subject-1',
+      { observations: [makeObservation({ id: 'obs-draft', status: 'DRAFT' })], documents: [] },
+      'glucose',
+    );
+
+    expect(result.observations).toEqual([]);
+    expect(result.hasUnconfirmedMatches).toBe(true);
+  });
+
+  it('does not flag hasUnconfirmedMatches when a REJECTED observation matches but nothing else does', () => {
+    // A rejected value was explicitly wrong (health-records's own doc
+    // comment) — the person already dismissed it, so there is nothing
+    // pending for them to confirm. Distinct from the DRAFT case above.
+    const result = retrieveForSubject(
+      'subject-1',
+      { observations: [makeObservation({ id: 'obs-rejected', status: 'REJECTED' })], documents: [] },
+      'glucose',
+    );
+
+    expect(result.observations).toEqual([]);
+    expect(result.hasUnconfirmedMatches).toBe(false);
+  });
+
+  it('does not flag hasUnconfirmedMatches when a trusted match already answers the question', () => {
+    const result = retrieveForSubject(
+      'subject-1',
+      {
+        observations: [
+          makeObservation({ id: 'obs-confirmed', status: 'CONFIRMED' }),
+          makeObservation({ id: 'obs-draft', status: 'DRAFT' }),
+        ],
+        documents: [],
+      },
+      'glucose',
+    );
+
+    expect(result.observations.map((r) => r.observation.id)).toEqual(['obs-confirmed']);
+    expect(result.hasUnconfirmedMatches).toBe(false);
+  });
+
+  it('does not flag hasUnconfirmedMatches for a DRAFT observation belonging to another subject', () => {
+    const result = retrieveForSubject(
+      'subject-1',
+      { observations: [makeObservation({ id: 'obs-draft', ownerId: 'subject-2', status: 'DRAFT' })], documents: [] },
+      'glucose',
+    );
+
+    expect(result.hasUnconfirmedMatches).toBe(false);
   });
 
   it('orders matches most-recent-first, undated last', () => {
