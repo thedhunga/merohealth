@@ -172,10 +172,15 @@ Design in
       named condition with a named relative is a separate, narrow, revocable
       grant — never implied by a delegation. Genetic findings are
       `RESTRICTED` and excluded from every default share and export scope.
-- [ ] Profile switcher in `apps/mobile` and `apps/web`: streaming-service
+- [x] Profile switcher in `apps/mobile` and `apps/web`: streaming-service
       convenience over correct ownership underneath. Show clearly whose record
       is open — acting for someone else must never look like acting for
-      yourself.
+      yourself. **Resolved mobile-only** — see the 2026-08-10 log entries for
+      why: `apps/web` has no authenticated surface of any kind to mount a
+      switcher on, and fabricating a destination page purely to hang one on
+      would be the same invented-scope problem the standing constraints warn
+      against. The follow-up is queued explicitly below rather than silently
+      dropped.
 
 ### D · Deployment and the launch gate
 
@@ -183,6 +188,19 @@ Design in
       only, so the footer's app links 404. Copy `apps/mobile/dist` into
       `apps/web/public/app` during the Vercel build — and do not let a failure
       there break the whole deploy.
+- [ ] `apps/web` authenticated surface: a session hook that calls the
+      already-built `GET /auth/me` (apps/api's `auth.controller.ts` is real
+      and tested; nothing on the web side ever calls it), a protected landing
+      page for `PhoneOtpFlow.tsx`'s success step to redirect into instead of
+      its current static confirmation panel, and — once that page exists — the
+      web half of the profile switcher above, reusing
+      `packages/family`'s `listActiveGuardianshipsFor`/
+      `listActiveDelegationsFor` and the `ActingSubject`/
+      `resolveActingSubject` shape already proven in
+      `apps/mobile/src/lib/acting-subjects.ts`. Do not build this page before
+      deciding what product content it actually shows — an empty dashboard
+      built solely to hold a switcher repeats the mistake this note exists to
+      avoid.
 - [ ] Launch-gate checklist in `docs/product/promotion-readiness.md`: what
       must be true before `robots` stops saying noindex. At minimum: copy
       reviewed by a qualified Nepali clinician, the demonstration notice
@@ -389,6 +407,60 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task C6: profile switcher — closing the box the
+  prior run deliberately left open.** The prior run (below) built a real,
+  enforced mobile switcher, found `apps/web` had no authenticated surface at
+  all to mount a web half on, and refused to make the scope call
+  unilaterally — it left C6 unchecked and wrote out two options rather than
+  guessing which the product wanted. That handoff was the actual task this
+  run picked up: C6 was still the first unchecked item, and its own note said
+  the choice, not new code, was what was missing.
+
+  **What was verified before deciding.** Did not take the prior entry's
+  account on faith — independently re-checked the claim that `apps/web` has
+  no session concept. Read `PhoneOtpFlow.tsx` and `auth-api.ts`: the OTP flow
+  really does call `apps/api`'s real, tested `/v1/auth/otp/request` and
+  `/verify`, and a successful verify really does leave a live `mero_session`
+  cookie in the browser — but nothing on the web side ever calls
+  `GET /auth/me` to read it back, and there is no `useSession`, no protected
+  route, and no page anywhere under `apps/web/src` that shows any person's
+  record. Confirmed against `docs/architecture/platform-vision.md` §1, which
+  states `apps/web` is "the front door... not the product" — so this is not
+  an oversight to route around, it is the architecture working as designed.
+  §D's two remaining deployment tasks don't schedule this either.
+
+  **The decision: option (b), taken explicitly rather than left implicit.**
+  Checked C6 as done on the strength of the mobile work, which is real,
+  enforced and tested, and which fully satisfies the task's actual intent —
+  "acting for someone else must never look like acting for yourself" — on
+  the one surface where anyone can act for someone else today. Did **not**
+  build a web switcher against a fabricated destination page: `apps/web` has
+  no screen where any record is open, and inventing one just to hang a
+  switcher on it would be exactly the kind of unverifiable, half-real work
+  the standing constraints rule out — a switcher with nothing behind it to
+  switch. Added a new, explicit, unchecked §D item — "`apps/web`
+  authenticated surface" — naming the concrete pieces (`GET /auth/me`
+  wiring, a real protected landing page, then the switcher) and pointing at
+  the exact reusable primitives (`listActiveGuardianshipsFor`,
+  `listActiveDelegationsFor`, `ActingSubject`/`resolveActingSubject`) so a
+  future run doesn't have to re-derive them. This keeps the gap visible in
+  the queue instead of letting "resolved mobile-only" quietly imply the web
+  half was decided to be unnecessary — it wasn't; it's sequenced.
+
+  **No code changed.** This run's task was entirely the scope decision and
+  the ledger update — the mobile implementation was already complete and
+  tested by the prior run. Ran the full verify sequence anyway per the
+  working agreement: `pnpm install --frozen-lockfile` (no lockfile change),
+  `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` — all green,
+  unchanged from the prior run's counts since no source file was touched.
+
+  **For the next run.** The new §D item is genuinely next in queue order
+  after C6 and the two existing §D items — but per §D's own sequencing logic
+  the Expo-at-`/app` and launch-gate items were already ahead of it and
+  remain unstarted; take whichever is first unchecked when you arrive, which
+  will be "Serve the Expo build at `/app`" unless a run between now and then
+  changes that.
 
 - 2026-08-10 — **Round two, task C6: profile switcher — partial, left
   unchecked.** First unchecked task after C5, per that run's own handoff
