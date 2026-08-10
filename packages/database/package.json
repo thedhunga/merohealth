@@ -13,17 +13,19 @@
     "generate": "prisma generate",
     "validate": "prisma validate",
     "migrate": "prisma migrate dev",
-    "seed": "prisma db execute --file prisma/seed.sql",
-    "lint": "prisma format --check && prisma generate && eslint src",
+    "seed": "tsx prisma/seed.ts",
+    "lint": "prisma format --check && prisma generate && eslint src prisma/seed.ts",
     "typecheck": "prisma validate && prisma generate && tsc -p tsconfig.json",
-    "test": "prisma generate && vitest run src --passWithNoTests"
+    "test": "prisma generate && vitest run src"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.9.1",
-    "@prisma/client": "7.9.1"
+    "@prisma/client": "7.9.1",
+    "@swasthya/shared-types": "workspace:*"
   },
   "devDependencies": {
     "prisma": "7.9.1",
+    "tsx": "4.23.9",
     "typescript": "6.0.3",
     "vitest": "4.1.10"
   }

@@ -103,7 +103,7 @@ real user, or a real question. This round makes it real, in that order.
       database. **Every module so far is tested against in-memory fakes** —
       expect constraint, cascade and enum problems that no unit test could
       have caught.
-- [ ] Seed script producing a realistic Nepali demonstration dataset: a few
+- [x] Seed script producing a realistic Nepali demonstration dataset: a few
       subjects, lab reports with Devanagari and English labels, a
       multi-generation family, and at least one condition with genetic
       relevance. This is what every later task tests against.
@@ -389,6 +389,100 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task A2: seed script producing a realistic
+  Nepali demonstration dataset.** First unchecked task after A1. Same
+  environment constraint as last run: `compose.yaml`'s Postgres image is
+  still blocked at the egress proxy (`connect_rejected`), so this used the
+  same pre-installed `postgresql-16` + `swasthya`/`swasthya` role/database
+  workaround — worth automating if a future run keeps hitting this.
+
+  **What was built.** `prisma/seed.sql` (a single fictional owner, six rows)
+  is gone, replaced by two files: `packages/database/src/seed-data.ts`, a
+  pure, DB-free module of typed plain-object rows, and
+  `packages/database/prisma/seed.ts`, a thin script that applies them via
+  `createPrismaClient()` (A1's factory) and per-row `upsert`s keyed by fixed
+  id — same idempotent "insert once, no-op after" behaviour the old
+  `ON CONFLICT DO NOTHING` SQL had, just expressed through Prisma. `seed-data.ts`
+  has its own colocated `seed-data.test.ts` (9 tests) asserting the shape
+  invariants that matter downstream: every subject is genuinely their own
+  record (family-and-proxy.md §1 — no nested profiles), every observation
+  carries both a Devanagari and an English label, every subject has at least
+  one trusted (CONFIRMED/CORRECTED) observation, at least one DRAFT
+  observation sits below health-records's `LOW_CONFIDENCE_THRESHOLD` to
+  exercise the confirmation queue, and the one genetic-relevant condition
+  never gets written onto a relative's record.
+
+  **The dataset.** Three generations of one fictional family (थापा — Janaki
+  the grandmother, 68; Sunita her daughter, 41; Roshani the granddaughter, 12,
+  a minor) plus one unrelated adult (Arjun, 35) so Round two B's cross-subject
+  leakage test has two genuinely separate people to prove isolation between,
+  not just a household that already shares data informally. Janaki carries
+  the genetic-relevant condition — Type 2 diabetes mellitus, SNOMED
+  `44054006`, marked `geneticRelevance: true` in its `code` JSON — recorded
+  only on her own `Condition` row. Deliberately does **not** also write
+  anything onto Sunita's or Roshani's records: family-and-proxy.md §5 is
+  explicit that a diagnosis never propagates automatically, only a
+  `FamilyHistoryAssertion` the descendant states herself would, and that
+  model doesn't exist until `packages/family` (Round two C) is built —
+  fabricating it early would have overstated what this platform can do
+  today. For the same reason, Roshani (the one minor) gets a real
+  `CaregiverRelationship` linking Sunita as her guardian with a **scoped**
+  permission set (`VIEW_RECORD`, `ASK_ASSISTANT`, `MANAGE_APPOINTMENTS`, not
+  `UPLOAD_DOCUMENTS`), but Janaki and Sunita — two competent adults — are
+  *not* linked by any schema relationship, because that would be a
+  delegation, a different state machine Round two C also hasn't built yet.
+  Six lab observations across the four subjects use real LOINC codes (HbA1c
+  `4548-4`, fasting glucose `1558-6`, TSH `3016-3`, vitamin D `1989-3`,
+  haemoglobin `718-7`, total cholesterol `2093-3`) with Devanagari + English
+  label pairs, matching the convention `packages/interop`'s and
+  `packages/health-records`'s own test fixtures already use (e.g. creatinine
+  `2160-0`) rather than the old fixture's placeholder `LOCAL:` codes — Round
+  two B's lexical retrieval needs recognisable codes to match against. The
+  four original core rows (two `Organization`s, two `DirectoryEntity`
+  rows, two `FeatureFlag`s, one `Plan`) carried over unchanged.
+
+  **Package changes.** `packages/database` now depends on
+  `@swasthya/shared-types` (for `HealthDocumentKind`, `DocumentStatus`,
+  `ObservationStatus`, etc. — every other domain package already does) and
+  declares its own `tsx` devDependency at the same `4.23.9` apps/api already
+  pins, matching that package's own `tsx watch src/main.ts` precedent rather
+  than assuming the root's `tsx` is on `PATH` for a `pnpm --filter` script.
+  One trap hit along the way: shared-types already exports a
+  `VerificationStatus` type, but it's a *different* concept (the identity
+  assurance workflow — `NOT_STARTED`/`EVIDENCE_SUBMITTED`/…) from the
+  Prisma schema's `VerificationStatus` (the org/directory claim-and-review
+  lifecycle — `CLAIMED`/`VERIFIED`/…); `seed-data.ts` type-imports the
+  Prisma one from `../generated/enums.ts` instead, now with a comment
+  explaining why so the next run doesn't reach for the wrong one.
+  `package.json`'s `seed` script is now `tsx prisma/seed.ts`; `lint` and
+  `tsconfig.json`'s `include` were extended to cover `prisma/seed.ts` too
+  (it lives outside `src`, which is all every other package's lint/typecheck
+  scope touches).
+
+  **Verification.** Beyond the standard pipeline (`pnpm install
+  --frozen-lockfile`, `lint`, `typecheck`, `test`, `build`, all green —
+  `@swasthya/database` now 13 tests, `@swasthya/api` still 271 unchanged):
+  ran `pnpm --filter @swasthya/database seed` against the real Postgres
+  instance twice in a row and confirmed the second run changed nothing
+  (idempotent), then spot-checked `PatientProfile.displayName`,
+  `HealthObservation.labelNe`/`labelEn`/`status`, and `Condition.code` via
+  `psql` directly — all four subjects present, all six observations with
+  correct Devanagari/English pairs, the DRAFT one still DRAFT, and the
+  condition JSON round-tripping `geneticRelevance: true` correctly. Not
+  part of the committed pipeline for the same reason A1's live-DB round
+  trip wasn't — this environment doesn't guarantee Postgres for every
+  future run.
+
+  **For the next run:** A3 (phone + OTP auth, real `subjectId` on every
+  request) is next. It's the first task that actually needs
+  `@swasthya/database` wired into `apps/api`'s DI graph — nothing in
+  `apps/api` constructs a `PrismaClient` yet, same gap A1's log noted. This
+  seed data is what A3–A4 and Round two B/C should authenticate against and
+  query rather than inventing their own fixtures; the four subjects' ids are
+  the exported `janakiId`/`sunitaId`/`roshaniId`/`arjunId`-shaped constants
+  in `seed-data.ts` (not re-exported by name — read the file) if a future
+  task wants to log in as one of them.
 
 - 2026-08-10 — **Round two, task A1: bring up Postgres from `compose.yaml`,
   run the Prisma migration for the first time, fix what breaks against a
