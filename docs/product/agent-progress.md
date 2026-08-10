@@ -134,7 +134,7 @@ Read it before starting; the ordering rules there are not optional.
 - [x] Specific refusals: "your record has no thyroid results", never a generic
       "I don't know". Include the unconfirmed-drafts case, pointing at the
       confirmation queue.
-- [ ] **Cross-subject leakage test.** A question asked in one subject's
+- [x] **Cross-subject leakage test.** A question asked in one subject's
       context must be unanswerable from another's record, including under an
       active delegation. This is the highest-severity failure the system can
       have and gets an explicit test, not a code review. The cross-owner gap
@@ -389,6 +389,81 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task B5: cross-subject leakage test.** First
+  unchecked task after B4, named by grounded-answers.md §3 as "the
+  highest-severity failure this system can have" and required to get "an
+  explicit test, not a code review."
+
+  **What was built.** A new dedicated file,
+  `packages/intent-router/src/cross-subject-leakage.test.ts` — following the
+  repo's existing `*.fault-isolation.test.ts` precedent of giving a
+  cross-cutting property its own named file rather than folding it into
+  `index.test.ts`, where it would read as one more `describe` block among
+  many rather than the explicit test the design doc calls for. It exercises
+  the full pipeline (`retrieveForSubject` from `@swasthya/retrieval`, already
+  a dependency of this package, then `route` → `composeAnswer`) against a
+  single shared, deliberately adversarial corpus: two subjects on the same
+  analyte code, where subject-2's reading is newer, more abnormal, and would
+  flip subject-1's trend direction if it ever leaked in — so a regression to
+  "most relevant across the corpus" instead of "owned by this subject" fails
+  on a wrong *value*, not just an extra row. 8 tests: `retrieveForSubject`
+  isolation for observations, documents, and `hasUnconfirmedMatches`; the
+  same three properties again end-to-end through `route`/`composeAnswer`
+  (including that a citation's `documentId`/target never points at the other
+  subject's document); and two symmetry tests (subject-2 querying the
+  identical corpus never sees subject-1's rows) since the existing
+  scattered cross-owner tests in `packages/retrieval` and this package's own
+  `index.test.ts` only ever checked one direction. One case is worth calling
+  out on its own: a query whose only matching record anywhere is another
+  subject's `DRAFT` must refuse with `NO_MATCHING_RECORD`, not
+  `UNCONFIRMED_DRAFTS_ONLY` — the latter would itself leak the fact that the
+  other subject's record contains something pending confirmation, which is
+  exactly the kind of leak a citation-count check wouldn't catch. All 8 new
+  tests import fixtures identical in shape to the existing `makeObservation`/
+  `makeDocument` helpers already in `packages/retrieval/src/index.test.ts`
+  and this package's `index.test.ts`, not shared across files, matching how
+  those two files each already keep their own copy rather than a shared
+  test-utils module.
+
+  **Scope decision, made explicitly rather than narrowed silently** (per the
+  previous run's own note): the queue item's wording is "including under an
+  active delegation." `packages/family` (round two §C) does not exist yet —
+  no `DelegationGrant`, no scoped-permission state machine — so there is
+  nothing for a delegation-scoped test to exercise today, and hand-rolling a
+  fake delegation type just to have something to assert against would be
+  fiction dressed as coverage, which "invent no facts" rules out for test
+  fixtures as much as for product copy. Left as
+  `describe.todo('cross-subject leakage — under an active delegation (blocked
+  on packages/family)')` at the bottom of the new file, with a comment
+  explaining why, so it stays visible in every test run's output rather than
+  being a line in a comment nobody re-reads. **This task is ticked as done
+  for what is buildable today — non-delegated subject isolation — not as a
+  claim that the delegation half is covered.** Whoever builds `packages/family`
+  should turn that `describe.todo` into a real test before calling delegation
+  done, using this file's adversarial-corpus pattern (the delegate's own
+  record made the more attractive match) as the template.
+
+  **Verify.** `pnpm install --frozen-lockfile` (clean install, no lockfile
+  drift), `pnpm lint`, `pnpm typecheck` — both green, 29/29 tasks each.
+  `pnpm test` — 52/52 tasks, `@swasthya/intent-router` now at 32 tests (24
+  existing + 8 new), every other package's count unchanged. `pnpm build` —
+  29/29 tasks (23 cached from the unaffected packages, `intent-router` and
+  its dependents rebuilt). Note for future runs: `pnpm --filter <pkg> test`
+  run in isolation fails to resolve workspace dependencies (`turbo.json`'s
+  `test` task `dependsOn: ["^build"]` — dependencies need their `dist/`
+  built first); the root `pnpm test` (via turbo) handles this and is what
+  the working agreement already specifies, but it's worth knowing why a
+  single-package `--filter test` looks broken if you reach for it.
+
+  **For the next run:** the queue's next unchecked item is the evaluation
+  set — real Nepali questions paired with the record state they should be
+  answered from, including refusal cases. B5's `RefusalReason` values
+  (`NOT_UNDERSTOOD`, `NO_MATCHING_RECORD`, `UNCONFIRMED_DRAFTS_ONLY`,
+  `NOTHING_CITABLE`) and this run's own leakage corpus are exactly the
+  refusal cases that evaluation set needs to include. `CompanionController`
+  is still not wired to any of B1-B5's deterministic layer — grep confirms
+  this remains unchanged from prior runs' findings.
 
 - 2026-08-10 — **Round two, task B4: specific refusals — "your record has no
   thyroid results," never a generic "I don't know," including the
