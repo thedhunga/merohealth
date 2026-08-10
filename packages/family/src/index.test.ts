@@ -21,6 +21,8 @@ import {
   isConditionShareActive,
   isDelegationActive,
   isGuardianshipActive,
+  listActiveDelegationsFor,
+  listActiveGuardianshipsFor,
   recordDelegatedAccess,
   recordGuardianshipAccess,
   revokeConditionShare,
@@ -522,6 +524,95 @@ describe('access log — owner visibility (family-and-proxy.md §4)', () => {
     const earlier = recordDelegatedAccess('a-1', grant, 'VIEW_RECORD', 'first visit', '2026-08-12T00:00:00.000Z');
 
     expect(accessLogForOwner([later, earlier], 'janaki')).toEqual([earlier, later]);
+  });
+});
+
+describe('acting-as query — guardianship (family-and-proxy.md §1, round two §C6)', () => {
+  it('lists a ward the guardian may currently act as', () => {
+    const grant = grantGuardianshipForMinor('g-1', 'roshani', 'sunita', roshaniDateOfBirth, '2026-08-10T00:00:00.000Z');
+
+    expect(listActiveGuardianshipsFor([grant], 'sunita', '2026-08-15T00:00:00.000Z')).toEqual([grant]);
+  });
+
+  it('excludes a guardianship revoked before the query time — a switcher must not offer a lapsed ward', () => {
+    const grant = grantGuardianshipForMinor('g-1', 'roshani', 'sunita', roshaniDateOfBirth, '2026-08-10T00:00:00.000Z');
+    const revoked = revokeGuardianship(grant, '2026-08-12T00:00:00.000Z');
+
+    expect(listActiveGuardianshipsFor([revoked], 'sunita', '2026-08-15T00:00:00.000Z')).toEqual([]);
+  });
+
+  it('excludes a guardianship that has aged past the ward\'s 18th birthday', () => {
+    const grant = grantGuardianshipForMinor('g-1', 'roshani', 'sunita', roshaniDateOfBirth, '2026-08-10T00:00:00.000Z');
+
+    expect(listActiveGuardianshipsFor([grant], 'sunita', '2033-01-01T00:00:00.000Z')).toEqual([]);
+  });
+
+  it("never returns a grant belonging to someone else's guardianship", () => {
+    const grant = grantGuardianshipForMinor('g-1', 'roshani', 'sunita', roshaniDateOfBirth, '2026-08-10T00:00:00.000Z');
+
+    expect(listActiveGuardianshipsFor([grant], 'arjun', '2026-08-15T00:00:00.000Z')).toEqual([]);
+  });
+
+  it('orders multiple wards oldest-grant-first, for a stable switcher list', () => {
+    const later = grantGuardianshipForIncapacity('g-2', 'janaki', 'sunita', '2027-01-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
+    const earlier = grantGuardianshipForMinor('g-1', 'roshani', 'sunita', roshaniDateOfBirth, '2026-08-10T00:00:00.000Z');
+
+    expect(listActiveGuardianshipsFor([later, earlier], 'sunita', '2026-09-15T00:00:00.000Z')).toEqual([earlier, later]);
+  });
+});
+
+describe('acting-as query — delegation (family-and-proxy.md §1, round two §C6)', () => {
+  it('lists a granter the delegate may currently act as, scopes included', () => {
+    const grant = grantDelegation(
+      'd-1',
+      'janaki',
+      'arjun',
+      ['VIEW_RECORD', 'MANAGE_APPOINTMENTS'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+    );
+
+    expect(listActiveDelegationsFor([grant], 'arjun', '2026-08-15T00:00:00.000Z')).toEqual([grant]);
+  });
+
+  it('excludes a delegation revoked before the query time — a switcher must not offer a lapsed grant', () => {
+    const grant = grantDelegation(
+      'd-1',
+      'janaki',
+      'arjun',
+      ['VIEW_RECORD'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+    );
+    const revoked = revokeDelegation(grant, '2026-08-12T00:00:00.000Z');
+
+    expect(listActiveDelegationsFor([revoked], 'arjun', '2026-08-15T00:00:00.000Z')).toEqual([]);
+  });
+
+  it('excludes a delegation that has passed its expiry', () => {
+    const grant = grantDelegation(
+      'd-1',
+      'janaki',
+      'arjun',
+      ['VIEW_RECORD'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+    );
+
+    expect(listActiveDelegationsFor([grant], 'arjun', '2026-12-01T00:00:00.000Z')).toEqual([]);
+  });
+
+  it("never returns a grant belonging to someone else's delegation", () => {
+    const grant = grantDelegation(
+      'd-1',
+      'janaki',
+      'arjun',
+      ['VIEW_RECORD'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+    );
+
+    expect(listActiveDelegationsFor([grant], 'sunita', '2026-08-15T00:00:00.000Z')).toEqual([]);
   });
 });
 

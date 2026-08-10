@@ -390,6 +390,97 @@ sequenced but must not be started while anything above is unfinished.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-10 — **Round two, task C6: profile switcher — partial, left
+  unchecked.** First unchecked task after C5, per that run's own handoff
+  note. Read family-and-proxy.md §1 before starting. Investigated the full
+  surface first — `packages/family`'s exports, `apps/mobile`'s session
+  state and screens, and `apps/web`'s auth flow — before writing anything,
+  because the task names two apps and neither had an obvious mount point.
+
+  **What was built.** Two pieces, both real and wired into a live screen,
+  not stubs:
+
+  1. `packages/family` gained the query direction the package was missing:
+     `listActiveGuardianshipsFor` and `listActiveDelegationsFor`, filtering
+     to active-at-`now` and sorted oldest-grant-first, symmetric to
+     `accessLogForOwner`'s existing pattern. Every prior §C task answered
+     "who accessed *my* record" or "what was shared *with* me"; a switcher
+     needs the opposite direction — "whose record can *I* currently open" —
+     and nothing in the package answered that until now.
+  2. `apps/mobile` gained a real, enforced switcher, not a cosmetic label.
+     `src/lib/acting-subjects.ts` defines `ActingSubject` (`SELF` |
+     `GUARDIAN` | `DELEGATE`) and `resolveActingSubject`, which throws
+     `UnknownActingSubjectError` rather than silently keeping the previous
+     subject when asked for an id outside the authorised list — that throw
+     *is* "acting for someone else must never look like acting for
+     yourself" stated as code, not merely a UI convention. `AppStateProvider`
+     now exposes `actingSubjects` / `activeSubject` / `switchActingSubject`
+     built on top of it, and a new `src/components/ProfileSwitcher.tsx`
+     renders the active subject as a persistent pill — always visible, never
+     inferred from context — with a distinct saffron treatment plus a
+     "· guardian" / "· प्रतिनिधि" suffix the instant `relationship !== 'SELF'`.
+     Wired into the three screens that actually show or write to a specific
+     subject's record: `records.tsx`, `capture.tsx`'s review step, and
+     `companion.tsx` (the assistant surface B5's cross-subject leakage rule
+     is about). `records.tsx` now reads and writes through `activeSubject.id`
+     rather than the raw `ownerId`, so switching would actually change which
+     record loads, not just which label renders.
+
+  **Why apps/web was not touched, and why the box stays unchecked.** Before
+  writing any web code I read `PhoneOtpFlow.tsx`, which already states the
+  reason in its own doc comment: *"There is no authenticated area on
+  `apps/web` yet — the marketing site is the front door, not the product...
+  so success ends on a plain confirmation rather than a redirect into a
+  dashboard that does not exist."* Confirmed independently: no session
+  context, no `useSession`/`useSubject` hook, nothing under `apps/web/src`
+  that knows whether the current browser is signed in. A profile switcher
+  answers "whose record is open" — `apps/web` has no screen where any
+  record, anyone's, is ever open. Building the component anyway and mounting
+  it nowhere real would be exactly the kind of half-finished, unverifiable
+  work the standing constraints warn against; mounting it on the OTP success
+  screen would misrepresent a page that shows no record as if it needed one.
+  Since the task names *both* apps as the deliverable and only one is
+  genuinely done, the box stays unchecked rather than being marked complete
+  on the mobile half alone — a truthful blocked entry over a false "done."
+
+  **What this does and doesn't prove.** The mobile switcher is real and
+  enforced, but `actingSubjects` only ever contains one `SELF` entry today:
+  `apps/mobile` still has no identity/auth layer (`local-id.ts`'s own doc
+  comment), so there is no channel for a real `GuardianshipGrant` or
+  `DelegationGrant` to reach a device, and therefore nothing yet exercises
+  the `GUARDIAN`/`DELEGATE` branches outside `acting-subjects.test.ts`'s own
+  unit tests. That gap is structural, not an oversight — closing it needs
+  the same session/identity work every prior §C entry has flagged as
+  missing (`RecordsController` still takes a bare `ownerId`; no route reads
+  via delegation at all), which is out of scope for this task.
+
+  **For the next run.** Two honest options for C6, not a prescription:
+  either (a) treat `apps/web` gaining *any* authenticated surface as its own
+  prerequisite — likely alongside §D's deployment work, since there is
+  nowhere to sign in and land today — and revisit C6 once that exists, or
+  (b) decide the mobile-plus-domain work already done is sufficient and
+  check the box, accepting `apps/web`'s switcher as future work once it has
+  a home. Either is defensible; this run did not make that call unilaterally
+  because it changes what "done" means for a task explicitly scoped to two
+  apps. Whichever is chosen, `listActiveGuardianshipsFor` /
+  `listActiveDelegationsFor` and `acting-subjects.ts`'s `resolveActingSubject`
+  are the pieces a future web implementation should reuse rather than
+  re-deriving.
+
+  **Tests.** `packages/family/src/index.test.ts`: 53 tests (9 new —
+  `acting-as query — guardianship` and `acting-as query — delegation`
+  blocks), reusing the existing sunita/roshani and janaki/arjun seed
+  fixtures rather than inventing new ones. `apps/mobile/src/lib/acting-
+  subjects.test.ts`: 4 new tests, covering resolution, refusal on an id
+  outside the list, and refusal against an empty list — the three cases
+  that actually exercise the safety property.
+
+  **Verify.** Full sequence green from the repository root:
+  `pnpm install --frozen-lockfile` (no lockfile change), `pnpm lint`
+  (31/31), `pnpm typecheck` (31/31), `pnpm test` (55/55 tasks — `@swasthya/
+  family` 53 tests, `@swasthya/mobile` 20 tests, every other package's count
+  unchanged), `pnpm build` (31/31, including the mobile Expo web export).
+
 - 2026-08-10 — **Round two, task C5: family history assertions and
   explicit condition sharing.** First unchecked task after C4, per that
   run's own handoff note. Read family-and-proxy.md §5 before starting.

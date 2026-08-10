@@ -22,6 +22,7 @@ import {
 import type { HealthDocumentKind } from '@swasthya/shared-types';
 import { colors, radii, spacing } from '@swasthya/configuration';
 import { Pill, uiStyles } from '@/components/ui';
+import { ProfileSwitcher } from '@/components/ProfileSwitcher';
 import { useAppState } from '@/state/app-state';
 import { documentKindOptions } from '@/lib/document-kinds';
 import { RecordsApiError, captureDocument } from '@/lib/records-api';
@@ -34,7 +35,7 @@ interface CapturedPhoto {
 }
 
 export default function CaptureScreen() {
-  const { language } = useAppState();
+  const { language, actingSubjects, activeSubject, switchActingSubject } = useAppState();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [step, setStep] = useState<Step>('camera');
@@ -136,6 +137,13 @@ export default function CaptureScreen() {
             {language === 'en' ? 'Review document' : 'कागजात जाँच्नुहोस्'}
           </Text>
         </View>
+
+        <ProfileSwitcher
+          active={activeSubject}
+          language={language}
+          onSwitch={switchActingSubject}
+          subjects={actingSubjects}
+        />
 
         <Image resizeMode="cover" source={{ uri: photo.uri }} style={styles.preview} />
 

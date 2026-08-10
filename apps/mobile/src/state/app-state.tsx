@@ -12,6 +12,7 @@ import {
   type UtteranceKind,
 } from '@swasthya/language-corpus';
 import { generateLocalOwnerId, generateUtteranceId } from '@/lib/local-id';
+import { resolveActingSubject, type ActingSubject } from '@/lib/acting-subjects';
 
 /** What a caller supplies to capture an utterance; the rest is filled in here. */
 export interface UtteranceCapture {
@@ -34,6 +35,21 @@ interface AppState {
    * why this is session-scoped rather than a real account id.
    */
   ownerId: string;
+  /**
+   * family-and-proxy.md §1's profile switcher: the bounded list of subjects
+   * this account may currently open, and which one is open right now.
+   * Always exactly one entry today — `ownerId` itself, tagged `SELF` — since
+   * this app has no identity/auth layer yet and therefore no channel for a
+   * real `GuardianshipGrant`/`DelegationGrant` from `@swasthya/family` to
+   * reach a device (see `acting-subjects.ts`). The mechanism is real and
+   * enforced today, not a stub: `switchActingSubject` throws rather than
+   * silently keeping the previous subject when asked for an id outside this
+   * list, which is the actual safety property, and stays true once real
+   * delegation data populates the list with more than one entry.
+   */
+  actingSubjects: readonly ActingSubject[];
+  activeSubject: ActingSubject;
+  switchActingSubject: (subjectId: string) => void;
   /**
    * language-corpus.md §3 consent grants — every optional purpose defaults
    * off (`consentGrants` starts empty) and is toggled independently through
@@ -71,13 +87,27 @@ export function AppStateProvider({ children }: PropsWithChildren) {
   const [skippedPrompts, setSkippedPrompts] = useState<string[]>([]);
   const [lowBandwidth, setLowBandwidth] = useState(false);
   const [ownerId] = useState(generateLocalOwnerId);
+  const [activeSubjectId, setActiveSubjectId] = useState(ownerId);
   const [consentGrants, setConsentGrants] = useState<ConsentGrant[]>([]);
   const [corpusUtterances, setCorpusUtterances] = useState<CorpusUtterance[]>([]);
+  // Always a single SELF entry today — see AppState.actingSubjects' doc
+  // comment for why. Recomputed on language change so the display name
+  // itself follows the ne/en toggle rather than being frozen at mount.
+  const actingSubjects = useMemo<readonly ActingSubject[]>(
+    () => [{ id: ownerId, displayName: language === 'en' ? 'You' : 'तपाईं', relationship: 'SELF' }],
+    [language, ownerId],
+  );
   const value = useMemo<AppState>(() => ({
     language, setLanguage, facts,
     addFact: (fact) => setFacts((current) => [...current.filter((item) => item.kind !== fact.kind), fact]),
     skippedPrompts, skipPrompt: (id) => setSkippedPrompts((current) => [...new Set([...current, id])]),
     lowBandwidth, setLowBandwidth, ownerId,
+    actingSubjects,
+    activeSubject: resolveActingSubject(actingSubjects, activeSubjectId),
+    switchActingSubject: (subjectId) => {
+      resolveActingSubject(actingSubjects, subjectId); // throws on an unauthorised id — see the function's own doc comment
+      setActiveSubjectId(subjectId);
+    },
     consentGrants,
     hasConsent: (purpose) => hasPurpose(consentGrants, purpose, new Date().toISOString()),
     setConsent: (purpose, granted) => {
@@ -133,7 +163,7 @@ export function AppStateProvider({ children }: PropsWithChildren) {
       setConsentGrants(grants);
       setCorpusUtterances((current) => [...current, utterance]);
     },
-  }), [consentGrants, corpusUtterances, facts, language, lowBandwidth, ownerId, skippedPrompts]);
+  }), [activeSubjectId, actingSubjects, consentGrants, corpusUtterances, facts, language, lowBandwidth, ownerId, skippedPrompts]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 

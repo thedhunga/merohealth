@@ -7,6 +7,7 @@ import type { TimelineEntry } from '@swasthya/health-records';
 import type { HealthObservation, LanguageCode } from '@swasthya/shared-types';
 import { colors, radii, spacing } from '@swasthya/configuration';
 import { Screen, uiStyles } from '@/components/ui';
+import { ProfileSwitcher } from '@/components/ProfileSwitcher';
 import { useAppState } from '@/state/app-state';
 import { documentKindLabel } from '@/lib/document-kinds';
 import {
@@ -19,7 +20,7 @@ import {
 } from '@/lib/records-api';
 
 export default function RecordsScreen() {
-  const { ownerId, language } = useAppState();
+  const { language, actingSubjects, activeSubject, switchActingSubject } = useAppState();
   const [pending, setPending] = useState<readonly HealthObservation[]>([]);
   const [timeline, setTimeline] = useState<readonly TimelineEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -33,8 +34,8 @@ export default function RecordsScreen() {
     setLoadError(null);
     try {
       const [pendingResult, timelineResult] = await Promise.all([
-        listPendingConfirmations(ownerId),
-        listTimeline(ownerId),
+        listPendingConfirmations(activeSubject.id),
+        listTimeline(activeSubject.id),
       ]);
       setPending(pendingResult);
       setTimeline(timelineResult);
@@ -47,7 +48,7 @@ export default function RecordsScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [language, ownerId]);
+  }, [activeSubject.id, language]);
 
   useEffect(() => {
     void load();
@@ -81,7 +82,7 @@ export default function RecordsScreen() {
   const submitCorrection = (observation: HealthObservation) => {
     if (!draftValue.trim()) return;
     void runAction(observation.id, () =>
-      correctObservation(observation.id, ownerId, draftValue.trim(), draftUnit.trim() || null),
+      correctObservation(observation.id, activeSubject.id, draftValue.trim(), draftUnit.trim() || null),
     );
   };
 
@@ -98,6 +99,13 @@ export default function RecordsScreen() {
           <Plus color="white" size={18} />
         </Pressable>
       </View>
+
+      <ProfileSwitcher
+        active={activeSubject}
+        language={language}
+        onSwitch={switchActingSubject}
+        subjects={actingSubjects}
+      />
 
       {isLoading ? (
         <View style={styles.loading}>
@@ -175,7 +183,7 @@ export default function RecordsScreen() {
                     <Pressable
                       disabled={busyId === observation.id}
                       onPress={() =>
-                        void runAction(observation.id, () => confirmObservation(observation.id, ownerId))
+                        void runAction(observation.id, () => confirmObservation(observation.id, activeSubject.id))
                       }
                       style={[styles.actionButton, styles.confirmButton]}
                     >
@@ -197,7 +205,7 @@ export default function RecordsScreen() {
                     <Pressable
                       disabled={busyId === observation.id}
                       onPress={() =>
-                        void runAction(observation.id, () => rejectObservation(observation.id, ownerId))
+                        void runAction(observation.id, () => rejectObservation(observation.id, activeSubject.id))
                       }
                       style={[styles.actionButton, styles.rejectButton]}
                     >

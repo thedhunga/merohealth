@@ -452,6 +452,54 @@ export function accessLogForOwner(entries: readonly AccessLogEntry[], viewerId: 
 }
 
 /* ------------------------------------------------------------------ *
+ * Acting-as query (family-and-proxy.md §1, round two §C6)
+ *
+ * §1: "the convenience of the streaming-profile model is preserved by the
+ * client — a profile switcher in the app — without the ownership being
+ * wrong underneath." A switcher needs a bounded, authoritative list of
+ * whose record a person may currently open on someone else's behalf; until
+ * now this package only answered the opposite-direction questions (what did
+ * X do on *my* record, via `accessLogForOwner`; what was shared *with* me,
+ * via `conditionSharesVisibleTo`). These two are the missing direction:
+ * given a guardian or delegate, which subjects can they act as right now.
+ *
+ * Filtered to active-at-`now`, the same liveness check every read in this
+ * package already applies — an expired or revoked grant must not appear as
+ * something to switch into, or the switcher itself would be the leak §2's
+ * mandatory-expiry rule exists to prevent. Sorted oldest-grant-first for a
+ * stable, predictable render order, the same convention `accessLogForOwner`
+ * already uses.
+ * ------------------------------------------------------------------ */
+
+/** Every ward this guardian may currently act as. */
+export function listActiveGuardianshipsFor(
+  grants: readonly GuardianshipGrant[],
+  guardianId: string,
+  now: string,
+): readonly GuardianshipGrant[] {
+  return grants
+    .filter((grant) => grant.guardianId === guardianId && isGuardianshipActive(grant, now))
+    .toSorted((a, b) => a.grantedAt.localeCompare(b.grantedAt));
+}
+
+/**
+ * Every granter this delegate may currently act as. Each grant still carries
+ * its own `scopes` — the switcher shows *what* the delegate may do once
+ * switched in, not merely *that* they may switch, so booking an appointment
+ * for someone who only granted `VIEW_RECORD` still needs `hasScope` checked
+ * afterwards; this function only answers "who," not "what."
+ */
+export function listActiveDelegationsFor(
+  grants: readonly DelegationGrant[],
+  delegateId: string,
+  now: string,
+): readonly DelegationGrant[] {
+  return grants
+    .filter((grant) => grant.delegateId === delegateId && isDelegationActive(grant, now))
+    .toSorted((a, b) => a.grantedAt.localeCompare(b.grantedAt));
+}
+
+/* ------------------------------------------------------------------ *
  * Family history and explicit condition sharing (family-and-proxy.md §5)
  *
  * "The wrong design: a shared family health graph where the grandmother's
