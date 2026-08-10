@@ -5,8 +5,10 @@ import {
   InvalidDelegationExpiryError,
   InvalidGuardianshipExpiryError,
   SelfDelegationError,
+  SelfRecordedAssistedEnrolmentError,
   WardAlreadyOfAgeError,
   grantDelegation,
+  grantDelegationByAssistedEnrolment,
   grantGuardianshipForIncapacity,
   grantGuardianshipForMinor,
   guardianshipExpiryForMinor,
@@ -15,6 +17,7 @@ import {
   isGuardianshipActive,
   revokeDelegation,
   revokeGuardianship,
+  wasAssistedEnrolment,
 } from './index';
 
 // Roshani's date of birth, matching packages/database/src/seed-data.ts's
@@ -127,8 +130,10 @@ describe('delegation', () => {
       grantedAt: '2026-08-10T00:00:00.000Z',
       expiresAt: '2026-11-10T00:00:00.000Z',
       revokedAt: null,
+      enrolment: null,
     });
     expect(grant).not.toHaveProperty('grounds');
+    expect(wasAssistedEnrolment(grant)).toBe(false);
   });
 
   it('refuses self-delegation — a competent grandmother is not a dependent of herself either', () => {
@@ -255,5 +260,119 @@ describe('delegation scopes', () => {
     const revoked = revokeDelegation(grant, '2026-09-01T00:00:00.000Z');
 
     expect(hasScope(revoked, 'UPLOAD_DOCUMENTS', '2026-09-15T00:00:00.000Z')).toBe(false);
+  });
+});
+
+describe('assisted enrolment (family-and-proxy.md §3)', () => {
+  it.each([['IN_PERSON_VERBAL'], ['WITNESSED'], ['CLINICIAN_ATTESTED'], ['WRITTEN']] as const)(
+    'records %s as the consent method, and who recorded it — not merely that consent happened',
+    (consentMethod) => {
+      const grant = grantDelegationByAssistedEnrolment(
+        'd-3',
+        'janaki',
+        'arjun',
+        ['VIEW_RECORD', 'MANAGE_APPOINTMENTS'],
+        '2026-08-10T00:00:00.000Z',
+        '2026-11-10T00:00:00.000Z',
+        consentMethod,
+        'arjun',
+      );
+
+      expect(grant.enrolment).toEqual({ method: consentMethod, recordedBy: 'arjun' });
+      expect(wasAssistedEnrolment(grant)).toBe(true);
+    },
+  );
+
+  it('the person recording the enrolment need not be the delegate — a clinician can witness consent for a grant to someone else', () => {
+    const grant = grantDelegationByAssistedEnrolment(
+      'd-3',
+      'janaki',
+      'arjun',
+      ['VIEW_RECORD'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+      'CLINICIAN_ATTESTED',
+      'dr-thapa',
+    );
+
+    expect(grant.enrolment).toEqual({ method: 'CLINICIAN_ATTESTED', recordedBy: 'dr-thapa' });
+  });
+
+  it('refuses a granter recording her own "assisted" enrolment — that is self-service, not assistance', () => {
+    expect(() =>
+      grantDelegationByAssistedEnrolment(
+        'd-3',
+        'janaki',
+        'arjun',
+        ['VIEW_RECORD'],
+        '2026-08-10T00:00:00.000Z',
+        '2026-11-10T00:00:00.000Z',
+        'WRITTEN',
+        'janaki',
+      ),
+    ).toThrow(SelfRecordedAssistedEnrolmentError);
+  });
+
+  it('still enforces the ordinary delegation invariants — self-delegation, empty scopes, bad expiry', () => {
+    expect(() =>
+      grantDelegationByAssistedEnrolment(
+        'd-3',
+        'janaki',
+        'arjun',
+        [],
+        '2026-08-10T00:00:00.000Z',
+        '2026-11-10T00:00:00.000Z',
+        'WITNESSED',
+        'arjun',
+      ),
+    ).toThrow(EmptyDelegationScopeError);
+  });
+
+  it('a self-service grant is never mistaken for an assisted one, and vice versa', () => {
+    const selfService = grantDelegation(
+      'd-4',
+      'janaki',
+      'arjun',
+      ['VIEW_RECORD'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+    );
+    const assisted = grantDelegationByAssistedEnrolment(
+      'd-5',
+      'janaki',
+      'arjun',
+      ['VIEW_RECORD'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+      'IN_PERSON_VERBAL',
+      'arjun',
+    );
+
+    expect(wasAssistedEnrolment(selfService)).toBe(false);
+    expect(wasAssistedEnrolment(assisted)).toBe(true);
+  });
+
+  it('revocation is not tied to the granter being the one who calls it — a support agent can revoke on her behalf', () => {
+    // family-and-proxy.md §2: "through any channel — including by phone to
+    // support, because a person who cannot use the app cannot use an
+    // in-app revoke button either." revokeDelegation takes only the grant
+    // and a timestamp — no caller identity — so it already never requires
+    // the granter herself to be the one invoking it from the app.
+    const grant = grantDelegationByAssistedEnrolment(
+      'd-6',
+      'janaki',
+      'arjun',
+      ['VIEW_RECORD'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+      'WITNESSED',
+      'arjun',
+    );
+
+    // A support agent handling a phone call from janaki records the same
+    // revocation a self-service in-app tap would have produced.
+    const revokedByPhoneSupport = revokeDelegation(grant, '2026-09-01T00:00:00.000Z');
+
+    expect(isDelegationActive(revokedByPhoneSupport, '2026-09-15T00:00:00.000Z')).toBe(false);
   });
 });

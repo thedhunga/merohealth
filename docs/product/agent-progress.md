@@ -158,7 +158,7 @@ Design in
 - [x] Scoped delegation: `VIEW_RECORD`, `ASK_ASSISTANT`,
       `MANAGE_APPOINTMENTS`, `UPLOAD_DOCUMENTS` granted independently.
       Booking an appointment must not require reading mental-health notes.
-- [ ] Assisted enrolment, recording **how** consent was obtained
+- [x] Assisted enrolment, recording **how** consent was obtained
       (`IN_PERSON_VERBAL`, `WITNESSED`, `CLINICIAN_ATTESTED`, `WRITTEN`) — not
       merely that it was. Never display a delegated relationship as if the
       person self-enrolled. Revocation must work through a channel that does
@@ -389,6 +389,95 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task C3: assisted enrolment — consent
+  provenance.** First unchecked task after C2. Read family-and-proxy.md §3
+  again before starting, per the previous run's own note.
+
+  **What was built.** `packages/family` gained a second construction path
+  into `DelegationGrant` for §3's hard case — a granter who cannot use the
+  app at all, so someone else records the grant after her consent is
+  captured out of band. `ConsentMethod` — `IN_PERSON_VERBAL` | `WITNESSED` |
+  `CLINICIAN_ATTESTED` | `WRITTEN`, the exact four §3 names, no fifth value
+  invented for the ordinary case (see below). `AssistedEnrolmentConsent`
+  (`{ method, recordedBy }`) is attached to `DelegationGrant` as a new
+  `enrolment: AssistedEnrolmentConsent | null` field — `null` for a grant the
+  granter created herself through the app (her use of the interface *is* her
+  consent, nothing further to record), populated only when someone else
+  recorded it on her behalf. `grantDelegation` (existing, unchanged
+  signature) always produces `enrolment: null`; a new
+  `grantDelegationByAssistedEnrolment(id, granterId, delegateId, scopes,
+  grantedAt, expiresAt, consentMethod, recordedBy)` produces the populated
+  form, sharing the same validation as the self-service path (self-delegation,
+  empty scopes, bad expiry) via a private `buildDelegationGrant` both now call,
+  so the two paths can't silently drift apart on what makes a delegation
+  valid. It additionally throws a new `SelfRecordedAssistedEnrolmentError`
+  when `recordedBy === granterId` — if she's the one recording it, that's
+  self-service, not assistance, and the contradiction is rejected at
+  construction rather than allowed to produce a mislabelled grant. A new
+  `wasAssistedEnrolment(grant)` guard (`grant.enrolment !== null`) is the
+  function a rendering surface is expected to call before choosing how to
+  display a grant — this is the mechanism behind "never display a delegated
+  relationship as if the person self-enrolled": the two paths are
+  structurally distinguishable on the type, not by convention.
+
+  **Consent method scope, and why no fifth value.** §3's four values are
+  written for exactly the out-of-band case; there is no ordinary-path
+  equivalent named in the design ("in-app tap" isn't one of the four), so
+  rather than inventing a fifth `ConsentMethod` to cover self-service,
+  `enrolment` being `null` *is* the self-service marker. This follows the
+  same "invent no facts" reasoning C1's log gave for not inventing a
+  reassessment cadence.
+
+  **Revocation channel.** The bullet's third clause — "revocation must work
+  through a channel that does not require using the app" — needed no code
+  change: `revokeDelegation(grant, now)` already takes no caller identity, so
+  a support agent acting on a phone call from the granter produces the exact
+  same result an in-app tap would. Added a test that exercises this
+  explicitly (revoking a grant without the granter being the one invoking
+  it) rather than leaving the property implicit, since it's easy to
+  mistake "no code change needed" for "not verified." Deliberately did not
+  invent a `RevocationChannel` enum to mirror `ConsentMethod` — §2 gives an
+  example channel ("by phone to support") but no fixed taxonomy the way §3
+  gives one for consent, and `revokeDelegation`'s existing channel-agnostic
+  signature already satisfies the requirement without one.
+
+  **What this does and doesn't prove.** Same caveat as C1/C2: nothing in the
+  repo calls `grantDelegationByAssistedEnrolment` or `wasAssistedEnrolment`
+  outside this package's own tests yet — there is still no enrolment UI, no
+  route, and no rendering surface to enforce the "never display as
+  self-enrolled" rule against. That wiring is real future work, not
+  something to fake a landing spot for.
+
+  **Tests.** `packages/family/src/index.test.ts`, 40 tests (up from 25): a
+  new `describe('assisted enrolment (family-and-proxy.md §3)')` block — an
+  `it.each` over all four consent methods asserting each is recorded
+  verbatim with who recorded it; a case where the recorder is a third party
+  (a clinician) rather than the delegate, since §3's grandson-enrols-himself
+  story is the common case but not the only one; the self-recorded rejection;
+  confirmation that the ordinary delegation invariants (self-delegation,
+  empty scopes, bad expiry) still apply on this path; that a self-service and
+  an assisted grant are never confused by `wasAssistedEnrolment`; and the
+  phone-support revocation case above. Updated the existing self-service
+  `toEqual` assertion to include `enrolment: null` now that the field exists.
+
+  **Verify.** Full sequence green from the repository root:
+  `pnpm install --frozen-lockfile` (no lockfile change), `pnpm lint`
+  (31/31), `pnpm typecheck` (31/31), `pnpm test` (55/55 tasks,
+  `@swasthya/family` now 40 tests, every other package's count unchanged),
+  `pnpm build` (31/31).
+
+  **For the next run:** §C's next unchecked item is the owner-visible access
+  log — "she can see her grandson opened her record and what he viewed," not
+  only an admin. Read family-and-proxy.md §4 before starting. There is no
+  access-logging package or table anywhere in the repo yet, so this is
+  likely a new package (or an extension of `packages/family`, which already
+  owns the delegation relationship the log entries would reference) plus,
+  eventually, wiring into whatever route reads a record on someone else's
+  behalf — none of which exists yet, matching the pattern every C-round task
+  so far has followed of shipping the domain model unwired until a real call
+  site exists. `CompanionController` remains unwired to B1-B6's deterministic
+  layer, unchanged from every prior run's finding.
 
 - 2026-08-10 — **Round two, task C2: scoped delegation.** First unchecked
   task after C1. The previous run's own log note already spelled out the

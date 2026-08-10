@@ -15,9 +15,8 @@
  * separate types with no shared base and no function that accepts either
  * interchangeably.
  *
- * Deliberately not in this file: assisted enrolment and its consent-method
- * provenance (`IN_PERSON_VERBAL` etc.), the owner-visible access log, and
- * family history assertions. Each is its own queue item and its own task.
+ * Deliberately not in this file: the owner-visible access log and family
+ * history assertions. Each is its own queue item and its own task.
  */
 
 /* ------------------------------------------------------------------ *
@@ -143,6 +142,14 @@ export function isGuardianshipActive(grant: GuardianshipGrant, now: string): boo
  * the repo grants access to a record, an appointment or a document upload by
  * delegation today, so there is no real call site to wire this into. Adding
  * one now would mean fabricating an enforcement point that doesn't exist.
+ *
+ * §3 adds a second path into this same type: **assisted enrolment**, for a
+ * granter who cannot use the app at all, so someone else records the grant
+ * for her after her consent is captured out of band. `grantDelegation`
+ * covers the first path (she uses the app herself); `grantDelegationByAssistedEnrolment`
+ * covers the second. Both return a `DelegationGrant` — the type carries the
+ * distinction (`enrolment`), not a separate parallel type, because every
+ * other property (scopes, expiry, revocation) works identically either way.
  * ------------------------------------------------------------------ */
 
 /**
@@ -150,6 +157,22 @@ export function isGuardianshipActive(grant: GuardianshipGrant, now: string): boo
  * a delegate may hold any non-empty subset, not all-or-nothing.
  */
 export type DelegationScope = 'VIEW_RECORD' | 'ASK_ASSISTANT' | 'MANAGE_APPOINTMENTS' | 'UPLOAD_DOCUMENTS';
+
+/**
+ * The four ways §3 names for capturing consent out of band, when the
+ * granter cannot tap "I agree" herself. No fifth value: an in-app grant
+ * needs no method (see `DelegationGrant.enrolment`), and inventing a
+ * broader taxonomy than the design doc states would be exactly the kind of
+ * fabricated precision the "invent no facts" constraint rules out.
+ */
+export type ConsentMethod = 'IN_PERSON_VERBAL' | 'WITNESSED' | 'CLINICIAN_ATTESTED' | 'WRITTEN';
+
+/** How, and by whom, an assisted-enrolment grant's consent was captured and recorded — §3 points 2-3. */
+export interface AssistedEnrolmentConsent {
+  method: ConsentMethod;
+  /** Whoever entered this grant into the app — never the granter herself; see `grantDelegationByAssistedEnrolment`. */
+  recordedBy: string;
+}
 
 export interface DelegationGrant {
   id: string;
@@ -163,6 +186,16 @@ export interface DelegationGrant {
   expiresAt: string;
   /** Set the moment she revokes. §2: must work through any channel, not only the app — that is a caller concern, not this function's. */
   revokedAt: string | null;
+  /**
+   * `null` when the granter created this grant herself, directly, through
+   * the app — her own use of the interface *is* her consent, and nothing
+   * further needs recording. Present only when someone else recorded the
+   * grant on her behalf (§3, "assisted enrolment"), and then it is never
+   * optional: §3 requires the *how*, not merely the fact that consent was
+   * obtained. Every UI surface must branch on this field rather than
+   * rendering every grant the same way — see `wasAssistedEnrolment`.
+   */
+  enrolment: AssistedEnrolmentConsent | null;
 }
 
 export class SelfDelegationError extends Error {
@@ -186,6 +219,27 @@ export class EmptyDelegationScopeError extends Error {
   }
 }
 
+/**
+ * Constructs and validates a `DelegationGrant`, shared by the self-service
+ * and assisted-enrolment paths below so the two never drift out of sync on
+ * what makes a delegation valid.
+ */
+function buildDelegationGrant(
+  id: string,
+  granterId: string,
+  delegateId: string,
+  scopes: readonly DelegationScope[],
+  grantedAt: string,
+  expiresAt: string,
+  enrolment: AssistedEnrolmentConsent | null,
+): DelegationGrant {
+  if (granterId === delegateId) throw new SelfDelegationError(granterId);
+  if (scopes.length === 0) throw new EmptyDelegationScopeError(granterId, delegateId);
+  if (expiresAt <= grantedAt) throw new InvalidDelegationExpiryError(expiresAt, grantedAt);
+  return { id, granterId, delegateId, scopes, grantedAt, expiresAt, revokedAt: null, enrolment };
+}
+
+/** The granter creates this grant herself, through the app. `enrolment` is always `null` — see the field's doc comment. */
 export function grantDelegation(
   id: string,
   granterId: string,
@@ -194,10 +248,49 @@ export function grantDelegation(
   grantedAt: string,
   expiresAt: string,
 ): DelegationGrant {
-  if (granterId === delegateId) throw new SelfDelegationError(granterId);
-  if (scopes.length === 0) throw new EmptyDelegationScopeError(granterId, delegateId);
-  if (expiresAt <= grantedAt) throw new InvalidDelegationExpiryError(expiresAt, grantedAt);
-  return { id, granterId, delegateId, scopes, grantedAt, expiresAt, revokedAt: null };
+  return buildDelegationGrant(id, granterId, delegateId, scopes, grantedAt, expiresAt, null);
+}
+
+export class SelfRecordedAssistedEnrolmentError extends Error {
+  constructor(granterId: string) {
+    super(`${granterId} cannot be both the granter and the person recording assisted enrolment — use grantDelegation instead`);
+    this.name = 'SelfRecordedAssistedEnrolmentError';
+  }
+}
+
+/**
+ * §3: "enrolling someone who cannot use the app." A helper (`recordedBy`)
+ * enters the grant on the granter's behalf, but her consent was still
+ * obtained — just out of band, in one of the four ways §3 names. This
+ * function records *how*, not merely that consent happened, and refuses the
+ * one input that would make "assisted" a lie: the granter recording her own
+ * consent is self-service, not assistance, and belongs in `grantDelegation`.
+ */
+export function grantDelegationByAssistedEnrolment(
+  id: string,
+  granterId: string,
+  delegateId: string,
+  scopes: readonly DelegationScope[],
+  grantedAt: string,
+  expiresAt: string,
+  consentMethod: ConsentMethod,
+  recordedBy: string,
+): DelegationGrant {
+  if (recordedBy === granterId) throw new SelfRecordedAssistedEnrolmentError(granterId);
+  return buildDelegationGrant(id, granterId, delegateId, scopes, grantedAt, expiresAt, {
+    method: consentMethod,
+    recordedBy,
+  });
+}
+
+/**
+ * §3: "Never display a delegated relationship as if the person had
+ * self-enrolled." This is the guard a rendering surface is expected to call
+ * before choosing how to present a grant — `true` means it must show the
+ * consent method and who recorded it, never the plain self-service form.
+ */
+export function wasAssistedEnrolment(grant: DelegationGrant): boolean {
+  return grant.enrolment !== null;
 }
 
 /** Idempotent, same reasoning as `revokeGuardianship`. */
