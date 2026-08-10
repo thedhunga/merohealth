@@ -44,6 +44,8 @@ const healthLibraryRoutes: RouteEntry[] = healthLibraryArticles.map((article) =>
 const bespokeRoutes: RouteEntry[] = [
   { pathname: '/', titleKey: 'home.hero.title', descriptionKey: 'home.hero.body' },
   { pathname: '/pricing', titleKey: 'pricing.hero.title', descriptionKey: 'pricing.hero.body' },
+  { pathname: '/signin', titleKey: 'auth.signIn.hero.title', descriptionKey: 'auth.signIn.hero.body' },
+  { pathname: '/register', titleKey: 'auth.register.hero.title', descriptionKey: 'auth.register.hero.body' },
   {
     pathname: '/individuals/how-it-works',
     titleKey: 'individuals.howItWorks.hero.title',

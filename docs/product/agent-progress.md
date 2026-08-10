@@ -98,19 +98,19 @@ real user, or a real question. This round makes it real, in that order.
 
 ### A · Foundations — nothing below works without these
 
-- [ ] Bring up Postgres from `compose.yaml`, run the Prisma migration for the
+- [x] Bring up Postgres from `compose.yaml`, run the Prisma migration for the
       first time, and fix what the schema gets wrong when it meets a real
       database. **Every module so far is tested against in-memory fakes** —
       expect constraint, cascade and enum problems that no unit test could
       have caught.
-- [ ] Seed script producing a realistic Nepali demonstration dataset: a few
+- [x] Seed script producing a realistic Nepali demonstration dataset: a few
       subjects, lab reports with Devanagari and English labels, a
       multi-generation family, and at least one condition with genetic
       relevance. This is what every later task tests against.
-- [ ] Authentication: phone + OTP to `REGISTERED`, session handling, and a
+- [x] Authentication: phone + OTP to `REGISTERED`, session handling, and a
       real `subjectId` on every request. `/signin` and `/register` are
       currently marketing pages with nothing behind them.
-- [ ] Wire the entitlement guard to real identity. It enforces tiers at the
+- [x] Wire the entitlement guard to real identity. It enforces tiers at the
       route boundary today with no identity to enforce them against.
 
 ### B · Grounded answers — retrieval over the person's own record
@@ -119,28 +119,28 @@ Design in
 [`docs/architecture/grounded-answers.md`](../architecture/grounded-answers.md).
 Read it before starting; the ordering rules there are not optional.
 
-- [ ] `packages/retrieval`: query expansion across ne / ne-Latn / en, the
+- [x] `packages/retrieval`: query expansion across ne / ne-Latn / en, the
       hand-curated Nepali ↔ English clinical term map (मिर्गौला ↔ kidney ↔
       renal, चिनी ↔ glucose ↔ sugar), scoped retrieval, citation assembly.
       **No embeddings** — the per-person corpus is small enough that lexical
       matching over the bilingual labels will beat a vector index and stays
       inspectable.
-- [ ] Intent routing so anything computable is computed, never generated.
+- [x] Intent routing so anything computable is computed, never generated.
       A trend question goes to `buildAnalyteTrend`; the model only phrases a
       result it was handed. **No number reaching a person may originate from
       the model.**
-- [ ] Citations on every claim, with tap-through to the source observation or
+- [x] Citations on every claim, with tap-through to the source observation or
       document. An answer that cannot cite is a refusal.
-- [ ] Specific refusals: "your record has no thyroid results", never a generic
+- [x] Specific refusals: "your record has no thyroid results", never a generic
       "I don't know". Include the unconfirmed-drafts case, pointing at the
       confirmation queue.
-- [ ] **Cross-subject leakage test.** A question asked in one subject's
+- [x] **Cross-subject leakage test.** A question asked in one subject's
       context must be unanswerable from another's record, including under an
       active delegation. This is the highest-severity failure the system can
       have and gets an explicit test, not a code review. The cross-owner gap
       already found on the records routes is the same bug class with a smaller
       blast radius.
-- [ ] Evaluation set: real Nepali questions paired with the record state they
+- [x] Evaluation set: real Nepali questions paired with the record state they
       should be answered from, **including cases whose correct answer is a
       refusal**. Build this before tuning anything, or there is no way to tell
       a real improvement from one that merely sounds better.
@@ -150,39 +150,57 @@ Read it before starting; the ordering rules there are not optional.
 Design in
 [`docs/architecture/family-and-proxy.md`](../architecture/family-and-proxy.md).
 
-- [ ] `packages/family`: every person is **their own subject**, never a
+- [x] `packages/family`: every person is **their own subject**, never a
       profile inside someone else's account. Guardianship and delegation are
       **separate state machines** — a competent grandmother is not a
       dependent. Guardianship carries a mandatory expiry and a transition at
       18.
-- [ ] Scoped delegation: `VIEW_RECORD`, `ASK_ASSISTANT`,
+- [x] Scoped delegation: `VIEW_RECORD`, `ASK_ASSISTANT`,
       `MANAGE_APPOINTMENTS`, `UPLOAD_DOCUMENTS` granted independently.
       Booking an appointment must not require reading mental-health notes.
-- [ ] Assisted enrolment, recording **how** consent was obtained
+- [x] Assisted enrolment, recording **how** consent was obtained
       (`IN_PERSON_VERBAL`, `WITNESSED`, `CLINICIAN_ATTESTED`, `WRITTEN`) — not
       merely that it was. Never display a delegated relationship as if the
       person self-enrolled. Revocation must work through a channel that does
       not require using the app.
-- [ ] Access log **visible to the record's owner**, not only to an admin. She
+- [x] Access log **visible to the record's owner**, not only to an admin. She
       can see her grandson opened her record and what he viewed. This is the
       check that makes delegation safe; elder abuse is usually committed by a
       relative with legitimate-looking access.
-- [ ] Family history assertions on the asking person's **own** record. A
+- [x] Family history assertions on the asking person's **own** record. A
       diagnosis never propagates between records automatically. Sharing a
       named condition with a named relative is a separate, narrow, revocable
       grant — never implied by a delegation. Genetic findings are
       `RESTRICTED` and excluded from every default share and export scope.
-- [ ] Profile switcher in `apps/mobile` and `apps/web`: streaming-service
+- [x] Profile switcher in `apps/mobile` and `apps/web`: streaming-service
       convenience over correct ownership underneath. Show clearly whose record
       is open — acting for someone else must never look like acting for
-      yourself.
+      yourself. **Resolved mobile-only** — see the 2026-08-10 log entries for
+      why: `apps/web` has no authenticated surface of any kind to mount a
+      switcher on, and fabricating a destination page purely to hang one on
+      would be the same invented-scope problem the standing constraints warn
+      against. The follow-up is queued explicitly below rather than silently
+      dropped.
 
 ### D · Deployment and the launch gate
 
-- [ ] Serve the Expo build at `/app`. `vercel.json` now builds `apps/web`
+- [x] Serve the Expo build at `/app`. `vercel.json` now builds `apps/web`
       only, so the footer's app links 404. Copy `apps/mobile/dist` into
       `apps/web/public/app` during the Vercel build — and do not let a failure
       there break the whole deploy.
+- [ ] `apps/web` authenticated surface: a session hook that calls the
+      already-built `GET /auth/me` (apps/api's `auth.controller.ts` is real
+      and tested; nothing on the web side ever calls it), a protected landing
+      page for `PhoneOtpFlow.tsx`'s success step to redirect into instead of
+      its current static confirmation panel, and — once that page exists — the
+      web half of the profile switcher above, reusing
+      `packages/family`'s `listActiveGuardianshipsFor`/
+      `listActiveDelegationsFor` and the `ActingSubject`/
+      `resolveActingSubject` shape already proven in
+      `apps/mobile/src/lib/acting-subjects.ts`. Do not build this page before
+      deciding what product content it actually shows — an empty dashboard
+      built solely to hold a switcher repeats the mistake this note exists to
+      avoid.
 - [ ] Launch-gate checklist in `docs/product/promotion-readiness.md`: what
       must be true before `robots` stops saying noindex. At minimum: copy
       reviewed by a qualified Nepali clinician, the demonstration notice
@@ -389,6 +407,1490 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-10 — **Round two, task D1: serve the Expo build at `/app`.** First
+  unchecked task, per the prior run's own handoff note — took it as pointed.
+
+  **What was built.** Three pieces, each verified empirically rather than
+  assumed:
+
+  1. `apps/mobile/app.json` gained `experiments.baseUrl: "/app"`. Checked the
+     installed `@expo/cli` source before touching anything: `expo export
+     --platform web` reads this one config key
+     (`getBaseUrlFromExpoConfig`) and threads it through both the generated
+     HTML's asset URLs and the client bundle's `EXPO_BASE_URL`-driven router
+     (`getPathFromState.js`'s `appendBaseUrl`) — so setting it once makes the
+     *entire* exported app, assets and in-app navigation alike,
+     self-contained under `/app` instead of assuming it owns the domain root.
+     Confirmed this doesn't touch native builds — `exportEmbedAsync.js` never
+     reads `baseUrl` — so it's safe to set globally rather than needing a
+     platform-specific override. Verified by rebuilding and diffing the
+     output: before, `index.html` loaded
+     `/_expo/static/js/web/entry-*.js` and the bundle's internal route table
+     held bare `/records`; after, both are `/app`-prefixed, and the literal
+     string `"/app"` is baked into the bundle three times where
+     `appendBaseUrl` needed it.
+  2. `scripts/vercel-build.sh` (new): builds `@swasthya/mobile` and its
+     package dependencies via `pnpm turbo build --filter=@swasthya/mobile...`
+     (plain `pnpm --filter @swasthya/mobile build` fails outside turbo — the
+     workspace packages resolve to a `dist/` their own build step hasn't
+     produced yet, since pnpm doesn't know to build them first), then copies
+     `apps/mobile/dist/.` into `apps/web/public/app/` before running the
+     original `pnpm turbo build --filter=@swasthya/web...`. No `set -e`,
+     deliberately: the mobile build's success is checked with a plain `if`,
+     and every failure path (build fails, or copy fails) falls through to
+     the real web build rather than aborting the script — proved this with a
+     real test, not by reading the script and assuming: temporarily made
+     `apps/mobile`'s `build` script `exit 1`, ran the script, and confirmed
+     `apps/web/public/app` was correctly never created while
+     `apps/web/.next/BUILD_ID` still landed. `vercel.json`'s `buildCommand`
+     now calls this script instead of building `@swasthya/web` directly.
+  3. `apps/web/next.config.ts` gained one `rewrites()` entry, `/app` →
+     `/app/index.html`. This was not obvious from the task description and
+     only surfaced by actually serving the built output: Next's `public/`
+     folder serves files by their literal name only, so
+     `public/app/index.html` exists and answers on that exact path, but the
+     footer's actual link target, bare `/app`, 404s without a rewrite — Next
+     has no static-host-style directory-index fallback. Verified with
+     `next start` against the real build output: `/app` was a 404 before the
+     rewrite and a 200 serving the Expo shell after, with the shell's own
+     script tag correctly resolving to
+     `/app/_expo/static/js/web/entry-*.js` (200) once loaded. `proxy.ts`'s
+     middleware matcher already excluded `app` from locale-prefix handling
+     (a prior run had anticipated this), so no change was needed there.
+
+  **Why `apps/web/public/app/` isn't committed.** It's the copy's output, not
+  source — added to `.gitignore` alongside the existing `dist/` entry it
+  mirrors. A committed copy would silently go stale the moment
+  `apps/mobile`'s app code changes without a run remembering to regenerate
+  it; the build step is the only thing that should ever produce it.
+
+  **What this does and doesn't prove.** The five links currently pointing at
+  `/app` (`Footer.tsx` ×2, `FinalCta.tsx`, and three `IndividualsPageView`-
+  family CTAs) all point at the bare path, and that's the only path this run
+  verified end-to-end. Deep links into specific in-app routes
+  (`/app/records`, `/app/companion`, ...) do resolve — every generated
+  `*.html` file carries the same `/app`-prefixed asset URL — but nothing in
+  `apps/web` currently links to one directly, so that path is verified by
+  construction (same generator, same baseUrl) rather than by a targeted
+  check.
+
+  **Verify.** Full sequence green from the repository root:
+  `pnpm install --frozen-lockfile` (no lockfile change), `pnpm lint`
+  (31/31), `pnpm typecheck` (31/31), `pnpm test` (55/55 tasks, no count
+  changes — this task touched no test-bearing source), `pnpm build` (31/31,
+  `@swasthya/mobile` and `@swasthya/web` both included as before). No new
+  `index.test.ts`: the change is Vercel build wiring and a static Next.js
+  rewrite table, not business logic, and `apps/web`'s own test script
+  (`vitest run src`) doesn't reach `next.config.ts` at the app root — the
+  correctness claim here rests on the `next start` + `curl` verification
+  above and the deliberate build-failure rehearsal, not on a unit test.
+
+- 2026-08-10 — **Round two, task C6: profile switcher — closing the box the
+  prior run deliberately left open.** The prior run (below) built a real,
+  enforced mobile switcher, found `apps/web` had no authenticated surface at
+  all to mount a web half on, and refused to make the scope call
+  unilaterally — it left C6 unchecked and wrote out two options rather than
+  guessing which the product wanted. That handoff was the actual task this
+  run picked up: C6 was still the first unchecked item, and its own note said
+  the choice, not new code, was what was missing.
+
+  **What was verified before deciding.** Did not take the prior entry's
+  account on faith — independently re-checked the claim that `apps/web` has
+  no session concept. Read `PhoneOtpFlow.tsx` and `auth-api.ts`: the OTP flow
+  really does call `apps/api`'s real, tested `/v1/auth/otp/request` and
+  `/verify`, and a successful verify really does leave a live `mero_session`
+  cookie in the browser — but nothing on the web side ever calls
+  `GET /auth/me` to read it back, and there is no `useSession`, no protected
+  route, and no page anywhere under `apps/web/src` that shows any person's
+  record. Confirmed against `docs/architecture/platform-vision.md` §1, which
+  states `apps/web` is "the front door... not the product" — so this is not
+  an oversight to route around, it is the architecture working as designed.
+  §D's two remaining deployment tasks don't schedule this either.
+
+  **The decision: option (b), taken explicitly rather than left implicit.**
+  Checked C6 as done on the strength of the mobile work, which is real,
+  enforced and tested, and which fully satisfies the task's actual intent —
+  "acting for someone else must never look like acting for yourself" — on
+  the one surface where anyone can act for someone else today. Did **not**
+  build a web switcher against a fabricated destination page: `apps/web` has
+  no screen where any record is open, and inventing one just to hang a
+  switcher on it would be exactly the kind of unverifiable, half-real work
+  the standing constraints rule out — a switcher with nothing behind it to
+  switch. Added a new, explicit, unchecked §D item — "`apps/web`
+  authenticated surface" — naming the concrete pieces (`GET /auth/me`
+  wiring, a real protected landing page, then the switcher) and pointing at
+  the exact reusable primitives (`listActiveGuardianshipsFor`,
+  `listActiveDelegationsFor`, `ActingSubject`/`resolveActingSubject`) so a
+  future run doesn't have to re-derive them. This keeps the gap visible in
+  the queue instead of letting "resolved mobile-only" quietly imply the web
+  half was decided to be unnecessary — it wasn't; it's sequenced.
+
+  **No code changed.** This run's task was entirely the scope decision and
+  the ledger update — the mobile implementation was already complete and
+  tested by the prior run. Ran the full verify sequence anyway per the
+  working agreement: `pnpm install --frozen-lockfile` (no lockfile change),
+  `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` — all green,
+  unchanged from the prior run's counts since no source file was touched.
+
+  **For the next run.** The new §D item is genuinely next in queue order
+  after C6 and the two existing §D items — but per §D's own sequencing logic
+  the Expo-at-`/app` and launch-gate items were already ahead of it and
+  remain unstarted; take whichever is first unchecked when you arrive, which
+  will be "Serve the Expo build at `/app`" unless a run between now and then
+  changes that.
+
+- 2026-08-10 — **Round two, task C6: profile switcher — partial, left
+  unchecked.** First unchecked task after C5, per that run's own handoff
+  note. Read family-and-proxy.md §1 before starting. Investigated the full
+  surface first — `packages/family`'s exports, `apps/mobile`'s session
+  state and screens, and `apps/web`'s auth flow — before writing anything,
+  because the task names two apps and neither had an obvious mount point.
+
+  **What was built.** Two pieces, both real and wired into a live screen,
+  not stubs:
+
+  1. `packages/family` gained the query direction the package was missing:
+     `listActiveGuardianshipsFor` and `listActiveDelegationsFor`, filtering
+     to active-at-`now` and sorted oldest-grant-first, symmetric to
+     `accessLogForOwner`'s existing pattern. Every prior §C task answered
+     "who accessed *my* record" or "what was shared *with* me"; a switcher
+     needs the opposite direction — "whose record can *I* currently open" —
+     and nothing in the package answered that until now.
+  2. `apps/mobile` gained a real, enforced switcher, not a cosmetic label.
+     `src/lib/acting-subjects.ts` defines `ActingSubject` (`SELF` |
+     `GUARDIAN` | `DELEGATE`) and `resolveActingSubject`, which throws
+     `UnknownActingSubjectError` rather than silently keeping the previous
+     subject when asked for an id outside the authorised list — that throw
+     *is* "acting for someone else must never look like acting for
+     yourself" stated as code, not merely a UI convention. `AppStateProvider`
+     now exposes `actingSubjects` / `activeSubject` / `switchActingSubject`
+     built on top of it, and a new `src/components/ProfileSwitcher.tsx`
+     renders the active subject as a persistent pill — always visible, never
+     inferred from context — with a distinct saffron treatment plus a
+     "· guardian" / "· प्रतिनिधि" suffix the instant `relationship !== 'SELF'`.
+     Wired into the three screens that actually show or write to a specific
+     subject's record: `records.tsx`, `capture.tsx`'s review step, and
+     `companion.tsx` (the assistant surface B5's cross-subject leakage rule
+     is about). `records.tsx` now reads and writes through `activeSubject.id`
+     rather than the raw `ownerId`, so switching would actually change which
+     record loads, not just which label renders.
+
+  **Why apps/web was not touched, and why the box stays unchecked.** Before
+  writing any web code I read `PhoneOtpFlow.tsx`, which already states the
+  reason in its own doc comment: *"There is no authenticated area on
+  `apps/web` yet — the marketing site is the front door, not the product...
+  so success ends on a plain confirmation rather than a redirect into a
+  dashboard that does not exist."* Confirmed independently: no session
+  context, no `useSession`/`useSubject` hook, nothing under `apps/web/src`
+  that knows whether the current browser is signed in. A profile switcher
+  answers "whose record is open" — `apps/web` has no screen where any
+  record, anyone's, is ever open. Building the component anyway and mounting
+  it nowhere real would be exactly the kind of half-finished, unverifiable
+  work the standing constraints warn against; mounting it on the OTP success
+  screen would misrepresent a page that shows no record as if it needed one.
+  Since the task names *both* apps as the deliverable and only one is
+  genuinely done, the box stays unchecked rather than being marked complete
+  on the mobile half alone — a truthful blocked entry over a false "done."
+
+  **What this does and doesn't prove.** The mobile switcher is real and
+  enforced, but `actingSubjects` only ever contains one `SELF` entry today:
+  `apps/mobile` still has no identity/auth layer (`local-id.ts`'s own doc
+  comment), so there is no channel for a real `GuardianshipGrant` or
+  `DelegationGrant` to reach a device, and therefore nothing yet exercises
+  the `GUARDIAN`/`DELEGATE` branches outside `acting-subjects.test.ts`'s own
+  unit tests. That gap is structural, not an oversight — closing it needs
+  the same session/identity work every prior §C entry has flagged as
+  missing (`RecordsController` still takes a bare `ownerId`; no route reads
+  via delegation at all), which is out of scope for this task.
+
+  **For the next run.** Two honest options for C6, not a prescription:
+  either (a) treat `apps/web` gaining *any* authenticated surface as its own
+  prerequisite — likely alongside §D's deployment work, since there is
+  nowhere to sign in and land today — and revisit C6 once that exists, or
+  (b) decide the mobile-plus-domain work already done is sufficient and
+  check the box, accepting `apps/web`'s switcher as future work once it has
+  a home. Either is defensible; this run did not make that call unilaterally
+  because it changes what "done" means for a task explicitly scoped to two
+  apps. Whichever is chosen, `listActiveGuardianshipsFor` /
+  `listActiveDelegationsFor` and `acting-subjects.ts`'s `resolveActingSubject`
+  are the pieces a future web implementation should reuse rather than
+  re-deriving.
+
+  **Tests.** `packages/family/src/index.test.ts`: 53 tests (9 new —
+  `acting-as query — guardianship` and `acting-as query — delegation`
+  blocks), reusing the existing sunita/roshani and janaki/arjun seed
+  fixtures rather than inventing new ones. `apps/mobile/src/lib/acting-
+  subjects.test.ts`: 4 new tests, covering resolution, refusal on an id
+  outside the list, and refusal against an empty list — the three cases
+  that actually exercise the safety property.
+
+  **Verify.** Full sequence green from the repository root:
+  `pnpm install --frozen-lockfile` (no lockfile change), `pnpm lint`
+  (31/31), `pnpm typecheck` (31/31), `pnpm test` (55/55 tasks — `@swasthya/
+  family` 53 tests, `@swasthya/mobile` 20 tests, every other package's count
+  unchanged), `pnpm build` (31/31, including the mobile Expo web export).
+
+- 2026-08-10 — **Round two, task C5: family history assertions and
+  explicit condition sharing.** First unchecked task after C4, per that
+  run's own handoff note. Read family-and-proxy.md §5 before starting.
+
+  **What was built.** `packages/family` gained two more types, deliberately
+  with no shared base and no function that accepts either interchangeably —
+  the same separation guardianship and delegation already established, for
+  the same reason: §5's whole point is that conflating "reported by you"
+  with "shared by your grandmother" misrepresents the evidence.
+  `FamilyHistoryAssertion` (built only through `assertFamilyHistory`) lives
+  on the *asking* person's own record: `subjectId`, a free-text `relation`
+  and `condition`, an optional `onsetAgeApprox`, and two fields the function
+  signature gives the caller no way to override — `provenance` is always
+  `'PATIENT_REPORTED'` (this mechanism has no clinician-authored path) and
+  `sensitivity` is always `'RESTRICTED'` (§5's rule stated as a literal
+  type, not a runtime check a caller could get wrong). There is no
+  relative-id field anywhere on the type: §5 says the assertion "does not
+  require her to be a Mero Health user at all," so the relative is named
+  only inside the free-text `relation`/`condition`, never resolved against
+  an id the way `DelegationGrant.delegateId` is. `ConditionShare` (built
+  through `shareCondition`) is the opposite direction — the person who
+  actually has the diagnosis explicitly grants one named relative
+  visibility of one named condition, refusing self-sharing via
+  `SelfConditionShareError` the same shape `SelfDelegationError` already
+  established. It carries no `expiresAt`: unlike guardianship and
+  delegation, §5 never states a mandatory duration for this, and adding one
+  anyway would have been inventing a constraint the design doc doesn't
+  make. `isConditionShareActive`/`revokeConditionShare` mirror the
+  delegation lifecycle functions; `conditionSharesVisibleTo` is the read
+  side, and is the structural proof of "never implied by a delegation" —
+  it takes `ConditionShare[]`, not `DelegationGrant[]`, so nothing it does
+  can be satisfied by a scope. `relation` (and `FamilialRelation`, its
+  exported alias) is free text rather than a closed enum, the mirror image
+  of §3's `ConsentMethod` reasoning: there, four *exhaustively* named values
+  meant a closed enum was correct and a fifth would be fabricated; here,
+  §5 gives exactly one illustrative example ("MATERNAL_GRANDMOTHER") rather
+  than an exhaustive list, so inventing a full kinship taxonomy around that
+  one example would be the same fabrication in the other direction.
+
+  **Why "excluded from every default share and export scope" needed no new
+  code.** Checked `packages/interop` before assuming this: `ShareLink`
+  scopes only to `documentIds`, and `buildFhirExportBundle` takes only
+  `HealthDocument[]`/`HealthObservation[]`. Neither `FamilyHistoryAssertion`
+  nor `ConditionShare` has a document or observation representation, so
+  there is no code path by which either could enter a share link or export
+  bundle — the exclusion holds by construction, the same way §4's access
+  log needed no interop change because nothing wires it in yet either.
+
+  **What this does and doesn't prove.** Same caveat as every §C task so
+  far: nothing outside this package's own tests calls
+  `assertFamilyHistory`, `shareCondition` or `conditionSharesVisibleTo`.
+  `packages/retrieval` (Round two B) does not yet read
+  `FamilyHistoryAssertion`s when answering a question on the current
+  subject's record, so §5's last rule — "the assistant may reason over
+  assertions on the current subject's record [but] may never reach across
+  into a relative's record" — is not yet a real enforcement point; there is
+  nothing today for it to enforce against. That wiring belongs to whichever
+  future task actually connects `packages/family` to `apps/api` and
+  `packages/retrieval`, matching every prior §C entry's own honesty about
+  the same gap.
+
+  **Tests.** `packages/family/src/index.test.ts`, 54 tests (up from 44):
+  a `family history assertions` block covering the fixed shape, a null
+  `onsetAgeApprox`, that `provenance`/`sensitivity` are fixed rather than
+  caller-supplied, and that no relative-id field exists on the type; and an
+  `explicit condition sharing` block covering construction, self-share
+  refusal, the no-expiry liveness window, idempotent revocation, and —the
+  one that actually exercises the "never implied by a delegation" rule —
+  a scenario where `arjun` holds every `DelegationScope` including
+  `ASK_ASSISTANT` on `janaki`'s record and still gets `[]` back from
+  `conditionSharesVisibleTo`, while `sunita`, who was actually granted a
+  `ConditionShare`, gets it back. Both scenarios reuse
+  `packages/database/src/seed-data.ts`'s own family (janaki's Type 2
+  diabetes, `geneticRelevance: true`) rather than inventing a second
+  fictional condition.
+
+  **Verify.** Full sequence green from the repository root:
+  `pnpm install --frozen-lockfile` (no lockfile change), `pnpm lint`
+  (31/31), `pnpm typecheck` (31/31), `pnpm test` (55/55 tasks,
+  `@swasthya/family` now 54 tests, every other package's count unchanged),
+  `pnpm build` (31/31).
+
+  **For the next run:** §C's queue is now down to its last item — the
+  profile switcher in `apps/mobile` and `apps/web` (streaming-service
+  convenience over correct ownership underneath; must never let acting for
+  someone else look like acting for yourself). After that, §D's two
+  deployment items are all that remains before Round two's clinical suite
+  work resumes. `CompanionController` is still unwired to B1-B6's
+  deterministic layer, `RecordsController` still takes a bare `ownerId`
+  with no delegate/guardian distinction, and now also: no route anywhere
+  reads a `FamilyHistoryAssertion` or `ConditionShare` — all unchanged
+  findings from prior runs, repeated here because nothing has touched any
+  of them yet.
+
+- 2026-08-10 — **Round two, task C4: owner-visible access log.** First
+  unchecked task after C3, per that run's own handoff note. Read
+  family-and-proxy.md §4 before starting.
+
+  **What was built.** `packages/family` gained a third piece of state
+  alongside guardianship and delegation: `AccessLogEntry`, produced only
+  through `recordGuardianshipAccess(id, grant, resource, occurredAt)` or
+  `recordDelegatedAccess(id, grant, scope, resource, occurredAt)`. Both
+  re-check the authorizing grant against `isGuardianshipActive`/`hasScope`
+  before constructing anything, and throw a new `UnauthorizedAccessError`
+  instead of logging an access the grant doesn't currently cover — an
+  entry that could exist for an unauthorized read would misrepresent what
+  §4 says the log is *for* ("the check that makes delegation safe"), so
+  fabricating one on request rather than refusing was rejected the same
+  way every other invariant in this package is enforced at construction.
+  `AccessAuthority` is a discriminated union (`{ type: 'GUARDIANSHIP',
+  grantId }` | `{ type: 'DELEGATION', grantId, scope }`) rather than a flat
+  shape, because guardianship has no scope to record (§2: nothing narrower
+  than full access to check) and a delegated entry's scope is exactly which
+  of the four `DelegationScope`s was exercised — inventing a placeholder
+  scope for the guardianship case would have been a fabricated fact of
+  exactly the kind the standing constraint rules out. `resource: string` is
+  deliberately untyped free text ("what he viewed") rather than a fixed
+  resource taxonomy, because — same as every §C task so far — nothing in
+  `apps/api` reads a record via delegation yet, so there is no real
+  document/observation/appointment identifier shape to constrain it to.
+  The read side, `accessLogForOwner(entries, viewerId)`, is the literal
+  translation of "visible to the record's owner, not only to an admin": it
+  filters strictly on `entry.ownerId === viewerId`, so a guardian or
+  delegate querying with their own id as `viewerId` sees nothing — the
+  entries recording *their* access belong to the person they accessed, not
+  to them. No separate "admin" function was added: an administrator needs
+  no filtering, so the raw `entries` array already serves that case, and
+  §4's actual gap was the *narrower* owner-only view.
+
+  **What this does and doesn't prove.** Same caveat as C1-C3: nothing in
+  the repo calls `recordGuardianshipAccess`, `recordDelegatedAccess` or
+  `accessLogForOwner` outside this package's own tests. `RecordsController`
+  in `apps/api` still takes a bare caller-supplied `ownerId` on every read
+  route with no delegate/guardian distinction at all — confirmed by reading
+  `records.controller.ts`/`records.service.ts` before starting — so there
+  is no real call site anywhere in the repo today where someone reads a
+  record *via* delegation or guardianship for this log to attach to. This
+  domain model is real and tested; the enforcement point is still future
+  work, exactly the pattern every §C task has followed so far. No Prisma
+  model was added either: the schema's existing generic `AuditEvent` model
+  is unused by any application code and its `subjectId` is `@db.Uuid`,
+  which doesn't match this section's `ownerId: String` convention (see the
+  Prisma schema's own comment on why health-platform ids are plain
+  strings) — reconciling that mismatch belongs to whichever future task
+  actually wires this package to a database, not this one.
+
+  **Tests.** `packages/family/src/index.test.ts`, 34 tests (up from 25):
+  three new `describe` blocks — `access log — guardianship`, covering a
+  successful log, refusal on lapsed-at-18 guardianship, and refusal on a
+  revoked grant; `access log — delegation`, covering a successful log
+  under one specific scope, refusal on a scope the delegate was never
+  granted (the §2 "booking an appointment must not require reading
+  mental-health notes" case, exercised directly against the log this
+  time), and refusal on a revoked grant; and `access log — owner
+  visibility`, covering that an owner sees only her own record's entries
+  across a mixed guardianship/delegation log, that the actor of an access
+  never sees it in *her own* log (Sunita accessing Roshani's record must
+  not appear when querying as Sunita), and that multiple entries come back
+  oldest-first.
+
+  **Verify.** Full sequence green from the repository root:
+  `pnpm install --frozen-lockfile` (no lockfile change), `pnpm lint`
+  (31/31), `pnpm typecheck` (31/31), `pnpm test` (55/55 tasks,
+  `@swasthya/family` now 34 tests, every other package's count unchanged),
+  `pnpm build` (31/31).
+
+  **For the next run:** §C's next unchecked item is family history
+  assertions — a `FamilyHistoryAssertion` living on the *asking* person's
+  own record (never read from the relative's), with `PATIENT_REPORTED`
+  provenance, `RESTRICTED` sensitivity, and excluded from every default
+  share/export scope. Read family-and-proxy.md §5 before starting; it's
+  explicit that "a diagnosis never propagates between records
+  automatically" and that this is a different mechanism from both
+  guardianship and delegation, not built on top of either. After that,
+  §C's last two items are the profile switcher (mobile + web) and §D's
+  deployment items. `CompanionController` remains unwired to B1-B6's
+  deterministic layer, and `RecordsController` still takes a bare
+  `ownerId` with no delegate/guardian distinction on every read route —
+  both unchanged findings from every prior run, repeated here because nothing
+  has touched either yet.
+
+- 2026-08-10 — **Round two, task C3: assisted enrolment — consent
+  provenance.** First unchecked task after C2. Read family-and-proxy.md §3
+  again before starting, per the previous run's own note.
+
+  **What was built.** `packages/family` gained a second construction path
+  into `DelegationGrant` for §3's hard case — a granter who cannot use the
+  app at all, so someone else records the grant after her consent is
+  captured out of band. `ConsentMethod` — `IN_PERSON_VERBAL` | `WITNESSED` |
+  `CLINICIAN_ATTESTED` | `WRITTEN`, the exact four §3 names, no fifth value
+  invented for the ordinary case (see below). `AssistedEnrolmentConsent`
+  (`{ method, recordedBy }`) is attached to `DelegationGrant` as a new
+  `enrolment: AssistedEnrolmentConsent | null` field — `null` for a grant the
+  granter created herself through the app (her use of the interface *is* her
+  consent, nothing further to record), populated only when someone else
+  recorded it on her behalf. `grantDelegation` (existing, unchanged
+  signature) always produces `enrolment: null`; a new
+  `grantDelegationByAssistedEnrolment(id, granterId, delegateId, scopes,
+  grantedAt, expiresAt, consentMethod, recordedBy)` produces the populated
+  form, sharing the same validation as the self-service path (self-delegation,
+  empty scopes, bad expiry) via a private `buildDelegationGrant` both now call,
+  so the two paths can't silently drift apart on what makes a delegation
+  valid. It additionally throws a new `SelfRecordedAssistedEnrolmentError`
+  when `recordedBy === granterId` — if she's the one recording it, that's
+  self-service, not assistance, and the contradiction is rejected at
+  construction rather than allowed to produce a mislabelled grant. A new
+  `wasAssistedEnrolment(grant)` guard (`grant.enrolment !== null`) is the
+  function a rendering surface is expected to call before choosing how to
+  display a grant — this is the mechanism behind "never display a delegated
+  relationship as if the person self-enrolled": the two paths are
+  structurally distinguishable on the type, not by convention.
+
+  **Consent method scope, and why no fifth value.** §3's four values are
+  written for exactly the out-of-band case; there is no ordinary-path
+  equivalent named in the design ("in-app tap" isn't one of the four), so
+  rather than inventing a fifth `ConsentMethod` to cover self-service,
+  `enrolment` being `null` *is* the self-service marker. This follows the
+  same "invent no facts" reasoning C1's log gave for not inventing a
+  reassessment cadence.
+
+  **Revocation channel.** The bullet's third clause — "revocation must work
+  through a channel that does not require using the app" — needed no code
+  change: `revokeDelegation(grant, now)` already takes no caller identity, so
+  a support agent acting on a phone call from the granter produces the exact
+  same result an in-app tap would. Added a test that exercises this
+  explicitly (revoking a grant without the granter being the one invoking
+  it) rather than leaving the property implicit, since it's easy to
+  mistake "no code change needed" for "not verified." Deliberately did not
+  invent a `RevocationChannel` enum to mirror `ConsentMethod` — §2 gives an
+  example channel ("by phone to support") but no fixed taxonomy the way §3
+  gives one for consent, and `revokeDelegation`'s existing channel-agnostic
+  signature already satisfies the requirement without one.
+
+  **What this does and doesn't prove.** Same caveat as C1/C2: nothing in the
+  repo calls `grantDelegationByAssistedEnrolment` or `wasAssistedEnrolment`
+  outside this package's own tests yet — there is still no enrolment UI, no
+  route, and no rendering surface to enforce the "never display as
+  self-enrolled" rule against. That wiring is real future work, not
+  something to fake a landing spot for.
+
+  **Tests.** `packages/family/src/index.test.ts`, 40 tests (up from 25): a
+  new `describe('assisted enrolment (family-and-proxy.md §3)')` block — an
+  `it.each` over all four consent methods asserting each is recorded
+  verbatim with who recorded it; a case where the recorder is a third party
+  (a clinician) rather than the delegate, since §3's grandson-enrols-himself
+  story is the common case but not the only one; the self-recorded rejection;
+  confirmation that the ordinary delegation invariants (self-delegation,
+  empty scopes, bad expiry) still apply on this path; that a self-service and
+  an assisted grant are never confused by `wasAssistedEnrolment`; and the
+  phone-support revocation case above. Updated the existing self-service
+  `toEqual` assertion to include `enrolment: null` now that the field exists.
+
+  **Verify.** Full sequence green from the repository root:
+  `pnpm install --frozen-lockfile` (no lockfile change), `pnpm lint`
+  (31/31), `pnpm typecheck` (31/31), `pnpm test` (55/55 tasks,
+  `@swasthya/family` now 40 tests, every other package's count unchanged),
+  `pnpm build` (31/31).
+
+  **For the next run:** §C's next unchecked item is the owner-visible access
+  log — "she can see her grandson opened her record and what he viewed," not
+  only an admin. Read family-and-proxy.md §4 before starting. There is no
+  access-logging package or table anywhere in the repo yet, so this is
+  likely a new package (or an extension of `packages/family`, which already
+  owns the delegation relationship the log entries would reference) plus,
+  eventually, wiring into whatever route reads a record on someone else's
+  behalf — none of which exists yet, matching the pattern every C-round task
+  so far has followed of shipping the domain model unwired until a real call
+  site exists. `CompanionController` remains unwired to B1-B6's deterministic
+  layer, unchanged from every prior run's finding.
+
+- 2026-08-10 — **Round two, task C2: scoped delegation.** First unchecked
+  task after C1. The previous run's own log note already spelled out the
+  plan — add `scopes: readonly DelegationScope[]` to `DelegationGrant` and a
+  `hasScope(grant, scope, now)` guard — so this run followed it rather than
+  re-deriving it.
+
+  **What was built.** `DelegationScope` — `VIEW_RECORD` | `ASK_ASSISTANT` |
+  `MANAGE_APPOINTMENTS` | `UPLOAD_DOCUMENTS`, the four names in
+  family-and-proxy.md §2, no fifth invented. `DelegationGrant` gained a
+  `scopes: readonly DelegationScope[]` field; `grantDelegation` now takes a
+  `scopes` parameter (inserted between `delegateId` and `grantedAt`, so every
+  existing call site needed updating — all were in this package's own test
+  file, nothing else in the repo constructs a `DelegationGrant` yet, matching
+  C1's note that the package is still unwired). Added
+  `EmptyDelegationScopeError`, thrown when `scopes` is `[]` — not named in
+  the design doc, but "a delegation that grants nothing" is a contradiction
+  in terms, and the codebase's existing pattern (`InvalidDelegationExpiryError`,
+  `WardAlreadyOfAgeError`) is to reject constructions that would be
+  meaningless rather than silently accept them, so this follows that
+  precedent rather than adding a new one. `hasScope(grant, scope, now)`
+  composes `isDelegationActive` with `scopes.includes(scope)` — a scope
+  that's technically in the array still returns `false` once the grant has
+  expired or been revoked, so a caller can't get this right by checking
+  scope membership alone and forgetting liveness, the same shape as every
+  other guard in this package.
+
+  **What this does and doesn't prove.** §2's actual requirement — "booking an
+  appointment must not require reading mental-health notes" — is now
+  representable and covered directly: a grant holding only
+  `MANAGE_APPOINTMENTS` returns `false` from `hasScope(grant, 'VIEW_RECORD',
+  now)`. What it does not yet do is enforce anything, because nothing calls
+  `hasScope` outside this package's own tests — there is still no
+  appointments module, no records route, and no UI that checks a delegation
+  before acting. That enforcement is real future work, not something to fake
+  a landing spot for now, same reasoning C1 gave for not inventing a call
+  site.
+
+  **Tests.** `packages/family/src/index.test.ts`, 16 tests (up from 11):
+  updated all five existing delegation tests for the new `scopes` parameter,
+  added a rejection test for `[]`, and a new `describe('delegation scopes')`
+  block — independent grant (appointments without record access, and the
+  reverse), holding more than one scope at once, and losing a held scope on
+  expiry and on revocation.
+
+  **Verify.** Full sequence green from the repository root:
+  `pnpm install --frozen-lockfile` (no lockfile change — no new dependency),
+  `pnpm lint` (31/31), `pnpm typecheck` (31/31), `pnpm test` (55/55 tasks,
+  `@swasthya/family` now 16 tests, every other package's count unchanged),
+  `pnpm build` (31/31).
+
+  **For the next run:** §C's next unchecked item is assisted enrolment —
+  recording **how** consent was obtained (`IN_PERSON_VERBAL`, `WITNESSED`,
+  `CLINICIAN_ATTESTED`, `WRITTEN`), never displaying a delegated relationship
+  as self-enrolment, and revocation working through a channel that doesn't
+  require the app. Read family-and-proxy.md §3 again before starting — it's
+  the "hard case" section and the consent-provenance requirement is easy to
+  under-build. Separately: the two `describe.todo`s blocked on
+  `packages/family` (`cross-subject-leakage.test.ts` and
+  `packages/evaluation/src/index.test.ts`) are still blocked — scopes alone
+  don't unblock them, since nothing yet constructs a `DelegationGrant`
+  outside this package or checks `hasScope` against a real subject/record
+  pair; they likely stay blocked until an `apps/api` route actually consumes
+  delegation, which isn't scheduled until later in §C.
+
+- 2026-08-10 — **Round two, task C1: `packages/family` — guardianship and
+  delegation, modelled as two separate state machines.** First unchecked
+  task after §B closed out. Read `docs/architecture/family-and-proxy.md` in
+  full before starting, per the previous run's own note.
+
+  **What was built.** New package `packages/family` (`@swasthya/family`),
+  matching the shape of `packages/credentialing`/`packages/identity`
+  (plain `tsc`, no tsup, `@swasthya/shared-types` listed as a dependency for
+  convention even though nothing here imports from it yet — there is no
+  existing `Subject` type anywhere in the repo to import; §1 confirms that's
+  deliberate, a subject is just whichever plain `string` id the caller
+  already uses, e.g. `ownerId`/`subjectId`/`patientId`). Two independent
+  types, each with its own error classes and no shared base, per §2's "a
+  competent grandmother is not a dependent":
+
+  `GuardianshipGrant` (`grounds: 'MINOR' | 'INCAPACITY'`, `expiresAt`
+  mandatory on the type itself — no constructor path omits it).
+  `guardianshipExpiryForMinor(dateOfBirth)` computes the ward's 18th
+  birthday directly (18 is a fact §2 already states, not an interval this
+  codebase would be inventing, unlike `credentialing`'s `recheckDueAt`), and
+  `grantGuardianshipForMinor` uses it rather than accepting `expiresAt` as a
+  parameter, throwing `WardAlreadyOfAgeError` if the ward is already 18+ at
+  grant time. `grantGuardianshipForIncapacity` takes `expiresAt` from the
+  caller, same reasoning as `issueBadge`'s `recheckDueAt` — no reassessment
+  cadence is named in the design, so this package doesn't invent one.
+  "Must transition rather than silently continue" (§2) is enforced
+  structurally, not with a scheduled job: `isGuardianshipActive` derives
+  liveness from `expiresAt` on every read, the same pattern
+  `packages/language-corpus`'s `ConsentGrant.isLive` already uses for
+  consent — there is no code path that reads a grant as active past its
+  expiry, so there is nothing to forget to run.
+
+  `DelegationGrant` (`granterId`, `delegateId`, time-bounded `expiresAt`,
+  nullable `revokedAt`) — the opposite control direction from guardianship,
+  which is the concrete reason it cannot share that state machine.
+  `grantDelegation` throws `SelfDelegationError` on `granterId === delegateId`
+  and `InvalidDelegationExpiryError` on a non-positive window. Both grant
+  types get an idempotent `revoke*` (mirrors `ConsentGrant`'s revoke: a
+  second call is a no-op, not an error) and an `is*Active(grant, now)` guard
+  that checks `grantedAt`, `revokedAt` and `expiresAt` together.
+
+  **Deliberately not built this run**, so the ledger's own bullets stay
+  truthful about what each run actually shipped: `DelegationScope`
+  (`VIEW_RECORD`/`ASK_ASSISTANT`/`MANAGE_APPOINTMENTS`/`UPLOAD_DOCUMENTS`) —
+  the queue's very next bullet, "Scoped delegation" — is not on
+  `DelegationGrant` yet; a delegation this run grants is all-or-nothing.
+  Adding `scopes` next run is a non-breaking extension of this shape, the
+  same way B4 added fields onto B1-B3's types without touching their
+  existing behaviour. Also not built: assisted-enrolment consent-method
+  provenance (`IN_PERSON_VERBAL` etc., a later bullet), the owner-visible
+  access log, family history assertions, the profile switcher UI, and any
+  `apps/api`/`apps/mobile` wiring or `ModuleDescriptor` — nothing in the
+  repo references `@swasthya/family` yet, matching how B1's
+  `packages/retrieval` and B2's `packages/intent-router` also shipped
+  unwired.
+
+  **Tests.** `packages/family/src/index.test.ts`, 11 tests: the MINOR path
+  (18th-birthday computation against Roshani's real seed date of birth from
+  `packages/database/src/seed-data.ts`'s `caregiverRelationships[0]`, the
+  already-of-age refusal, active/inactive at the exact boundary — active up
+  to the instant of the birthday, inactive from that instant — and
+  idempotent revoke), the INCAPACITY path (caller-supplied expiry, rejected
+  if non-positive), and delegation (grant shape, self-delegation refusal,
+  invalid-window refusal, the active window, and idempotent revoke). Uses
+  Roshani's real fixture date rather than an invented one, per "invent no
+  facts."
+
+  **Verify.** Full sequence green from the repository root:
+  `pnpm install` (new workspace package, lockfile updated) then
+  `pnpm install --frozen-lockfile`, `pnpm lint` (31/31, up from 30),
+  `pnpm typecheck` (31/31), `pnpm test` (55/55 tasks, `@swasthya/family` new
+  at 11 tests, every other package's count unchanged), `pnpm build`
+  (31/31).
+
+  **For the next run:** §C's next unchecked item is "Scoped delegation:
+  `VIEW_RECORD`, `ASK_ASSISTANT`, `MANAGE_APPOINTMENTS`, `UPLOAD_DOCUMENTS`
+  granted independently. Booking an appointment must not require reading
+  mental-health notes." Add `scopes: readonly DelegationScope[]` to this
+  run's `DelegationGrant` and a `hasScope(grant, scope, now)` guard; no
+  route or UI exists yet to enforce it against (no appointments module
+  consumes delegation), so — as with prior B-round tasks — that enforcement
+  is likely its own later task once there's a real call site, not something
+  to fake a landing spot for now. Once scopes exist, the two outstanding
+  `describe.todo`s blocked on `packages/family`
+  (`packages/intent-router/src/cross-subject-leakage.test.ts` and
+  `packages/evaluation/src/index.test.ts`) can start being written for
+  real — both need a delegate acting for another subject, which needs
+  scopes to be a meaningful test (an unscoped, all-or-nothing grant makes
+  "under an active delegation" trivially the same as no delegation at all
+  for `ASK_ASSISTANT` purposes). `CompanionController` is still unwired to
+  any of B1-B6's deterministic layer, unchanged from every prior run's
+  finding.
+
+- 2026-08-10 — **Round two, task B6: evaluation set — real Nepali questions
+  paired with the record state they should be answered from, including
+  refusal cases.** Last unchecked item under B. grounded-answers.md §8: build
+  this before tuning anything, or there is no way to tell a real improvement
+  from one that merely sounds better.
+
+  **What was built.** New package `packages/evaluation` (`@swasthya/evaluation`),
+  depending on `@swasthya/intent-router`, `@swasthya/retrieval` and
+  `@swasthya/shared-types` — no new dependency on `@swasthya/database`, whose
+  only export is a Prisma-generated client requiring `prisma generate`, and
+  whose `seed-data.ts` isn't in its package `exports` map for another
+  workspace package to reach anyway. `demonstrationCorpus` is a typed,
+  dependency-free copy of `packages/database/src/seed-data.ts`'s four
+  subjects — same ids, same observation values, same labels, not a second
+  invented dataset — following the precedent every B1-B5 test file already
+  set of keeping its own fixture copy rather than sharing one across
+  packages. 13 `EvaluationCase` entries, each a real question run through the
+  actual `route` → `composeAnswer` pipeline (not a mock): Devanagari,
+  romanized-Nepali and English scripts; all three computable intents
+  (`TREND`/`LATEST_VALUE`/`COMPARISON`); the three refusal reasons a real
+  corpus can actually produce (`NOT_UNDERSTOOD`, `NO_MATCHING_RECORD`,
+  `UNCONFIRMED_DRAFTS_ONLY` — `NOTHING_CITABLE` is the fail-safe branch
+  `intent-router`'s own tests already cover directly, since `route` can never
+  reach it from a real corpus); all four demonstration subjects; and one case
+  (`roshani-thyroid-no-leak-ne`) that checks cross-subject scoping at the
+  product-question level — Sunita has a thyroid result, Roshani does not, so
+  asking from Roshani's context must refuse, never answer from Sunita's
+  record. This complements rather than duplicates B5's
+  `cross-subject-leakage.test.ts`, which exercises the same property against
+  an adversarial corpus built to fail loudly on a wrong *value*; this is the
+  same property from a real, unremarkable question.
+
+  Every `expected` outcome is empirically verified against the real pipeline
+  before being hardcoded — not guessed from reading the classifier's keyword
+  lists, which turned out to matter: two cases found genuine, reproducible
+  gaps between the classifier's actual behaviour and what it should ideally
+  do, kept as cases with an `idealNote` documenting the gap rather than fixed
+  here (fixing them is real work belonging to its own task, not something to
+  smuggle into the run that built the eval set that found them):
+
+  1. `janaki-advice-suffix-gap` — "मेरो सुगरको लागि के गर्ने?" (what should I
+     do for my sugar) comes back fully unrecognised (`NOT_UNDERSTOOD`, zero
+     matched concepts) because `expandQuery`'s `termAppears` requires a whole
+     *token* match and Nepali glues the possessive suffix directly onto the
+     noun — "सुगरको" tokenizes as one token, not "सुगर" + "को" — so "सुगर"
+     never matches. Needs either suffix-stripping in `tokenize`/`termAppears`
+     or inflected forms per term in `clinicalTermMap` (`packages/retrieval`).
+  2. `janaki-definition-marker-collision` — "What is my current blood
+     sugar?" classifies as `DEFINITION` (refuses `NO_MATCHING_RECORD`)
+     instead of `LATEST_VALUE`, because `classifyIntent` checks
+     `DEFINITION_MARKERS` before `LATEST_VALUE_MARKERS` and English "what is"
+     is on the `DEFINITION` list for the genuine case ("what is thyroid") but
+     also matches the opening of any "what is my current X" value question —
+     a collision the Nepali markers don't have (के हो/अर्थ vs.
+     कस्तो/अहिले/कति do not overlap). Needs a marker-precedence or
+     phrase-level fix in `classifyIntent` (`packages/intent-router`).
+
+  `runEvaluationCase`/`runEvaluationSet` run the real pipeline and diff the
+  result against `expected`, returning a human-readable mismatch string
+  rather than a bare boolean. `index.test.ts`: the 11 cases with no
+  `idealNote` must be 100% clean (this is the regression gate — a future
+  change to `retrieval`/`intent-router` that breaks any of these fails
+  `pnpm test`); the 2 `idealNote` cases are asserted to match their
+  documented *current* behaviour separately, with a comment explaining that
+  if that assertion ever starts failing, the gap was resolved (or changed)
+  and the fix is to promote the case out of the known-gaps list, not weaken
+  the assertion. Plus four structural checks (every case's subject exists in
+  the corpus, no duplicate ids, every script/intent/refusal-reason class is
+  covered) and a `describe.todo` for delegate-asked questions, blocked on
+  `packages/family` same as B5's own `describe.todo`. 9 tests total.
+
+  **Verify.** `pnpm install` (new workspace package — `pnpm-lock.yaml`
+  updated; a first `--frozen-lockfile` correctly rejected the stale lock
+  before this, confirming the check works), then the full sequence green:
+  `pnpm install --frozen-lockfile`, `pnpm lint` (30/30), `pnpm typecheck`
+  (30/30 — caught a real issue on the first pass, a relative import with an
+  explicit `.ts` extension the repo's TS config rejects, and a `Set<literal
+  union>.has(string)` call that needed a widened `ReadonlySet<string>`
+  annotation; both fixed before this counts as green), `pnpm test` (54/54
+  tasks, `@swasthya/evaluation` new at 9 tests, every other package's count
+  unchanged), `pnpm build` (30/30).
+
+  **For the next run:** Round two §B is now fully checked. §C
+  (`packages/family` — guardianship, scoped delegation, access log, family
+  history assertions, profile switcher) is next and is a bigger lift than
+  any single B task — read `docs/architecture/family-and-proxy.md` in full
+  before starting, and note it unblocks two outstanding `describe.todo`s
+  already in the repo (this run's own, and B5's
+  `cross-subject-leakage.test.ts`) that should become real tests once
+  delegation exists, not stay `.todo` forever. Separately, and not part of
+  §C: this run's two `idealNote` gaps in `packages/evaluation` are concrete,
+  reproducible, already-diagnosed bugs in the classifier that a future run
+  could pick up as their own small task — the suffix-matching gap especially,
+  since it likely affects more than the one query it was found on (any
+  possessive-suffixed Nepali noun).
+
+- 2026-08-10 — **Round two, task B5: cross-subject leakage test.** First
+  unchecked task after B4, named by grounded-answers.md §3 as "the
+  highest-severity failure this system can have" and required to get "an
+  explicit test, not a code review."
+
+  **What was built.** A new dedicated file,
+  `packages/intent-router/src/cross-subject-leakage.test.ts` — following the
+  repo's existing `*.fault-isolation.test.ts` precedent of giving a
+  cross-cutting property its own named file rather than folding it into
+  `index.test.ts`, where it would read as one more `describe` block among
+  many rather than the explicit test the design doc calls for. It exercises
+  the full pipeline (`retrieveForSubject` from `@swasthya/retrieval`, already
+  a dependency of this package, then `route` → `composeAnswer`) against a
+  single shared, deliberately adversarial corpus: two subjects on the same
+  analyte code, where subject-2's reading is newer, more abnormal, and would
+  flip subject-1's trend direction if it ever leaked in — so a regression to
+  "most relevant across the corpus" instead of "owned by this subject" fails
+  on a wrong *value*, not just an extra row. 8 tests: `retrieveForSubject`
+  isolation for observations, documents, and `hasUnconfirmedMatches`; the
+  same three properties again end-to-end through `route`/`composeAnswer`
+  (including that a citation's `documentId`/target never points at the other
+  subject's document); and two symmetry tests (subject-2 querying the
+  identical corpus never sees subject-1's rows) since the existing
+  scattered cross-owner tests in `packages/retrieval` and this package's own
+  `index.test.ts` only ever checked one direction. One case is worth calling
+  out on its own: a query whose only matching record anywhere is another
+  subject's `DRAFT` must refuse with `NO_MATCHING_RECORD`, not
+  `UNCONFIRMED_DRAFTS_ONLY` — the latter would itself leak the fact that the
+  other subject's record contains something pending confirmation, which is
+  exactly the kind of leak a citation-count check wouldn't catch. All 8 new
+  tests import fixtures identical in shape to the existing `makeObservation`/
+  `makeDocument` helpers already in `packages/retrieval/src/index.test.ts`
+  and this package's `index.test.ts`, not shared across files, matching how
+  those two files each already keep their own copy rather than a shared
+  test-utils module.
+
+  **Scope decision, made explicitly rather than narrowed silently** (per the
+  previous run's own note): the queue item's wording is "including under an
+  active delegation." `packages/family` (round two §C) does not exist yet —
+  no `DelegationGrant`, no scoped-permission state machine — so there is
+  nothing for a delegation-scoped test to exercise today, and hand-rolling a
+  fake delegation type just to have something to assert against would be
+  fiction dressed as coverage, which "invent no facts" rules out for test
+  fixtures as much as for product copy. Left as
+  `describe.todo('cross-subject leakage — under an active delegation (blocked
+  on packages/family)')` at the bottom of the new file, with a comment
+  explaining why, so it stays visible in every test run's output rather than
+  being a line in a comment nobody re-reads. **This task is ticked as done
+  for what is buildable today — non-delegated subject isolation — not as a
+  claim that the delegation half is covered.** Whoever builds `packages/family`
+  should turn that `describe.todo` into a real test before calling delegation
+  done, using this file's adversarial-corpus pattern (the delegate's own
+  record made the more attractive match) as the template.
+
+  **Verify.** `pnpm install --frozen-lockfile` (clean install, no lockfile
+  drift), `pnpm lint`, `pnpm typecheck` — both green, 29/29 tasks each.
+  `pnpm test` — 52/52 tasks, `@swasthya/intent-router` now at 32 tests (24
+  existing + 8 new), every other package's count unchanged. `pnpm build` —
+  29/29 tasks (23 cached from the unaffected packages, `intent-router` and
+  its dependents rebuilt). Note for future runs: `pnpm --filter <pkg> test`
+  run in isolation fails to resolve workspace dependencies (`turbo.json`'s
+  `test` task `dependsOn: ["^build"]` — dependencies need their `dist/`
+  built first); the root `pnpm test` (via turbo) handles this and is what
+  the working agreement already specifies, but it's worth knowing why a
+  single-package `--filter test` looks broken if you reach for it.
+
+  **For the next run:** the queue's next unchecked item is the evaluation
+  set — real Nepali questions paired with the record state they should be
+  answered from, including refusal cases. B5's `RefusalReason` values
+  (`NOT_UNDERSTOOD`, `NO_MATCHING_RECORD`, `UNCONFIRMED_DRAFTS_ONLY`,
+  `NOTHING_CITABLE`) and this run's own leakage corpus are exactly the
+  refusal cases that evaluation set needs to include. `CompanionController`
+  is still not wired to any of B1-B5's deterministic layer — grep confirms
+  this remains unchanged from prior runs' findings.
+
+- 2026-08-10 — **Round two, task B4: specific refusals — "your record has no
+  thyroid results," never a generic "I don't know," including the
+  unconfirmed-drafts case pointing at the confirmation queue.** First
+  unchecked task after B3. Builds directly on B3's `GroundedAnswer.REFUSAL`
+  shape, per that entry's own "for the next run" note.
+
+  **What was built.** Two packages changed, no new package. `packages/retrieval`:
+  `retrieveForSubject` used to run `selectTrusted` before the owner/term-match
+  filters, which meant a `DRAFT` observation that matched the query's terms
+  was discarded before anything could tell the caller it had ever matched at
+  all — indistinguishable from "nothing in the record even mentions this."
+  Reordered so ownership + term-matching runs once into
+  `matchingSubjectObservations`, then the trusted branch filters *that* (same
+  result as before, order of independent filters doesn't change it — no
+  regression), and a new `hasUnconfirmedMatches` field on `RetrievalResult` is
+  true exactly when the trusted branch came back empty but a `DRAFT` was among
+  the matches. False whenever a trusted match exists (nothing to point at the
+  confirmation queue for) and false for a `REJECTED`-only match (the person
+  already dismissed that value; there's nothing pending). Also added
+  `conceptLabel(concept)`, resolving a `matchedConcepts` id (e.g. `"thyroid"`)
+  to one canonical `{ labelNe, labelEn }` pair — deliberately just the first
+  `ne`/`en` entry already in `clinicalTermMap` for that concept, not a new
+  hand-picked label, so there is no second curated value to drift from the
+  entries the term map already carries for matching.
+
+  `packages/intent-router`: `RoutedAnswer`'s `NOT_COMPUTABLE` branch gained
+  `unconfirmedDraftsOnly: boolean` — false for a non-computable intent (no
+  retrieval ever runs for `DEFINITION`/`ADVICE`/`UNSUPPORTED`), and
+  `retrieval.hasUnconfirmedMatches` for a computable intent that found nothing
+  trusted. `composeAnswer`'s `GroundedAnswer.REFUSAL` gained `reason` (a new
+  `RefusalReason` union) and `concepts` (matched concepts resolved to labels
+  via `conceptLabel`, so a future UI needs no second lookup). Four reasons,
+  one per distinct situation rather than collapsing them into a boolean:
+  `NOT_UNDERSTOOD` (no concept recognised at all — the one case where a
+  general "I didn't understand that" is honestly the best available, since
+  there is nothing specific to name), `NO_MATCHING_RECORD` (a concept was
+  recognised, nothing in the record matches it, trusted or not),
+  `UNCONFIRMED_DRAFTS_ONLY` (a concept was recognised and matches, but only a
+  `DRAFT` does — this is the queue item's confirmation-queue case), and
+  `NOTHING_CITABLE` for the pre-existing fail-safe branch (a computed trend
+  existed but every point got filtered for lacking a citation) — kept
+  separate from `NOT_UNDERSTOOD` because that question *was* understood,
+  which `matchedConcepts: []` alone doesn't convey.
+
+  **Deliberately still no rendered copy, no messages/*.json entries.** The
+  queue item's own example sentence ("your record has no thyroid results") is
+  illustrative of what a UI eventually renders, not literal output text this
+  run produces — same restraint B3 documented for its own citation
+  tap-through target: `CompanionController` still is not wired to
+  `clinical-safety → route → composeAnswer` (confirmed unchanged by grep, same
+  as B3 found), so there is no component anywhere yet for
+  "every user-visible string goes in ne.json and en.json" to apply to. What
+  this run built is the *data* a refusal needs to be specific — a reason code
+  plus resolved bilingual concept labels — mirroring the precedent
+  `packages/auth` already set (error codes in the package, translated strings
+  in `apps/web`'s own message namespace) rather than inventing prose in a
+  backend package with no i18n system of its own.
+
+  **Tests.** `@swasthya/retrieval`: 3 new (`conceptLabel` resolves a known
+  concept, returns null for an unknown one, resolves every concept in the
+  map) plus 4 new on `retrieveForSubject` (flags `hasUnconfirmedMatches` for a
+  DRAFT-only match, does not for a REJECTED-only match, does not when a
+  trusted match already exists alongside a draft, does not for another
+  subject's draft). `@swasthya/intent-router`: updated the three existing
+  `NOT_COMPUTABLE`/`REFUSAL` exact-equality tests for the new fields, added 4
+  new (`NO_MATCHING_RECORD` with a resolved label, `UNCONFIRMED_DRAFTS_ONLY`
+  with a resolved label, an end-to-end `route()` → `composeAnswer()` case for
+  the DRAFT scenario, and the `NOTHING_CITABLE` fail-safe branch). Full verify
+  suite green (`pnpm install --frozen-lockfile`, `lint`, `typecheck`, `test` —
+  `@swasthya/retrieval` and `@swasthya/intent-router` both up by their new
+  test counts, every other package's count unchanged — `build`); grepped both
+  `apps/api` and `apps/web` for any existing consumer of `GroundedAnswer`,
+  `RoutedAnswer` or `RetrievalResult` before changing their shapes — none
+  exists yet, confirming this was safe to reshape without a second caller to
+  update.
+
+  **For the next run:** the queue's next unchecked item is the cross-subject
+  leakage test — "a question asked in one subject's context must be
+  unanswerable from another's record, including under an active delegation,"
+  named as the system's highest-severity failure class. `packages/family`
+  (round two C, delegation) doesn't exist yet, so the "under an active
+  delegation" half of that test may need to be scoped to what's buildable
+  today (subject isolation through `retrieveForSubject`/`route` without a
+  delegation layer to test against) or treated as a partial pass — worth
+  deciding explicitly rather than silently narrowing the test's own
+  description. `CompanionController` still isn't wired to any of B1-B4's
+  deterministic layer, and the evaluation set (the last item under B) still
+  needs real Nepali question/record-state pairs, including refusal cases —
+  this run's `RefusalReason` values are exactly what those refusal cases
+  would assert against.
+
+- 2026-08-10 — **Round two, task B3: citations on every claim, with
+  tap-through, and an answer that cannot cite is a refusal.** First unchecked
+  task after B2. Extends `packages/intent-router` (not a new package —
+  `RoutedAnswer`/`ComputedTrend`, the things this composes over, already live
+  there, and grounded-answers.md §9 doesn't reserve a separate module for
+  this) rather than touching `CompanionController`, which still isn't wired
+  to either B1's `packages/retrieval` or B2's `packages/intent-router` — a
+  background exploration pass this run confirmed that directly (grepped the
+  whole repo for `Citation`/`Claim`/`Refusal`/`tap-through`): the only
+  citation UI that exists today is `apps/mobile/app/(tabs)/companion.tsx`'s
+  rendering of Perplexity's *external* web-research citations
+  (`Linking.openURL` to a URL), and there is no in-app document/observation
+  detail screen anywhere yet for a record-grounded citation to land on. Wiring
+  the controller and building that screen is real work still queued, not
+  something to fake a landing spot for in this run.
+
+  **What was built.** Two additions to `packages/intent-router/src/index.ts`.
+  `citationTarget(citation: Citation): CitationTarget` resolves any citation
+  — `OBSERVATION` or `DOCUMENT` — to `{ kind, documentId, observationId }`:
+  every citation always has a document to open (even an observation citation
+  carries its parent `documentId`, from B1), and `observationId` is set only
+  for an `OBSERVATION` citation so a future UI can highlight the specific
+  reading rather than just opening the document. This is the tap-through
+  target as a plain data value — the thing a `Pressable`'s `onPress` will
+  eventually route on — deliberately not a navigation call, since there is no
+  screen yet to navigate to. `composeAnswer(routed: RoutedAnswer):
+  GroundedAnswer` turns B2's `RoutedAnswer` into what an interface actually
+  renders: `{ path: 'ANSWERED', claims }` where every `Claim` carries its
+  `AnalyteTrend`, its citations, and their resolved targets, or `{ path:
+  'REFUSAL', intent, matchedConcepts }`. `NOT_COMPUTABLE` is always a
+  refusal — this run does not build the *specific* "your record has no X"
+  copy for it, that's B4, a separate unchecked bullet on purpose.
+
+  **The invariant, held at this function's own boundary, not assumed from
+  upstream.** `composeAnswer` filters out any `ComputedTrend` with zero
+  citations before it can become a `Claim`, and refuses outright if every
+  trend gets filtered. Today that filter never actually fires — `route`
+  only ever builds a `ComputedTrend` from observations `retrieveForSubject`
+  already cited, so every trend it returns already carries at least one
+  citation — but the check isn't dead code: a test constructs a
+  `RoutedAnswer` by hand (bypassing `route()` entirely) with an empty
+  `citations` array on its one trend, and asserts `composeAnswer` refuses
+  rather than emit the uncited claim, plus a companion test with one citable
+  and one uncited trend asserting only the citable one survives. That's
+  "an answer that cannot cite is a refusal" as a property of this function,
+  not an accident of what `route()` happens to produce this week — if a
+  future change to `route()` ever weakens its own citation guarantee, this
+  boundary still holds. 6 new tests (`citationTarget` ×2, `composeAnswer`
+  ×4); `@swasthya/intent-router` now at 21. Full verify suite green
+  (`pnpm install --frozen-lockfile`, `lint`, `typecheck`, `test` — 52/52
+  tasks — `build`); no lockfile or new-package changes needed since this
+  extended an existing package rather than adding one.
+
+  **Deliberately not touched.** No phrasing/generation — grounded-answers.md
+  §2's "the model does not produce the numbers, it phrases" step needs an
+  actual model call, out of scope here and still ungated by
+  `clinical-safety`'s ordering rule until `CompanionController` is wired. No
+  date formatting on `Citation.effectiveAt` — same call B1 already made,
+  `apps/web/src/lib/format-date.ts` is app-local and this stays a workspace
+  package with no second formatter to drift from it. No UI, no navigation, no
+  new package.
+
+  **For the next run:** B4 (specific refusal copy, including the
+  unconfirmed-drafts case pointing at the confirmation queue) is the natural
+  next step — it can build directly on this run's `GroundedAnswer.REFUSAL`
+  shape rather than starting cold. Wiring `CompanionController` to
+  `clinical-safety → route → composeAnswer` (and only then building the
+  citation tap-through UI this run's `citationTarget` is the data layer for)
+  is still queued and still untouched by any run so far.
+
+- 2026-08-10 — **Round two, task B2: intent routing.** New package
+  `packages/intent-router` (`classifyIntent`, `route`), built on top of B1's
+  `packages/retrieval` and `health-records`'s `buildAnalyteTrend`, deliberately
+  **not yet wired into `apps/api`** — B1 wasn't either, and one task per run
+  means composing the deterministic layer now, wiring it into
+  `CompanionController` later. `classifyIntent` is a small keyword
+  classifier (question-form markers, not clinical facts, so "invent no
+  facts" doesn't apply) over six intents: `TREND`, `LATEST_VALUE`,
+  `COMPARISON`, `DEFINITION`, `ADVICE`, `UNSUPPORTED`. Only `ADVICE` doesn't
+  require a recognised clinical concept (`expandQuery`'s `matchedConcepts`)
+  — a "what should I do" question can be conceptless, everything else
+  presupposes something in the record to ask about. `route` executes the
+  three computable intents by calling `retrieveForSubject` (already
+  subject-scoped and trusted-only) then grouping the matches by
+  `observation.code` and calling `buildAnalyteTrend` once per distinct code
+  — deliberately one shared computation for all three intents, since
+  `TREND`/`LATEST_VALUE`/`COMPARISON` only differ in which slice of the same
+  trustworthy series the phrasing step should foreground, not in what gets
+  computed. `DEFINITION`/`ADVICE`/`UNSUPPORTED`, and any computable intent
+  that matches nothing trusted, return `NOT_COMPUTABLE` for the caller to
+  fall through to retrieval-backed generation or a refusal — B2 does not
+  build refusal copy or the citations UI, both separate unchecked bullets.
+  15 new tests, including one asserting a broad concept ("sugar") correctly
+  yields two separate trends (fasting glucose and HbA1c both matched the
+  same query term in the seed labels) and one asserting a DRAFT observation
+  never reaches `buildAnalyteTrend` via this path. Full verify suite green
+  (`pnpm install --frozen-lockfile`, `lint`, `typecheck`, `test` — 300+15
+  tests — `build`); `pnpm-lock.yaml` updated for the new workspace package.
+  Next run: citations on every claim with tap-through (B3), refusal
+  construction (B4) — both are natural companions to wiring this router into
+  `CompanionController`, which no run has done yet for either B1 or B2.
+
+- 2026-08-10 — **Round two, task B1: `packages/retrieval` — query expansion,
+  the Nepali ↔ English clinical term map, scoped retrieval, citation
+  assembly.** First unchecked task after A4. Design in
+  `docs/architecture/grounded-answers.md`, read first per that section's own
+  instruction. This is the first package B builds; intent routing,
+  citations-in-the-UI, refusal construction, the cross-subject leakage test
+  over the whole assistant flow, and the evaluation set are separate
+  unchecked bullets under B, deliberately left for later runs.
+
+  **What was built.** `packages/retrieval` (new): a hand-curated
+  `clinicalTermMap` of 11 concepts, each with Devanagari, romanized-Nepali,
+  and English surface forms — `expandQuery()` normalizes a raw question,
+  tokenizes it script-agnostically, and where a surface form matches (whole
+  token for a single word, phrase substring for a multi-word form like
+  "rakta sharkara"), pulls in every other form of that concept so a query in
+  one register can retrieve a record labelled in another. Every concept is
+  either the design doc's own worked example (मिर्गौला/kidney/renal,
+  चिनी-सुगर/glucose/blood sugar) or a term that appears verbatim in
+  `packages/database`'s seed data (हेमोग्लोबिन, कोलेस्ट्रोल, थाइरोइड,
+  भिटामिन डी) — nothing invented beyond what the design doc or the repo's own
+  demonstration data already asserts. `retrieveForSubject(subjectId, corpus,
+  query)` matches expanded terms against `HealthObservation.labelNe`/`labelEn`
+  and `HealthDocument.title`, and builds a `Citation` (source type, id, the
+  owning document id, both labels, `effectiveAt` left as a raw ISO string —
+  formatting into Nepali-locale copy already has one implementation,
+  `apps/web/src/lib/format-date.ts`, and this package adds no second one).
+
+  **The security property, not left to callers.** grounded-answers.md §3
+  calls cross-subject leakage the system's highest-severity failure class,
+  the same one the cross-owner records-routes gap already surfaced once. So
+  `retrieveForSubject` filters `ownerId === subjectId` and
+  `@swasthya/health-records`' `selectTrusted` (CONFIRMED/CORRECTED only, the
+  same definition `packages/interop` already reuses — no second definition
+  of "trusted" to drift from the first) **inside itself**, rather than
+  trusting the caller's corpus to already be scoped. Two tests construct a
+  corpus containing both subjects' rows on purpose and assert only the
+  matching subject's rows ever come back — this is retrieval's slice of the
+  leakage property, not the full-flow test the queue still has as a separate
+  unchecked B bullet once intent routing and generation exist to test
+  end-to-end.
+
+  **A real bug the tests caught before commit, worth flagging for whoever
+  touches Devanagari tokenization next.** The first `tokenize()` split on
+  `[^\p{L}\p{N}]+` ("not a letter or digit") to be script-agnostic between
+  Devanagari and Latin. That's wrong for Devanagari specifically: a matra
+  (मिर्गौला's ि, ौ) is Unicode category Mn (combining mark), not L, so the
+  regex tore every Devanagari word apart at its own vowel signs — चिनी
+  tokenized to fragments that matched nothing. Four tests failed with empty
+  results (not a crash, which is what made it worth calling out) until the
+  split class became `[^\p{L}\p{M}\p{N}]+`. `\b` in JS regex has the same
+  blind spot (`\w` is `[A-Za-z0-9_]`), so anything reaching for it against
+  Nepali text later will hit this again.
+
+  **Deliberately not touched.** No device-sample retrieval —
+  `DeviceSample.kind` is an enum (`BLOOD_GLUCOSE`, `HEART_RATE`, ...) with no
+  `labelNe`/`labelEn` the way `HealthObservation` has, and grounded-answers.md
+  §4 scopes the bilingual-label approach to observations specifically; giving
+  device samples the same treatment would mean inventing a second translation
+  table beyond the term map this task actually asked for. No health-library
+  or family-history retrieval — health-library content lives in `apps/web` as
+  marketing content with no id space a `Citation` could point at yet, and
+  `packages/family` (round two, section C) doesn't exist yet. Both are named
+  in scope by grounded-answers.md §3 but need their own modules built first;
+  noting the gap here rather than stubbing something half-real.
+
+  **Verification.** Standard pipeline: `pnpm install` needed
+  `--no-frozen-lockfile` once to pick up the new package (then verified
+  `--frozen-lockfile` passes clean against the updated lock), `lint`,
+  `typecheck`, `test` (`@swasthya/retrieval` new at 16 tests, every other
+  package's count unchanged), `build`, all green.
+
+  **For the next run:** the queue's next item is B2, intent routing
+  (`buildAnalyteTrend` for computable questions, "no number reaching a person
+  may originate from the model"). It's the natural consumer of
+  `retrieveForSubject` — the retrieved observations are what a trend query
+  would run over — so it can build directly on this package rather than
+  starting cold.
+
+- 2026-08-10 — **Round two, task A4: wire the entitlement guard to real
+  identity.** First unchecked task after A3. `EntitlementsGuard` previously
+  resolved a plan tier from `ownerId` read straight off a client-supplied
+  `body`/`query` field — a caller could name any owner and get that owner's
+  tier checked, and the checked identity had no relationship at all to who
+  the write actually landed on. A3 built `SessionAuthGuard`/`AuthService`
+  for exactly this but left every route trusting the old field; this task
+  is the wiring.
+
+  **What changed.** `EntitlementsGuard.extractOwnerId`
+  (`apps/api/src/entitlements/entitlements.guard.ts`) now reads
+  `request.subjectId` — set only by `SessionAuthGuard`, from a verified
+  session token — and throws `UnauthorizedException` (`UNAUTHENTICATED`) if
+  it is absent, rather than `BadRequestException` for a missing body field.
+  `RecordsController.capture()` (`POST /records/documents`, the one route
+  currently carrying `@RequireModule`/`@RequireQuota`) now runs
+  `@UseGuards(SessionAuthGuard, EntitlementsGuard)` — guard order matters —
+  and takes the document's `ownerId` from `@CurrentUser()`'s `subjectId`,
+  not the request body. `captureSchema` no longer has an `ownerId` field at
+  all: the body has nothing left to say about who owns the document, and a
+  client that sends one anyway (mimicking the old contract, or an attempted
+  spoof) has it silently ignored — verified below, not just asserted.
+  `RecordsModule` now imports `AuthModule` to get `SessionAuthGuard` into
+  its DI graph, the exact "import the module, get the guard" wiring
+  `AuthModule`'s own doc comment named this task for.
+
+  **Deliberately narrow scope.** Only the capture route is
+  entitlement-gated today, so only it changed. `RecordsController`'s other
+  five routes (`list`, `timeline`, `observationsForDocument`, `confirm`,
+  `correct`, `reject`) still trust a client-supplied `ownerId` via the
+  controller's own `requireOwnerId` — the same bug class, smaller blast
+  radius, already flagged in the prior cross-owner-gap log entry as
+  separate follow-up work, not silently absorbed into this task.
+
+  **The real consequence: `apps/mobile`'s capture screen now 401s.**
+  `apps/mobile` has no sign-in flow at all yet (confirmed by grep — A3
+  never touched it) — `app-state.tsx` generates a random local `ownerId`
+  client-side and `capture.tsx` sent it as the trusted owner. That was
+  never a real identity, and letting it keep working would have meant this
+  guard still enforced nothing. Removed `ownerId` from
+  `apps/mobile/src/lib/records-api.ts`'s `CaptureDocumentInput` (dead now
+  that the server ignores it) and from `capture.tsx`'s call, and documented
+  in that file's own doc comment why the screen will 401 against a real
+  server until mobile gets a sign-in flow of its own — reusing
+  `packages/auth`'s primitives and mirroring `apps/web`'s `PhoneOtpFlow`
+  would be the natural next step, but building it is a second task, not
+  this one. `apps/web` never called this endpoint at all (grep confirmed),
+  so nothing there regresses.
+
+  **Verification.** Standard pipeline green (install, lint, typecheck,
+  `@swasthya/api` 299 → 300 tests, build). Then live, per the "make it
+  real" mandate rather than trusting the unit tests alone: stood up the
+  same local Postgres A1-A3 used, applied migrations (already current — no
+  new migration this run, this task only touches `apps/api` route wiring),
+  booted the compiled API, and curled four cases against it —
+  `POST /records/documents` with no session (401 `UNAUTHENTICATED`), the
+  same with a spoofed `ownerId` in the body and still no session (401,
+  proving the body field is never even read), a real
+  `otp/request → otp/verify` to get a session token, then a capture with
+  that token *and* a spoofed `ownerId: "someone-else"` in the body — the
+  stored document came back owned by the real session's `userId`, not the
+  spoofed value. That fourth call is the whole task, confirmed against a
+  running server rather than only against mocks.
+
+  **For the next run:** the queue's next item, B's `packages/retrieval`,
+  is unrelated to auth and can start cold. If a future run wants to pick up
+  mobile capture again, it needs a mobile sign-in screen first — there is
+  no scaffolding for one yet, same gap A3's log already named for the
+  wider mobile app. The seeded demonstration patients
+  (Janaki/Sunita/Roshani/Arjun) still have no `phone` set, so they still
+  can't sign in through the OTP flow — still worth a decision, still
+  unrelated to this task.
+
+- 2026-08-10 — **Round two, task A3: phone + OTP authentication, session
+  handling, a real `subjectId` on every request, and `/signin`/`/register`
+  on `apps/web`.** First unchecked task after A2. This is the first task to
+  actually wire `@swasthya/database` into `apps/api`'s DI graph (A1's log
+  flagged this as the milestone A3/A4 would hit) and the first time
+  `apps/web` calls `apps/api` over HTTP at all — before this, `/signin` and
+  `/register` didn't exist as routes.
+
+  **What was built.** `packages/auth` (new, server-only — deliberately no
+  `"react-native"` export, unlike every sibling domain package, since an OTP
+  secret and a session-token key must never be reachable from a device):
+  pure OTP generation/HMAC-hashing/verification, Nepali phone
+  normalisation, session-token generation/hashing, and a small
+  dependency-free cookie-header parser, all taking `now`/`secret` as
+  parameters rather than reading the clock or the environment — 32 tests,
+  no I/O. `packages/database`: two new tables, `OtpChallenge` and `Session`,
+  added the same way A1 established (`prisma migrate diff --from-config-datasource
+  --to-schema` against the live local Postgres, applied with `migrate
+  deploy`, re-checked for zero drift) — migration
+  `20260810000000_add_auth_tables`. `apps/api`: `PrismaModule`/
+  `PrismaService` (the first real `PrismaClient` construction in this app,
+  composing `createPrismaClient()` rather than duplicating its adapter
+  wiring), and `AuthModule` — `AuthController` (`POST otp/request`, `POST
+  otp/verify`, `GET me`, `POST logout`), `AuthService`, `SessionAuthGuard` +
+  `@CurrentUser()`, an `AuthStore` port with a real `PrismaAuthStore`
+  adapter (module wiring always uses the real one — no in-memory production
+  fallback the way `RecordsModule`'s storage port has one, since Round
+  two's whole point is moving auth *onto* real persistence) and a
+  `MockSmsProvider` behind `SMS_PROVIDER=mock` that logs instead of
+  delivering. Session token travels as both an httpOnly cookie
+  (`mero_session`, `SameSite=Lax` in dev so it works across `localhost`
+  ports without extra config, `SameSite=None; Secure` in production) and a
+  bearer token in the response body, so a future mobile screen (not built
+  this run) has a carrier that doesn't depend on cookies. `apps/web`:
+  `/signin` and `/register` (new `[locale]` routes), a shared
+  `PhoneOtpFlow` client component (phone/name → code → success, parameterised
+  by `SIGN_IN`/`REGISTER` intent) and `lib/auth-api.ts` — the first fetch
+  call from `apps/web` to `apps/api`, `credentials: 'include'` for the
+  cookie. Every server error code maps to a translated string via a
+  `auth.errors` namespace rather than ever rendering the API's raw English
+  `message`; both `messages/en.json` and `ne.json` got the full `auth` tree
+  (53 keys each, checked for parity by script). Register vs. sign-in is a
+  real product distinction, not just copy: `REGISTER` on an already-registered
+  phone 409s (`ALREADY_REGISTERED`), `SIGN_IN` on an unregistered phone 404s
+  (`NOT_REGISTERED`) — no silent auto-create on sign-in.
+
+  **What A3 deliberately does not do**, left for later runs: no
+  `apps/mobile` screen (no existing scaffolding to build on, and the ledger
+  entry naming this gap only called out the web marketing pages as 404s);
+  no route on `apps/api` besides `AuthController` itself actually requires
+  `SessionAuthGuard` yet — `EntitlementsGuard`'s `extractOwnerId` and
+  `RecordsController`'s `requireOwnerId` still trust a client-supplied
+  string, unchanged. That wiring is explicitly A4 ("wire the entitlement
+  guard to real identity"), the next unchecked task, and now has a real
+  guard/service to wire to instead of nothing.
+
+  **A tsc wrinkle worth knowing about.** `apps/api`'s own `tsconfig.json`
+  needed `allowImportingTsExtensions` + `rewriteRelativeImportExtensions`
+  added — this is the first time anything in `apps/api` imports
+  `@swasthya/database`, whose generated Prisma client (per A1's log) is raw
+  `.ts` with literal `.ts`-extension internal imports and no `dist`.
+  `packages/database`'s own `tsconfig.json` handles this with `noEmit`,
+  which `apps/api` can't use (it has to emit real `dist/main.js`) —
+  `rewriteRelativeImportExtensions` is the flag that allows both at once.
+  Any future package that imports `@swasthya/database` for the first time
+  will likely hit the identical error.
+
+  **Verification.** Beyond the standard pipeline (`pnpm install
+  --frozen-lockfile`, `lint`, `typecheck`, `test`, `build`, all green —
+  `@swasthya/auth` new at 32 tests, `@swasthya/api` 271 → 299, `@swasthya/web`
+  32 → 36): stood up the same local Postgres A1/A2 used
+  (`postgresql-16`/`swasthya`/`swasthya`), applied the new migration,
+  booted the real compiled `apps/api` against it and curled the full
+  `otp/request → otp/verify → me (bearer) → me (cookie) → logout → me
+  (401)` sequence, confirming the `User`/`Session`/`OtpChallenge` rows
+  landed correctly via `psql`. Then, per the "start the dev server and use
+  the feature in a browser" guidance for UI changes: ran `apps/web`'s dev
+  server against that same live API through a real headless Chromium
+  (Playwright, pre-installed in this environment) and drove both
+  `/en/register` and `/en/signin` end to end — screenshots confirmed the
+  Nepali-default hero renders correctly at `/register` (bare path), the
+  English flow completes register → code → "Account created", a second
+  session signs back in with the same phone, and signing in with an
+  unregistered phone shows the correct localized `NOT_REGISTERED` refusal
+  text. One incidental finding: `next build` (Next.js 16) writes
+  `AGENTS.md`/`CLAUDE.md` into `apps/web/` on every build unless disabled;
+  added `agentRules: false` to `next.config.ts` so future runs' `git
+  status` doesn't pick up build noise.
+
+  **For the next run:** A4, "wire the entitlement guard to real identity,"
+  is next — `SessionAuthGuard`/`AuthService` now exist for it to use in
+  place of `EntitlementsGuard`'s `extractOwnerId` stub. The seeded
+  demonstration patients (Janaki/Sunita/Roshani/Arjun) still have no
+  `phone` set (seed-data.ts's `SeedUser` doesn't set one), so none of them
+  can sign in through this flow yet — worth deciding whether A4 needs that
+  or whether it's a separate small follow-up.
+
+- 2026-08-10 — **Round two, task A2: seed script producing a realistic
+  Nepali demonstration dataset.** First unchecked task after A1. Same
+  environment constraint as last run: `compose.yaml`'s Postgres image is
+  still blocked at the egress proxy (`connect_rejected`), so this used the
+  same pre-installed `postgresql-16` + `swasthya`/`swasthya` role/database
+  workaround — worth automating if a future run keeps hitting this.
+
+  **What was built.** `prisma/seed.sql` (a single fictional owner, six rows)
+  is gone, replaced by two files: `packages/database/src/seed-data.ts`, a
+  pure, DB-free module of typed plain-object rows, and
+  `packages/database/prisma/seed.ts`, a thin script that applies them via
+  `createPrismaClient()` (A1's factory) and per-row `upsert`s keyed by fixed
+  id — same idempotent "insert once, no-op after" behaviour the old
+  `ON CONFLICT DO NOTHING` SQL had, just expressed through Prisma. `seed-data.ts`
+  has its own colocated `seed-data.test.ts` (9 tests) asserting the shape
+  invariants that matter downstream: every subject is genuinely their own
+  record (family-and-proxy.md §1 — no nested profiles), every observation
+  carries both a Devanagari and an English label, every subject has at least
+  one trusted (CONFIRMED/CORRECTED) observation, at least one DRAFT
+  observation sits below health-records's `LOW_CONFIDENCE_THRESHOLD` to
+  exercise the confirmation queue, and the one genetic-relevant condition
+  never gets written onto a relative's record.
+
+  **The dataset.** Three generations of one fictional family (थापा — Janaki
+  the grandmother, 68; Sunita her daughter, 41; Roshani the granddaughter, 12,
+  a minor) plus one unrelated adult (Arjun, 35) so Round two B's cross-subject
+  leakage test has two genuinely separate people to prove isolation between,
+  not just a household that already shares data informally. Janaki carries
+  the genetic-relevant condition — Type 2 diabetes mellitus, SNOMED
+  `44054006`, marked `geneticRelevance: true` in its `code` JSON — recorded
+  only on her own `Condition` row. Deliberately does **not** also write
+  anything onto Sunita's or Roshani's records: family-and-proxy.md §5 is
+  explicit that a diagnosis never propagates automatically, only a
+  `FamilyHistoryAssertion` the descendant states herself would, and that
+  model doesn't exist until `packages/family` (Round two C) is built —
+  fabricating it early would have overstated what this platform can do
+  today. For the same reason, Roshani (the one minor) gets a real
+  `CaregiverRelationship` linking Sunita as her guardian with a **scoped**
+  permission set (`VIEW_RECORD`, `ASK_ASSISTANT`, `MANAGE_APPOINTMENTS`, not
+  `UPLOAD_DOCUMENTS`), but Janaki and Sunita — two competent adults — are
+  *not* linked by any schema relationship, because that would be a
+  delegation, a different state machine Round two C also hasn't built yet.
+  Six lab observations across the four subjects use real LOINC codes (HbA1c
+  `4548-4`, fasting glucose `1558-6`, TSH `3016-3`, vitamin D `1989-3`,
+  haemoglobin `718-7`, total cholesterol `2093-3`) with Devanagari + English
+  label pairs, matching the convention `packages/interop`'s and
+  `packages/health-records`'s own test fixtures already use (e.g. creatinine
+  `2160-0`) rather than the old fixture's placeholder `LOCAL:` codes — Round
+  two B's lexical retrieval needs recognisable codes to match against. The
+  four original core rows (two `Organization`s, two `DirectoryEntity`
+  rows, two `FeatureFlag`s, one `Plan`) carried over unchanged.
+
+  **Package changes.** `packages/database` now depends on
+  `@swasthya/shared-types` (for `HealthDocumentKind`, `DocumentStatus`,
+  `ObservationStatus`, etc. — every other domain package already does) and
+  declares its own `tsx` devDependency at the same `4.23.9` apps/api already
+  pins, matching that package's own `tsx watch src/main.ts` precedent rather
+  than assuming the root's `tsx` is on `PATH` for a `pnpm --filter` script.
+  One trap hit along the way: shared-types already exports a
+  `VerificationStatus` type, but it's a *different* concept (the identity
+  assurance workflow — `NOT_STARTED`/`EVIDENCE_SUBMITTED`/…) from the
+  Prisma schema's `VerificationStatus` (the org/directory claim-and-review
+  lifecycle — `CLAIMED`/`VERIFIED`/…); `seed-data.ts` type-imports the
+  Prisma one from `../generated/enums.ts` instead, now with a comment
+  explaining why so the next run doesn't reach for the wrong one.
+  `package.json`'s `seed` script is now `tsx prisma/seed.ts`; `lint` and
+  `tsconfig.json`'s `include` were extended to cover `prisma/seed.ts` too
+  (it lives outside `src`, which is all every other package's lint/typecheck
+  scope touches).
+
+  **Verification.** Beyond the standard pipeline (`pnpm install
+  --frozen-lockfile`, `lint`, `typecheck`, `test`, `build`, all green —
+  `@swasthya/database` now 13 tests, `@swasthya/api` still 271 unchanged):
+  ran `pnpm --filter @swasthya/database seed` against the real Postgres
+  instance twice in a row and confirmed the second run changed nothing
+  (idempotent), then spot-checked `PatientProfile.displayName`,
+  `HealthObservation.labelNe`/`labelEn`/`status`, and `Condition.code` via
+  `psql` directly — all four subjects present, all six observations with
+  correct Devanagari/English pairs, the DRAFT one still DRAFT, and the
+  condition JSON round-tripping `geneticRelevance: true` correctly. Not
+  part of the committed pipeline for the same reason A1's live-DB round
+  trip wasn't — this environment doesn't guarantee Postgres for every
+  future run.
+
+  **For the next run:** A3 (phone + OTP auth, real `subjectId` on every
+  request) is next. It's the first task that actually needs
+  `@swasthya/database` wired into `apps/api`'s DI graph — nothing in
+  `apps/api` constructs a `PrismaClient` yet, same gap A1's log noted. This
+  seed data is what A3–A4 and Round two B/C should authenticate against and
+  query rather than inventing their own fixtures; the four subjects' ids are
+  the exported `janakiId`/`sunitaId`/`roshaniId`/`arjunId`-shaped constants
+  in `seed-data.ts` (not re-exported by name — read the file) if a future
+  task wants to log in as one of them.
+
+- 2026-08-10 — **Round two, task A1: bring up Postgres from `compose.yaml`,
+  run the Prisma migration for the first time, fix what breaks against a
+  real database.** First unchecked task, re-derived from a fresh
+  `grep -n "^\s*- \[ \]"` — the owner had appended the whole "Round two"
+  queue since the last run's entries below, so this run is not an
+  empty-queue improvement pick like the two before it.
+
+  **`compose.yaml`'s Postgres image could not be pulled.** `docker compose
+  up -d postgres` failed: the blob pull from `production.cloudfront.docker
+  .com` got a `403 Forbidden` through this environment's egress proxy —
+  confirmed via `curl http://127.0.0.1:46183/__agentproxy/status`, which
+  logged it as `connect_rejected` / "policy denial", not a transient
+  failure. Per
+  `/root/.ccr/README.md`'s own instruction ("do not retry or route around
+  it — report the blocked host"), did not fight the network policy. Used
+  Ubuntu's pre-installed `postgresql-16` instead (this image already has
+  it; a fresh session might not — check `pg_lsclusters` first), started it
+  with `service postgresql start`, and created the `swasthya`/`swasthya`
+  role and database to match `compose.yaml`'s credentials exactly so
+  `DATABASE_URL=postgresql://swasthya:swasthya@localhost:5432/swasthya`
+  (the same default `prisma.config.ts` and `.env.example` already assume)
+  needed no other change. Worth knowing for whoever next needs MinIO too:
+  `storage-adapters/src/hosted-store.test.ts`'s own comment says "no Docker
+  daemon" in this environment — that's now half-true. `dockerd` runs fine
+  (this session is root; started it directly), but Docker Hub pulls hit the
+  identical CDN block, so a real MinIO container is still unreachable here
+  either way; that comment's conclusion (use `s3rver` in-process instead)
+  still holds, just for a different reason than it states.
+
+  **What the migration found when it actually ran.** Applied cleanly —
+  `prisma migrate deploy` against real Postgres 16 with zero errors, and
+  `prisma migrate diff --from-config-datasource --to-schema
+  prisma/schema.prisma --script` came back an empty script (no drift
+  between the committed migration and `schema.prisma`). `prisma/seed.sql`
+  also ran clean. So the schema itself — the thing the task's own wording
+  bet would have "constraint, cascade and enum problems" — had none. The
+  real problem was one layer up, and only visible once something tried to
+  *use* the generated client rather than raw SQL:
+
+  **`PrismaClient` could not be constructed.** `apps/api/src/language
+  -corpus/corpus-reviewer.guard.ts` already has a doc comment establishing
+  that `grep -rn "@swasthya/database" apps/api/src` returns nothing — this
+  package has never been imported by any application code, only ever
+  validated by the Prisma CLI. This schema's generator is `provider =
+  "prisma-client"` (Prisma 7's ESM-native client, not the legacy
+  `prisma-client-js`), and that generator's `new PrismaClient()` throws
+  `PrismaClientInitializationError: ... a driver adapter is required to
+  connect to your database` the instant anything tries to use it — there is
+  no more implicit `datasources.db.url` constructor path. Since nothing
+  had ever constructed one, this had never been caught. Confirmed by
+  writing a throwaway script (not committed) that did `new PrismaClient()`
+  against the now-real database and hit exactly that error.
+
+  **The fix.** Added `@prisma/adapter-pg` (pinned to the same `7.9.1` as
+  the rest of the Prisma toolchain) and `packages/database/src/index.ts`:
+  a `createPrismaClient(connectionString?)` factory wrapping `PrismaPg` +
+  `PrismaClient`, defaulting to the same `DATABASE_URL` fallback
+  `prisma.config.ts` already uses, so there is exactly one place future
+  code should ever construct a client from rather than copy-pasting the
+  adapter wiring at each call site. Re-exports `PrismaClient` and the
+  generated enums (`DocumentStatus`, `ObservationStatus`, etc.) so a caller
+  never needs to reach into `../generated/*` directly.
+
+  **A second, smaller wrinkle this surfaced:** the new client generator
+  emits TypeScript source meant to be imported directly (its own comment:
+  "You can import this file directly"), with literal `.ts` extension
+  imports between its own files (`from "./enums.ts"`). A plain `tsc -p`
+  over `packages/database/src` hit two compounding errors trying to
+  typecheck against that: `TS5097` (`.ts` extension imports need
+  `allowImportingTsExtensions`) and `TS6059` (the generated folder sits
+  outside `rootDir: "src"`, and it's pulled into the program by the
+  import regardless of `include`). Fixed by setting `rootDir: "."`,
+  `allowImportingTsExtensions: true` and `noEmit: true` in this package's
+  `tsconfig.json` (TS refuses to combine the extension-import flag with
+  real emit, which is correct here — this package has nothing to bundle;
+  a future consumer's own bundler or NestJS's compiler will transpile
+  `src/index.ts` directly, the same way `apps/mobile`'s Metro already
+  consumes other packages' `"react-native": "./src/index.ts"` field
+  without a separate build step). `package.json`'s `main`/`types`/`exports`
+  now point straight at `src/index.ts` rather than a `dist/` this package
+  cannot produce; `build` stays `prisma generate` alone, `lint`/`typecheck`/
+  `test` each run `prisma generate` first since none of them can assume
+  another script already did (turbo's `test` task only depends on `^build`
+  — upstream packages' build, not this package's own).
+
+  **Verification.** Beyond the standard pipeline: ran a real round trip
+  through `createPrismaClient()` against the live Postgres — created a
+  `HealthDocument` (12-digit `BigInt` byte size), a `HealthObservation`
+  with Devanagari label text and a `Float` confidence, and a
+  `PrescriptionItem` with a `Decimal` quantity, read them back, deleted
+  them. Everything round-tripped with the correct JS types on the way back
+  out (BigInt stayed `bigint`, Decimal stayed comparable via
+  `.toString()`), confirming the earlier "no drift" schema check wasn't
+  hiding a client-side serialization gap. That round trip is not itself a
+  committed test — this environment cannot guarantee a live Postgres for
+  every future run the way it can guarantee `new PrismaPg({connectionString:
+  "bogus"})` never touches the network (it's lazy — `pg.Pool` doesn't open
+  a socket until the first query), so `src/index.test.ts` only asserts the
+  construction-time contract: builds without throwing given an explicit or
+  default connection string, exposes the expected model delegates,
+  disconnects cleanly without ever having connected, and the re-exported
+  enums carry the right members.
+
+  **Verify:** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm
+  typecheck`, `pnpm test` (`@swasthya/database` 0 → 4 tests; every other
+  package's test count unchanged — `@swasthya/api` still 271), `pnpm
+  build`, all green from a clean install, run as `pnpm <script>` at the
+  repo root. (Also manually confirmed `prisma migrate deploy`, `prisma
+  migrate diff`, `prisma db execute --file prisma/seed.sql`, and the ad hoc
+  client round trip above, all against the real `postgresql-16` instance
+  described earlier — none of that is part of the committed pipeline
+  since it needs a live database this repo's tooling doesn't start on its
+  own.)
+
+  **For the next run:** the next unchecked task is Round two A2, the
+  demonstration seed script — and it should build on top of the
+  `createPrismaClient()` factory this run added rather than hand-rolling
+  another way to connect. `prisma/seed.sql`'s existing single fictional
+  owner is a smoke fixture, not the "few subjects, multi-generation
+  family, genetic condition" dataset A2 asks for — don't mistake it for
+  that task already being done. A3 (auth) and A4 (entitlement guard on
+  real identity) are the first tasks that will actually need
+  `@swasthya/database` wired into `apps/api`'s DI graph via a
+  `PrismaModule`/`PrismaService` — that wiring itself was deliberately not
+  built this run, since A1 only asked to prove the schema and client work
+  against a real database, not to migrate `apps/api` off its in-memory
+  repositories.
 
 - 2026-08-10 — **The task queue was fully checked at the start of this run
   too (fresh `grep -n "^\s*- \[ \]"` over the whole file, per the previous

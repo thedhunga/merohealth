@@ -1,5 +1,25 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "declaration": true, "emitDecoratorMetadata": true, "experimentalDecorators": true, "module": "NodeNext", "moduleResolution": "NodeNext", "outDir": "dist", "rootDir": "src", "sourceMap": true, "types": ["node"] },
+  "compilerOptions": {
+    "declaration": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
+    "rootDir": "src",
+    "sourceMap": true,
+    "types": ["node"],
+    // `@swasthya/database` has no `dist` — its generated Prisma client is
+    // ESM-native TS meant to be imported directly (see that package's own
+    // `tsconfig.json` comment), with literal `.ts` extension imports
+    // between its own files. `allowImportingTsExtensions` lets this
+    // program follow those imports for type information;
+    // `rewriteRelativeImportExtensions` is what makes that legal alongside
+    // this app's real `.js` emit (unlike `packages/database`'s own
+    // `tsconfig.json`, which has nothing to emit and uses `noEmit` instead).
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true
+  },
   "include": ["src/**/*.ts"]
 }

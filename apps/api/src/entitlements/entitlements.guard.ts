@@ -1,8 +1,8 @@
 import {
-  BadRequestException,
   ForbiddenException,
   Inject,
   Injectable,
+  UnauthorizedException,
   type CanActivate,
   type ExecutionContext,
 } from '@nestjs/common';
@@ -23,6 +23,15 @@ import { USAGE_READER, type UsageReader } from './usage-reader.js';
  * rather than throw, precisely so a caller can offer an upgrade instead of a
  * flat failure — that verdict is forwarded whole in the exception body here,
  * so a client can render "upgrade to PLUS" rather than a bare 403.
+ *
+ * Round two A4: `ownerId` used to come from a client-supplied `body`/`query`
+ * field — a tier check against an identity nobody had verified. It now
+ * reads `request.subjectId`, which only `SessionAuthGuard` sets, having
+ * resolved it from a real session token. Every route carrying
+ * `@RequireModule`/`@RequireQuota` must therefore also carry
+ * `@UseGuards(SessionAuthGuard, EntitlementsGuard)` — guard order matters,
+ * `SessionAuthGuard` first — or this guard has nothing trustworthy to read
+ * and fails closed rather than silently resolving a tier for nobody.
  */
 @Injectable()
 export class EntitlementsGuard implements CanActivate {
@@ -63,20 +72,16 @@ export class EntitlementsGuard implements CanActivate {
 }
 
 /**
- * `ownerId` travels as a plain body/query field today, the same as every
- * other owner-scoped route in this API (there is no auth layer yet — see
- * `RecordsController`'s own `requireOwnerId`). Checked here too, ahead of
- * the controller's own zod validation, because a guard that silently passes
- * `undefined` to `resolveTier` would defeat the point of gating.
+ * `subjectId` is set only by `SessionAuthGuard`, from a verified session
+ * token — never trusted from the request body/query the way `ownerId` used
+ * to be. A missing value means either the caller has no valid session (the
+ * normal 401 case) or this route forgot to run `SessionAuthGuard` first (a
+ * wiring bug); both fail the same way, since neither should resolve a tier.
  */
 function extractOwnerId(context: ExecutionContext): string {
-  const request = context.switchToHttp().getRequest<{
-    body?: Record<string, unknown>;
-    query?: Record<string, unknown>;
-  }>();
-  const ownerId = request.body?.['ownerId'] ?? request.query?.['ownerId'];
-  if (typeof ownerId !== 'string' || ownerId.trim().length === 0) {
-    throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'ownerId is required' });
+  const request = context.switchToHttp().getRequest<{ subjectId?: string }>();
+  if (!request.subjectId) {
+    throw new UnauthorizedException({ code: 'UNAUTHENTICATED', message: 'Sign in required' });
   }
-  return ownerId;
+  return request.subjectId;
 }

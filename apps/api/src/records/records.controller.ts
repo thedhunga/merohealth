@@ -1,6 +1,9 @@
 import { BadRequestException, Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
+import type { CurrentUserResult } from '../auth/auth.service.js';
+import { CurrentUser } from '../auth/current-user.decorator.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { EntitlementsGuard } from '../entitlements/entitlements.guard.js';
 import { RequireModule, RequireQuota } from '../entitlements/require-entitlement.decorator.js';
 import { RecordsService } from './records.service.js';
@@ -16,8 +19,11 @@ const documentKindSchema = z.enum([
   'OTHER',
 ]);
 
+// No `ownerId` field: Round two A4 moved capture's owner from a
+// client-supplied body value to the caller's verified `subjectId` (see
+// `capture()` below), so the body has nothing left to say about who owns
+// the document.
 const captureSchema = z.object({
-  ownerId: z.string().trim().min(1),
   filename: z.string().trim().min(1).max(255),
   kind: documentKindSchema,
   title: z.string().trim().min(1).max(200),
@@ -74,16 +80,15 @@ export class RecordsController {
   }
 
   @Post('documents')
-  @UseGuards(EntitlementsGuard)
+  @UseGuards(SessionAuthGuard, EntitlementsGuard)
   @RequireModule('HEALTH_RECORD')
   @RequireQuota('DOCUMENTS_STORED')
-  @ApiOperation({ summary: 'Capture a document: upload bytes through the storage port and record it' })
+  @ApiOperation({ summary: 'Capture a document: upload bytes through the storage port and record it, owned by the signed-in caller' })
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['ownerId', 'filename', 'kind', 'title', 'bytesBase64'],
+      required: ['filename', 'kind', 'title', 'bytesBase64'],
       properties: {
-        ownerId: { type: 'string' },
         filename: { type: 'string' },
         kind: { enum: documentKindSchema.options },
         title: { type: 'string' },
@@ -96,10 +101,11 @@ export class RecordsController {
       },
     },
   })
-  async capture(@Body() body: unknown) {
+  async capture(@CurrentUser() user: CurrentUserResult, @Body() body: unknown) {
     const input = parseOrThrow(captureSchema, body);
     return this.records.captureDocument({
       ...input,
+      ownerId: user.subjectId,
       bytes: Buffer.from(input.bytesBase64, 'base64'),
     });
   }

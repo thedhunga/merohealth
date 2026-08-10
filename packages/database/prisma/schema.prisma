@@ -128,6 +128,39 @@ model User {
   version    Int       @default(1)
 }
 
+// Round two A3 (phone + OTP). One row per code sent; `codeHash` is an HMAC,
+// never the code itself — see packages/auth's own doc comment on why a bare
+// hash of a six-digit code isn't enough. `phone` is deliberately not unique:
+// the same number legitimately gets several challenges over time (resends,
+// a later sign-in), unlike `User.phone` which is the one-account-per-number
+// constraint.
+model OtpChallenge {
+  id         String    @id @default(uuid()) @db.Uuid
+  phone      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, createdAt])
+}
+
+// A session per issued token, not per user — nothing here caps concurrent
+// sessions, so the same person can be signed in on `apps/web` and
+// `apps/mobile` at once. `userId` is a plain scalar, not `@relation(User)`,
+// matching this file's `User` model itself having no relations to anything.
+model Session {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
 model PatientProfile {
   id            String   @id @default(uuid()) @db.Uuid
   userId        String   @unique @db.Uuid

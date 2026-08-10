@@ -10,5 +10,7 @@ coverage/
 *.log
 apps/mobile/.expo/
 packages/database/generated/
+# The Expo web export, copied here by scripts/vercel-build.sh at deploy time.
+apps/web/public/app/
 
 *.tsbuildinfo

@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, type ExecutionContext } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { PlanTier, QuotaDimension } from '@swasthya/shared-types';
 import { describe, expect, it } from 'vitest';
@@ -23,10 +23,7 @@ class TestController {
   }
 }
 
-function makeContext(
-  handler: () => void,
-  request: { body?: Record<string, unknown>; query?: Record<string, unknown> } = {},
-): ExecutionContext {
+function makeContext(handler: () => void, request: { subjectId?: string } = {}): ExecutionContext {
   return {
     getHandler: () => handler,
     getClass: () => TestController,
@@ -53,32 +50,32 @@ describe('EntitlementsGuard', () => {
 
   it('denies a module the caller’s plan does not include', () => {
     const guard = buildGuard('FREE');
-    expect(() => guard.canActivate(makeContext(moduleGated, { body: { ownerId: 'owner-1' } }))).toThrow(
+    expect(() => guard.canActivate(makeContext(moduleGated, { subjectId: 'owner-1' }))).toThrow(
       ForbiddenException,
     );
   });
 
   it('allows a module the caller’s plan does include', () => {
     const guard = buildGuard('PLUS');
-    expect(guard.canActivate(makeContext(moduleGated, { body: { ownerId: 'owner-1' } }))).toBe(true);
+    expect(guard.canActivate(makeContext(moduleGated, { subjectId: 'owner-1' }))).toBe(true);
   });
 
   it('denies once usage has reached the plan’s quota limit', () => {
     const guard = buildGuard('FREE', { DOCUMENTS_STORED: 25 } as Record<QuotaDimension, number>);
-    expect(() => guard.canActivate(makeContext(quotaGated, { body: { ownerId: 'owner-1' } }))).toThrow(
+    expect(() => guard.canActivate(makeContext(quotaGated, { subjectId: 'owner-1' }))).toThrow(
       ForbiddenException,
     );
   });
 
   it('allows usage under the plan’s quota limit', () => {
     const guard = buildGuard('FREE', { DOCUMENTS_STORED: 24 } as Record<QuotaDimension, number>);
-    expect(guard.canActivate(makeContext(quotaGated, { body: { ownerId: 'owner-1' } }))).toBe(true);
+    expect(guard.canActivate(makeContext(quotaGated, { subjectId: 'owner-1' }))).toBe(true);
   });
 
   it('carries the verdict, including the upgrade suggestion, in the exception body', () => {
     const guard = buildGuard('FREE', { DOCUMENTS_STORED: 25 } as Record<QuotaDimension, number>);
     try {
-      guard.canActivate(makeContext(quotaGated, { body: { ownerId: 'owner-1' } }));
+      guard.canActivate(makeContext(quotaGated, { subjectId: 'owner-1' }));
       expect.unreachable('expected canActivate to throw');
     } catch (error) {
       expect(error).toBeInstanceOf(ForbiddenException);
@@ -91,13 +88,22 @@ describe('EntitlementsGuard', () => {
     }
   });
 
-  it('rejects a gated route with no ownerId rather than resolving a tier for nobody', () => {
+  it('rejects a gated route with no verified subjectId rather than resolving a tier for nobody', () => {
     const guard = buildGuard('FREE');
-    expect(() => guard.canActivate(makeContext(moduleGated, {}))).toThrow(BadRequestException);
+    expect(() => guard.canActivate(makeContext(moduleGated, {}))).toThrow(UnauthorizedException);
   });
 
-  it('reads ownerId from the query string when there is no body, for GET-style gated routes', () => {
+  it('never reads ownerId from a client-supplied body/query — only request.subjectId counts', () => {
     const guard = buildGuard('PLUS');
-    expect(guard.canActivate(makeContext(moduleGated, { query: { ownerId: 'owner-1' } }))).toBe(true);
+    const context = {
+      getHandler: () => moduleGated,
+      getClass: () => TestController,
+      switchToHttp: () => ({
+        getRequest: () => ({ body: { ownerId: 'owner-1' }, query: { ownerId: 'owner-1' } }),
+        getResponse: () => ({}),
+        getNext: () => undefined,
+      }),
+    } as unknown as ExecutionContext;
+    expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
   });
 });

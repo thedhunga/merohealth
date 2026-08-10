@@ -1107,29 +1107,136 @@
     "unlimited": "Unlimited",
     "footnote": "Bring-your-own storage stays free on every plan — hosted storage, extraction, device sync, sharing, provider export and teleconsultation are the modules that separate the tiers.",
     "modules": {
-      "ASSISTANT": { "label": "Nepali assistant" },
-      "HEALTH_RECORD": { "label": "Health record" },
-      "BRING_YOUR_OWN_STORAGE": { "label": "Bring your own storage" },
-      "CARE_DIRECTORY": { "label": "Care search" },
-      "HOSTED_STORAGE": { "label": "Hosted storage" },
-      "DOCUMENT_EXTRACTION": { "label": "Automatic document extraction" },
-      "DEVICE_SYNC": { "label": "Device sync" },
-      "RECORD_SHARING": { "label": "Record sharing" },
-      "PROVIDER_EXPORT": { "label": "Provider-ready export" },
-      "TELECONSULTATION": { "label": "Teleconsultation" }
+      "ASSISTANT": {
+        "label": "Nepali assistant"
+      },
+      "HEALTH_RECORD": {
+        "label": "Health record"
+      },
+      "BRING_YOUR_OWN_STORAGE": {
+        "label": "Bring your own storage"
+      },
+      "CARE_DIRECTORY": {
+        "label": "Care search"
+      },
+      "HOSTED_STORAGE": {
+        "label": "Hosted storage"
+      },
+      "DOCUMENT_EXTRACTION": {
+        "label": "Automatic document extraction"
+      },
+      "DEVICE_SYNC": {
+        "label": "Device sync"
+      },
+      "RECORD_SHARING": {
+        "label": "Record sharing"
+      },
+      "PROVIDER_EXPORT": {
+        "label": "Provider-ready export"
+      },
+      "TELECONSULTATION": {
+        "label": "Teleconsultation"
+      }
     },
     "quotas": {
-      "DOCUMENTS_STORED": { "label": "Documents stored" },
-      "EXTRACTION_PAGES_PER_MONTH": { "label": "Extraction pages / month" },
-      "ASSISTANT_MESSAGES_PER_MONTH": { "label": "Assistant messages / month" },
-      "ACTIVE_SHARE_LINKS": { "label": "Active share links" },
-      "CONNECTED_DEVICES": { "label": "Connected devices" }
+      "DOCUMENTS_STORED": {
+        "label": "Documents stored"
+      },
+      "EXTRACTION_PAGES_PER_MONTH": {
+        "label": "Extraction pages / month"
+      },
+      "ASSISTANT_MESSAGES_PER_MONTH": {
+        "label": "Assistant messages / month"
+      },
+      "ACTIVE_SHARE_LINKS": {
+        "label": "Active share links"
+      },
+      "CONNECTED_DEVICES": {
+        "label": "Connected devices"
+      }
     },
     "cta": {
       "heading": "Ready to start on the free plan?",
       "body": "Create an account and reach the assistant or a clinician whenever you need to. Add a paid module later, only if you need it.",
       "primaryCta": "Get started",
       "secondaryCta": "See FAQs"
+    }
+  },
+  "auth": {
+    "errors": {
+      "INVALID_PHONE": "That doesn't look like a valid Nepali mobile number.",
+      "OTP_COOLDOWN": "A code was already sent. Please wait a moment before requesting another.",
+      "OTP_CHALLENGE_NOT_FOUND": "That code has expired or wasn't recognised. Request a new one.",
+      "OTP_EXPIRED": "That code has expired. Request a new one.",
+      "OTP_ATTEMPTS_EXCEEDED": "Too many incorrect attempts. Request a new code.",
+      "OTP_INCORRECT": "That code isn't correct. Please try again.",
+      "NOT_REGISTERED": "No account found for this phone number. Try registering instead.",
+      "ALREADY_REGISTERED": "This phone number already has an account. Try signing in instead.",
+      "DISPLAY_NAME_REQUIRED": "Please enter your name.",
+      "VALIDATION_ERROR": "Something about that request wasn't valid. Please check and try again.",
+      "GENERIC": "Something went wrong. Please try again."
+    },
+    "signIn": {
+      "hero": {
+        "eyebrow": "Sign in",
+        "title": "Sign in to Mero Health",
+        "body": "Enter your phone number and we'll send you a one-time code — no password to remember."
+      },
+      "phone": {
+        "heading": "Enter your phone number",
+        "body": "We'll text a 6-digit code to verify it's you.",
+        "phoneLabel": "Phone number",
+        "phonePlaceholder": "98XXXXXXXX",
+        "submitCta": "Send code",
+        "switchPrompt": "New to Mero Health?"
+      },
+      "code": {
+        "heading": "Enter the code",
+        "body": "We sent a 6-digit code by SMS.",
+        "devCodeNotice": "Development only: your code is {code}.",
+        "codeLabel": "Verification code",
+        "codePlaceholder": "000000",
+        "backCta": "Change number",
+        "submitCta": "Sign in"
+      },
+      "success": {
+        "heading": "You're signed in",
+        "body": "Signed in as {phone}.",
+        "noAppNotice": "Mero Health's app is still being built — this confirms your account exists, but there is nowhere to use it yet.",
+        "homeCta": "Back to home"
+      }
+    },
+    "register": {
+      "hero": {
+        "eyebrow": "Register",
+        "title": "Create your Mero Health account",
+        "body": "Enter your name and phone number to get started — verified with a one-time code, no password to remember."
+      },
+      "phone": {
+        "heading": "Enter your details",
+        "body": "We'll text a 6-digit code to verify your phone number.",
+        "nameLabel": "Your name",
+        "namePlaceholder": "e.g. Sita Rai",
+        "phoneLabel": "Phone number",
+        "phonePlaceholder": "98XXXXXXXX",
+        "submitCta": "Send code",
+        "switchPrompt": "Already have an account?"
+      },
+      "code": {
+        "heading": "Enter the code",
+        "body": "We sent a 6-digit code by SMS.",
+        "devCodeNotice": "Development only: your code is {code}.",
+        "codeLabel": "Verification code",
+        "codePlaceholder": "000000",
+        "backCta": "Change number",
+        "submitCta": "Create account"
+      },
+      "success": {
+        "heading": "Account created",
+        "body": "Your account for {phone} is ready.",
+        "noAppNotice": "Mero Health's app is still being built — this confirms your account exists, but there is nowhere to use it yet.",
+        "homeCta": "Back to home"
+      }
     }
   }
 }

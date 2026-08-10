@@ -30,6 +30,7 @@ import * as Speech from 'expo-speech';
 import { assessSafety, getSafetyTemplate } from '@swasthya/clinical-safety';
 import { colors, radii, spacing } from '@swasthya/configuration';
 import { Screen, SathiOrb, uiStyles } from '@/components/ui';
+import { ProfileSwitcher } from '@/components/ProfileSwitcher';
 import { useAppState } from '@/state/app-state';
 import { classifyCompanionCapture, type CompanionCapture } from '@/lib/companion-capture';
 
@@ -48,7 +49,15 @@ interface ResearchResult {
 
 export default function CompanionScreen() {
   const params = useLocalSearchParams<{ demo?: string }>();
-  const { language, captureUtterance, hasConsent, grantConsentAndCapture } = useAppState();
+  const {
+    language,
+    captureUtterance,
+    hasConsent,
+    grantConsentAndCapture,
+    actingSubjects,
+    activeSubject,
+    switchActingSubject,
+  } = useAppState();
   const [message, setMessage] = useState(
     params.demo === 'emergency' ? 'मलाई सास फेर्न गाह्रो छ' : '',
   );
@@ -200,6 +209,13 @@ export default function CompanionScreen() {
         </View>
         <SathiOrb size={52} />
       </View>
+
+      <ProfileSwitcher
+        active={activeSubject}
+        language={language}
+        onSwitch={switchActingSubject}
+        subjects={actingSubjects}
+      />
 
       {!submitted ? (
         <>

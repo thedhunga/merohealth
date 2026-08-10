@@ -73,7 +73,6 @@ describe('captureDocument', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const result = await captureDocument({
-      ownerId: 'owner-1',
       filename: 'scan.jpg',
       kind: 'LAB_REPORT',
       title: 'Blood panel',
@@ -113,7 +112,6 @@ describe('captureDocument', () => {
 
     await expect(
       captureDocument({
-        ownerId: 'owner-1',
         filename: 'scan.jpg',
         kind: 'LAB_REPORT',
         title: 'Blood panel',
