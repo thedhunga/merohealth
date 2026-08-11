@@ -7,11 +7,12 @@ import { PatientRegistryModule } from '../patient-registry/patient-registry.modu
 import { PrescribingModule } from '../prescribing/prescribing.module.js';
 import { RecordsModule } from '../records/records.module.js';
 import { SchedulingModule } from '../scheduling/scheduling.module.js';
+import { TeleconsultationModule } from '../teleconsultation/teleconsultation.module.js';
 import { ClinicalSuiteController } from './clinical-suite.controller.js';
 import { ClinicalSuiteService } from './clinical-suite.service.js';
 
 /**
- * Imports every module up to `diagnostics-orders` purely to reuse the
+ * Imports every module up to `teleconsultation` purely to reuse the
  * services Nest already constructed for them — this module owns no data and
  * no repository of its own, only the aggregate view over the others'
  * already-exported ports.
@@ -26,6 +27,7 @@ import { ClinicalSuiteService } from './clinical-suite.service.js';
     MedicationSafetyModule,
     PrescribingModule,
     DiagnosticsOrdersModule,
+    TeleconsultationModule,
   ],
   controllers: [ClinicalSuiteController],
   providers: [ClinicalSuiteService],

@@ -315,13 +315,13 @@ export interface CredentialingBadge {
  *
  * docs/architecture/clinical-suite.md §3's capability map, minus row 8
  * ("Patient portal" — that is `apps/web` + `apps/mobile` themselves, not a
- * module that plugs into this fault-isolation system). Modules 1-7 are
- * built; 9-20 are sequenced but deliberately parked — see
+ * module that plugs into this fault-isolation system). Modules 1-7 and 9 are
+ * built; 10-20 are sequenced but deliberately parked — see
  * agent-progress.md's "stop after prescribing and reassess" note, extended
- * to "stop after diagnostics-orders" once row 7 shipped. All 19 keys are
- * declared up front so `requires`/`degradesWith` references compile-check
- * against the full eventual map, not just whichever module happens to exist
- * today.
+ * first to "stop after diagnostics-orders" once row 7 shipped, then to "stop
+ * after teleconsultation" once row 9 shipped. All 19 keys are declared up
+ * front so `requires`/`degradesWith` references compile-check against the
+ * full eventual map, not just whichever module happens to exist today.
  * ------------------------------------------------------------------ */
 export type ClinicalModuleKey =
   | 'PATIENT_REGISTRY' | 'SCHEDULING' | 'CLINICAL_CHARTING' | 'CLINICAL_SUMMARY'
@@ -833,4 +833,58 @@ export interface RecordDiagnosticResultInput {
   resultSource: DiagnosticResultSource;
   value: string;
   recordedBy: string;
+}
+
+/* ------------------------------------------------------------------ *
+ * Teleconsultation (clinical-suite.md capability map row 9)
+ *
+ * "Telehealth ... WebRTC. Already stubbed in apps/mobile." That stub —
+ * `apps/mobile/app/consultation.tsx` — is real camera-permission UI with no
+ * networking of any kind behind it; its own on-screen copy says so
+ * outright: "No clinician, recording, signaling server, or WebRTC provider
+ * is connected." README.md's explicit exclusion list agrees: "real
+ * clinician-to-patient WebRTC ... planned modules — not operational
+ * integrations." So `connectionMode` is a caller-supplied field the same
+ * way row 7's `resultSource` is: `'WEBRTC'` is a real value the type
+ * accepts for when that infrastructure exists, but nothing in this
+ * codebase ever sets it today — every session scheduled here is honestly
+ * `'MOCK'`.
+ *
+ * A session is scheduled against an existing `scheduling` appointment, the
+ * same precedent row 6/7 set for placing a clinical action against a
+ * `clinical-charting` encounter — there is no patient-reported session with
+ * no appointment behind it. `patientId`/`clinicianId` are therefore derived
+ * from the appointment rather than caller-supplied (see
+ * `apps/api/src/teleconsultation/teleconsultation.service.ts`), so
+ * `scheduleTeleconsultation` below takes them as plain parameters rather
+ * than an `Input` object with nothing left to put in it.
+ *
+ * The lifecycle is SCHEDULED -> ACTIVE -> COMPLETED, with SCHEDULED also
+ * reachable to CANCELLED or NO_SHOW. Unlike row 7's ORDERED -> RESULTED |
+ * CANCELLED shape, a session that has gone ACTIVE can no longer be
+ * cancelled or marked no-show — once two people are in the room, the only
+ * honest forward transition is completing it.
+ * ------------------------------------------------------------------ */
+export type TeleconsultationSessionStatus = 'SCHEDULED' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+
+export type TeleconsultationConnectionMode = 'MOCK' | 'WEBRTC';
+
+export interface TeleconsultationSession {
+  id: string;
+  patientId: string;
+  clinicianId: string;
+  appointmentId: string;
+  status: TeleconsultationSessionStatus;
+  /** Always `'MOCK'` — see this section's own comment. */
+  connectionMode: TeleconsultationConnectionMode;
+  startedAt: string | null;
+  endedAt: string | null;
+  /** Set together, only once cancelled; both stay null otherwise. */
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  /** Set only by `markTeleconsultationNoShow`; stays null otherwise. */
+  noShowAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
 }

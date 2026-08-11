@@ -453,17 +453,133 @@ suite grows. A module that "works" but has no outage test is not finished.
       results. Reassessed the "stop after prescribing" note (see the
       2026-08-11 log entry below) and resumed with this one module — see
       that entry for why row 7 specifically, and why nothing past it.
+- [x] `teleconsultation` (capability map row 9): booking/session lifecycle
+      only — see the 2026-08-11 log entry below for why real WebRTC stays
+      explicitly out of scope and what was built instead.
 
-Stop after diagnostics-orders and reassess again. Modules 8-20 in the
+Stop after teleconsultation and reassess again. Modules 10-20 in the
 capability map are sequenced but must not be started while anything above is
 unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
-not a module that plugs into this registry, so row 9 (teleconsultation) is
-the next real candidate whenever this note is next revisited.
+not a module that plugs into this registry, so row 10 (billing) is the next
+real candidate whenever this note is next revisited, and it carries the same
+financial-liability weight §1 warns prescribing does — `docs/compliance/`
+should lead it, not trail it.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; reassessed the "stop after
+  diagnostics-orders" note and resumed the clinical suite with
+  `teleconsultation` (capability map row 9).** Grepped for `- [ ]` first —
+  zero hits. The prior run's own log entry named row 9 explicitly as "the
+  next real candidate whenever this note is next revisited," so this run
+  spent its research budget on scope, not on picking a task: is real
+  WebRTC/media infrastructure in scope for row 9, or does it stay a
+  booking/session-lifecycle model the way `diagnostics-orders` modelled
+  order/result lifecycle without a real HL7 interface?
+
+  **Scope, and how it was settled.** Four independent sources agree real
+  video infrastructure is out of scope. The capability map itself says
+  "Already stubbed in apps/mobile." That stub,
+  `apps/mobile/app/consultation.tsx`, is real camera-permission UI with zero
+  networking code behind it — its own on-screen copy says "No clinician,
+  recording, signaling server, or WebRTC provider is connected." The
+  implementation backlog calls it a "mock private video room" outright.
+  `README.md` states it plainly: "real clinician-to-patient WebRTC ...
+  planned modules — not operational integrations." So the module built here
+  models the session's lifecycle and never touches media at all — the same
+  restraint `diagnostics-orders` showed leaving `resultSource: 'HL7'`
+  declared but never constructed.
+
+  **What was built — the module 1-7 shape, applied to row 9.**
+  1. `packages/shared-types/src/index.ts`: `TeleconsultationSession` and its
+     status/connection-mode types, in a new section following the same "row
+     N of the capability map" header comment every prior section uses.
+     `connectionMode: 'MOCK' | 'WEBRTC'` mirrors row 7's `resultSource:
+     'HL7' | 'MANUAL'` honesty pattern exactly — `'WEBRTC'` is a real,
+     accepted value for when that infrastructure exists, but
+     `scheduleTeleconsultation` only ever constructs `'MOCK'`. A session is
+     scheduled against an existing `scheduling` appointment (mirroring row
+     6/7's "placed against a `clinical-charting` encounter" precedent), so
+     `patientId`/`clinicianId` are derived rather than caller-supplied and
+     there is no `Input` type left with anything to hold — that type was
+     drafted, then deleted once it would have been empty (an
+     `@typescript-eslint/no-empty-object-type` risk besides being
+     dishonest). Also updated the stale `ClinicalModuleKey` header comment.
+  2. `packages/teleconsultation` (new package): `scheduleTeleconsultation`,
+     `startTeleconsultation`, `completeTeleconsultation`,
+     `cancelTeleconsultation`, `markTeleconsultationNoShow` — a five-state
+     SCHEDULED → ACTIVE → COMPLETED machine, with SCHEDULED also reaching
+     CANCELLED or NO_SHOW. Unlike row 7's three-state shape, an ACTIVE
+     session can no longer be cancelled or marked no-show — once two people
+     are in the room, completing it is the only honest forward move, so
+     `cancelTeleconsultation`/`markTeleconsultationNoShow` both reuse one
+     `assertScheduled` guard the same way row 7's `assertOpen` is reused
+     across its own mutators. Full `index.test.ts` coverage, including the
+     `connectionMode` honesty check and every guard's specific error on
+     every wrong-state transition (14 tests).
+  3. `apps/api/src/teleconsultation/`: repository (in-memory map, same
+     convention as every sibling), service (`SchedulingService` injected as
+     its public port per §2 rule 3 — `scheduleSession` is the one action
+     gated on it, `startSession`/`completeSession`/`cancelSession`/
+     `markNoShow` never touch it), controller (zod-validated, mirrors
+     `DiagnosticsOrdersController`'s route shape), module-descriptor
+     (`TELECONSULTATION`, empty `requires`, one `degradesWith` edge: `HIDE`
+     against `SCHEDULING`), and module. Repository, service, controller,
+     module-descriptor and fault-isolation test files, same five-file split
+     every prior module used (25 new `apps/api` tests total).
+  4. Wired into `apps/api/src/app.module.ts` and the `clinical-suite`
+     aggregate (`clinical-suite.module.ts`/`clinical-suite.service.ts`):
+     `GET /clinical-suite/modules` now reports nine modules, not eight.
+     Updated `clinical-suite.service.test.ts`'s "all N modules available"
+     test for the new count, and added explicit `TELECONSULTATION`
+     assertions to both existing cascade tests proving `degradesWith` stays
+     one-hop per §2 (a `CLINICAL_CHARTING` outage doesn't touch it; a
+     `PATIENT_REGISTRY` outage doesn't either, because `SCHEDULING` itself
+     stays `available` — only degraded — when its own dependency is down).
+  5. `apps/api/package.json`: added `@swasthya/teleconsultation` as a real
+     dependency; regenerated `pnpm-lock.yaml` via `--no-frozen-lockfile`,
+     then confirmed `--frozen-lockfile` passes clean afterward, same
+     sequence the row 7 run used for the same reason.
+
+  **What was deliberately not built.** No signaling server, TURN/STUN
+  config, or media transport code of any kind — every source above agrees
+  this is out of scope, and `consultation.tsx` stays exactly what it is (a
+  disconnected UI demo); wiring it to this new booking/session API is a
+  separate, larger decision this run did not make. No consent-flag
+  enforcement — `compliance-gap-register.md`'s pre-existing "Telemedicine"
+  row already names "configurable consent and jurisdiction flags" as the
+  interim control still to be built, and this run did not build it; that
+  register row was read but deliberately not edited, the same restraint the
+  row 7 run showed toward the pre-existing "Lab results" row. No entitlement
+  wiring (`minimumAssuranceLevel['TELECONSULTATION'] = 'IDENTITY_VERIFIED'`
+  already exists in `packages/entitlements` but is enforced by no route) —
+  confirmed no module 1-7 controller wires entitlements either, so adding it
+  here alone would be inventing an inconsistency, not fixing one. No
+  clinician-facing UI — matches every module 1-7 precedent.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the lockfile
+  regeneration; `pnpm lint` 33/33 (up from 32 — the new package); `pnpm
+  typecheck` 33/33; `pnpm test` 60/60 tasks — `@swasthya/api` 372 tests (up
+  from 347: 25 new, across `teleconsultation.repository.test.ts`,
+  `.service.test.ts`, `.controller.test.ts`, `.module-descriptor.test.ts`,
+  `.fault-isolation.test.ts`, plus the updated `clinical-suite.service
+  .test.ts`), `@swasthya/teleconsultation` 14 new tests; `pnpm build` 33/33,
+  including `apps/web`'s static export and `apps/mobile`'s Expo web bundle.
+  No schema/migration change — this module has no Prisma model yet, matching
+  every module 1-7 precedent (in-memory only) — so no live Postgres was
+  needed this run.
+
+  **For the next run.** Guardianship creation stays open, understood (per
+  the entry below) to be blocked on a minor's account-enrolment mechanism,
+  not a DOB field. The clinical suite is parked again, this time after row
+  9. The next reassessment's honest starting point is row 10 (`billing`) —
+  it carries the same financial-liability weight §1 warns prescribing does
+  ("the moment a clinician ... bills from it, the product stops being a
+  demonstration"), so whoever picks it up should read `docs/compliance/`
+  first, not build first and reconcile after.
 
 - 2026-08-11 — **Queue fully checked again; reassessed the "stop after
   prescribing" note and resumed the clinical suite with `diagnostics-orders`

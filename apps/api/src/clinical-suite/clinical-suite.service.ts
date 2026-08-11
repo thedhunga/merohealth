@@ -16,10 +16,12 @@ import { RecordsService } from '../records/records.service.js';
 import { createHealthRecordsModuleDescriptor } from '../records/records.module-descriptor.js';
 import { SchedulingService } from '../scheduling/scheduling.service.js';
 import { createSchedulingModuleDescriptor } from '../scheduling/scheduling.module-descriptor.js';
+import { TeleconsultationService } from '../teleconsultation/teleconsultation.service.js';
+import { createTeleconsultationModuleDescriptor } from '../teleconsultation/teleconsultation.module-descriptor.js';
 
 /**
  * clinical-suite.md §2 rule 5: "the shell renders around holes." Every
- * module up to `diagnostics-orders` (capability map rows 1–7, plus
+ * module up to `teleconsultation` (capability map rows 1–7 and 9, plus
  * `HEALTH_RECORDS` from row 16, which `clinical-charting` already degrades
  * against) ships its own `ModuleDescriptor` and its own fault-isolation test
  * proving *its* `requires`/`degradesWith` edges resolve correctly in a
@@ -45,6 +47,7 @@ export class ClinicalSuiteService {
     medicationSafety: MedicationSafetyService,
     prescribing: PrescribingService,
     diagnosticsOrders: DiagnosticsOrdersService,
+    teleconsultation: TeleconsultationService,
   ) {
     // Built once, at DI wiring time, per `buildModuleRegistry`'s own
     // contract: a typo'd or missing dependency key fails app bootstrap
@@ -59,6 +62,7 @@ export class ClinicalSuiteService {
       createMedicationSafetyModuleDescriptor(medicationSafety),
       createPrescribingModuleDescriptor(prescribing),
       createDiagnosticsOrdersModuleDescriptor(diagnosticsOrders),
+      createTeleconsultationModuleDescriptor(teleconsultation),
     ]);
   }
 

@@ -16,6 +16,8 @@ import { RecordsRepository } from '../records/records.repository.js';
 import { RecordsService } from '../records/records.service.js';
 import { SchedulingRepository } from '../scheduling/scheduling.repository.js';
 import { SchedulingService } from '../scheduling/scheduling.service.js';
+import { TeleconsultationRepository } from '../teleconsultation/teleconsultation.repository.js';
+import { TeleconsultationService } from '../teleconsultation/teleconsultation.service.js';
 import { ClinicalSuiteService } from './clinical-suite.service.js';
 
 /**
@@ -33,7 +35,8 @@ function buildStack() {
   const medicationSafety = new MedicationSafetyService(new MedicationSafetyRepository(), summary);
   const prescribing = new PrescribingService(new PrescribingRepository(), charting, medicationSafety);
   const diagnosticsOrders = new DiagnosticsOrdersService(new DiagnosticsOrdersRepository(), charting);
-  return { records, patients, scheduling, charting, summary, medicationSafety, prescribing, diagnosticsOrders };
+  const teleconsultation = new TeleconsultationService(new TeleconsultationRepository(), scheduling);
+  return { records, patients, scheduling, charting, summary, medicationSafety, prescribing, diagnosticsOrders, teleconsultation };
 }
 
 function buildSuite(stack: ReturnType<typeof buildStack>): ClinicalSuiteService {
@@ -46,17 +49,18 @@ function buildSuite(stack: ReturnType<typeof buildStack>): ClinicalSuiteService 
     stack.medicationSafety,
     stack.prescribing,
     stack.diagnosticsOrders,
+    stack.teleconsultation,
   );
 }
 
 describe('ClinicalSuiteService', () => {
-  it('reports all eight registered modules available with no degradations when everything is up', async () => {
+  it('reports all nine registered modules available with no degradations when everything is up', async () => {
     const stack = buildStack();
     const suite = buildSuite(stack);
 
     const resolved = await suite.resolve();
 
-    expect(resolved).toHaveLength(8);
+    expect(resolved).toHaveLength(9);
     expect(resolved.map((module) => module.key).sort()).toEqual(
       [
         'CLINICAL_CHARTING',
@@ -67,6 +71,7 @@ describe('ClinicalSuiteService', () => {
         'PATIENT_REGISTRY',
         'PRESCRIBING',
         'SCHEDULING',
+        'TELECONSULTATION',
       ].sort(),
     );
     for (const module of resolved) {
@@ -99,10 +104,13 @@ describe('ClinicalSuiteService', () => {
       available: true,
       degradations: [{ dependency: 'CLINICAL_CHARTING', mode: 'HIDE' }],
     });
-    // patient-registry, scheduling and health-records have no dependency on
-    // clinical-charting at all and must read as fully available.
+    // patient-registry, scheduling, teleconsultation and health-records have
+    // no dependency on clinical-charting at all and must read as fully
+    // available — teleconsultation's own dependency is SCHEDULING, not
+    // CLINICAL_CHARTING.
     expect(byKey.get('PATIENT_REGISTRY')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('SCHEDULING')).toMatchObject({ available: true, degradations: [] });
+    expect(byKey.get('TELECONSULTATION')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('HEALTH_RECORDS')).toMatchObject({ available: true, degradations: [] });
   });
 
@@ -122,5 +130,10 @@ describe('ClinicalSuiteService', () => {
       available: true,
       degradations: [{ dependency: 'PATIENT_REGISTRY', mode: 'READ_ONLY' }],
     });
+    // teleconsultation only reacts to SCHEDULING's own `available`
+    // (§2's "degradesWith never cascades past one hop"), and SCHEDULING
+    // stays `available` here — only degraded — so teleconsultation must
+    // read as fully available too.
+    expect(byKey.get('TELECONSULTATION')).toMatchObject({ available: true, degradations: [] });
   });
 });

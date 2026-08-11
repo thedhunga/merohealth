@@ -17,6 +17,7 @@ import { PrescribingModule } from './prescribing/prescribing.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RecordsModule } from './records/records.module.js';
 import { SchedulingModule } from './scheduling/scheduling.module.js';
+import { TeleconsultationModule } from './teleconsultation/teleconsultation.module.js';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { SchedulingModule } from './scheduling/scheduling.module.js';
     MedicationSafetyModule,
     PrescribingModule,
     DiagnosticsOrdersModule,
+    TeleconsultationModule,
     ClinicalSuiteModule,
     LanguageCorpusModule,
     FamilyModule,
