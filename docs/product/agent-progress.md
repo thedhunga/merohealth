@@ -517,6 +517,12 @@ suite grows. A module that "works" but has no outage test is not finished.
       pick." See the 2026-08-11 log entry below (the one added by this run)
       for the full file list, why `apps/web` needed no change, and why
       `index.web.tsx` was deliberately excluded.
+- [x] Fully localized `apps/mobile/app/index.web.tsx` — the web marketing
+      landing page that had zero `language`/`useAppState` wiring anywhere,
+      the gap the prior run's own log entry named as "a real, larger
+      follow-up if anyone wants this specific gap fully closed." See the
+      2026-08-11 log entry below (the one added by this run) for what stayed
+      unconditional (brand lockup, all-caps eyebrow badges) and why.
 
 Stop after analytics and reassess again. Modules 11 and 15-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -533,6 +539,89 @@ run should re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; fully localized
+  `apps/mobile/app/index.web.tsx`.** Grepped for `- [ ]` first — zero hits,
+  same as every prior "queue exhausted" run. This picked up the concrete
+  candidate the immediately-preceding run's own log entry named as "a real,
+  larger follow-up if anyone wants this specific gap fully closed": unlike
+  every sibling screen, `index.web.tsx` (the Expo-router web variant of the
+  root `/` route, i.e. the actual marketing landing page served at the app's
+  web root) never imported `useAppState`/`language` at all — its ~50 visible
+  strings were a fixed mix of Nepali and English with no toggle, so an
+  English-preferring visitor saw a landing page that switched languages
+  mid-scroll for no reason tied to any choice they made.
+
+  **What was built.** Added `useAppState`/`language` (the same context every
+  other screen already reads, provided by `AppStateProvider` in
+  `app/_layout.tsx`, which wraps this route too) and converted every visible
+  `<Text>` node, the brand-lockup `accessibilityLabel`, the mic-button
+  `accessibilityLabel`s, and the `Speech.speak` introduction (text *and* its
+  `language` code, `ne-NP`/`en-US`) to the same
+  `language === 'en' ? … : …` ternary convention `care.tsx`/`consultation.tsx`
+  established. The `journey` and `services` arrays gained `titleNe`/`titleEn`
+  (etc.) pairs, matching `care.tsx`'s own `filters` array's `labelNe`/
+  `labelEn` precedent from two entries back — and `services` gained a stable
+  `id` field so `.map()` keys no longer depend on the label text, which would
+  have remounted every card on a language switch. The imperative
+  `voiceMessage`/`setVoiceMessage(...)` state (three hardcoded Nepali strings
+  written at record-start/stop) was replaced with a value derived at render
+  time from `recorderState.isRecording` and a new `hasRecorded` boolean —
+  needed for correctness, not a stylistic refactor: an imperative string
+  written once at record-start would have frozen in whatever language was
+  active *then*, going stale if the visitor toggled language mid-recording.
+  Reused `apps/web/messages/{ne,en}.json`'s existing `home.hero`/
+  `home.announcement` copy where the same concept already had an approved
+  translation (`"Built for Nepal · useful anywhere"` for the eyebrow is a
+  verbatim match; the announcement banner and trust-row lines are close
+  paraphrases of the same source strings) rather than inventing independent
+  wording for the same claim. Everything else — the Perplexity band's three
+  paragraphs, the bento safety panel, the journey/story copy — had no
+  existing translation anywhere in the repo to reuse, so got a plain, literal
+  Nepali translation of the existing English (or vice versa), never new
+  claims: the Perplexity paragraph still names only Sonar/Perplexity Health,
+  the same integration `apps/api/src/perplexity-health.service.ts` and
+  `companion.controller.ts` actually call, nothing further was implied.
+
+  **What was deliberately left unconditional, and why.** Three elements
+  stay fixed regardless of the toggle: the `MERO HEALTH` / `मेरो स्वास्थ्य`
+  brand lockup and `footerBrand` (a brand name, not translatable copy, same
+  as `Footer.tsx`'s social-network names from two entries back); the
+  `heroNepali` line ("Your health, in your language.") sitting directly under
+  the Nepali headline — this is a deliberate fixed bilingual pairing
+  demonstrating the product's own language range, not a stray untranslated
+  string, so toggling it would remove the thing it exists to show; and the
+  two all-caps eyebrow badges (`CARE, ALL IN ONE PLACE`,
+  `MERO HEALTH × PERPLEXITY`), matching the precedent
+  `app/(tabs)/learn.tsx`'s `STEP 1 · ASK`/`PATIENT-CONTROLLED` eyebrows
+  already set of leaving all-caps badge chrome in English under both
+  languages. The `languageChip` text ("नेपाली पहिलो · रोमन नेपाली ·
+  English") is inherently trilingual by design and was left as-is for the
+  same reason. No change to any other file — `care-directory`'s data,
+  `companion.controller.ts`'s Perplexity wiring, and every other screen's
+  existing translations were untouched.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 37/37. `pnpm typecheck` 37/37. `pnpm test` 68/68 tasks,
+  `@swasthya/api` 480/480 — no count change, this file has no colocated test
+  (matching every other `app/*.tsx` screen, per the accessibility-label run's
+  own note two entries back on why `app/*.tsx` screens have no rendering
+  harness). `pnpm build` 37/37, including `apps/mobile`'s Expo web bundle —
+  the `/` (index) static route still exports at the expected size (86KB,
+  consistent with the added ternary branches) and `apps/web`'s static export
+  is unaffected (no `apps/web` file touched).
+
+  **For the next run.** The candidates every recent entry has repeated stay
+  exactly where they were: `companion.controller.ts`'s missing
+  `EntitlementsGuard` (needs a product decision on anonymous-vs-signed-in
+  use), extending `analytics` with a `clinical-charting` source (needs
+  someone to decide what an encounter-only summary counts, since `SoapNote`
+  has no clean status field), and capability-map row 15 `engagement` (a new
+  module, flagged repeatedly as deserving its own dedicated run — the
+  strongest actual candidate left, if this run's own guess is worth
+  anything). With `index.web.tsx` closed, no other apps/mobile screen is
+  known to have a language-toggle gap — a repeat sweep would be the thing to
+  check before assuming there is more mechanical i18n work left.
 
 - 2026-08-11 — **Queue fully checked again; translated `apps/mobile`'s
   hardcoded-English `accessibilityLabel` props.** Grepped for `- [ ]` first —
