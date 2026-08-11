@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  caregiverRelationships,
   conditions,
+  guardianshipGrants,
   healthDocuments,
   healthObservations,
   patientProfiles,
@@ -100,20 +100,22 @@ describe('seed-data', () => {
       .toSorted((a, b) => b - a);
     expect(thapas.map((profile) => profile.demographics.ageYears)).toEqual(agesOldestFirst);
 
-    expect(caregiverRelationships.length).toBeGreaterThan(0);
-    const link = caregiverRelationships[0];
-    expect(link).toBeDefined();
-    if (!link) return;
+    expect(guardianshipGrants.length).toBeGreaterThan(0);
+    const grant = guardianshipGrants[0];
+    expect(grant).toBeDefined();
+    if (!grant) return;
 
-    const minor = patientProfiles.find((profile) => profile.id === link.patientId);
-    const caregiver = users.find((user) => user.id === link.caregiverUserId);
-    expect(minor, 'guardianship must point at a real patient profile').toBeDefined();
-    expect(caregiver, 'guardianship must point at a real user').toBeDefined();
-    expect(minor?.userId).not.toBe(link.caregiverUserId);
-    expect(minor?.demographics.ageYears).toBeLessThan(18);
+    const ward = patientProfiles.find((profile) => profile.userId === grant.wardId);
+    const guardian = users.find((user) => user.id === grant.guardianId);
+    expect(ward, 'guardianship must point at a real patient profile').toBeDefined();
+    expect(guardian, 'guardianship must point at a real user').toBeDefined();
+    expect(ward?.userId).not.toBe(grant.guardianId);
+    expect(ward?.demographics.ageYears).toBeLessThan(18);
 
-    // Scoped, per family-and-proxy.md §2 — a guardian booking an appointment
-    // must not be granted document upload or full record access by default.
-    expect(link.permissions.scopes).not.toContain('UPLOAD_DOCUMENTS');
+    // Mandatory expiry, per family-and-proxy.md §2 — a guardianship that
+    // never transitions at 18 is the harm the design calls out by name.
+    expect(grant.grounds).toBe('MINOR');
+    expect(grant.expiresAt > grant.grantedAt).toBe(true);
+    expect(grant.revokedAt).toBeNull();
   });
 });

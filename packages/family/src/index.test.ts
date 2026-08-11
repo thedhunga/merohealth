@@ -33,9 +33,9 @@ import {
 } from './index';
 
 // Roshani's date of birth, matching packages/database/src/seed-data.ts's
-// caregiverRelationships[0].startsAt (Sunita's guardianship of Roshani
-// begins at birth) — reusing the real demo fixture rather than inventing a
-// second family, per the standing "invent no facts" constraint.
+// guardianshipGrants[0].grantedAt (Sunita's guardianship of Roshani begins
+// at birth) — reusing the real demo fixture rather than inventing a second
+// family, per the standing "invent no facts" constraint.
 const roshaniDateOfBirth = '2014-03-10T00:00:00.000Z';
 
 describe('guardianship — minor', () => {

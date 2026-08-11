@@ -240,6 +240,13 @@ Design in
       `DelegationsGrantedList` on `/account` showing each grant's raw
       delegate id (no name-lookup exists, so none was invented), status and
       a revoke button.
+- [x] Queue exhausted a fifth time — added: retired the seed data's
+      pre-`packages/family` `CaregiverRelationship` model, replacing its one
+      row with a real `GuardianshipGrant` (Sunita guardian of Roshani,
+      `grounds: MINOR`), the item four consecutive prior log entries had
+      each left open as "still open from before." Dropped the
+      `CaregiverRelationship` table via a new migration and updated
+      `seed-data.ts`/`seed.ts`/both test files to match.
 
 ### Visual system — Round one, complete
 
@@ -441,6 +448,102 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; picked the highest-value
+  improvement to work already done: retiring the seed data's orphaned
+  `CaregiverRelationship` model.** Grepped for `- [ ]` first — zero hits.
+  Read back the last four log entries' "for the next run" notes: each named
+  the same two open items (guardianship creation blocked on `PatientProfile`
+  having no DOB field; reconciling/retiring `CaregiverRelationship` in the
+  seed data) without picking either up. Confirmed `CaregiverRelationship`
+  was genuinely dead: grepped the whole repo and found it referenced only in
+  `schema.prisma`, `seed-data.ts`, `seed.ts`, and one comment in
+  `packages/family/src/index.test.ts` — no `apps/api` service or route ever
+  read from it. It predates `packages/family` (Round two C); the real
+  `GuardianshipGrant`/`DelegationGrant` tables the 2026-08-11 grants-endpoint
+  run added were never seeded with anything, so the "realistic Nepali
+  demonstration dataset" Round two A2 asks for had zero rows in the family
+  module that's actually been built.
+
+  **Why this one and not the DOB field.** The DOB blocker is about
+  `PatientProfile`'s *live* schema for real users — a real product decision
+  (typed field vs. captured at grant time) explicitly flagged as not this
+  run's to make. Retiring a seed-only table for four already-invented
+  fictional demo people is a different, much smaller decision: their ages,
+  names and districts are already invented for the dataset, so choosing a
+  birth date consistent with Roshani's existing `ageYears: 12` is the same
+  kind of demonstration-persona fact the rest of her profile already makes,
+  not a new category of fabrication.
+
+  **What was built.**
+  1. `packages/database/prisma/schema.prisma`: dropped the
+     `CaregiverRelationship` model outright — nothing reads it.
+  2. New migration `20260811010000_drop_caregiver_relationship` (named to
+     sort after the same day's `add_family_grants` migration, matching this
+     repo's whole-day-timestamp convention rather than Prisma's real
+     wall-clock default). Verified by standing up the local
+     `pg_ctlcluster` Postgres this sandbox has used before, dropping and
+     recreating the `swasthya` database, and running `prisma migrate deploy`
+     from empty — all four migrations apply cleanly in order.
+  3. `packages/database/src/seed-data.ts`: replaced
+     `SeedCaregiverRelationship`/`caregiverRelationships` with
+     `SeedGuardianshipGrant`/`guardianshipGrants` — one row, Sunita as
+     guardian of Roshani, `grounds: 'MINOR'`. Kept this file's own
+     "pure data, no domain-package import" convention rather than pulling in
+     `@swasthya/family`'s `grantGuardianshipForMinor`: `expiresAt` is
+     written by hand as Roshani's 18th birthday (`grantedAt` 2014-03-10 →
+     `expiresAt` 2032-03-10), the same value
+     `packages/family/src/index.test.ts`'s own `roshaniDateOfBirth` fixture
+     already independently computes, so the two are provably consistent
+     rather than coincidentally equal. Updated the file's id-prefix-scheme
+     doc comment (`c` was "caregiver relationships", now "guardianship
+     grants") and the stale comment on `packages/family`'s own test file
+     that still named `caregiverRelationships[0].startsAt`.
+  4. `packages/database/prisma/seed.ts`: seeds `guardianshipGrants` via
+     `prisma.guardianshipGrant.upsert` instead. Ran it against the live
+     local Postgres end to end — all 13 tables seed cleanly, and
+     `SELECT * FROM "GuardianshipGrant"` shows the one row with `wardId`/
+     `guardianId` resolving to Roshani's and Sunita's real `User.id`s (not
+     profile ids — `GuardianshipGrant.wardId` is a subject id, unlike the
+     old table's inconsistent `patientId`-as-profile-id).
+  5. `packages/database/src/seed-data.test.ts`: rewrote the multi-generation
+     family test to look up the ward by `userId === grant.wardId` (not
+     `profile.id === link.patientId`, since a `GuardianshipGrant` has no
+     profile-id field at all) and to assert what a `GuardianshipGrant`
+     actually carries — mandatory expiry after grant, `MINOR` grounds, not
+     yet revoked — instead of the old scoped-permissions assertion that no
+     longer applies (`GuardianshipGrant` has no `scopes` field; guardianship
+     is full access by design, unlike `DelegationGrant`).
+
+  **What was deliberately not built.** No new `DelegationGrant` seed row for
+  the two competent adults (Janaki/Sunita) — the old table's own doc comment
+  had explicitly deferred that as "a separate demonstration to build
+  deliberately," and folding it into a table-retirement task would have
+  been unrelated scope creep, not a byproduct of the retirement. That stays
+  a real next task, not a leftover of this one.
+
+  **Verify.** Stood up local Postgres (`pg_ctlcluster 16 main start`,
+  created the `swasthya` role/db) since this task needed one to prove the
+  migration and seed actually run — the last several family-grants entries
+  had each skipped this for lack of a Docker daemon; `pg_ctlcluster` works
+  fine without Docker. `pnpm install --frozen-lockfile` clean; `pnpm lint`
+  31/31; `pnpm typecheck` 31/31; `pnpm test` 56/56 tasks, `@swasthya/api`
+  still 323 tests (no api-side code touched — its tests all run against
+  in-memory fakes, not seed data), `packages/database`'s own 13 tests
+  passing against the new shape; `pnpm build` 31/31. Also ran
+  `prisma migrate deploy` from an empty database and `tsx prisma/seed.ts`
+  against it directly, outside the turbo pipeline, and inspected the
+  written row with `psql` — belt-and-suspenders given this was a schema
+  change.
+
+  **For the next run.** Two things still open, both named by prior entries
+  and neither touched here: guardianship *creation* for real users, still
+  blocked on `PatientProfile` having no structured date-of-birth field (a
+  product decision: typed field vs. captured at grant time); and a
+  `DelegationGrant` seed example for Janaki/Sunita, deliberately left out
+  above as its own task. The "stop after prescribing and reassess" note
+  under Clinical suite also still stands — modules 7-20 remain deferred, not
+  blocked.
 
 - 2026-08-11 — **Queue fully checked again; picked the highest-value
   improvement to work already done: letting a granter see and revoke the

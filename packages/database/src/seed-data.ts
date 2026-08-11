@@ -17,7 +17,7 @@ import type {
 // lifecycle (CLAIMED/IMPORTED/.../VERIFIED) the Prisma schema enum tracks.
 // `UserRole` has no shared-types equivalent at all yet (no domain package has
 // needed account roles — see agent-progress.md Round two A3/A4).
-import type { UserRole, VerificationStatus } from '../generated/enums.ts';
+import type { GuardianshipGrounds, UserRole, VerificationStatus } from '../generated/enums.ts';
 
 /** Flat JSON object — enough for this seed's `rules`/`serviceData` blobs and a valid Prisma `Json` input without pulling in Prisma's own JSON input types. */
 type SeedJsonObject = Record<string, string | number | boolean | null>;
@@ -33,7 +33,7 @@ type SeedJsonObject = Record<string, string | number | boolean | null>;
  * prefix per table) so ids stay traceable to their table at a glance:
  * organizations 1, directory 2, feature flags 3, plans 4, documents 5,
  * observations 6, device samples 7, subscriptions 8, usage counters 9,
- * users a, patient profiles b, caregiver relationships c, conditions d.
+ * users a, patient profiles b, guardianship grants c, conditions d.
  */
 
 export interface SeedOrganization {
@@ -91,21 +91,36 @@ export interface SeedPatientProfile {
 }
 
 /**
- * Guardianship link for the one minor in the family (Roshani). Deliberately
- * does **not** attempt to also link the two competent adults (Janaki and
- * Sunita) — that would be a delegation, a separate state machine
- * `packages/family` (Round two C) hasn't built yet, and fabricating a
- * relationship field the schema doesn't have would misrepresent what this
- * platform can actually do today. See docs/architecture/family-and-proxy.md
- * §2.
+ * Guardianship over the one minor in the family (Roshani), via
+ * `packages/family`'s real `GuardianshipGrant`. This replaces the old
+ * `CaregiverRelationship` row (removed in the
+ * `drop_caregiver_relationship` migration): that model predated
+ * `packages/family` (Round two C) and stored an untyped `relationship`
+ * string and `permissions` blob neither the domain package nor anything
+ * downstream of it ever reads. `grounds`/`expiresAt` here are what
+ * `GuardianshipGrant` actually requires — see
+ * `docs/architecture/family-and-proxy.md` §2 on the mandatory expiry.
+ *
+ * `expiresAt` is Roshani's 18th birthday computed by hand rather than via
+ * `packages/family`'s own `guardianshipExpiryForMinor` (this file stays a
+ * pure data module with no domain-package import, so `wardBirthYear`
+ * exists only as the derivation note below, not as an input this module
+ * runs code on) — `wardBirthYear` 2014 is chosen to match
+ * `patientProfiles`' own `ageYears: 12` for Roshani against the rest of
+ * this seed's `2026` document dates, the same demonstration-persona
+ * invention every other field on her profile already makes; deliberately
+ * does **not** also link the two competent adults (Janaki and Sunita) via a
+ * `DelegationGrant` — that is a real, separate demonstration to build
+ * deliberately, not a byproduct of retiring this table.
  */
-export interface SeedCaregiverRelationship {
+export interface SeedGuardianshipGrant {
   id: string;
-  patientId: string;
-  caregiverUserId: string;
-  relationship: string;
-  permissions: { scopes: string[] };
-  startsAt: string;
+  wardId: string;
+  guardianId: string;
+  grounds: GuardianshipGrounds;
+  grantedAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
 }
 
 export interface SeedHealthDocument {
@@ -317,16 +332,21 @@ export const patientProfiles: readonly SeedPatientProfile[] = [
   },
 ];
 
-export const caregiverRelationships: readonly SeedCaregiverRelationship[] = [
+export const guardianshipGrants: readonly SeedGuardianshipGrant[] = [
   {
     id: 'c0000000-0000-4000-8000-000000000001',
-    patientId: roshaniProfileId,
-    caregiverUserId: sunitaId,
-    relationship: 'MOTHER',
-    // Booking an appointment must not require reading mental-health notes
-    // (family-and-proxy.md §2) — scoped even for a guardian, not blanket.
-    permissions: { scopes: ['VIEW_RECORD', 'ASK_ASSISTANT', 'MANAGE_APPOINTMENTS'] },
-    startsAt: '2014-03-10T00:00:00Z',
+    wardId: roshaniId,
+    guardianId: sunitaId,
+    grounds: 'MINOR',
+    // wardBirthYear 2014 (see the type's doc comment) — granted at birth,
+    // same as the CaregiverRelationship row this replaces.
+    grantedAt: '2014-03-10T00:00:00Z',
+    // Roshani's 18th birthday: 2014-03-10 + 18 years. `GuardianshipGrant`
+    // has no narrower access to grant than full — see packages/family's own
+    // doc comment on why guardianship carries no `scopes` field, unlike
+    // `DelegationGrant`.
+    expiresAt: '2032-03-10T00:00:00Z',
+    revokedAt: null,
   },
 ];
 

@@ -7,11 +7,11 @@
 // caller should ever construct a client from (../src/index.ts).
 import { createPrismaClient } from '../src/index.ts';
 import {
-  caregiverRelationships,
   conditions,
   deviceSamples,
   directoryEntities,
   featureFlags,
+  guardianshipGrants,
   healthDocuments,
   healthObservations,
   organizations,
@@ -62,8 +62,8 @@ async function main(): Promise<void> {
   await upsertAll('patientProfiles', patientProfiles, (row) =>
     prisma.patientProfile.upsert({ where: { id: row.id }, create: row, update: {} }),
   );
-  await upsertAll('caregiverRelationships', caregiverRelationships, (row) =>
-    prisma.caregiverRelationship.upsert({ where: { id: row.id }, create: row, update: {} }),
+  await upsertAll('guardianshipGrants', guardianshipGrants, (row) =>
+    prisma.guardianshipGrant.upsert({ where: { id: row.id }, create: row, update: {} }),
   );
   await upsertAll('healthDocuments', healthDocuments, (row) =>
     prisma.healthDocument.upsert({ where: { id: row.id }, create: row, update: {} }),
