@@ -11,6 +11,8 @@ import { DiagnosticsOrdersRepository } from '../diagnostics-orders/diagnostics-o
 import { DiagnosticsOrdersService } from '../diagnostics-orders/diagnostics-orders.service.js';
 import { EngagementRepository } from '../engagement/engagement.repository.js';
 import { EngagementService } from '../engagement/engagement.service.js';
+import { InteropRepository } from '../interop/interop.repository.js';
+import { InteropService } from '../interop/interop.service.js';
 import { MedicationSafetyRepository } from '../medication-safety/medication-safety.repository.js';
 import { MedicationSafetyService } from '../medication-safety/medication-safety.service.js';
 import { PatientRegistryRepository } from '../patient-registry/patient-registry.repository.js';
@@ -49,6 +51,7 @@ function buildStack() {
   const populationHealth = new PopulationHealthService(summary, scheduling);
   const analytics = new AnalyticsService(patients, scheduling, billing, referrals);
   const engagement = new EngagementService(new EngagementRepository(), patients, { send: vi.fn().mockResolvedValue(undefined) });
+  const interop = new InteropService(new InteropRepository(), records);
   return {
     records,
     patients,
@@ -64,6 +67,7 @@ function buildStack() {
     populationHealth,
     analytics,
     engagement,
+    interop,
   };
 }
 
@@ -83,17 +87,18 @@ function buildSuite(stack: ReturnType<typeof buildStack>): ClinicalSuiteService 
     stack.populationHealth,
     stack.analytics,
     stack.engagement,
+    stack.interop,
   );
 }
 
 describe('ClinicalSuiteService', () => {
-  it('reports all fourteen registered modules available with no degradations when everything is up', async () => {
+  it('reports all fifteen registered modules available with no degradations when everything is up', async () => {
     const stack = buildStack();
     const suite = buildSuite(stack);
 
     const resolved = await suite.resolve();
 
-    expect(resolved).toHaveLength(14);
+    expect(resolved).toHaveLength(15);
     expect(resolved.map((module) => module.key).sort()).toEqual(
       [
         'ANALYTICS',
@@ -103,6 +108,7 @@ describe('ClinicalSuiteService', () => {
         'DIAGNOSTICS_ORDERS',
         'ENGAGEMENT',
         'HEALTH_RECORDS',
+        'INTEROP',
         'MEDICATION_SAFETY',
         'PATIENT_REGISTRY',
         'POPULATION_HEALTH',
@@ -151,16 +157,17 @@ describe('ClinicalSuiteService', () => {
       degradations: [{ dependency: 'CLINICAL_CHARTING', mode: 'HIDE' }],
     });
     // patient-registry, scheduling, teleconsultation, health-records,
-    // population-health, analytics and engagement have no dependency on
-    // clinical-charting at all and must read as fully available —
-    // teleconsultation's own dependencies are SCHEDULING, population-health's
-    // are CLINICAL_SUMMARY/SCHEDULING, analytics's are PATIENT_REGISTRY/
-    // SCHEDULING/BILLING/REFERRALS and engagement's is PATIENT_REGISTRY,
-    // none of them CLINICAL_CHARTING directly, and neither CLINICAL_SUMMARY
-    // nor BILLING nor REFERRALS being merely degraded (not DOWN) cascades to
-    // what depends on them either (§2's "degradesWith never cascades past
-    // one hop") — BILLING and REFERRALS both stay `available: true` above,
-    // so analytics's own edges to them never fire.
+    // population-health, analytics, engagement and interop have no
+    // dependency on clinical-charting at all and must read as fully
+    // available — teleconsultation's own dependencies are SCHEDULING,
+    // population-health's are CLINICAL_SUMMARY/SCHEDULING, analytics's are
+    // PATIENT_REGISTRY/SCHEDULING/BILLING/REFERRALS, engagement's is
+    // PATIENT_REGISTRY and interop's is HEALTH_RECORDS, none of them
+    // CLINICAL_CHARTING directly, and neither CLINICAL_SUMMARY nor BILLING
+    // nor REFERRALS being merely degraded (not DOWN) cascades to what
+    // depends on them either (§2's "degradesWith never cascades past one
+    // hop") — BILLING and REFERRALS both stay `available: true` above, so
+    // analytics's own edges to them never fire.
     expect(byKey.get('PATIENT_REGISTRY')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('SCHEDULING')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('TELECONSULTATION')).toMatchObject({ available: true, degradations: [] });
@@ -168,6 +175,7 @@ describe('ClinicalSuiteService', () => {
     expect(byKey.get('POPULATION_HEALTH')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('ANALYTICS')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('ENGAGEMENT')).toMatchObject({ available: true, degradations: [] });
+    expect(byKey.get('INTEROP')).toMatchObject({ available: true, degradations: [] });
   });
 
   it('a probe that throws is reported DOWN rather than rejecting the whole resolve() call', async () => {
@@ -204,5 +212,8 @@ describe('ClinicalSuiteService', () => {
       available: true,
       degradations: [{ dependency: 'PATIENT_REGISTRY', mode: 'HIDE' }],
     });
+    // interop's only edge is HEALTH_RECORDS, which has no dependency on
+    // PATIENT_REGISTRY at all — stays fully available, same one-hop rule.
+    expect(byKey.get('INTEROP')).toMatchObject({ available: true, degradations: [] });
   });
 });

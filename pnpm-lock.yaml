@@ -98,6 +98,9 @@ importers:
       '@swasthya/identity':
         specifier: workspace:*
         version: link:../../packages/identity
+      '@swasthya/interop':
+        specifier: workspace:*
+        version: link:../../packages/interop
       '@swasthya/language-corpus':
         specifier: workspace:*
         version: link:../../packages/language-corpus

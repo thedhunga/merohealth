@@ -76,6 +76,18 @@ export class RecordsService {
   }
 
   /**
+   * The port `interop` calls to assemble a FHIR export bundle — see
+   * `InteropService.issueShareLink`/`resolveSharedBundle`. Returns every
+   * status, DRAFT included: `buildFhirExportBundle` in `@swasthya/interop`
+   * is the one that filters to CONFIRMED/CORRECTED, the same
+   * "the owning module hands over raw data, the consuming module enforces
+   * the trust boundary" split `timeline()` already draws for its own caller.
+   */
+  listObservationsForOwner(ownerId: string): HealthObservation[] {
+    return this.repository.listObservationsForOwner(ownerId);
+  }
+
+  /**
    * Resolves a document reference by opaque id — the port
    * `clinical-charting` calls to validate a document it wants to attach to
    * an encounter actually exists, the same "resolve the opaque id through

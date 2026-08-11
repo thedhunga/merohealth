@@ -528,16 +528,23 @@ suite grows. A module that "works" but has no outage test is not finished.
       log entry had repeated as "the strongest actual candidate left." See
       the 2026-08-11 log entry below (the one added by this run) for the
       queue/deliver/retry design and why there is no DELIVERED status.
+- [x] Wired `interop` (capability map row 17) into `apps/api`/
+      `clinical-suite` with its own `ModuleDescriptor` and fault-isolation
+      test — the item the engagement run's own log entry named as the one
+      remaining package with no `apps/api` wiring at all. Share-link issue/
+      list/revoke/resolve endpoints over `@swasthya/interop`'s existing FHIR
+      mapping and expiry/revocation state machine — see the 2026-08-11 log
+      entry below (the one added by this run) for the full design.
 
-Stop after engagement and reassess again. Modules 11 and 16-20 in the
+Stop after interop and reassess again. Modules 11 and 18-20 in the
 capability map are sequenced but must not be started while anything above is
 unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
 not a module that plugs into this registry, and row 11 (`coverage`) was
 deliberately skipped, not built, because the table's own note calls it
 "blocked on Nepali insurer interfaces that do not yet exist" with no
 compliance-register row naming an interim control the way row 10's did. With
-row 15 now built, `health-records` (row 16, already built), `interop` (row
-17, already queued/built in the platform vision) and `immunization`/
+row 15 (`engagement`) and row 17 (`interop`) now both built and wired into
+`clinical-suite`'s registry (fifteen modules total), `immunization`/
 `quality-reporting`/`tenancy` (rows 18-20) are what remain — but which of
 those is the realistic next candidate is this run's own guess, not a
 decision; the next run should re-read the table itself rather than trust
@@ -547,6 +554,115 @@ this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; wired `interop` (capability map
+  row 17) into `apps/api`/`clinical-suite`.** Grepped for `- [ ]` first —
+  zero hits, same as every prior "queue exhausted" run. The prior run's own
+  log entry (engagement, row 15) named this as the concrete open item:
+  `@swasthya/interop` already had FHIR R4 mapping, the trusted-only export
+  filter and a full share-link expiry/revocation state machine
+  (`issueShareLink`/`revokeShareLink`/`resolveSharedBundle`,
+  `InMemoryShareLinkStore`), but nothing in `apps/api` called any of it —
+  `INTEROP` was reserved in `ClinicalModuleKey` and named in
+  `clinical-suite.md` row 17, but had no `ModuleDescriptor`, no controller,
+  no fault-isolation test. This run read `records.module.ts`/`.service.ts`,
+  `referrals.service.ts` and `engagement.service.ts` in full before writing
+  anything, since `interop`'s shape (one hard dependency on a foundation
+  module, one action gated on it, everything else independent) is the same
+  "opens a clinical action against a foundation module" pattern those three
+  already establish.
+
+  **What was built.** `RecordsService` gained `listObservationsForOwner`
+  (mirrors `listDocuments`, returns every status — `interop`'s own
+  `buildFhirExportBundle` is what filters to CONFIRMED/CORRECTED, the same
+  "owning module hands over raw data, consumer enforces the trust boundary"
+  split `timeline()` already draws). New `apps/api/src/interop/`:
+  `interop.repository.ts` (in-memory, keyed by id, with a token index and an
+  owner index — not a reuse of `@swasthya/interop`'s own
+  `InMemoryShareLinkStore`, which is keyed only by token for a different,
+  future on-device caller), `interop.service.ts`, `interop.controller.ts`,
+  `interop.module-descriptor.ts` and `interop.module.ts`.
+  `InteropService.issueShareLink` requires health-records up (`HIDE`, same
+  as `ReferralsService.requestReferral`/`EngagementService.queueMessage`
+  against their own foundation dependency), then checks every `documentId`
+  against `RecordsService.getDocument` and 404s (not 403s) on an
+  owner mismatch — the same "belongs to someone else reads like it doesn't
+  exist" rule `RecordsService.#requireObservation` already uses — before
+  calling the package's `issueShareLink`. `resolveSharedBundle` re-derives
+  the bundle from `RecordsService` on every call, per the package's own doc
+  comment on why, so it is gated the same way issuing is. `revokeShareLink`
+  and `listShareLinks` touch only this module's own repository and stay
+  available even with health-records down, the same "terminal transitions
+  don't re-depend on the foundation that opened the record" property
+  `ReferralsService.cancelReferral` established. Domain `ShareLinkError`
+  (empty `documentIds`, non-positive `ttlSeconds`) maps to
+  `BadRequestException`; `ShareLinkNotActiveError` (expired/revoked) maps to
+  `GoneException` — both following `FamilyGrantsService`'s
+  "catch the domain error class, map by name" convention.
+
+  **Routes.** `POST /interop/share-links`, `GET /interop/share-links`,
+  `DELETE /interop/share-links/:id` sit behind `SessionAuthGuard` only, the
+  same `FamilyGrantsController` pattern for a module with no
+  `EntitlementsGuard` wiring yet — `INTEROP` is not in
+  `@swasthya/entitlements`'s module catalogue, so no quota gate was invented
+  for it. `GET /interop/share/:token` carries no guard at all, deliberately:
+  a share link's whole purpose is letting someone with no Mero Health
+  account (a clinician in a consultation room) open it — the bearer token
+  is the credential, per `platform-vision.md` §3.3's own v1 share-link
+  design.
+
+  **Wiring.** `InteropModule` added to `clinical-suite.module.ts` and to
+  `ClinicalSuiteService`'s constructor/registry (fifteenth argument,
+  `createInteropModuleDescriptor`); `clinical-suite.service.test.ts` updated
+  throughout — the "everything up" test now expects fifteen modules
+  including `INTEROP`, and both the `CLINICAL_CHARTING`-down and
+  `PATIENT_REGISTRY`-down tests assert `INTEROP` reads fully available in
+  each case (its only edge is `HEALTH_RECORDS`, which neither outage
+  touches). `@swasthya/interop` added to `apps/api/package.json`, needing a
+  non-frozen `pnpm install` once to regenerate `pnpm-lock.yaml`, verified
+  clean under `--frozen-lockfile` before any other step ran. No
+  `health.controller.ts` change — unlike `engagement`, `interop` has no
+  configurable external provider to report.
+
+  **One bug caught by the controller's own test.** `issueShareLink` was
+  first written as a plain (non-`async`) method, so `parseOrThrow`'s
+  validation throw was a synchronous exception rather than a promise
+  rejection — inconsistent with `RecordsController.capture`'s own `async`
+  shape for the identical pattern. The controller test
+  (`rejects.toBeInstanceOf(BadRequestException)`) caught this immediately;
+  fixed by marking the method `async`, matching `capture()`.
+
+  **Tests.** `interop.repository.test.ts` (3), `interop.service.test.ts`
+  (14, covering issue/list/revoke/resolve, the 404/410/503 error paths and
+  the domain `ShareLinkError`→`BadRequestException` mapping),
+  `interop.controller.test.ts` (6), `interop.module-descriptor.test.ts` (2)
+  and `interop.fault-isolation.test.ts` (4, the same three-part shape every
+  other module's own fault-isolation test uses). `records.service.test.ts`
+  gained one test for `listObservationsForOwner`.
+
+  **What was deliberately left out.** No PDF export endpoint —
+  `@swasthya/interop/pdf`'s `export-pdf.ts` already exists but has its own
+  known limitation (no Devanagari-capable font embedded yet, so Nepali text
+  degrades to a placeholder in the printed PDF); wiring it in is a separate,
+  smaller follow-up, not folded into this one. No mobile/web UI for issuing
+  or viewing share links — this task was scoped to the `apps/api`
+  wiring the last three log entries all pointed at, the same "one module,
+  fully wired, not a UI on top of it yet" scope `engagement` and `referrals`
+  both shipped with.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the one-time
+  lockfile regeneration. `pnpm lint` 38/38. `pnpm typecheck` 38/38.
+  `pnpm test` 71/71 turbo tasks — `@swasthya/api` 533/533 (up from 504).
+  `pnpm build` 38/38.
+
+  **For the next run.** `immunization`/`quality-reporting`/`tenancy` (rows
+  18-20) are what remain in the clinical-suite capability map, alongside the
+  still-open, still-blocked items every recent entry has repeated:
+  `companion.controller.ts`'s missing `EntitlementsGuard`, extending
+  `analytics` with `clinical-charting`/`engagement` sources, and a PDF
+  export endpoint for `interop` once a Devanagari font is embedded. None of
+  these is a decision this run made — re-read `clinical-suite.md`'s
+  capability map directly rather than trust this paragraph.
 
 - 2026-08-11 — **Queue fully checked again; built the `engagement` module
   (capability map row 15).** Grepped for `- [ ]` first — zero hits, same as

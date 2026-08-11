@@ -5,6 +5,7 @@ import { ClinicalChartingModule } from '../clinical-charting/clinical-charting.m
 import { ClinicalSummaryModule } from '../clinical-summary/clinical-summary.module.js';
 import { DiagnosticsOrdersModule } from '../diagnostics-orders/diagnostics-orders.module.js';
 import { EngagementModule } from '../engagement/engagement.module.js';
+import { InteropModule } from '../interop/interop.module.js';
 import { MedicationSafetyModule } from '../medication-safety/medication-safety.module.js';
 import { PatientRegistryModule } from '../patient-registry/patient-registry.module.js';
 import { PopulationHealthModule } from '../population-health/population-health.module.js';
@@ -17,7 +18,7 @@ import { ClinicalSuiteController } from './clinical-suite.controller.js';
 import { ClinicalSuiteService } from './clinical-suite.service.js';
 
 /**
- * Imports every module up to `engagement` purely to reuse the services Nest
+ * Imports every module up to `interop` purely to reuse the services Nest
  * already constructed for them — this module owns no data and no
  * repository of its own, only the aggregate view over the others'
  * already-exported ports.
@@ -38,6 +39,7 @@ import { ClinicalSuiteService } from './clinical-suite.service.js';
     PopulationHealthModule,
     AnalyticsModule,
     EngagementModule,
+    InteropModule,
   ],
   controllers: [ClinicalSuiteController],
   providers: [ClinicalSuiteService],
