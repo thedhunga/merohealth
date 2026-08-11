@@ -482,6 +482,13 @@ suite grows. A module that "works" but has no outage test is not finished.
       fallback. See the 2026-08-11 log entry below (the one added by this
       run) for why this route specifically, and why nothing else in the
       clinical suite changed.
+- [x] Wrote the real "under an active delegation" half of
+      `packages/intent-router/src/cross-subject-leakage.test.ts`, replacing
+      its `describe.todo` — the highest-severity test named in
+      `grounded-answers.md` §3, left blocked on `packages/family` since
+      round two §B shipped and unblocked once §C did. See the 2026-08-11
+      log entry below (the one added by this run) for what it composes and
+      why.
 
 Stop after analytics and reassess again. Modules 11 and 15-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -498,6 +505,78 @@ run should re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; wrote the real "under an active
+  delegation" cross-subject-leakage test that had been left as a
+  `describe.todo` since before `packages/family` existed.** Grepped for
+  `- [ ]` first — zero hits, same as every prior "queue exhausted" run. This
+  run's own predecessor (the teleconsultation-gating entry directly below)
+  had already surveyed the repo and named two concrete, small,
+  test-only candidates for whoever picked this up next: this
+  `describe.todo` in `packages/intent-router/src/cross-subject-leakage.test.ts`,
+  and the sibling one in `packages/evaluation/src/index.test.ts:60`. This run
+  picked the intent-router one — `grounded-answers.md` §3 names it
+  explicitly as *"the highest-severity failure this system can have. It
+  gets an explicit test, not a code review,"* which made it the higher-value
+  pick of the two named candidates, and the file's own long-standing header
+  comment already explained exactly what it was blocked on and why a
+  hand-rolled stand-in would have been fiction.
+
+  **What was built.** `packages/intent-router` (whose `route`/
+  `retrieveForSubject` take a plain `subjectId` and know nothing about
+  delegation, by design — the scoping stays subject-id-agnostic) now takes
+  `@swasthya/family` as a **devDependency only**, not a runtime one: the
+  production code still never imports it, only the test does, which is the
+  honest boundary — this package doesn't gain a delegation feature, it
+  gains a test proving delegation composes safely with the scoping it
+  already had. Five new tests replace the `describe.todo` in
+  `cross-subject-leakage.test.ts`:
+  1. `hasScope` is the gate a real call site must pass before ever choosing
+     which `subjectId` to hand to `route` — asserted directly against an
+     active `DelegationGrant`.
+  2. A revoked grant fails that gate even though the `DelegationGrant`
+     object itself still exists in memory.
+  3. A grant that never included `ASK_ASSISTANT` (e.g. `MANAGE_APPOINTMENTS`
+     only) fails the gate too — §2's "booking does not require reading
+     notes" only holds if scopes are checked independently, which this
+     proves at the call-site boundary rather than trusting `packages/family`
+     alone.
+  4. A delegate acting for the granter — the effective `subjectId` resolved
+     from the grant, exactly as `grounded-answers.md` §3 states it — sees
+     only her record: a three-subject adversarial corpus (granter, delegate,
+     and the pre-existing unrelated `subject-2`) proves this end to end
+     through `route` and `composeAnswer`, asserting the delegate's own
+     citations and the unrelated subject's citations never appear.
+  5. The symmetric case: the same delegate asking in his own context sees
+     only his own record — the active delegation for someone else's record
+     never leaks into it, the "vice versa" half of §3's own wording.
+
+  **Why this is a composition test, not a new capability.** Neither
+  `route` nor `retrieveForSubject` changed. The property under test is that
+  §3's rule — "the subject is her and the retrieval set is hers, never a
+  union of both" — survives once a real `DelegationGrant` exists in the
+  same corpus as the data, which is exactly the scenario the old
+  `describe.todo` said needed `packages/family` to test honestly rather
+  than with an invented stand-in.
+
+  **Verify.** `pnpm install --no-frozen-lockfile` (frozen-lockfile first
+  failed as expected — new devDependency — then a plain install added the
+  three-line lockfile entry for `@swasthya/family` under
+  `@swasthya/intent-router`, nothing else changed). `pnpm lint` 37/37.
+  `pnpm typecheck` 37/37. `pnpm test` 68/68 tasks —
+  `@swasthya/intent-router` went from 8 to 13 tests in
+  `cross-subject-leakage.test.ts` (37 total in the package, up from 32);
+  every other package's count unchanged, including `@swasthya/api` still at
+  466. `pnpm build` 37/37.
+
+  **For the next run.** The sibling `describe.todo` in
+  `packages/evaluation/src/index.test.ts:60` (a delegate asking an
+  evaluation-corpus question on another subject's behalf) is the same class
+  of gap at a different layer and is now the more obvious "queue exhausted"
+  pick, since this run deliberately did the intent-router one instead and
+  left that one untouched. `companion.controller.ts`'s assistant-quota gap
+  (missing `EntitlementsGuard` on `assess`/`research`, flagged two log
+  entries back) also remains open and untouched by this run.
 
 - 2026-08-11 — **Queue fully checked again; fixed a real security gap
   instead of starting a new clinical-suite module.** Grepped for `- [ ]` —
