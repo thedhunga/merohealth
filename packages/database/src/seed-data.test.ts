@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   conditions,
+  delegationGrants,
   guardianshipGrants,
   healthDocuments,
   healthObservations,
@@ -117,5 +118,31 @@ describe('seed-data', () => {
     expect(grant.grounds).toBe('MINOR');
     expect(grant.expiresAt > grant.grantedAt).toBe(true);
     expect(grant.revokedAt).toBeNull();
+  });
+
+  it('links the two competent Thapa adults by a scoped, assisted-enrolment delegation — a separate state machine from guardianship', () => {
+    expect(delegationGrants.length).toBeGreaterThan(0);
+    const grant = delegationGrants[0];
+    expect(grant).toBeDefined();
+    if (!grant) return;
+
+    const userIds = uniqueIds(users);
+    expect(userIds.has(grant.granterId), 'delegation must point at a real granter').toBe(true);
+    expect(userIds.has(grant.delegateId), 'delegation must point at a real delegate').toBe(true);
+    expect(grant.granterId).not.toBe(grant.delegateId);
+
+    // Scoped, not all-or-nothing like guardianship — family-and-proxy.md §3.
+    expect(grant.scopes.length).toBeGreaterThan(0);
+    expect(grant.scopes).not.toContain('MANAGE_APPOINTMENTS');
+    expect(grant.scopes).not.toContain('UPLOAD_DOCUMENTS');
+
+    expect(grant.expiresAt > grant.grantedAt).toBe(true);
+    expect(grant.revokedAt).toBeNull();
+
+    // Assisted enrolment: the delegate recorded it, never the granter
+    // herself — `AssistedEnrolmentConsent.recordedBy`'s own contract.
+    expect(grant.enrolment).not.toBeNull();
+    expect(grant.enrolment?.recordedBy).toBe(grant.delegateId);
+    expect(grant.enrolment?.recordedBy).not.toBe(grant.granterId);
   });
 });

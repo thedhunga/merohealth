@@ -247,6 +247,15 @@ Design in
       each left open as "still open from before." Dropped the
       `CaregiverRelationship` table via a new migration and updated
       `seed-data.ts`/`seed.ts`/both test files to match.
+- [x] Queue exhausted a sixth time — added: a `DelegationGrant` seed row for
+      the two competent Thapa adults (Janaki, Sunita), the demonstration the
+      `CaregiverRelationship`-retirement run's own log entry had explicitly
+      deferred rather than folded in as scope creep. `packages/database`'s
+      `guardianshipGrants` now has a `delegationGrants` sibling — Janaki
+      granting Sunita `VIEW_RECORD`/`ASK_ASSISTANT` (not the full set),
+      modelled as assisted enrolment (`IN_PERSON_VERBAL`, recorded by
+      Sunita) so the family module's demo data finally has one row of each
+      of the two state machines `packages/family` actually models.
 
 ### Visual system — Round one, complete
 
@@ -448,6 +457,93 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; picked the highest-value
+  improvement to work already done: a `DelegationGrant` seed row for the two
+  competent Thapa adults.** Grepped for `- [ ]` first — zero hits, same as
+  every recent run. Re-read the prior (`CaregiverRelationship`-retirement)
+  run's own "for the next run" note, which named this exact item as its own
+  deliberate exclusion: "No new `DelegationGrant` seed row for the two
+  competent adults (Janaki/Sunita) — the old table's own doc comment had
+  explicitly deferred that as 'a separate demonstration to build
+  deliberately.'" The other open item that note and several before it also
+  named — guardianship *creation* blocked on `PatientProfile` having no
+  structured date-of-birth field — is still a real product decision this
+  run has no more standing to make than any before it, so it stayed
+  untouched.
+
+  **What was built.**
+  1. `packages/database/src/seed-data.ts`: new `SeedDelegationGrant`
+     interface (`ConsentMethod`/`DelegationScope` imported from
+     `../generated/enums.ts`, same source `SeedGuardianshipGrant` already
+     uses for `GuardianshipGrounds`) and one `delegationGrants` row — Janaki
+     (68, granter) delegating to Sunita (41, delegate; already Roshani's
+     guardian, so now also the one relative with reason to act for both
+     generations above and below her). Modelled deliberately, not
+     arbitrarily: scopes are `VIEW_RECORD`/`ASK_ASSISTANT` only, never
+     `MANAGE_APPOINTMENTS`/`UPLOAD_DOCUMENTS`, so the seed itself
+     demonstrates delegation is scoped rather than all-or-nothing;
+     `enrolment` is set (assisted, `IN_PERSON_VERBAL`, `recordedBy: sunitaId`)
+     rather than `null`, because `family-and-proxy.md`'s own worked example
+     is that a competent-but-app-unfamiliar elder cannot meaningfully tap "I
+     agree" herself — `IN_PERSON_VERBAL` was chosen over
+     `WITNESSED`/`CLINICIAN_ATTESTED`/`WRITTEN` specifically because it is
+     the only one of the four `ConsentMethod` values that needs no witness
+     or clinician invented into this family to be true. `grantedAt` is set
+     after Janaki's one seeded document (2026-05-18) so the demo shows
+     access granted to an already-populated record, and `expiresAt` one year
+     out, matching the design doc's "revocable, time-limited" framing rather
+     than an open-ended default. Extended the id-prefix doc comment (`e` =
+     "delegation grants") and the `SeedGuardianshipGrant` doc comment, which
+     used to say the delegation link was deliberately absent and now points
+     at where it actually lives.
+  2. `packages/database/prisma/seed.ts`: applies `delegationGrants` via
+     `prisma.delegationGrant.upsert`. Not a straight `create: row` like
+     `guardianshipGrants` gets — `DelegationGrant`'s Prisma columns are the
+     flat `enrolmentMethod`/`enrolmentRecordedBy` nullable pair, not the
+     nested `enrolment` object the seed type carries for readability, so the
+     apply step destructures and unpacks it, the same mapping
+     `PrismaFamilyGrantsStore` already does on every real write. Also spreads
+     `scopes` into a fresh mutable array — Prisma's generated input type
+     rejects the seed data's `readonly DelegationScope[]` directly, caught by
+     `tsc`, not by a runtime failure.
+  3. `packages/database/src/seed-data.test.ts`: new test asserting the grant
+     points at two real, distinct users; is scoped (non-empty, excludes the
+     two broader scopes); has `expiresAt > grantedAt` and `revokedAt: null`;
+     and that `enrolment.recordedBy` is the delegate, never the granter —
+     `AssistedEnrolmentConsent.recordedBy`'s own contract, and the one
+     invariant a copy-paste mistake here would most easily violate.
+
+  **What was deliberately not built.** Guardianship creation — still the
+  same DOB-field blocker every recent entry has named; this task's own scope
+  was explicitly the seed-data gap, not that one. No second delegation row
+  (e.g. Arjun, the unrelated fourth subject, delegating to nobody) — Arjun
+  exists for the cross-subject leakage test alone and inventing a delegation
+  for him would serve no test or demo this run could point to.
+
+  **Verify.** Stood up local Postgres the same way the last schema-adjacent
+  run did (`pg_ctlcluster 16 main start`, fresh `swasthya` role/db — no
+  Docker daemon here) since this changes what the seed script writes, even
+  though it needed no new migration (`DelegationGrant` already existed from
+  the 2026-08-11 `add_family_grants` migration). `prisma migrate deploy`
+  from empty applied all four existing migrations cleanly; `tsx prisma/seed.ts`
+  ran end to end and `psql` showed the new row with `granterId`/`delegateId`
+  resolving to Janaki's and Sunita's real `User.id`s, `scopes` as a two-value
+  Postgres array, and `enrolmentMethod`/`enrolmentRecordedBy` both set;
+  re-ran the seed script a second time to confirm the upsert is still a
+  no-op on a populated database. Dropped the verification database and role
+  afterward. `pnpm install --frozen-lockfile` clean; `pnpm lint` 31/31;
+  `pnpm typecheck` 31/31; `pnpm test` 56/56 tasks — `packages/database` up
+  by one test (10, from 9) for the new delegation-grant assertions, no
+  other package's test count changed since nothing else reads this table
+  yet; `pnpm build` 31/31.
+
+  **For the next run.** Both items every recent entry has named are still
+  open and still need the same thing: guardianship creation needs a real
+  product decision on where a ward's date of birth comes from before it can
+  be built without inventing a data source. Nothing else new surfaced this
+  run. The "stop after prescribing and reassess" note under Clinical suite
+  also still stands — modules 7-20 remain deferred, not blocked.
 
 - 2026-08-11 — **Queue fully checked again; picked the highest-value
   improvement to work already done: retiring the seed data's orphaned

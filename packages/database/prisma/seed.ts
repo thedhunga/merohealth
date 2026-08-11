@@ -8,6 +8,7 @@
 import { createPrismaClient } from '../src/index.ts';
 import {
   conditions,
+  delegationGrants,
   deviceSamples,
   directoryEntities,
   featureFlags,
@@ -64,6 +65,22 @@ async function main(): Promise<void> {
   );
   await upsertAll('guardianshipGrants', guardianshipGrants, (row) =>
     prisma.guardianshipGrant.upsert({ where: { id: row.id }, create: row, update: {} }),
+  );
+  // `DelegationGrant`'s `enrolmentMethod`/`enrolmentRecordedBy` are a flat
+  // nullable pair on the Prisma model (see schema.prisma), not the nested
+  // `enrolment` object `SeedDelegationGrant` carries for readability — same
+  // unpacking `PrismaFamilyGrantsStore` does on every write.
+  await upsertAll('delegationGrants', delegationGrants, ({ enrolment, ...row }) =>
+    prisma.delegationGrant.upsert({
+      where: { id: row.id },
+      create: {
+        ...row,
+        scopes: [...row.scopes], // Prisma wants a mutable array; the seed data's is `readonly`.
+        enrolmentMethod: enrolment?.method ?? null,
+        enrolmentRecordedBy: enrolment?.recordedBy ?? null,
+      },
+      update: {},
+    }),
   );
   await upsertAll('healthDocuments', healthDocuments, (row) =>
     prisma.healthDocument.upsert({ where: { id: row.id }, create: row, update: {} }),

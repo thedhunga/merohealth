@@ -17,7 +17,7 @@ import type {
 // lifecycle (CLAIMED/IMPORTED/.../VERIFIED) the Prisma schema enum tracks.
 // `UserRole` has no shared-types equivalent at all yet (no domain package has
 // needed account roles — see agent-progress.md Round two A3/A4).
-import type { GuardianshipGrounds, UserRole, VerificationStatus } from '../generated/enums.ts';
+import type { ConsentMethod, DelegationScope, GuardianshipGrounds, UserRole, VerificationStatus } from '../generated/enums.ts';
 
 /** Flat JSON object — enough for this seed's `rules`/`serviceData` blobs and a valid Prisma `Json` input without pulling in Prisma's own JSON input types. */
 type SeedJsonObject = Record<string, string | number | boolean | null>;
@@ -33,7 +33,8 @@ type SeedJsonObject = Record<string, string | number | boolean | null>;
  * prefix per table) so ids stay traceable to their table at a glance:
  * organizations 1, directory 2, feature flags 3, plans 4, documents 5,
  * observations 6, device samples 7, subscriptions 8, usage counters 9,
- * users a, patient profiles b, guardianship grants c, conditions d.
+ * users a, patient profiles b, guardianship grants c, conditions d,
+ * delegation grants e.
  */
 
 export interface SeedOrganization {
@@ -108,10 +109,11 @@ export interface SeedPatientProfile {
  * runs code on) — `wardBirthYear` 2014 is chosen to match
  * `patientProfiles`' own `ageYears: 12` for Roshani against the rest of
  * this seed's `2026` document dates, the same demonstration-persona
- * invention every other field on her profile already makes; deliberately
- * does **not** also link the two competent adults (Janaki and Sunita) via a
- * `DelegationGrant` — that is a real, separate demonstration to build
- * deliberately, not a byproduct of retiring this table.
+ * invention every other field on her profile already makes. The two
+ * competent adults (Janaki and Sunita) are linked separately, by
+ * `SeedDelegationGrant` below — guardianship and delegation stay the
+ * distinct state machines `packages/family` models them as, so one demo row
+ * of each, not one row doing double duty.
  */
 export interface SeedGuardianshipGrant {
   id: string;
@@ -121,6 +123,36 @@ export interface SeedGuardianshipGrant {
   grantedAt: string;
   expiresAt: string;
   revokedAt: string | null;
+}
+
+/**
+ * The other half of `family-and-proxy.md`'s worked example: a competent
+ * elder (Janaki, 68) delegating narrower, revocable access to her daughter
+ * (Sunita, 41) — not the full-access guardianship above, and not implied by
+ * the two of them sharing a household. Modelled as *assisted* enrolment
+ * (`enrolment` set, not null): the design doc's own grandmother/grandson
+ * example is explicit that a competent-but-unfamiliar-with-the-app elder
+ * cannot meaningfully tap "I agree" herself, and Sunita — the delegate,
+ * never the granter, per `AssistedEnrolmentConsent.recordedBy`'s own
+ * contract — recording the grant while Janaki consents in person is the
+ * plainest instance of that pattern this dataset can show without
+ * inventing a witness or a clinician neither of whom exist in this family.
+ * `IN_PERSON_VERBAL` is chosen over `WITNESSED`/`CLINICIAN_ATTESTED`/
+ * `WRITTEN` for the same reason: it is the only one of the four that needs
+ * no third person or paperwork invented to be true. Scopes are
+ * `VIEW_RECORD`/`ASK_ASSISTANT` only — not `MANAGE_APPOINTMENTS` or
+ * `UPLOAD_DOCUMENTS` — so the demo data itself shows delegation is scoped,
+ * not all-or-nothing like guardianship.
+ */
+export interface SeedDelegationGrant {
+  id: string;
+  granterId: string;
+  delegateId: string;
+  scopes: readonly DelegationScope[];
+  grantedAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+  enrolment: { method: ConsentMethod; recordedBy: string } | null;
 }
 
 export interface SeedHealthDocument {
@@ -347,6 +379,25 @@ export const guardianshipGrants: readonly SeedGuardianshipGrant[] = [
     // `DelegationGrant`.
     expiresAt: '2032-03-10T00:00:00Z',
     revokedAt: null,
+  },
+];
+
+export const delegationGrants: readonly SeedDelegationGrant[] = [
+  {
+    id: 'e0000000-0000-4000-8000-000000000001',
+    granterId: janakiId,
+    delegateId: sunitaId,
+    scopes: ['VIEW_RECORD', 'ASK_ASSISTANT'],
+    // Granted after Janaki's documents in this seed (2026-05-18) so the
+    // demo shows Sunita gaining access to a record that already existed,
+    // not one still empty.
+    grantedAt: '2026-06-15T00:00:00Z',
+    // One year out — a delegation is revocable and time-boxed by design
+    // (family-and-proxy.md §3), never open-ended by default the way the
+    // guardianship above is.
+    expiresAt: '2027-06-15T00:00:00Z',
+    revokedAt: null,
+    enrolment: { method: 'IN_PERSON_VERBAL', recordedBy: sunitaId },
   },
 ];
 
