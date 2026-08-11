@@ -5,6 +5,7 @@ import { ClinicalChartingModule } from '../clinical-charting/clinical-charting.m
 import { ClinicalSummaryModule } from '../clinical-summary/clinical-summary.module.js';
 import { DiagnosticsOrdersModule } from '../diagnostics-orders/diagnostics-orders.module.js';
 import { EngagementModule } from '../engagement/engagement.module.js';
+import { ImmunizationModule } from '../immunization/immunization.module.js';
 import { InteropModule } from '../interop/interop.module.js';
 import { MedicationSafetyModule } from '../medication-safety/medication-safety.module.js';
 import { PatientRegistryModule } from '../patient-registry/patient-registry.module.js';
@@ -40,6 +41,7 @@ import { ClinicalSuiteService } from './clinical-suite.service.js';
     AnalyticsModule,
     EngagementModule,
     InteropModule,
+    ImmunizationModule,
   ],
   controllers: [ClinicalSuiteController],
   providers: [ClinicalSuiteService],

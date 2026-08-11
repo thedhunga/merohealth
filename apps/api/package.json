@@ -31,6 +31,7 @@
     "@swasthya/family": "workspace:*",
     "@swasthya/health-records": "workspace:*",
     "@swasthya/identity": "workspace:*",
+    "@swasthya/immunization": "workspace:*",
     "@swasthya/interop": "workspace:*",
     "@swasthya/language-corpus": "workspace:*",
     "@swasthya/medication-safety": "workspace:*",

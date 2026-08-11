@@ -1210,3 +1210,80 @@ export interface QueueEngagementMessageInput {
   kind: EngagementMessageKind;
   body: string;
 }
+
+/* ------------------------------------------------------------------ *
+ * Immunization (clinical-suite.md capability map row 18)
+ *
+ * "Immunization records ... Nepal EPI schedule, not US registries." No
+ * real Nepal EPI schedule dataset — vaccine names, dose intervals, due-date
+ * rules — exists anywhere in this repo. Row 6's own section comment names
+ * the identical gap for the Nepali formulary and, per that precedent
+ * (`apps/api/src/prescribing/` builds the prescribing workflow with no
+ * drug data loaded), this module records what a patient or clinician
+ * actually enters rather than validating or auto-scheduling against a
+ * catalogue this codebase has no honest source for. `vaccineName` is
+ * therefore free text, not an enum.
+ *
+ * The provenance/verification split mirrors row 4's `ClinicalSummaryItem`
+ * exactly — a patient's own report of a past immunization is
+ * `PATIENT_REPORTED`/`UNVERIFIED`, one a clinician enters during an open
+ * `clinical-charting` encounter is `CLINICIAN_ADMINISTERED`/
+ * `CLINICIAN_VERIFIED` — applied to a single kind rather than three, so
+ * there is no `kind` field here the way `ClinicalSummaryItem` has one.
+ * `administeredOn` (the date the dose was actually given) is kept separate
+ * from `recordedAt` (when this system learned about it) because the two
+ * regularly differ for a patient-reported entry describing a childhood
+ * vaccination.
+ * ------------------------------------------------------------------ */
+export type ImmunizationProvenance = 'PATIENT_REPORTED' | 'CLINICIAN_ADMINISTERED';
+
+export type ImmunizationVerification = 'UNVERIFIED' | 'CLINICIAN_VERIFIED';
+
+/**
+ * A record stands until it is `VOIDED` — there is no "resolved" state the
+ * way a problem or an allergy has one; an administered dose is a fact about
+ * the past, not an ongoing condition. `VOIDED` exists for the mundane
+ * real-world case of a mis-entered record (wrong patient, wrong vaccine),
+ * carrying a reason the same way `Referral`'s decline/cancel do.
+ */
+export type ImmunizationStatus = 'ACTIVE' | 'VOIDED';
+
+export interface ImmunizationRecord {
+  id: string;
+  patientId: string;
+  vaccineName: string;
+  /** 1-indexed dose in whatever series the caller is tracking (e.g. 1st, 2nd booster) — this module does not validate it against a schedule. */
+  doseNumber: number;
+  /** ISO date the dose was actually given, distinct from `recordedAt`. */
+  administeredOn: string;
+  provenance: ImmunizationProvenance;
+  verification: ImmunizationVerification;
+  /** Set together, only for a clinician-administered record; both null for a patient-reported one. */
+  administeredByEncounterId: string | null;
+  administeredByClinicianId: string | null;
+  status: ImmunizationStatus;
+  voidReason: string | null;
+  recordedAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface RecordPatientReportedImmunizationInput {
+  patientId: string;
+  vaccineName: string;
+  doseNumber: number;
+  administeredOn: string;
+}
+
+/**
+ * `patientId` and `encounterId` are deliberately absent here, mirroring
+ * `RecordClinicianSummaryItemInput`: the API boundary derives both from the
+ * `clinical-charting` encounter the record is authored against, rather than
+ * trusting a client-supplied `patientId` that could disagree with it.
+ */
+export interface RecordClinicianAdministeredImmunizationInput {
+  clinicianId: string;
+  vaccineName: string;
+  doseNumber: number;
+  administeredOn: string;
+}

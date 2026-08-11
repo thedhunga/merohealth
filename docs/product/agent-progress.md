@@ -535,25 +535,155 @@ suite grows. A module that "works" but has no outage test is not finished.
       list/revoke/resolve endpoints over `@swasthya/interop`'s existing FHIR
       mapping and expiry/revocation state machine — see the 2026-08-11 log
       entry below (the one added by this run) for the full design.
+- [x] `immunization` (capability map row 18): patient-reported and
+      clinician-administered immunization records, following row 4's
+      `ClinicalSummaryItem` provenance split exactly rather than inventing a
+      Nepal EPI schedule/vaccine catalogue this repo has no honest source
+      for — see the 2026-08-11 log entry below (the one added by this run)
+      for why `vaccineName` stays free text and what a real schedule would
+      need that this deliberately does not attempt.
 
-Stop after interop and reassess again. Modules 11 and 18-20 in the
+Stop after immunization and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
 unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
 not a module that plugs into this registry, and row 11 (`coverage`) was
 deliberately skipped, not built, because the table's own note calls it
 "blocked on Nepali insurer interfaces that do not yet exist" with no
 compliance-register row naming an interim control the way row 10's did. With
-row 15 (`engagement`) and row 17 (`interop`) now both built and wired into
-`clinical-suite`'s registry (fifteen modules total), `immunization`/
-`quality-reporting`/`tenancy` (rows 18-20) are what remain — but which of
-those is the realistic next candidate is this run's own guess, not a
-decision; the next run should re-read the table itself rather than trust
-this paragraph.
+row 15 (`engagement`), row 17 (`interop`) and row 18 (`immunization`) now
+all built and wired into `clinical-suite`'s registry (sixteen modules
+total), `quality-reporting`/`tenancy` (rows 19-20) are what remain — both
+carry the same "real Nepal DoHS/HMIS indicator set, or a real multi-site
+model, does not exist in this repo" risk that shaped this run's own scope,
+so whoever picks either up next should read this entry's "what was
+deliberately left out" before assuming the module can be built the same way
+`immunization`'s records-only shape was. Which of the two is the realistic
+next candidate is this run's own guess, not a decision; the next run should
+re-read the table itself rather than trust this paragraph.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; built the `immunization` module
+  (capability map row 18).** Grepped for `- [ ]` first — zero hits, same as
+  every prior "queue exhausted" run. The prior run's own log entry (interop,
+  row 17) had named rows 18-20 as what remained, explicitly non-binding on
+  which to pick. Read `clinical-suite.md` row 18's note ("Nepal EPI
+  schedule, not US registries") and the `prescribing` module's own section
+  comment in `shared-types` before designing anything: `prescribing` was
+  built with **no** Nepali formulary dataset loaded, because none exists
+  anywhere in this repo, and building one would be exactly the fact
+  invention the standing constraints forbid. Row 18 has the identical
+  problem — no real Nepal EPI schedule (vaccine names, dose intervals,
+  due-date rules) exists in this repo either — so this run followed that
+  precedent rather than `immunization`/`quality-reporting`/`tenancy` being
+  a free choice: it constrained what "immunization records" could honestly
+  mean here to recording what a patient or clinician actually enters, never
+  validating or scheduling against a catalogue.
+
+  **What was built.** `shared-types` gained an `Immunization` section
+  (`ImmunizationRecord`, `RecordPatientReportedImmunizationInput`,
+  `RecordClinicianAdministeredImmunizationInput`) mirroring row 4's
+  `ClinicalSummaryItem` provenance/verification split
+  (`PATIENT_REPORTED`/`UNVERIFIED` vs `CLINICIAN_ADMINISTERED`/
+  `CLINICIAN_VERIFIED`) applied to one kind instead of three, so there is no
+  `kind` field. `vaccineName` is free text, not an enum — the section's own
+  header comment states why. `administeredOn` (the date the dose was
+  actually given) is kept separate from `recordedAt` (when this system
+  learned about it), since a patient-reported entry describing a childhood
+  vaccination regularly has these differ by years. Status is
+  `ACTIVE`/`VOIDED` rather than `ACTIVE`/`RESOLVED` — an administered dose
+  is a fact about the past, not an ongoing condition to resolve; `VOIDED`
+  exists for the mundane real case of a mis-entered record (wrong patient,
+  wrong vaccine) and carries a reason. New `packages/immunization` is the
+  pure domain layer: `recordPatientReportedImmunization`,
+  `recordClinicianAdministeredImmunization`, `voidImmunizationRecord`
+  (rejects an already-voided record rather than being silently idempotent,
+  matching `resolveItem`'s own reasoning). New `apps/api/src/immunization/`:
+  `immunization.repository.ts` (in-memory, same `ClinicalSummaryRepository`
+  shape), `immunization.service.ts`, `immunization.controller.ts`,
+  `immunization.module-descriptor.ts` and `immunization.module.ts`.
+  `ImmunizationService.recordClinicianAdministered` requires
+  clinical-charting up (`HIDE`, the same one-action-gated shape
+  `ClinicalSummaryService.recordClinicianAuthored` already uses for row 4),
+  resolving `patientId` from the encounter rather than trusting a
+  client-supplied field; `recordPatientReported`, reads, listing and voiding
+  never touch clinical-charting, so the immunization list keeps working
+  with it down.
+
+  **Routes.** `POST /immunization/records` (patient-reported),
+  `POST /immunization/encounters/:encounterId/records`
+  (clinician-administered), `GET /immunization/records`,
+  `GET /immunization/records/:recordId`,
+  `POST /immunization/records/:recordId/void`, `GET /immunization/health` —
+  no guards, matching every clinical-suite module except `records` and
+  `teleconsultation`'s gated `schedule` route (see the 2026-08-11 teleconsultation
+  entry for why `TELECONSULTATION` was the one exception).
+
+  **Wiring.** `IMMUNIZATION` was already reserved in `ClinicalModuleKey` (a
+  prior run's own comment names it explicitly), so no enum change was
+  needed there. `ImmunizationModule` added to `clinical-suite.module.ts`
+  only, not `app.module.ts` — the same minimal-diff precedent `interop` set,
+  since NestJS mounts a module's controllers once it is reachable anywhere
+  in the tree from `AppModule`, and `ClinicalSuiteModule` already imports
+  it. `ClinicalSuiteService` now takes a sixteenth constructor argument and
+  registers `createImmunizationModuleDescriptor` alongside the other
+  fifteen; `clinical-suite.service.test.ts` updated throughout — the
+  "everything up" test now expects sixteen modules including
+  `IMMUNIZATION`, and the `CLINICAL_CHARTING`-down test asserts
+  `IMMUNIZATION` gets the same one-hop `HIDE` degradation
+  `CLINICAL_SUMMARY`/`PRESCRIBING`/`DIAGNOSTICS_ORDERS`/`BILLING`/
+  `REFERRALS` already get, for the identical reason (a direct edge on
+  `CLINICAL_CHARTING`). New `@swasthya/immunization` workspace package
+  required a non-frozen `pnpm install` once to regenerate
+  `pnpm-lock.yaml`, verified clean under `--frozen-lockfile` before any
+  other step ran. No `health.controller.ts` change and no `.env.example`
+  change — unlike `engagement`, `immunization` has no external provider to
+  report.
+
+  **Tests.** `packages/immunization/src/index.test.ts` (4 tests) covers
+  both record-and-verify paths and the void/already-voided guard.
+  `apps/api/src/immunization/` gained `immunization.repository.test.ts`
+  (3), `immunization.service.test.ts` (9, including the 404/503 error
+  paths and the void-already-voided guard),
+  `immunization.controller.test.ts` (10, including zod validation of a
+  non-positive dose number and a missing void reason),
+  `immunization.module-descriptor.test.ts` (2) and
+  `immunization.fault-isolation.test.ts` (3) — the same three-part shape
+  every other module's own fault-isolation test uses.
+
+  **What was deliberately left out.** No vaccine catalogue, no EPI
+  due-date/schedule computation, no recall/reminder wiring against
+  `engagement` — all three need a real Nepal EPI schedule dataset this repo
+  does not have; building any of them would mean inventing vaccine names,
+  intervals or due-date rules, which is exactly what "invent no facts"
+  forbids. If a real schedule is ever sourced, it slots in as validation
+  logic in front of `recordPatientReportedImmunization`/
+  `recordClinicianAdministeredImmunization`, not a rewrite of either — both
+  already accept a dose number and a date, the two things a schedule check
+  would need. No `EntitlementsGuard` — `IMMUNIZATION` is not in
+  `@swasthya/entitlements`'s module catalogue, matching every clinical-suite
+  module except `records` and `teleconsultation`'s `schedule` route, so no
+  quota gate was invented for it.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the one-time
+  lockfile regeneration. `pnpm lint` 39/39. `pnpm typecheck` 39/39.
+  `pnpm test` 73/73 turbo tasks — `@swasthya/api` 560/560 (up from 533),
+  `@swasthya/immunization` 4/4 (new package). `pnpm build` 39/39.
+
+  **For the next run.** `quality-reporting`/`tenancy` (rows 19-20) are what
+  remain in the clinical-suite capability map. Both carry the same
+  no-real-dataset risk row 18 did — `quality-reporting` needs a real Nepal
+  DoHS/HMIS indicator set this repo does not have, and `tenancy` "cuts
+  across everything; design early, build late" per the capability map's own
+  note, meaning it is not a same-shaped single-run addition the way rows
+  12-18 have been. Neither is a decision this run made — re-read
+  `clinical-suite.md`'s capability map directly rather than trust this
+  paragraph. `companion.controller.ts`'s missing `EntitlementsGuard` and
+  extending `analytics` with a `clinical-charting` source both remain open,
+  still blocked on the same product decisions every recent entry has named.
 
 - 2026-08-11 — **Queue fully checked again; wired `interop` (capability map
   row 17) into `apps/api`/`clinical-suite`.** Grepped for `- [ ]` first —
