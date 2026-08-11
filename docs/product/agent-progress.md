@@ -456,19 +456,133 @@ suite grows. A module that "works" but has no outage test is not finished.
 - [x] `teleconsultation` (capability map row 9): booking/session lifecycle
       only — see the 2026-08-11 log entry below for why real WebRTC stays
       explicitly out of scope and what was built instead.
+- [x] `billing` (capability map row 10): invoice lifecycle only — see the
+      2026-08-11 log entry below (the one added by this run) for why no real
+      Nepali payment settlement integration is in scope and what was built
+      instead.
 
-Stop after teleconsultation and reassess again. Modules 10-20 in the
-capability map are sequenced but must not be started while anything above is
-unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
-not a module that plugs into this registry, so row 10 (billing) is the next
-real candidate whenever this note is next revisited, and it carries the same
-financial-liability weight §1 warns prescribing does — `docs/compliance/`
-should lead it, not trail it.
+Stop after billing and reassess again. Modules 11-20 in the capability map
+are sequenced but must not be started while anything above is unfinished —
+row 8 (patient portal) is `apps/web`/`apps/mobile` themselves, not a module
+that plugs into this registry. The table's own note on row 11 (`coverage`,
+eligibility/insurance verification) already says it is "blocked on Nepali
+insurer interfaces that do not yet exist," so row 12 (`referrals`, pairing
+with `care-directory`) may be the realistic next candidate whenever this note
+is next revisited — but that is this run's own guess, not a decision; the
+next run should re-read the table itself rather than trust this paragraph.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; reassessed the "stop after
+  teleconsultation" note and resumed the clinical suite with `billing`
+  (capability map row 10).** Grepped for `- [ ]` first — zero hits. The prior
+  run's own log entry named row 10 explicitly as "the next reassessment's
+  honest starting point," and, unlike every prior reassessment, it also
+  named the specific instruction to follow: "whoever picks it up should read
+  `docs/compliance/` first, not build first and reconcile after." This run
+  did that before writing any code.
+
+  **What compliance says, and how it shaped the module.**
+  `docs/compliance/compliance-gap-register.md`'s pre-existing "Payments/
+  refunds" row names its own interim engineering control before finance/
+  legal sign-off exists: "configurable ledger; mock provider." Both are
+  literal in the types, not aspirational:
+  - The ledger is `Invoice.lineItems`, each entry independently carrying one
+    of the three payer channels clinical-suite.md's own row 10 note names —
+    `'CASH' | 'INSURANCE' | 'NHIF'` ("Nepal: cash, insurance boards, NHIF.
+    Not X12.") — so one invoice can honestly split a bill across channels.
+  - `PaymentRecord.provider` is a single-literal `'MOCK'` type — deliberately
+    *not* a union with a second "real" value the way row 7's `resultSource`
+    (`'HL7' | 'MANUAL'`) and row 9's `connectionMode` (`'WEBRTC' | 'MOCK'`)
+    each are. Those two had textual grounding in this repo for what the real
+    value would be; nothing here names what a real Nepali payment settlement
+    integration would be, and guessing a vendor (eSewa, Khalti, a bank
+    transfer rail) would be inventing a partner this repo has never
+    mentioned — the standing constraints forbid that even as a type-level
+    placeholder. This is stricter than the row 7/9 precedent, not a
+    departure from it: same reasoning, applied honestly where the textual
+    grounding the other two modules had simply does not exist here.
+  The register row was read but deliberately not edited, the same restraint
+  the row 7 run showed toward "Lab results" and the row 9 run showed toward
+  "Telemedicine."
+
+  **What was built — the module 1-7/9 shape, applied to row 10.**
+  1. `packages/shared-types/src/index.ts`: `Invoice`, `BillingLineItem`,
+     `PaymentRecord` and their supporting types, in a new "Billing (capability
+     map row 10)" section following the same header-comment convention every
+     prior section uses. Updated the stale `ClinicalModuleKey` header comment
+     ("Modules 1-7, 9 and 10 are built; 11-20 ... parked").
+  2. `packages/billing` (new package): `openInvoice`, `addLineItem`,
+     `issueInvoice`, `recordPayment`, `voidInvoice`, plus a pure
+     `invoiceTotalPaisa` helper (derived, never stored — the same reasoning
+     that keeps every other clinical-suite total off its own entity). The
+     state machine is DRAFT -> ISSUED -> PAID, the same three-state "line
+     items accumulate, then a transition locks them" shape
+     `packages/prescribing`'s DRAFT -> SIGNED -> VOIDED already established,
+     with one addition: DRAFT and ISSUED are both reachable to VOID, but PAID
+     is not — reversing a paid invoice is a refund, and the compliance
+     register's own "taxes, settlement, consumer protection" unresolved
+     decision on that row means there is no honest refund path to build yet.
+     `EmptyInvoiceError` refuses issuing nothing, mirroring
+     `EmptyPrescriptionError`. Full `index.test.ts` coverage: 16 tests,
+     including a multi-payer-type invoice and the "paid invoices cannot be
+     voided" refusal.
+  3. `apps/api/src/billing/`: repository (in-memory map, same convention as
+     every sibling), service (`ClinicalChartingService` injected as its
+     public port per §2 rule 3 — `openInvoice` is the one action gated on
+     it, matching `DiagnosticsOrdersService`/`PrescribingService`), controller
+     (zod-validated — `payerType` and a positive-integer `amountPaisa` are
+     both rejected at the boundary before reaching the domain layer),
+     module-descriptor (`BILLING`, empty `requires`, one `degradesWith`
+     edge: `HIDE` against `CLINICAL_CHARTING`), and module. Repository,
+     service, controller, module-descriptor and fault-isolation test files,
+     same five-file split every prior module used (26 new `apps/api` tests
+     total).
+  4. Wired into `apps/api/src/app.module.ts` and the `clinical-suite`
+     aggregate (`clinical-suite.module.ts`/`clinical-suite.service.ts`):
+     `GET /clinical-suite/modules` now reports ten modules, not nine.
+     Updated `clinical-suite.service.test.ts`'s "all N modules available"
+     test for the new count, and added an explicit `BILLING` assertion to
+     the existing `CLINICAL_CHARTING`-outage cascade test, alongside
+     `CLINICAL_SUMMARY`/`PRESCRIBING`/`DIAGNOSTICS_ORDERS` — all four
+     `HIDE`-degrade on the same dependency.
+  5. `apps/api/package.json`: added `@swasthya/billing` as a real
+     dependency; regenerated `pnpm-lock.yaml` via `--no-frozen-lockfile`,
+     then confirmed `--frozen-lockfile` passes clean afterward, same
+     sequence the row 9 run used for the same reason.
+
+  **What was deliberately not built.** No real payment gateway, bank
+  settlement rail or insurer claims interface of any kind — see the
+  compliance section above. No consent/jurisdiction flags — this row's own
+  unresolved decision ("taxes, settlement, consumer protection") has no
+  interim engineering control naming one, unlike Telemedicine's. No
+  entitlement wiring — confirmed no module 1-7/9 controller wires
+  entitlements either (`ModuleKey` in `packages/entitlements` doesn't even
+  have a `BILLING` value; it is a distinct type from `ClinicalModuleKey`),
+  so adding it here alone would invent an inconsistency rather than fix one.
+  No clinician-facing UI — matches every module 1-9 precedent. No refund
+  path — see `InvoicePaidCannotBeVoidedError`'s own comment.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the lockfile
+  regeneration; `pnpm lint` 34/34 (up from 33 — the new package); `pnpm
+  typecheck` 34/34; `pnpm test` 62/62 tasks — `@swasthya/api` 398 tests (up
+  from 372: 26 new, across `billing.repository.test.ts`, `.service.test.ts`,
+  `.controller.test.ts`, `.module-descriptor.test.ts`,
+  `.fault-isolation.test.ts`, plus the updated `clinical-suite.service
+  .test.ts`), `@swasthya/billing` 16 new tests; `pnpm build` 34/34, including
+  `apps/web`'s static export and `apps/mobile`'s Expo web bundle. No schema/
+  migration change — this module has no Prisma model yet, matching every
+  module 1-7/9 precedent (in-memory only) — so no live Postgres was needed
+  this run.
+
+  **For the next run.** Guardianship creation stays open, understood to be
+  blocked on a minor's account-enrolment mechanism, not a DOB field (see
+  earlier log entries). The clinical suite is parked again, this time after
+  row 10 — see this run's edit to the "Stop after billing" note above for
+  the honest, non-committal guess at what comes next.
 
 - 2026-08-11 — **Queue fully checked again; reassessed the "stop after
   diagnostics-orders" note and resumed the clinical suite with

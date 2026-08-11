@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BillingModule } from '../billing/billing.module.js';
 import { ClinicalChartingModule } from '../clinical-charting/clinical-charting.module.js';
 import { ClinicalSummaryModule } from '../clinical-summary/clinical-summary.module.js';
 import { DiagnosticsOrdersModule } from '../diagnostics-orders/diagnostics-orders.module.js';
@@ -12,9 +13,9 @@ import { ClinicalSuiteController } from './clinical-suite.controller.js';
 import { ClinicalSuiteService } from './clinical-suite.service.js';
 
 /**
- * Imports every module up to `teleconsultation` purely to reuse the
- * services Nest already constructed for them — this module owns no data and
- * no repository of its own, only the aggregate view over the others'
+ * Imports every module up to `billing` purely to reuse the services Nest
+ * already constructed for them — this module owns no data and no
+ * repository of its own, only the aggregate view over the others'
  * already-exported ports.
  */
 @Module({
@@ -28,6 +29,7 @@ import { ClinicalSuiteService } from './clinical-suite.service.js';
     PrescribingModule,
     DiagnosticsOrdersModule,
     TeleconsultationModule,
+    BillingModule,
   ],
   controllers: [ClinicalSuiteController],
   providers: [ClinicalSuiteService],

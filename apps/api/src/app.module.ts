@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module.js';
+import { BillingModule } from './billing/billing.module.js';
 import { ClinicalChartingModule } from './clinical-charting/clinical-charting.module.js';
 import { ClinicalSuiteModule } from './clinical-suite/clinical-suite.module.js';
 import { ClinicalSummaryModule } from './clinical-summary/clinical-summary.module.js';
@@ -33,6 +34,7 @@ import { TeleconsultationModule } from './teleconsultation/teleconsultation.modu
     PrescribingModule,
     DiagnosticsOrdersModule,
     TeleconsultationModule,
+    BillingModule,
     ClinicalSuiteModule,
     LanguageCorpusModule,
     FamilyModule,

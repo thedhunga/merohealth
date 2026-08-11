@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { buildModuleRegistry, collectHealthStates, resolveAvailability, type ModuleRegistry, type ResolvedModule } from '@swasthya/module-registry';
+import { createBillingModuleDescriptor } from '../billing/billing.module-descriptor.js';
+import { BillingService } from '../billing/billing.service.js';
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
 import { createClinicalChartingModuleDescriptor } from '../clinical-charting/clinical-charting.module-descriptor.js';
 import { ClinicalSummaryService } from '../clinical-summary/clinical-summary.service.js';
@@ -21,7 +23,7 @@ import { createTeleconsultationModuleDescriptor } from '../teleconsultation/tele
 
 /**
  * clinical-suite.md §2 rule 5: "the shell renders around holes." Every
- * module up to `teleconsultation` (capability map rows 1–7 and 9, plus
+ * module up to `billing` (capability map rows 1–7, 9 and 10, plus
  * `HEALTH_RECORDS` from row 16, which `clinical-charting` already degrades
  * against) ships its own `ModuleDescriptor` and its own fault-isolation test
  * proving *its* `requires`/`degradesWith` edges resolve correctly in a
@@ -48,6 +50,7 @@ export class ClinicalSuiteService {
     prescribing: PrescribingService,
     diagnosticsOrders: DiagnosticsOrdersService,
     teleconsultation: TeleconsultationService,
+    billing: BillingService,
   ) {
     // Built once, at DI wiring time, per `buildModuleRegistry`'s own
     // contract: a typo'd or missing dependency key fails app bootstrap
@@ -63,6 +66,7 @@ export class ClinicalSuiteService {
       createPrescribingModuleDescriptor(prescribing),
       createDiagnosticsOrdersModuleDescriptor(diagnosticsOrders),
       createTeleconsultationModuleDescriptor(teleconsultation),
+      createBillingModuleDescriptor(billing),
     ]);
   }
 

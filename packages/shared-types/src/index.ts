@@ -315,13 +315,14 @@ export interface CredentialingBadge {
  *
  * docs/architecture/clinical-suite.md §3's capability map, minus row 8
  * ("Patient portal" — that is `apps/web` + `apps/mobile` themselves, not a
- * module that plugs into this fault-isolation system). Modules 1-7 and 9 are
- * built; 10-20 are sequenced but deliberately parked — see
+ * module that plugs into this fault-isolation system). Modules 1-7, 9 and 10
+ * are built; 11-20 are sequenced but deliberately parked — see
  * agent-progress.md's "stop after prescribing and reassess" note, extended
  * first to "stop after diagnostics-orders" once row 7 shipped, then to "stop
- * after teleconsultation" once row 9 shipped. All 19 keys are declared up
- * front so `requires`/`degradesWith` references compile-check against the
- * full eventual map, not just whichever module happens to exist today.
+ * after teleconsultation" once row 9 shipped, then to "stop after billing"
+ * once row 10 shipped. All 19 keys are declared up front so
+ * `requires`/`degradesWith` references compile-check against the full
+ * eventual map, not just whichever module happens to exist today.
  * ------------------------------------------------------------------ */
 export type ClinicalModuleKey =
   | 'PATIENT_REGISTRY' | 'SCHEDULING' | 'CLINICAL_CHARTING' | 'CLINICAL_SUMMARY'
@@ -887,4 +888,105 @@ export interface TeleconsultationSession {
   createdAt: string;
   updatedAt: string;
   version: number;
+}
+
+/* ------------------------------------------------------------------ *
+ * Billing (clinical-suite.md capability map row 10)
+ *
+ * "Billing, claims, revenue cycle ... Nepal: cash, insurance boards, NHIF.
+ * Not X12." clinical-suite.md §1 is explicit that this module carries the
+ * same financial-liability weight prescribing does and that
+ * `docs/compliance/` must lead it, not trail it. The compliance gap
+ * register's "Payments/refunds" row names its own interim engineering
+ * control before finance/legal sign-off exists: "configurable ledger; mock
+ * provider." Both are load-bearing in the types below, not aspirational
+ * comments:
+ *
+ * - The ledger is `Invoice.lineItems`, each entry independently carrying
+ *   one of the three payer channels the capability map note itself names —
+ *   `'CASH' | 'INSURANCE' | 'NHIF'` — so one invoice can honestly split a
+ *   bill across channels (a co-pay, say) rather than forcing one payer per
+ *   invoice.
+ * - `PaymentRecord.provider` is a single-literal `'MOCK'` type, unlike row
+ *   7's `resultSource` and row 9's `connectionMode`, which are each a union
+ *   with a second "real" value the rest of this codebase never constructs.
+ *   Those two had textual grounding for what the real value would be ("HL7
+ *   v2 where partners speak it", "WebRTC. Already stubbed in
+ *   apps/mobile") — nothing in this repository names what a real Nepali
+ *   payment settlement integration would be, and guessing one would invent
+ *   a partner this repo has never mentioned, which the standing constraints
+ *   forbid. `recordPayment` in `packages/billing` is the only way to mark
+ *   an invoice PAID, and it always records `'MOCK'` — no money moves.
+ *
+ * Every invoice is opened against a `clinical-charting` encounter, the same
+ * precedent rows 6/7 set for prescriptions and diagnostic orders.
+ *
+ * The lifecycle is DRAFT -> ISSUED -> PAID, with DRAFT and ISSUED both also
+ * reachable to VOID. Once PAID, an invoice cannot be voided: reversing a
+ * paid invoice is a refund, and the compliance register's own "taxes,
+ * settlement, consumer protection" unresolved decision on that row means no
+ * refund path exists here to reverse honestly. Line items may only be added
+ * while DRAFT; issuing locks them, the same "sign and lock" property
+ * `Prescription`'s SIGNED state and `Encounter`'s CLOSED state already
+ * established.
+ * ------------------------------------------------------------------ */
+export type InvoiceStatus = 'DRAFT' | 'ISSUED' | 'PAID' | 'VOID';
+
+export type BillingPayerType = 'CASH' | 'INSURANCE' | 'NHIF';
+
+export interface BillingLineItem {
+  id: string;
+  description: string;
+  amountPaisa: number;
+  payerType: BillingPayerType;
+}
+
+export interface BillingLineItemInput {
+  description: string;
+  amountPaisa: number;
+  payerType: BillingPayerType;
+}
+
+/** Always `'MOCK'` — see this section's own comment on why no second value is declared. */
+export type PaymentProvider = 'MOCK';
+
+export interface PaymentRecord {
+  provider: PaymentProvider;
+  reference: string;
+  paidAt: string;
+  recordedBy: string;
+}
+
+export interface Invoice {
+  id: string;
+  patientId: string;
+  clinicianId: string;
+  encounterId: string;
+  status: InvoiceStatus;
+  lineItems: readonly BillingLineItem[];
+  /** Set only once issued; stays null on a DRAFT. */
+  issuedAt: string | null;
+  /** Set only once paid; stays null otherwise. */
+  payment: PaymentRecord | null;
+  /** Set together, only once voided; both stay null otherwise. */
+  voidedAt: string | null;
+  voidReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+/**
+ * `patientId` is deliberately absent, the same precedent
+ * `OpenPrescriptionInput`/`OrderDiagnosticInput` set: the API boundary
+ * derives it from the `clinical-charting` encounter the invoice is opened
+ * against.
+ */
+export interface OpenInvoiceInput {
+  clinicianId: string;
+}
+
+export interface RecordPaymentInput {
+  reference: string;
+  recordedBy: string;
 }
