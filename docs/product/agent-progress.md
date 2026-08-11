@@ -542,6 +542,12 @@ suite grows. A module that "works" but has no outage test is not finished.
       for — see the 2026-08-11 log entry below (the one added by this run)
       for why `vaccineName` stays free text and what a real schedule would
       need that this deliberately does not attempt.
+- [x] Extended `analytics` (capability map row 14) with a fifth source,
+      `engagement` (message totals by status) — the concrete, small
+      follow-up the `engagement`-building run's own log entry had named and
+      four subsequent "queue exhausted" runs had each repeated as still
+      open. See the 2026-08-11 log entry below (the one added by this run)
+      for the design and why it is a plain count, no delivery-rate figure.
 
 Stop after immunization and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -565,6 +571,89 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; extended `analytics` (capability
+  map row 14) with a fifth source, `engagement`.** Grepped for `- [ ]`
+  first — zero hits, same as every prior "queue exhausted" run. The
+  `engagement`-building run's own log entry had named this as "the concrete,
+  small follow-up this run's own scope left out," and every run since
+  (`interop`, `immunization`) had repeated it in "For the next run" as still
+  open, alongside `companion.controller.ts`'s missing `EntitlementsGuard` and
+  an `analytics` `clinical-charting` source — both of those stayed exactly
+  where they were, still blocked on the same unmade product decisions those
+  entries describe (anonymous-vs-signed-in metering; what an encounter-only
+  summary should even count). `engagement` carried no such blocker: row 15's
+  `EngagementMessage` already has a closed three-value `status` union
+  (`QUEUED`/`SENT`/`FAILED`) and `EngagementService.listMessages()` already
+  exists with no argument returning every message — the identical shape
+  `billingSummary`/`referralsSummary` already consume, so this followed
+  their precedent exactly rather than inventing a new one.
+
+  **What was built.** `packages/shared-types` gained `EngagementSummary`
+  (`{ totalMessages, byStatus: Record<EngagementMessageStatus, number> }`),
+  placed in the Analytics (row 14) section with a comment explaining why it
+  sits above `EngagementMessage`'s own section despite depending on a type
+  declared later in the file — row of origin, not declaration order, decides
+  section placement, and TypeScript doesn't care about the ordering either
+  way. `packages/analytics` gained `buildEngagementSummary`, a `zeroCounts`
+  reduction over the three statuses, identical in shape to
+  `buildReferralsSummary`. `AnalyticsService` took a fifth constructor
+  argument (`EngagementService`), gained `engagementSummary()` and
+  `assertEngagementAvailable()` mirroring the other four exactly — refuses
+  (503) only on `engagement.health()` reporting `DOWN`, same as every
+  sibling summary.
+
+  **Routes.** `GET /analytics/engagement`, same no-guard shape as
+  `patients`/`scheduling`/`billing`/`referrals` — `ANALYTICS` is not in
+  `@swasthya/entitlements`'s module catalogue, so no quota gate was invented
+  for this route either.
+
+  **Wiring.** `AnalyticsModule` now imports `EngagementModule` alongside its
+  existing four. `createAnalyticsModuleDescriptor`'s `degradesWith` gained a
+  fifth `{ key: 'ENGAGEMENT', mode: 'HIDE' }` edge — `ANALYTICS`'s own
+  `requires` stays empty, unchanged. `clinical-suite.service.test.ts`'s
+  `buildStack()` now constructs `engagement` before `analytics` and passes
+  it into the constructor (previously built after, since nothing consumed it
+  yet); the CLINICAL_CHARTING-down and PATIENT_REGISTRY-down comments
+  explaining `ANALYTICS`'s dependency set were updated to list `ENGAGEMENT`
+  alongside the other four — no assertion values changed, since neither test
+  drives `EngagementService` itself `DOWN`, only degrades it.
+
+  **Tests.** `packages/analytics/src/index.test.ts` gained
+  `buildEngagementSummary` coverage (empty list, mixed statuses). On the
+  `apps/api` side, `analytics.service.test.ts`,
+  `analytics.controller.test.ts`, `analytics.module-descriptor.test.ts` and
+  `analytics.fault-isolation.test.ts` each gained the same shape the other
+  four sources already have: a happy-path count, a 503-while-down check, and
+  (fault-isolation only) both a `resolveAvailability` degradation assertion
+  and a "down engagement doesn't block the patient summary" behavioural
+  test — six new fault-isolation-file tests in total (one new
+  `resolveAvailability` case plus one new behavioural case, with the
+  existing four `resolveAvailability` cases each gaining an `engagementDescriptor`
+  in their registry array, since `buildModuleRegistry` validates every
+  `degradesWith` reference is actually registered).
+
+  **What was deliberately left out.** No delivery-rate or failure-rate
+  figure — `EngagementSummary` is a count of messages by status, the same
+  "count of invoices, not a revenue figure" restraint `BillingSummary`'s own
+  doc comment already states for a different unverifiable claim; computing a
+  rate would imply a target or a "normal" range this repository has no
+  source for. `companion.controller.ts`'s missing `EntitlementsGuard` and an
+  `analytics` `clinical-charting` source remain open, still blocked on the
+  same product decisions every recent entry has named.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new package). `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test`
+  73/73 turbo tasks — `@swasthya/api` 567/567 (up from 560),
+  `@swasthya/analytics` 10/10 (up from 6). `pnpm build` 39/39.
+
+  **For the next run.** `quality-reporting`/`tenancy` (capability map rows
+  19-20) are what remain unbuilt in the clinical-suite. Both carry a
+  no-real-dataset risk the same way row 18 did — re-read
+  `clinical-suite.md`'s capability map directly, not this paragraph, before
+  starting either. `companion.controller.ts`'s missing `EntitlementsGuard`
+  and `analytics`'s open `clinical-charting` source are still the two
+  standing blocked items; neither has a decision made for it yet.
 
 - 2026-08-11 — **Queue fully checked again; built the `immunization` module
   (capability map row 18).** Grepped for `- [ ]` first — zero hits, same as

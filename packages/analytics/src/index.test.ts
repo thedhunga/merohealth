@@ -1,7 +1,8 @@
-import type { Appointment, Invoice, PatientRecord, Referral } from '@swasthya/shared-types';
+import type { Appointment, EngagementMessage, Invoice, PatientRecord, Referral } from '@swasthya/shared-types';
 import { describe, expect, it } from 'vitest';
 import {
   buildBillingSummary,
+  buildEngagementSummary,
   buildPatientRegistrySummary,
   buildReferralsSummary,
   buildSchedulingSummary,
@@ -70,6 +71,26 @@ function referral(overrides: Partial<Referral> & Pick<Referral, 'id' | 'patientI
     cancelledAt: null,
     cancelReason: null,
     completedAt: null,
+    createdAt: now,
+    updatedAt: now,
+    version: 1,
+    ...overrides,
+  };
+}
+
+function engagementMessage(
+  overrides: Partial<EngagementMessage> & Pick<EngagementMessage, 'id' | 'patientId'>,
+): EngagementMessage {
+  return {
+    phone: '9800000000',
+    channel: 'SMS',
+    kind: 'REMINDER',
+    body: 'Your appointment is tomorrow at 10am.',
+    status: 'QUEUED',
+    attemptCount: 0,
+    sentAt: null,
+    failedAt: null,
+    failureReason: null,
     createdAt: now,
     updatedAt: now,
     version: 1,
@@ -167,6 +188,29 @@ describe('buildReferralsSummary', () => {
     expect(buildReferralsSummary(referrals)).toEqual({
       totalReferrals: 6,
       byStatus: { REQUESTED: 1, ACCEPTED: 1, DECLINED: 1, CANCELLED: 1, COMPLETED: 2 },
+    });
+  });
+});
+
+describe('buildEngagementSummary', () => {
+  it('reports zero for every status when there are no messages', () => {
+    expect(buildEngagementSummary([])).toEqual({
+      totalMessages: 0,
+      byStatus: { QUEUED: 0, SENT: 0, FAILED: 0 },
+    });
+  });
+
+  it('counts total messages and breaks the count down by status', () => {
+    const messages = [
+      engagementMessage({ id: 'message-1', patientId: 'patient-1', status: 'SENT' }),
+      engagementMessage({ id: 'message-2', patientId: 'patient-1', status: 'SENT' }),
+      engagementMessage({ id: 'message-3', patientId: 'patient-2', status: 'FAILED' }),
+      engagementMessage({ id: 'message-4', patientId: 'patient-2', status: 'QUEUED' }),
+    ];
+
+    expect(buildEngagementSummary(messages)).toEqual({
+      totalMessages: 4,
+      byStatus: { QUEUED: 1, SENT: 2, FAILED: 1 },
     });
   });
 });

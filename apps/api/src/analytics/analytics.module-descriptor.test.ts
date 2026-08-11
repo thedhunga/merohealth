@@ -1,9 +1,11 @@
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BillingRepository } from '../billing/billing.repository.js';
 import { BillingService } from '../billing/billing.service.js';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
+import { EngagementRepository } from '../engagement/engagement.repository.js';
+import { EngagementService } from '../engagement/engagement.service.js';
 import { PatientRegistryRepository } from '../patient-registry/patient-registry.repository.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
 import { RecordsRepository } from '../records/records.repository.js';
@@ -22,11 +24,12 @@ function buildService(): AnalyticsService {
   const charting = new ClinicalChartingService(new ClinicalChartingRepository(), documents);
   const billing = new BillingService(new BillingRepository(), charting);
   const referrals = new ReferralsService(new ReferralsRepository(), charting);
-  return new AnalyticsService(patients, scheduling, billing, referrals);
+  const engagement = new EngagementService(new EngagementRepository(), patients, { send: vi.fn().mockResolvedValue(undefined) });
+  return new AnalyticsService(patients, scheduling, billing, referrals, engagement);
 }
 
 describe('createAnalyticsModuleDescriptor', () => {
-  it('declares the ANALYTICS key with empty requires and all four real degradations', () => {
+  it('declares the ANALYTICS key with empty requires and all five real degradations', () => {
     const descriptor = createAnalyticsModuleDescriptor(buildService());
 
     expect(descriptor.key).toBe('ANALYTICS');
@@ -36,6 +39,7 @@ describe('createAnalyticsModuleDescriptor', () => {
       { key: 'SCHEDULING', mode: 'HIDE' },
       { key: 'BILLING', mode: 'HIDE' },
       { key: 'REFERRALS', mode: 'HIDE' },
+      { key: 'ENGAGEMENT', mode: 'HIDE' },
     ]);
   });
 

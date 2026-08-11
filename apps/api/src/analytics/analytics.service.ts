@@ -1,6 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import {
   buildBillingSummary,
+  buildEngagementSummary,
   buildPatientRegistrySummary,
   buildReferralsSummary,
   buildSchedulingSummary,
@@ -8,11 +9,13 @@ import {
 import type {
   BillingSummary,
   ClinicalModuleHealth,
+  EngagementSummary,
   PatientRegistrySummary,
   ReferralsSummary,
   SchedulingSummary,
 } from '@swasthya/shared-types';
 import { BillingService } from '../billing/billing.service.js';
+import { EngagementService } from '../engagement/engagement.service.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
 import { ReferralsService } from '../referrals/referrals.service.js';
 import { SchedulingService } from '../scheduling/scheduling.service.js';
@@ -34,6 +37,7 @@ export class AnalyticsService {
     private readonly scheduling: SchedulingService,
     private readonly billing: BillingService,
     private readonly referrals: ReferralsService,
+    private readonly engagement: EngagementService,
   ) {}
 
   async patientRegistrySummary(): Promise<PatientRegistrySummary> {
@@ -54,6 +58,11 @@ export class AnalyticsService {
   async referralsSummary(): Promise<ReferralsSummary> {
     await this.assertReferralsAvailable();
     return buildReferralsSummary(this.referrals.listReferrals());
+  }
+
+  async engagementSummary(): Promise<EngagementSummary> {
+    await this.assertEngagementAvailable();
+    return buildEngagementSummary(this.engagement.listMessages());
   }
 
   private async assertPatientRegistryAvailable(): Promise<void> {
@@ -88,6 +97,15 @@ export class AnalyticsService {
     if (health.status === 'DOWN') {
       throw new ServiceUnavailableException(
         'Analytics unavailable: referrals is down (clinical-suite.md capability map row 14)',
+      );
+    }
+  }
+
+  private async assertEngagementAvailable(): Promise<void> {
+    const health = await this.engagement.health();
+    if (health.status === 'DOWN') {
+      throw new ServiceUnavailableException(
+        'Analytics unavailable: engagement is down (clinical-suite.md capability map row 14)',
       );
     }
   }

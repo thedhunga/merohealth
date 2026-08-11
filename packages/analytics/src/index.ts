@@ -2,6 +2,9 @@ import type {
   Appointment,
   AppointmentStatus,
   BillingSummary,
+  EngagementMessage,
+  EngagementMessageStatus,
+  EngagementSummary,
   Invoice,
   InvoiceStatus,
   PatientRecord,
@@ -35,6 +38,7 @@ const PATIENT_SEXES: readonly PatientSex[] = ['FEMALE', 'MALE', 'OTHER', 'UNDISC
 const APPOINTMENT_STATUSES: readonly AppointmentStatus[] = ['SCHEDULED', 'CANCELLED'];
 const INVOICE_STATUSES: readonly InvoiceStatus[] = ['DRAFT', 'ISSUED', 'PAID', 'VOID'];
 const REFERRAL_STATUSES: readonly ReferralStatus[] = ['REQUESTED', 'ACCEPTED', 'DECLINED', 'CANCELLED', 'COMPLETED'];
+const ENGAGEMENT_MESSAGE_STATUSES: readonly EngagementMessageStatus[] = ['QUEUED', 'SENT', 'FAILED'];
 
 /** Every key starts at zero so a status with no rows yet still appears in the summary. */
 function zeroCounts<T extends string>(keys: readonly T[]): Record<T, number> {
@@ -63,4 +67,10 @@ export function buildReferralsSummary(referrals: readonly Referral[]): Referrals
   const byStatus = zeroCounts(REFERRAL_STATUSES);
   for (const referral of referrals) byStatus[referral.status] += 1;
   return { totalReferrals: referrals.length, byStatus };
+}
+
+export function buildEngagementSummary(messages: readonly EngagementMessage[]): EngagementSummary {
+  const byStatus = zeroCounts(ENGAGEMENT_MESSAGE_STATUSES);
+  for (const message of messages) byStatus[message.status] += 1;
+  return { totalMessages: messages.length, byStatus };
 }

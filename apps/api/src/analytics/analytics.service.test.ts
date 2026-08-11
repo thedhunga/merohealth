@@ -1,10 +1,12 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BillingRepository } from '../billing/billing.repository.js';
 import { BillingService } from '../billing/billing.service.js';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
+import { EngagementRepository } from '../engagement/engagement.repository.js';
+import { EngagementService } from '../engagement/engagement.service.js';
 import { PatientRegistryRepository } from '../patient-registry/patient-registry.repository.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
 import { RecordsRepository } from '../records/records.repository.js';
@@ -22,8 +24,9 @@ function buildStack() {
   const charting = new ClinicalChartingService(new ClinicalChartingRepository(), documents);
   const billing = new BillingService(new BillingRepository(), charting);
   const referrals = new ReferralsService(new ReferralsRepository(), charting);
-  const analytics = new AnalyticsService(patients, scheduling, billing, referrals);
-  return { patients, scheduling, charting, billing, referrals, analytics };
+  const engagement = new EngagementService(new EngagementRepository(), patients, { send: vi.fn().mockResolvedValue(undefined) });
+  const analytics = new AnalyticsService(patients, scheduling, billing, referrals, engagement);
+  return { patients, scheduling, charting, billing, referrals, engagement, analytics };
 }
 
 const referralRequestInput = {
@@ -200,6 +203,53 @@ describe('AnalyticsService.referralsSummary', () => {
     await expect(analytics.referralsSummary()).resolves.toEqual({
       totalReferrals: 1,
       byStatus: { REQUESTED: 1, ACCEPTED: 0, DECLINED: 0, CANCELLED: 0, COMPLETED: 0 },
+    });
+  });
+});
+
+describe('AnalyticsService.engagementSummary', () => {
+  it('counts engagement messages, broken down by status', async () => {
+    const { patients, engagement, analytics } = buildStack();
+    const patient = patients.register({
+      displayName: 'Sita Rai',
+      dateOfBirth: '1990-04-12',
+      sex: 'FEMALE',
+      phone: '9800000000',
+      preferredLocale: 'ne',
+    });
+    await engagement.queueMessage(patient.id, { channel: 'SMS', kind: 'REMINDER', body: 'Your appointment is tomorrow.' });
+
+    const summary = await analytics.engagementSummary();
+
+    expect(summary).toEqual({ totalMessages: 1, byStatus: { QUEUED: 0, SENT: 1, FAILED: 0 } });
+  });
+
+  it('refuses (503) while engagement is down, even though patient-registry, scheduling, billing and referrals are up', async () => {
+    const { engagement, analytics } = buildStack();
+    engagement.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+
+    await expect(analytics.engagementSummary()).rejects.toThrow(ServiceUnavailableException);
+  });
+
+  it('a down engagement does not block the patient or scheduling summaries, and vice versa', async () => {
+    const { patients, engagement, analytics } = buildStack();
+    const patient = patients.register({
+      displayName: 'Sita Rai',
+      dateOfBirth: '1990-04-12',
+      sex: 'FEMALE',
+      phone: '9800000000',
+      preferredLocale: 'ne',
+    });
+    await engagement.queueMessage(patient.id, { channel: 'SMS', kind: 'REMINDER', body: 'Your appointment is tomorrow.' });
+
+    engagement.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+    await expect(analytics.patientRegistrySummary()).resolves.toMatchObject({ totalPatients: 1 });
+
+    engagement.health = () => Promise.resolve({ status: 'UP' });
+    patients.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+    await expect(analytics.engagementSummary()).resolves.toEqual({
+      totalMessages: 1,
+      byStatus: { QUEUED: 0, SENT: 1, FAILED: 0 },
     });
   });
 });

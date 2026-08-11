@@ -1,12 +1,15 @@
 import { buildModuleRegistry, collectHealthStates, resolveAvailability } from '@swasthya/module-registry';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createBillingModuleDescriptor } from '../billing/billing.module-descriptor.js';
 import { BillingRepository } from '../billing/billing.repository.js';
 import { BillingService } from '../billing/billing.service.js';
 import { createClinicalChartingModuleDescriptor } from '../clinical-charting/clinical-charting.module-descriptor.js';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
+import { createEngagementModuleDescriptor } from '../engagement/engagement.module-descriptor.js';
+import { EngagementRepository } from '../engagement/engagement.repository.js';
+import { EngagementService } from '../engagement/engagement.service.js';
 import { createPatientRegistryModuleDescriptor } from '../patient-registry/patient-registry.module-descriptor.js';
 import { PatientRegistryRepository } from '../patient-registry/patient-registry.repository.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
@@ -29,13 +32,14 @@ function buildStack() {
   const charting = new ClinicalChartingService(new ClinicalChartingRepository(), documents);
   const billing = new BillingService(new BillingRepository(), charting);
   const referrals = new ReferralsService(new ReferralsRepository(), charting);
-  const analytics = new AnalyticsService(patients, scheduling, billing, referrals);
-  return { patients, scheduling, documents, charting, billing, referrals, analytics };
+  const engagement = new EngagementService(new EngagementRepository(), patients, { send: vi.fn().mockResolvedValue(undefined) });
+  const analytics = new AnalyticsService(patients, scheduling, billing, referrals, engagement);
+  return { patients, scheduling, documents, charting, billing, referrals, engagement, analytics };
 }
 
 describe('analytics fault isolation', () => {
   it('resolveAvailability marks ANALYTICS available but HIDE-degraded when PATIENT_REGISTRY is DOWN', async () => {
-    const { patients, scheduling, documents, charting, billing, referrals, analytics } = buildStack();
+    const { patients, scheduling, documents, charting, billing, referrals, engagement, analytics } = buildStack();
 
     // buildModuleRegistry validates every degradesWith reference, so every
     // module ANALYTICS or its own dependencies point at — including
@@ -50,6 +54,7 @@ describe('analytics fault isolation', () => {
     const chartingDescriptor = createClinicalChartingModuleDescriptor(charting);
     const billingDescriptor = createBillingModuleDescriptor(billing);
     const referralsDescriptor = createReferralsModuleDescriptor(referrals);
+    const engagementDescriptor = createEngagementModuleDescriptor(engagement);
     const analyticsDescriptor = createAnalyticsModuleDescriptor(analytics);
 
     const registry = buildModuleRegistry([
@@ -59,6 +64,7 @@ describe('analytics fault isolation', () => {
       chartingDescriptor,
       billingDescriptor,
       referralsDescriptor,
+      engagementDescriptor,
       analyticsDescriptor,
     ]);
     const states = await collectHealthStates(registry);
@@ -73,7 +79,7 @@ describe('analytics fault isolation', () => {
   });
 
   it('resolveAvailability marks ANALYTICS available but HIDE-degraded when SCHEDULING is DOWN', async () => {
-    const { patients, scheduling, documents, charting, billing, referrals, analytics } = buildStack();
+    const { patients, scheduling, documents, charting, billing, referrals, engagement, analytics } = buildStack();
 
     const patientsDescriptor = createPatientRegistryModuleDescriptor(patients);
     const recordsDescriptor = createHealthRecordsModuleDescriptor(documents);
@@ -84,6 +90,7 @@ describe('analytics fault isolation', () => {
     const chartingDescriptor = createClinicalChartingModuleDescriptor(charting);
     const billingDescriptor = createBillingModuleDescriptor(billing);
     const referralsDescriptor = createReferralsModuleDescriptor(referrals);
+    const engagementDescriptor = createEngagementModuleDescriptor(engagement);
     const analyticsDescriptor = createAnalyticsModuleDescriptor(analytics);
 
     const registry = buildModuleRegistry([
@@ -93,6 +100,7 @@ describe('analytics fault isolation', () => {
       chartingDescriptor,
       billingDescriptor,
       referralsDescriptor,
+      engagementDescriptor,
       analyticsDescriptor,
     ]);
     const states = await collectHealthStates(registry);
@@ -107,7 +115,7 @@ describe('analytics fault isolation', () => {
   });
 
   it('resolveAvailability marks ANALYTICS available but HIDE-degraded when BILLING is DOWN', async () => {
-    const { patients, scheduling, documents, charting, billing, referrals, analytics } = buildStack();
+    const { patients, scheduling, documents, charting, billing, referrals, engagement, analytics } = buildStack();
 
     const patientsDescriptor = createPatientRegistryModuleDescriptor(patients);
     const recordsDescriptor = createHealthRecordsModuleDescriptor(documents);
@@ -118,6 +126,7 @@ describe('analytics fault isolation', () => {
       health: () => Promise.resolve({ status: 'DOWN' as const, detail: 'simulated outage' }),
     };
     const referralsDescriptor = createReferralsModuleDescriptor(referrals);
+    const engagementDescriptor = createEngagementModuleDescriptor(engagement);
     const analyticsDescriptor = createAnalyticsModuleDescriptor(analytics);
 
     const registry = buildModuleRegistry([
@@ -127,6 +136,7 @@ describe('analytics fault isolation', () => {
       chartingDescriptor,
       forcedDownBillingDescriptor,
       referralsDescriptor,
+      engagementDescriptor,
       analyticsDescriptor,
     ]);
     const states = await collectHealthStates(registry);
@@ -141,7 +151,7 @@ describe('analytics fault isolation', () => {
   });
 
   it('resolveAvailability marks ANALYTICS available but HIDE-degraded when REFERRALS is DOWN', async () => {
-    const { patients, scheduling, documents, charting, billing, referrals, analytics } = buildStack();
+    const { patients, scheduling, documents, charting, billing, referrals, engagement, analytics } = buildStack();
 
     const patientsDescriptor = createPatientRegistryModuleDescriptor(patients);
     const recordsDescriptor = createHealthRecordsModuleDescriptor(documents);
@@ -152,6 +162,7 @@ describe('analytics fault isolation', () => {
       ...createReferralsModuleDescriptor(referrals),
       health: () => Promise.resolve({ status: 'DOWN' as const, detail: 'simulated outage' }),
     };
+    const engagementDescriptor = createEngagementModuleDescriptor(engagement);
     const analyticsDescriptor = createAnalyticsModuleDescriptor(analytics);
 
     const registry = buildModuleRegistry([
@@ -161,6 +172,7 @@ describe('analytics fault isolation', () => {
       chartingDescriptor,
       billingDescriptor,
       forcedDownReferralsDescriptor,
+      engagementDescriptor,
       analyticsDescriptor,
     ]);
     const states = await collectHealthStates(registry);
@@ -171,6 +183,42 @@ describe('analytics fault isolation', () => {
       available: true,
       health: 'UP',
       degradations: [{ dependency: 'REFERRALS', mode: 'HIDE' }],
+    });
+  });
+
+  it('resolveAvailability marks ANALYTICS available but HIDE-degraded when ENGAGEMENT is DOWN', async () => {
+    const { patients, scheduling, documents, charting, billing, referrals, engagement, analytics } = buildStack();
+
+    const patientsDescriptor = createPatientRegistryModuleDescriptor(patients);
+    const recordsDescriptor = createHealthRecordsModuleDescriptor(documents);
+    const schedulingDescriptor = createSchedulingModuleDescriptor(scheduling);
+    const chartingDescriptor = createClinicalChartingModuleDescriptor(charting);
+    const billingDescriptor = createBillingModuleDescriptor(billing);
+    const referralsDescriptor = createReferralsModuleDescriptor(referrals);
+    const forcedDownEngagementDescriptor = {
+      ...createEngagementModuleDescriptor(engagement),
+      health: () => Promise.resolve({ status: 'DOWN' as const, detail: 'simulated outage' }),
+    };
+    const analyticsDescriptor = createAnalyticsModuleDescriptor(analytics);
+
+    const registry = buildModuleRegistry([
+      patientsDescriptor,
+      recordsDescriptor,
+      schedulingDescriptor,
+      chartingDescriptor,
+      billingDescriptor,
+      referralsDescriptor,
+      forcedDownEngagementDescriptor,
+      analyticsDescriptor,
+    ]);
+    const states = await collectHealthStates(registry);
+    const resolved = resolveAvailability(registry, states);
+
+    expect(resolved.get('ENGAGEMENT')).toMatchObject({ available: false, health: 'DOWN' });
+    expect(resolved.get('ANALYTICS')).toMatchObject({
+      available: true,
+      health: 'UP',
+      degradations: [{ dependency: 'ENGAGEMENT', mode: 'HIDE' }],
     });
   });
 
@@ -236,6 +284,22 @@ describe('analytics fault isolation', () => {
     referrals.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
 
     await expect(analytics.referralsSummary()).rejects.toThrow('referrals is down');
+    await expect(analytics.patientRegistrySummary()).resolves.toMatchObject({ totalPatients: 1 });
+  });
+
+  it('behaviourally: a down engagement summary does not take the patient summary down with it', async () => {
+    const { patients, engagement, analytics } = buildStack();
+    patients.register({
+      displayName: 'Sita Rai',
+      dateOfBirth: '1990-04-12',
+      sex: 'FEMALE',
+      phone: '9800000000',
+      preferredLocale: 'ne',
+    });
+
+    engagement.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+
+    await expect(analytics.engagementSummary()).rejects.toThrow('engagement is down');
     await expect(analytics.patientRegistrySummary()).resolves.toMatchObject({ totalPatients: 1 });
   });
 });

@@ -50,4 +50,12 @@ export class AnalyticsController {
   referrals() {
     return this.analytics.referralsSummary();
   }
+
+  @Get('engagement')
+  @ApiOperation({
+    summary: 'Engagement message totals, broken down by status. Refused (503) while engagement is unavailable.',
+  })
+  engagement() {
+    return this.analytics.engagementSummary();
+  }
 }

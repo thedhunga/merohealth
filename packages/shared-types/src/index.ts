@@ -1140,6 +1140,17 @@ export interface ReferralsSummary {
   byStatus: Record<ReferralStatus, number>;
 }
 
+/**
+ * Defined here rather than beside `EngagementMessage` below because it
+ * belongs to row 14 (analytics), not row 15 (engagement) — `EngagementMessage`
+ * happens to be declared later in this file, but a type's row of origin, not
+ * its declaration order, decides which section it lives in.
+ */
+export interface EngagementSummary {
+  totalMessages: number;
+  byStatus: Record<EngagementMessageStatus, number>;
+}
+
 /* ------------------------------------------------------------------ *
  * Engagement (clinical-suite.md capability map row 15)
  *

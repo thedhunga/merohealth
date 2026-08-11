@@ -51,8 +51,8 @@ function buildStack() {
   const billing = new BillingService(new BillingRepository(), charting);
   const referrals = new ReferralsService(new ReferralsRepository(), charting);
   const populationHealth = new PopulationHealthService(summary, scheduling);
-  const analytics = new AnalyticsService(patients, scheduling, billing, referrals);
   const engagement = new EngagementService(new EngagementRepository(), patients, { send: vi.fn().mockResolvedValue(undefined) });
+  const analytics = new AnalyticsService(patients, scheduling, billing, referrals, engagement);
   const interop = new InteropService(new InteropRepository(), records);
   const immunization = new ImmunizationService(new ImmunizationRepository(), charting);
   return {
@@ -171,8 +171,8 @@ describe('ClinicalSuiteService', () => {
     // dependency on clinical-charting at all and must read as fully
     // available — teleconsultation's own dependencies are SCHEDULING,
     // population-health's are CLINICAL_SUMMARY/SCHEDULING, analytics's are
-    // PATIENT_REGISTRY/SCHEDULING/BILLING/REFERRALS, engagement's is
-    // PATIENT_REGISTRY and interop's is HEALTH_RECORDS, none of them
+    // PATIENT_REGISTRY/SCHEDULING/BILLING/REFERRALS/ENGAGEMENT, engagement's
+    // is PATIENT_REGISTRY and interop's is HEALTH_RECORDS, none of them
     // CLINICAL_CHARTING directly, and neither CLINICAL_SUMMARY nor BILLING
     // nor REFERRALS being merely degraded (not DOWN) cascades to what
     // depends on them either (§2's "degradesWith never cascades past one

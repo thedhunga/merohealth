@@ -1,10 +1,12 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BillingRepository } from '../billing/billing.repository.js';
 import { BillingService } from '../billing/billing.service.js';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
+import { EngagementRepository } from '../engagement/engagement.repository.js';
+import { EngagementService } from '../engagement/engagement.service.js';
 import { PatientRegistryRepository } from '../patient-registry/patient-registry.repository.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
 import { RecordsRepository } from '../records/records.repository.js';
@@ -23,9 +25,10 @@ function buildController() {
   const charting = new ClinicalChartingService(new ClinicalChartingRepository(), documents);
   const billing = new BillingService(new BillingRepository(), charting);
   const referrals = new ReferralsService(new ReferralsRepository(), charting);
-  const analytics = new AnalyticsService(patients, scheduling, billing, referrals);
+  const engagement = new EngagementService(new EngagementRepository(), patients, { send: vi.fn().mockResolvedValue(undefined) });
+  const analytics = new AnalyticsService(patients, scheduling, billing, referrals, engagement);
   const controller = new AnalyticsController(analytics);
-  return { controller, patients, scheduling, charting, billing, referrals };
+  return { controller, patients, scheduling, charting, billing, referrals, engagement };
 }
 
 const referralRequestInput = {
@@ -127,6 +130,32 @@ describe('AnalyticsController.referrals', () => {
     referrals.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
 
     await expect(controller.referrals()).rejects.toThrow(ServiceUnavailableException);
+  });
+});
+
+describe('AnalyticsController.engagement', () => {
+  it('returns the engagement summary', async () => {
+    const { controller, patients, engagement } = buildController();
+    const patient = patients.register({
+      displayName: 'Sita Rai',
+      dateOfBirth: '1990-04-12',
+      sex: 'FEMALE',
+      phone: '9800000000',
+      preferredLocale: 'ne',
+    });
+    await engagement.queueMessage(patient.id, { channel: 'SMS', kind: 'REMINDER', body: 'Your appointment is tomorrow.' });
+
+    await expect(controller.engagement()).resolves.toEqual({
+      totalMessages: 1,
+      byStatus: { QUEUED: 0, SENT: 1, FAILED: 0 },
+    });
+  });
+
+  it('rejects (503) while engagement is down', async () => {
+    const { controller, engagement } = buildController();
+    engagement.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+
+    await expect(controller.engagement()).rejects.toThrow(ServiceUnavailableException);
   });
 });
 
