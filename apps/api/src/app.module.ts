@@ -5,6 +5,7 @@ import { ClinicalSuiteModule } from './clinical-suite/clinical-suite.module.js';
 import { ClinicalSummaryModule } from './clinical-summary/clinical-summary.module.js';
 import { CompanionController } from './companion.controller.js';
 import { CredentialingModule } from './credentialing/credentialing.module.js';
+import { DiagnosticsOrdersModule } from './diagnostics-orders/diagnostics-orders.module.js';
 import { DirectoryController } from './directory.controller.js';
 import { FamilyModule } from './family/family.module.js';
 import { HealthController } from './health.controller.js';
@@ -29,6 +30,7 @@ import { SchedulingModule } from './scheduling/scheduling.module.js';
     ClinicalSummaryModule,
     MedicationSafetyModule,
     PrescribingModule,
+    DiagnosticsOrdersModule,
     ClinicalSuiteModule,
     LanguageCorpusModule,
     FamilyModule,

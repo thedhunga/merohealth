@@ -4,6 +4,8 @@ import { ClinicalChartingRepository } from '../clinical-charting/clinical-charti
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
 import { ClinicalSummaryRepository } from '../clinical-summary/clinical-summary.repository.js';
 import { ClinicalSummaryService } from '../clinical-summary/clinical-summary.service.js';
+import { DiagnosticsOrdersRepository } from '../diagnostics-orders/diagnostics-orders.repository.js';
+import { DiagnosticsOrdersService } from '../diagnostics-orders/diagnostics-orders.service.js';
 import { MedicationSafetyRepository } from '../medication-safety/medication-safety.repository.js';
 import { MedicationSafetyService } from '../medication-safety/medication-safety.service.js';
 import { PatientRegistryRepository } from '../patient-registry/patient-registry.repository.js';
@@ -30,21 +32,36 @@ function buildStack() {
   const summary = new ClinicalSummaryService(new ClinicalSummaryRepository(), charting);
   const medicationSafety = new MedicationSafetyService(new MedicationSafetyRepository(), summary);
   const prescribing = new PrescribingService(new PrescribingRepository(), charting, medicationSafety);
-  return { records, patients, scheduling, charting, summary, medicationSafety, prescribing };
+  const diagnosticsOrders = new DiagnosticsOrdersService(new DiagnosticsOrdersRepository(), charting);
+  return { records, patients, scheduling, charting, summary, medicationSafety, prescribing, diagnosticsOrders };
+}
+
+function buildSuite(stack: ReturnType<typeof buildStack>): ClinicalSuiteService {
+  return new ClinicalSuiteService(
+    stack.records,
+    stack.patients,
+    stack.scheduling,
+    stack.charting,
+    stack.summary,
+    stack.medicationSafety,
+    stack.prescribing,
+    stack.diagnosticsOrders,
+  );
 }
 
 describe('ClinicalSuiteService', () => {
-  it('reports all seven registered modules available with no degradations when everything is up', async () => {
-    const { records, patients, scheduling, charting, summary, medicationSafety, prescribing } = buildStack();
-    const suite = new ClinicalSuiteService(records, patients, scheduling, charting, summary, medicationSafety, prescribing);
+  it('reports all eight registered modules available with no degradations when everything is up', async () => {
+    const stack = buildStack();
+    const suite = buildSuite(stack);
 
     const resolved = await suite.resolve();
 
-    expect(resolved).toHaveLength(7);
+    expect(resolved).toHaveLength(8);
     expect(resolved.map((module) => module.key).sort()).toEqual(
       [
         'CLINICAL_CHARTING',
         'CLINICAL_SUMMARY',
+        'DIAGNOSTICS_ORDERS',
         'HEALTH_RECORDS',
         'MEDICATION_SAFETY',
         'PATIENT_REGISTRY',
@@ -58,22 +75,27 @@ describe('ClinicalSuiteService', () => {
   });
 
   it('cascades a CLINICAL_CHARTING outage to every dependent module\'s degradations, leaving unrelated modules untouched', async () => {
-    const { records, patients, scheduling, charting, summary, medicationSafety, prescribing } = buildStack();
-    charting.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
-    const suite = new ClinicalSuiteService(records, patients, scheduling, charting, summary, medicationSafety, prescribing);
+    const stack = buildStack();
+    stack.charting.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+    const suite = buildSuite(stack);
 
     const resolved = await suite.resolve();
     const byKey = new Map(resolved.map((module) => [module.key, module]));
 
     expect(byKey.get('CLINICAL_CHARTING')).toMatchObject({ available: false, health: 'DOWN' });
-    // clinical-summary and prescribing both declare a HIDE degradesWith on
-    // CLINICAL_CHARTING — the aggregate view has to surface both, not just
-    // the one edge any single module's own test happens to check.
+    // clinical-summary, prescribing and diagnostics-orders each declare a
+    // HIDE degradesWith on CLINICAL_CHARTING — the aggregate view has to
+    // surface all three, not just the one edge any single module's own test
+    // happens to check.
     expect(byKey.get('CLINICAL_SUMMARY')).toMatchObject({
       available: true,
       degradations: [{ dependency: 'CLINICAL_CHARTING', mode: 'HIDE' }],
     });
     expect(byKey.get('PRESCRIBING')).toMatchObject({
+      available: true,
+      degradations: [{ dependency: 'CLINICAL_CHARTING', mode: 'HIDE' }],
+    });
+    expect(byKey.get('DIAGNOSTICS_ORDERS')).toMatchObject({
       available: true,
       degradations: [{ dependency: 'CLINICAL_CHARTING', mode: 'HIDE' }],
     });
@@ -85,11 +107,11 @@ describe('ClinicalSuiteService', () => {
   });
 
   it('a probe that throws is reported DOWN rather than rejecting the whole resolve() call', async () => {
-    const { records, patients, scheduling, charting, summary, medicationSafety, prescribing } = buildStack();
-    patients.health = () => {
+    const stack = buildStack();
+    stack.patients.health = () => {
       throw new Error('simulated probe failure');
     };
-    const suite = new ClinicalSuiteService(records, patients, scheduling, charting, summary, medicationSafety, prescribing);
+    const suite = buildSuite(stack);
 
     const resolved = await suite.resolve();
     const byKey = new Map(resolved.map((module) => [module.key, module]));

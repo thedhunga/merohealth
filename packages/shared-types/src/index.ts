@@ -315,11 +315,13 @@ export interface CredentialingBadge {
  *
  * docs/architecture/clinical-suite.md §3's capability map, minus row 8
  * ("Patient portal" — that is `apps/web` + `apps/mobile` themselves, not a
- * module that plugs into this fault-isolation system). Modules 1-7 are the
- * next unchecked ledger tasks; 9-20 are sequenced but not yet started. All
- * 19 keys are declared up front so `requires`/`degradesWith` references
- * compile-check against the full eventual map, not just whichever module
- * happens to exist today.
+ * module that plugs into this fault-isolation system). Modules 1-7 are
+ * built; 9-20 are sequenced but deliberately parked — see
+ * agent-progress.md's "stop after prescribing and reassess" note, extended
+ * to "stop after diagnostics-orders" once row 7 shipped. All 19 keys are
+ * declared up front so `requires`/`degradesWith` references compile-check
+ * against the full eventual map, not just whichever module happens to exist
+ * today.
  * ------------------------------------------------------------------ */
 export type ClinicalModuleKey =
   | 'PATIENT_REGISTRY' | 'SCHEDULING' | 'CLINICAL_CHARTING' | 'CLINICAL_SUMMARY'
@@ -746,4 +748,89 @@ export interface Prescription {
  */
 export interface OpenPrescriptionInput {
   clinicianId: string;
+}
+
+/* ------------------------------------------------------------------ *
+ * Diagnostics orders (clinical-suite.md capability map row 7)
+ *
+ * "Lab and imaging orders + results ... HL7 v2 where partners speak it;
+ * manual entry where they do not." No HL7 v2 interface exists anywhere in
+ * this repository yet, so `resultSource` is a caller-supplied field
+ * recording how a result actually arrived: `'HL7'` is a real value the type
+ * accepts for when that interface is built, but nothing in this codebase
+ * ever sets it today — every result recorded here is honestly `'MANUAL'`.
+ *
+ * docs/compliance/compliance-gap-register.md's "Lab results" row names its
+ * own interim engineering control before laboratory governance exists:
+ * "non-diagnostic flags; configurable hold." Both are load-bearing types
+ * below, the same way row 6's controlled-substance flag is load-bearing
+ * rather than aspirational: `nonDiagnostic` is always `true` — there is no
+ * code path that constructs a `DiagnosticResult` without it — and a
+ * recorded result always starts `HELD`, never `RELEASED` directly; a
+ * separate release step is the only way past that. "Configurable" hold
+ * policy (who may release, which test kinds skip the hold) is left for when
+ * that governance actually exists; the unconditional hold is the honest
+ * interim control today, mirroring `packages/prescribing`'s own
+ * unconditional `ControlledSubstanceDisabledError` for the identical
+ * "refuse until the launch gate passes" reasoning.
+ *
+ * Every order is placed against a `clinical-charting` encounter, the same
+ * precedent row 6 set for prescriptions — there is no patient-reported
+ * diagnostic order.
+ * ------------------------------------------------------------------ */
+export type DiagnosticOrderKind = 'LAB' | 'IMAGING';
+
+export type DiagnosticOrderStatus = 'ORDERED' | 'RESULTED' | 'CANCELLED';
+
+export type DiagnosticResultSource = 'HL7' | 'MANUAL';
+
+export type DiagnosticResultReleaseStatus = 'HELD' | 'RELEASED';
+
+export interface DiagnosticResult {
+  resultSource: DiagnosticResultSource;
+  /** Free-text finding, e.g. "5.4 mmol/L" or a radiologist's narrative — never a computed interpretation. */
+  value: string;
+  /** Always true — see this section's own comment on the compliance register's interim control. */
+  nonDiagnostic: true;
+  releaseStatus: DiagnosticResultReleaseStatus;
+  recordedAt: string;
+  recordedBy: string;
+  /** Set together, only once released. Both stay null while HELD. */
+  releasedAt: string | null;
+  releasedBy: string | null;
+}
+
+export interface DiagnosticOrder {
+  id: string;
+  patientId: string;
+  clinicianId: string;
+  encounterId: string;
+  kind: DiagnosticOrderKind;
+  /** Free text, e.g. "Fasting blood glucose" or "Chest X-ray, PA view" — no formulary-style code list exists in this repo. */
+  testName: string;
+  status: DiagnosticOrderStatus;
+  result: DiagnosticResult | null;
+  /** Set together, only once cancelled; both stay null on an ORDERED or RESULTED order. */
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+/**
+ * `patientId` is deliberately absent, the same precedent
+ * `OpenPrescriptionInput` set immediately above: the API boundary derives it
+ * from the `clinical-charting` encounter the order is placed against.
+ */
+export interface OrderDiagnosticInput {
+  clinicianId: string;
+  kind: DiagnosticOrderKind;
+  testName: string;
+}
+
+export interface RecordDiagnosticResultInput {
+  resultSource: DiagnosticResultSource;
+  value: string;
+  recordedBy: string;
 }

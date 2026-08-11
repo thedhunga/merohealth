@@ -449,14 +449,147 @@ suite grows. A module that "works" but has no outage test is not finished.
       "the shell renders around holes" had no single data source to render
       from until this; every prior fault-isolation test only proves its own
       module's edges in an ad hoc registry built just for that test.
+- [x] `diagnostics-orders` (capability map row 7): lab and imaging orders +
+      results. Reassessed the "stop after prescribing" note (see the
+      2026-08-11 log entry below) and resumed with this one module — see
+      that entry for why row 7 specifically, and why nothing past it.
 
-Stop after prescribing and reassess. Modules 7-20 in the capability map are
-sequenced but must not be started while anything above is unfinished.
+Stop after diagnostics-orders and reassess again. Modules 8-20 in the
+capability map are sequenced but must not be started while anything above is
+unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
+not a module that plugs into this registry, so row 9 (teleconsultation) is
+the next real candidate whenever this note is next revisited.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; reassessed the "stop after
+  prescribing" note and resumed the clinical suite with `diagnostics-orders`
+  (capability map row 7).** Grepped for `- [ ]` first — zero hits, same as
+  every recent run. This run's fallback question was different from the
+  last several: those all named a concrete open item in their own "for the
+  next run" note (delegation seed data, `CaregiverRelationship` retirement,
+  revoke UI, ...); this run's chain of notes had converged on two things
+  only — guardianship creation (blocked on a real product decision, see
+  below) and the Clinical suite section's own explicit "stop after
+  prescribing and reassess" line, never actually reassessed by any run
+  since prescribing shipped.
+
+  **Guardianship creation, checked first and ruled out again, for a sharper
+  reason than prior entries gave.** Read `grantGuardianshipForMinor`
+  (`packages/family/src/index.ts`) closely enough this time to notice its
+  `wardDateOfBirth` parameter is not sourced from anywhere — it is just an
+  argument, so "add a DOB field to `PatientProfile`" was never really the
+  blocker prior entries described it as. The real blocker is one level up:
+  `family-and-proxy.md` never says how a minor who cannot hold a phone
+  number gets a `User` row to be guardian *of* in the first place — the seed
+  data's Roshani has one only because the seed script inserts it directly,
+  not through any real signup path. A self-service creation endpoint would
+  have to invent that enrolment mechanism (does granting guardianship also
+  create the ward's account? from what identifying information?) — a
+  genuinely different and larger product decision than the DOB-field framing
+  every prior entry repeated, and still not this run's to make. Recorded
+  here so the next run does not re-open the DOB framing as if it were the
+  live question.
+
+  **Why `diagnostics-orders` and not a guardianship workaround, and why
+  reassessing landed on "resume" rather than "stay parked."** Re-read
+  `docs/architecture/clinical-suite.md` §4: "modules 1-4 are the smallest
+  thing a clinic can actually use... nothing before module 5 touches
+  prescribing, where the safety and regulatory burden begins in earnest."
+  That burden is what the original "stop and reassess" note was guarding
+  against — signing off on prescribing without a live look. Nothing about
+  diagnostics-orders (row 7) carries new regulatory weight beyond what
+  `compliance-gap-register.md`'s existing "Lab results" row already names,
+  and every module 1-6 precedent (small pure-domain package + thin
+  `apps/api` wiring + a real fault-isolation test) scales cleanly to it — so
+  reassessing here means "resume for exactly one more module, then stop and
+  reassess again," not "the pause was a mistake."
+
+  **What was built — the module 1-6 shape, applied to row 7.**
+  1. `packages/shared-types/src/index.ts`: `DiagnosticOrder`/
+     `DiagnosticResult` and the input types, in a new section following the
+     same "row N of the capability map" header comment every prior section
+     uses. `resultSource: 'HL7' | 'MANUAL'` is real per the capability map's
+     own "HL7 v2 where partners speak it; manual entry where they do not,"
+     but no HL7 interface exists anywhere in this repo — the comment says so
+     outright, the same honesty `DrugInteractionRule`'s empty-ruleset
+     precedent already established for an unpopulated future dataset.
+     `compliance-gap-register.md`'s "Lab results" row names its own interim
+     control, "non-diagnostic flags; configurable hold" — both are
+     load-bearing types, not comments: `nonDiagnostic` is always `true`
+     (no constructor path omits it) and every recorded result starts
+     `HELD`, never `RELEASED` directly, mirroring
+     `ControlledSubstanceDisabledError`'s unconditional-refusal shape for
+     row 6. Also updated the stale `ClinicalModuleKey` header comment, which
+     still said "modules 1-7 are the next unchecked ledger tasks."
+  2. `packages/diagnostics-orders` (new package): `orderDiagnostic`,
+     `recordDiagnosticResult`, `releaseDiagnosticResult`,
+     `cancelDiagnosticOrder` — a three-state ORDERED → RESULTED | CANCELLED
+     machine, the same shape `prescribing`'s DRAFT → SIGNED | VOIDED
+     already set. A RESULTED order cannot be cancelled (a result is
+     superseded by a new order, never discarded) — enforced by reusing the
+     same `assertOpen` guard `recordDiagnosticResult` uses, so the two
+     "wrong state" mutation paths cannot drift apart. Full `index.test.ts`
+     coverage, including both `resultSource` values passing through
+     unchanged and every guard's specific error.
+  3. `apps/api/src/diagnostics-orders/`: repository (in-memory map, same
+     convention as every sibling), service (`ClinicalChartingService`
+     injected as its public port per §2 rule 3, the same pattern
+     `PrescribingService` set — `orderDiagnostic` is the one action gated on
+     it, `recordResult`/`releaseResult`/`cancelOrder` never touch it),
+     controller (zod-validated, mirrors `PrescribingController`'s route
+     shape), module-descriptor (`DIAGNOSTICS_ORDERS`, empty `requires`, one
+     `degradesWith` edge: `HIDE` against `CLINICAL_CHARTING`), and module.
+     Repository, service, controller, module-descriptor and
+     fault-isolation test files, same five-file split every prior module
+     used.
+  4. Wired into `apps/api/src/app.module.ts` and the `clinical-suite`
+     aggregate (`clinical-suite.module.ts`/`clinical-suite.service.ts`):
+     `GET /clinical-suite/modules` now reports eight modules, not seven.
+     Updated `clinical-suite.service.test.ts`'s "all N modules available"
+     and "CLINICAL_CHARTING outage cascades" tests for the new count and the
+     new HIDE edge — the cascade test would have silently stopped proving
+     anything about diagnostics-orders if left at seven.
+  5. `apps/api/package.json`: added `@swasthya/diagnostics-orders` as a
+     real dependency; regenerated `pnpm-lock.yaml` via
+     `--no-frozen-lockfile`, then confirmed `--frozen-lockfile` passes clean
+     afterward, same sequence the 2026-08-11 grants-endpoint run used for
+     the same reason.
+
+  **What was deliberately not built.** No HL7 v2 parsing or interface of
+  any kind — row 7's own note names it as a future integration, and nothing
+  in this repo has a partner to speak it to yet; `resultSource: 'HL7'` stays
+  a real, tested, never-yet-used value. No "configurable" hold policy (who
+  may release which test kinds) — `compliance-gap-register.md` says that
+  configurability needs laboratory governance that does not exist; the
+  unconditional hold is the honest interim control today, not a shortcut.
+  No clinician-facing UI — matches every module 1-6 precedent, all API-only
+  so far. No `TELECONSULTATION` (row 9) or anything past row 7 — the
+  reassessment above was scoped to exactly one module, not "resume the
+  whole roadmap."
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the lockfile
+  regeneration; `pnpm lint` 32/32 (up from 31 — the new package); `pnpm
+  typecheck` 32/32; `pnpm test` 58/58 tasks — `@swasthya/api` 347 tests (up
+  from 323: 24 new, across `diagnostics-orders.repository.test.ts`,
+  `.service.test.ts`, `.controller.test.ts`, `.module-descriptor.test.ts`,
+  `.fault-isolation.test.ts`, plus the two updated `clinical-suite.service
+  .test.ts` cases), `@swasthya/diagnostics-orders` 12 new tests; `pnpm
+  build` 32/32, including `apps/web`'s static export and `apps/mobile`'s
+  Expo web bundle. No schema/migration change — this module has no Prisma
+  model yet, matching every module 1-6 precedent (in-memory only) — so no
+  live Postgres was needed this run.
+
+  **For the next run.** Both items every recent entry has named stay open:
+  guardianship creation (now understood to be blocked on a minor's
+  account-enrolment mechanism, not merely a DOB field — see above) and the
+  clinical suite is parked again, this time after row 7. The next
+  reassessment's honest starting point is row 9 (`teleconsultation`,
+  already stubbed in `apps/mobile`) — row 8 is `apps/web`/`apps/mobile`
+  themselves, not a module for this registry.
 
 - 2026-08-11 — **Queue fully checked again; picked the highest-value
   improvement to work already done: a `DelegationGrant` seed row for the two

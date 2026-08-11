@@ -23,6 +23,7 @@
     "@swasthya/clinical-summary": "workspace:*",
     "@swasthya/credentialing": "workspace:*",
     "@swasthya/database": "workspace:*",
+    "@swasthya/diagnostics-orders": "workspace:*",
     "@swasthya/entitlements": "workspace:*",
     "@swasthya/family": "workspace:*",
     "@swasthya/health-records": "workspace:*",
