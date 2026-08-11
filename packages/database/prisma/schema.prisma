@@ -116,6 +116,30 @@ enum QuotaDimension {
   CONNECTED_DEVICES
 }
 
+// Mirrors packages/family's GuardianshipGrounds, DelegationScope and
+// ConsentMethod exactly — see GuardianshipGrant/DelegationGrant below for
+// why these are real enums (a closed set the package itself never widens)
+// rather than the plain String/Json this file uses for fields no domain
+// package constrains yet (e.g. AccessGrant.scopes, Consent.evidence).
+enum GuardianshipGrounds {
+  MINOR
+  INCAPACITY
+}
+
+enum DelegationScope {
+  VIEW_RECORD
+  ASK_ASSISTANT
+  MANAGE_APPOINTMENTS
+  UPLOAD_DOCUMENTS
+}
+
+enum ConsentMethod {
+  IN_PERSON_VERBAL
+  WITNESSED
+  CLINICIAN_ATTESTED
+  WRITTEN
+}
+
 model User {
   id         String    @id @default(uuid()) @db.Uuid
   email      String?   @unique
@@ -964,4 +988,55 @@ model FeatureFlag {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   version      Int      @default(1)
+}
+
+// ------------------------------------------------------------------------
+// packages/family (docs/architecture/family-and-proxy.md §2/§3). The real
+// store the ledger's 2026-08-10/11 entries left as the next honest step:
+// `wardId`/`guardianId`/`granterId`/`delegateId` are `User.id` values, the
+// same "subjectId" every other Round two table keys on, so — unlike
+// `HealthDocument.ownerId`'s deliberately untyped String, written before
+// A3's auth module existed — these are `@db.Uuid`, matching `AccessGrant`
+// and `Consent`'s already-real `patientId`. Two separate models, not one
+// generic grant table (`AccessGrant` above is exactly that shape and is
+// deliberately left unused rather than repurposed): family-and-proxy.md §2
+// is explicit that conflating guardianship and delegation is the failure
+// mode, and `AccessGrant` also has no field for assisted-enrolment consent,
+// which `DelegationGrant.enrolmentMethod` requires can never be silently
+// dropped.
+
+model GuardianshipGrant {
+  id         String              @id @default(uuid()) @db.Uuid
+  wardId     String              @db.Uuid
+  guardianId String              @db.Uuid
+  grounds    GuardianshipGrounds
+  grantedAt  DateTime
+  /**
+   * Mandatory in `packages/family`'s own type — never nullable here either.
+   */
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  @@index([guardianId])
+  @@index([wardId])
+}
+
+model DelegationGrant {
+  id                  String            @id @default(uuid()) @db.Uuid
+  granterId           String            @db.Uuid
+  delegateId          String            @db.Uuid
+  scopes              DelegationScope[]
+  grantedAt           DateTime
+  expiresAt           DateTime
+  revokedAt           DateTime?
+  // Mirrors `AssistedEnrolmentConsent | null` as a nullable pair rather than
+  // a nested Json blob: both columns are null together (self-service grant)
+  // or set together (assisted enrolment) — see `PrismaFamilyGrantsStore`,
+  // which enforces that pairing on every read and write, for why a typed
+  // pair beats an untyped object here.
+  enrolmentMethod     ConsentMethod?
+  enrolmentRecordedBy String?           @db.Uuid
+
+  @@index([delegateId])
+  @@index([granterId])
 }

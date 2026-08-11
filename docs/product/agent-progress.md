@@ -210,6 +210,15 @@ Design in
       gap D2's own log entry flagged and deliberately deferred. Sign-in/
       register links now swap to an account link for a signed-in visitor on
       all ~70 marketing routes, via a non-redirecting `useOptionalSession`.
+- [x] Queue exhausted again — added: real `apps/api` persistence and a
+      `GET /family/grants` endpoint for `GuardianshipGrant`/
+      `DelegationGrant`, the item the 2026-08-10/11 log entries both left as
+      the next honest step. New `GuardianshipGrant`/`DelegationGrant` Prisma
+      models (not a reuse of `CaregiverRelationship` — see the 2026-08-11 log
+      entry for why that would have meant inventing fields), a
+      `FamilyGrantsController`/`Service`/`PrismaFamilyGrantsStore` following
+      `AuthStore`'s port-adapter pattern, and `apps/web`'s `AccountView.tsx`
+      now calls it instead of passing `[]`/`[]`.
 
 ### Visual system — Round one, complete
 
@@ -411,6 +420,115 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; picked the highest-value
+  improvement to work already done: a real `apps/api` grants endpoint.**
+  Grepped for `- [ ]` first — still zero hits. Per the working agreement's
+  fallback rule, re-read the prior run's own "for the next run" note, which
+  named one concrete item: "an `apps/api` grants endpoint exposing a
+  signed-in person's `GuardianshipGrant`/`DelegationGrant` rows... without
+  inventing any field the seed data doesn't actually carry." That note also
+  flagged the trap the run before it hit: reusing the seed data's
+  `CaregiverRelationship` model would require inventing `grounds`, a
+  mandatory `expiresAt`, `revokedAt`, and the entire `consentMethod`/
+  `enrolment` shape — none of which that model or its one seeded row
+  (Sunita/Roshani) carries. Confirmed that independently before writing any
+  code: `CaregiverRelationship.endsAt` is nullable and unset on the seed
+  row, while `GuardianshipGrant.expiresAt` is a non-optional field in
+  `packages/family`'s own type — there is no honest field-for-field mapping.
+
+  **What was built — the honest alternative: new tables, not a reused one.**
+
+  1. `packages/database/prisma/schema.prisma`: new `GuardianshipGrant` and
+     `DelegationGrant` models, fields matching `packages/family`'s
+     `GuardianshipGrant`/`DelegationGrant` TypeScript interfaces exactly
+     (including `enrolmentMethod`/`enrolmentRecordedBy` as a nullable pair
+     for `AssistedEnrolmentConsent`), plus three new enums
+     (`GuardianshipGrounds`, `DelegationScope`, `ConsentMethod`) mirroring
+     the package's own closed unions. `wardId`/`guardianId`/`granterId`/
+     `delegateId` are `@db.Uuid`, not the untyped `String` `HealthDocument
+     .ownerId` uses — that field predates `AuthModule` (A3); these
+     postdate it, and the ids really are `User.id` values now. Left
+     `AccessGrant` (an existing, fully unused, generic grant table)
+     untouched rather than repurposed: it has no field for assisted-enrolment
+     consent and would conflate guardianship with delegation, the exact
+     failure mode `packages/family`'s own doc comments name.
+  2. Migration `20260811000000_add_family_grants`, generated via `prisma
+     migrate diff --from-config-datasource --to-schema` (not
+     `--from-schema-datasource`, which Prisma 7 removed) against a local
+     Postgres 16 cluster brought up with `pg_ctlcluster 16 main start` (no
+     Docker daemon in this environment) with a `swasthya`/`swasthya`
+     role/database created to match `compose.yaml`. Applied with `migrate
+     deploy`, then confirmed zero drift with a second `migrate diff
+     --exit-code`. Ran `prisma format` afterward — the schema file's
+     formatting had drifted and `pnpm lint`'s `prisma format --check` step
+     caught it; that reformat is whitespace-only, verified with `git diff`
+     before treating it as expected rather than accidental.
+  3. `apps/api/src/family/`: `family-grants.store.ts` (the `FamilyGrantsStore`
+     port, `AUTH_STORE`-pattern), `prisma-family-grants.store.ts` (the real
+     adapter — the only real mapping work is `DateTime` → ISO string and
+     reassembling `enrolment` from its two nullable columns, throwing on a
+     partially-set pair rather than guessing), `in-memory-family-grants
+     .store.ts` (test fake), `family-grants.service.ts` (deliberately thin:
+     scopes to the caller's subject id and nothing else — the active-at-`now`
+     liveness filter stays owned by `listActiveGuardianshipsFor`/
+     `listActiveDelegationsFor` alone, so it has exactly one place to drift),
+     `family-grants.controller.ts` (`GET /family/grants`, behind
+     `SessionAuthGuard`, subject id from `@CurrentUser()` — never a
+     query/path param, the same lesson the records module's cross-owner fix
+     already established), and `family.module.ts`, wired into `AppModule`.
+     Added `@swasthya/family` as a real `apps/api` dependency (it wasn't
+     one) and regenerated `pnpm-lock.yaml` via `--no-frozen-lockfile`, then
+     confirmed `--frozen-lockfile` passes clean afterward.
+  4. `apps/web/src/lib/family-api.ts` (`getFamilyGrants()`, shaped after
+     `auth-api.ts`) and `apps/web/src/hooks/useFamilyGrants.ts` (gated on a
+     live session, degrades to empty arrays on `loading`/`error` rather than
+     blocking the rest of the page). `AccountView.tsx`'s `buildActingSubjects`
+     call now passes real `guardianships`/`delegations` instead of `[]`/`[]`
+     — exactly the one-line change its own prior comment predicted.
+
+  **What was deliberately not built.** No write path (no `POST` to create a
+  grant): `packages/family`'s own doc comment on `hasScope` says there is
+  "deliberately no route or UI checking [scopes] yet... adding one now
+  would mean fabricating an enforcement point that doesn't exist" — the
+  same reasoning applies to a creation endpoint with no real caller. No seed
+  data for either new table: there is no honest guardianship/delegation
+  data beyond the existing `CaregiverRelationship` row this task explicitly
+  ruled out reusing, so both tables ship empty, honestly, rather than
+  backfilled. Did not touch or retire `CaregiverRelationship` — reconciling
+  or removing it is still a separate task. No new `messages/*.json` keys —
+  this is a data-source change behind an existing UI surface, not new copy.
+
+  **Verify.** Brought up a local Postgres 16 cluster (`pg_ctlcluster`,
+  `swasthya`/`swasthya` role and database) since no Docker daemon was
+  available; applied all three migrations cleanly, confirmed zero schema
+  drift. `pnpm install --frozen-lockfile` clean after the lockfile
+  regeneration; `pnpm lint` 31/31 (including `packages/database`'s `prisma
+  format --check` after reformatting the schema file); `pnpm typecheck`
+  31/31; `pnpm test` 56/56 tasks — `@swasthya/api` 305 tests (up from 300:
+  new `family-grants.service.test.ts`, `in-memory-family-grants.store
+  .test.ts`, `family-grants.controller.test.ts`), `@swasthya/web` 52 tests
+  (up from 48: new `family-api.test.ts`); `pnpm build` 31/31, including
+  `apps/api`, `apps/web`'s static export and `apps/mobile`'s Expo web
+  bundle. No test for `PrismaFamilyGrantsStore` itself — matches this
+  repo's existing convention (`PrismaAuthStore` has none either); it is
+  exercised by the migration/drift verification above, not a unit test.
+  Did not manually click through `/account` against the live local
+  Postgres + `apps/api` in this run (no grant rows exist to see yet, since
+  none were seeded) — the next run to touch this surface, once there is a
+  real way to create a grant, is the first one that can verify this
+  end-to-end rather than by construction.
+
+  **For the next run.** The real remaining gap: there is still no way to
+  *create* a `GuardianshipGrant`/`DelegationGrant` anywhere in the app —
+  this run built the read side only, honestly, because nothing calls a
+  write path yet. A guardianship/delegation creation flow (mobile or web)
+  is the natural next piece, and would also be the first real caller that
+  makes `hasScope`'s "no enforcement point exists yet" note stale. Also
+  still open: reconciling or retiring `CaregiverRelationship`, and the
+  "stop after prescribing and reassess" note under Clinical suite (§ above)
+  — modules 7-20 are deferred, not blocked, and still need a real look
+  before either resuming or staying parked.
 
 - 2026-08-11 — **Queue fully checked; picked the highest-value improvement to
   work already done.** Grepped the whole ledger for `- [ ]` first to confirm —

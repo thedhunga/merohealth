@@ -6,6 +6,7 @@ import { ClinicalSummaryModule } from './clinical-summary/clinical-summary.modul
 import { CompanionController } from './companion.controller.js';
 import { CredentialingModule } from './credentialing/credentialing.module.js';
 import { DirectoryController } from './directory.controller.js';
+import { FamilyModule } from './family/family.module.js';
 import { HealthController } from './health.controller.js';
 import { LanguageCorpusModule } from './language-corpus/language-corpus.module.js';
 import { MedicationSafetyModule } from './medication-safety/medication-safety.module.js';
@@ -30,6 +31,7 @@ import { SchedulingModule } from './scheduling/scheduling.module.js';
     PrescribingModule,
     ClinicalSuiteModule,
     LanguageCorpusModule,
+    FamilyModule,
   ],
   controllers: [HealthController, CompanionController, DirectoryController],
   providers: [PerplexityHealthService],

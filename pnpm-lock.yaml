@@ -77,6 +77,9 @@ importers:
       '@swasthya/entitlements':
         specifier: workspace:*
         version: link:../../packages/entitlements
+      '@swasthya/family':
+        specifier: workspace:*
+        version: link:../../packages/family
       '@swasthya/health-records':
         specifier: workspace:*
         version: link:../../packages/health-records
@@ -8112,7 +8115,9 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89': {}
 

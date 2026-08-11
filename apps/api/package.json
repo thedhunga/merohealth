@@ -24,6 +24,7 @@
     "@swasthya/credentialing": "workspace:*",
     "@swasthya/database": "workspace:*",
     "@swasthya/entitlements": "workspace:*",
+    "@swasthya/family": "workspace:*",
     "@swasthya/health-records": "workspace:*",
     "@swasthya/identity": "workspace:*",
     "@swasthya/language-corpus": "workspace:*",

@@ -9,6 +9,7 @@ import { Button, ButtonLink } from '@/components/ui/Button';
 import { PageTemplate } from '@/components/ui/PageTemplate';
 import { Section } from '@/components/ui/Section';
 import { useRouter } from '@/i18n/navigation';
+import { useFamilyGrants } from '@/hooks/useFamilyGrants';
 import { useSession } from '@/hooks/useSession';
 import { buildActingSubjects, resolveActingSubject } from '@/lib/acting-subjects';
 import { logout } from '@/lib/auth-api';
@@ -34,17 +35,17 @@ export function AccountView() {
   const [signingOut, setSigningOut] = useState(false);
 
   const user = session.status === 'authenticated' ? session.user : null;
+  const familyGrants = useFamilyGrants(user !== null);
 
   const actingSubjects = useMemo(() => {
     if (!user) return [];
-    // No route in `apps/api` exposes a signed-in person's
-    // `GuardianshipGrant[]`/`DelegationGrant[]` yet — `packages/family` has
-    // no Prisma-backed store, only the in-memory logic these two functions
-    // implement — so `[]` here is the honest input, not a stub standing in
-    // for one. The call is real: the day that endpoint exists, only these
-    // two arguments change, not this component.
-    return buildActingSubjects({ id: user.userId, displayName: t('switcher.self') }, [], [], new Date().toISOString());
-  }, [user, t]);
+    // `GET /family/grants` now backs this — see `useFamilyGrants`'s own doc
+    // comment for why `loading`/`error` both degrade to empty arrays rather
+    // than blocking the rest of this page, which has real data regardless.
+    const guardianships = familyGrants.status === 'loaded' ? familyGrants.grants.guardianships : [];
+    const delegations = familyGrants.status === 'loaded' ? familyGrants.grants.delegations : [];
+    return buildActingSubjects({ id: user.userId, displayName: t('switcher.self') }, guardianships, delegations, new Date().toISOString());
+  }, [user, familyGrants, t]);
 
   const hero = {
     eyebrow: t('hero.eyebrow'),
