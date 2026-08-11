@@ -1,6 +1,9 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
+import { EntitlementsGuard } from '../entitlements/entitlements.guard.js';
+import { RequireModule } from '../entitlements/require-entitlement.decorator.js';
 import { TeleconsultationService } from './teleconsultation.service.js';
 
 const cancelSchema = z.object({
@@ -19,7 +22,17 @@ function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
   return parsed.data;
 }
 
-/** Row 9 of clinical-suite.md's capability map: telehealth. */
+/**
+ * Row 9 of clinical-suite.md's capability map: telehealth.
+ *
+ * `TELECONSULTATION` is a `ModuleKey` in `packages/entitlements` too (PRO
+ * tier only), unlike most rows in this suite — so unlike its siblings it is
+ * not excused from the "modules ship without entitlement wiring" pattern.
+ * `schedule` is the one route gated, the same precedent `RecordsController`
+ * set for `capture`: the module boundary belongs on the action that starts
+ * something new, not on reading or transitioning a session that already
+ * exists.
+ */
 @ApiTags('teleconsultation')
 @Controller('teleconsultation')
 export class TeleconsultationController {
@@ -32,9 +45,13 @@ export class TeleconsultationController {
   }
 
   @Post('appointments/:appointmentId/sessions')
+  @UseGuards(SessionAuthGuard, EntitlementsGuard)
+  @RequireModule('TELECONSULTATION')
   @ApiParam({ name: 'appointmentId' })
   @ApiOperation({
-    summary: 'Book a teleconsultation session against an appointment. Refused (503) while scheduling is unavailable.',
+    summary:
+      'Book a teleconsultation session against an appointment. Refused (503) while scheduling is unavailable, ' +
+      '(401) with no session, (403) without the TELECONSULTATION module.',
   })
   schedule(@Param('appointmentId') appointmentId: string) {
     return this.teleconsultation.scheduleSession(appointmentId);

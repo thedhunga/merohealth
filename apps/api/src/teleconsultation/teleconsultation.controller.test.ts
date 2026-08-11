@@ -1,5 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { describe, expect, it } from 'vitest';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
+import { EntitlementsGuard } from '../entitlements/entitlements.guard.js';
+import { REQUIRED_MODULE_KEY } from '../entitlements/require-entitlement.decorator.js';
 import { PatientRegistryRepository } from '../patient-registry/patient-registry.repository.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
 import { SchedulingRepository } from '../scheduling/scheduling.repository.js';
@@ -32,6 +36,43 @@ async function bookAppointment(scheduling: SchedulingService, patientId: string)
     scheduledEnd: '2026-08-10T09:30:00.000Z',
   });
 }
+
+// Nest's own `@UseGuards` metadata key. Not part of `@nestjs/common`'s
+// public exports (only `constants.ts` internally, which NodeNext module
+// resolution can't reach as a subpath import here), so this mirrors the
+// literal Nest itself defines rather than importing it.
+const GUARDS_METADATA = '__guards__';
+
+// Cast away the class-method typing so `@typescript-eslint/unbound-method`
+// doesn't flag these as unsafe `this`-losing references — every use below
+// only reads Reflect-metadata off the function object, never calls it.
+const controllerProto = TeleconsultationController.prototype as unknown as Record<string, () => unknown>;
+
+function guardsFor(method: string): unknown {
+  return Reflect.getMetadata(GUARDS_METADATA, controllerProto[method]!);
+}
+
+describe('TeleconsultationController entitlement wiring', () => {
+  const reflector = new Reflector();
+
+  it('gates schedule behind SessionAuthGuard, EntitlementsGuard and the TELECONSULTATION module', () => {
+    expect(guardsFor('schedule')).toEqual([SessionAuthGuard, EntitlementsGuard]);
+    expect(reflector.get<string | undefined>(REQUIRED_MODULE_KEY, controllerProto['schedule']!)).toBe(
+      'TELECONSULTATION',
+    );
+  });
+
+  // Booking is the one action that starts something new; reading or
+  // transitioning a session that already exists follows RecordsController's
+  // precedent of staying open, so this locks that boundary in rather than
+  // letting a future run gate everything "for consistency".
+  it('leaves every other route ungated', () => {
+    const ungatedMethods = ['health', 'listSessions', 'getSession', 'start', 'complete', 'cancel', 'noShow'];
+    for (const method of ungatedMethods) {
+      expect(guardsFor(method)).toBeUndefined();
+    }
+  });
+});
 
 describe('TeleconsultationController.schedule', () => {
   it('books a session against an appointment', async () => {

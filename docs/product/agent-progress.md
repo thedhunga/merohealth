@@ -475,6 +475,13 @@ suite grows. A module that "works" but has no outage test is not finished.
       this run) for why each summary degrades against exactly one source
       instead of the whole module hiding together, and what was
       deliberately left out.
+- [x] Wired `TeleconsultationController.schedule` behind
+      `SessionAuthGuard`/`EntitlementsGuard`/`@RequireModule('TELECONSULTATION')`
+      — added once the queue was found fully checked again, per the working
+      agreement's "pick the highest-value improvement to work already done"
+      fallback. See the 2026-08-11 log entry below (the one added by this
+      run) for why this route specifically, and why nothing else in the
+      clinical suite changed.
 
 Stop after analytics and reassess again. Modules 11 and 15-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -491,6 +498,114 @@ run should re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; fixed a real security gap
+  instead of starting a new clinical-suite module.** Grepped for `- [ ]` —
+  zero hits, as every prior "queue exhausted" run has found. The working
+  agreement's fallback for this state is "pick the highest-value improvement
+  to work already done," so before touching code this run had a
+  general-purpose agent survey the repo for genuine, appropriately-scoped
+  gaps in shipped work (TODOs, `describe.todo` blocks, self-flagged notes in
+  `agent-progress.md`, entitlement-wiring inconsistencies) rather than
+  reaching straight for row 15 (`engagement`) — the prior run's own guess,
+  explicitly marked non-binding, and the kind of new-ground module (its
+  first real `QUEUE_AND_RETRY` case) that deserves a dedicated run, not a
+  "queue exhausted" afterthought.
+
+  **What the survey found.** `TeleconsultationController`
+  (`apps/api/src/teleconsultation/teleconsultation.controller.ts`) had zero
+  auth or entitlement guards on any of its seven routes. That's ordinarily
+  unremarkable — every clinical-suite module except `records` ships without
+  entitlement wiring, and `agent-progress.md` has repeatedly excused that
+  with "no `ClinicalModuleKey` value exists in `ModuleKey` either." But
+  `TELECONSULTATION` is the **one** exception: it's declared in both
+  `ClinicalModuleKey` and `ModuleKey`
+  (`packages/shared-types/src/index.ts`), and `packages/entitlements` puts
+  it in the PRO plan only. `apps/web/messages/en.json`/`ne.json` market it
+  as a paid differentiator on the pricing page. So the precedent that
+  excuses every sibling module didn't apply here — this was a real gap
+  where any signed-in-or-not caller could book/start/complete/cancel a
+  teleconsultation session with no tier check at all, verified by grepping
+  all 21 API controllers: `records.controller.ts` was the only other one
+  wired with `@UseGuards(SessionAuthGuard, EntitlementsGuard)`.
+
+  **What was built.**
+  1. `apps/api/src/teleconsultation/teleconsultation.controller.ts`: added
+     `@UseGuards(SessionAuthGuard, EntitlementsGuard)` +
+     `@RequireModule('TELECONSULTATION')` to `schedule` only — the one
+     action that starts something new, the same boundary
+     `RecordsController.capture` already drew against
+     `list`/`confirm`/`correct`/`reject`. `start`/`complete`/`cancel`/
+     `no-show`/`listSessions`/`getSession`/`health` stay open, matching that
+     precedent rather than gating everything "for consistency."
+  2. `apps/api/src/entitlements/no-quota-usage.reader.ts` (new):
+     `EntitlementsGuard` injects a `UsageReader` unconditionally at
+     construction regardless of whether a route carries `@RequireQuota`, so
+     `TeleconsultationModule` needed *some* binding even though `schedule`
+     only gates on `@RequireModule`. Follows `RecordsUsageReader`'s own
+     "fail loudly rather than report zero usage" precedent — every call
+     here throws, since no quota dimension is metered on this route. 1 test.
+  3. `apps/api/src/teleconsultation/teleconsultation.module.ts`: imports
+     `AuthModule`, provides `EntitlementsGuard` and binds
+     `SUBSCRIPTION_RESOLVER`/`USAGE_READER` — the same three-line addition
+     `RecordsModule` made for the same reason.
+  4. `apps/api/src/teleconsultation/teleconsultation.controller.test.ts`: a
+     new wiring test reading `@UseGuards`/`@RequireModule` metadata directly
+     off the controller's prototype methods (`Reflect.getMetadata` against
+     Nest's own `'__guards__'` key, since `@nestjs/common/constants` isn't
+     reachable through this project's `NodeNext` module resolution as a
+     subpath import) — asserts `schedule` carries both guards and the
+     `TELECONSULTATION` module requirement, and that the other seven routes
+     carry none. This is the first test in the repo that verifies guard
+     wiring this way; every existing controller test calls methods directly
+     and so never exercises Nest's guard pipeline at all, meaning a missing
+     guard like this one would pass silently otherwise. 2 tests.
+
+  **What this means in practice, and why that's the honest outcome.**
+  `FreeTierSubscriptionResolver` (no real `Subscription` persistence exists
+  yet) resolves every caller to `FREE`, and `TELECONSULTATION` is PRO-only —
+  so `schedule` now refuses every booking with a 403 until subscription
+  persistence is real. That is not a regression to soften: nobody has
+  actually been verified as a paying subscriber, so nobody should get a
+  paid-tier feature by default. The same honesty the `FreeTierSubscriptionResolver`
+  doc comment already states for itself.
+
+  **What was deliberately not touched.** No new clinical-suite module — row
+  15 stays exactly where the prior run left it, a guess for whoever picks
+  the suite back up. `companion.controller.ts`'s missing `EntitlementsGuard`
+  on `assess`/`research` (flagged earlier in this file, search
+  "ASSISTANT_MESSAGES_PER_MONTH") was considered and left alone: `ASSISTANT`
+  is on the FREE tier too, so that gap is a metering omission, not a
+  paywall bypass, and deserves its own run rather than folding two
+  different-shaped fixes into one. No e2e/supertest harness was built,
+  despite the survey flagging its absence as what let this bug ship
+  unnoticed — that's a bigger, separate investment than one run's "highest
+  value improvement" should take on unilaterally; the wiring test added
+  here is a narrower, immediately useful substitute for this one route.
+  `packages/evaluation`'s and `packages/intent-router`'s `describe.todo`
+  blocks (blocked on `packages/family`, which has since shipped) were the
+  next candidate the survey found and were left for a future run — both are
+  test-only and self-contained, a reasonable next "queue exhausted" pick.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new package, unlike every prior clinical-suite addition). `pnpm lint`
+  37/37. `pnpm typecheck` 37/37. `pnpm test` 68/68 tasks — `@swasthya/api`
+  466 tests (up from 463: `teleconsultation.controller.test.ts` went from 7
+  to 9 with the two new wiring tests, plus 1 new
+  `no-quota-usage.reader.test.ts`). `pnpm build` 37/37, including
+  `apps/web`'s static export and `apps/mobile`'s Expo web bundle. No
+  schema/migration change — this touched only DI wiring and route
+  decorators, no persistence.
+
+  **For the next run.** Row 15 (`engagement`) or extending `analytics` with
+  more sources both remain open, exactly as the prior run left them — this
+  run deliberately did neither. The `describe.todo` blocks in
+  `packages/evaluation/src/index.test.ts:60` and
+  `packages/intent-router/src/cross-subject-leakage.test.ts:219` are a
+  concrete, small, test-only next "queue exhausted" candidate if the suite
+  isn't picked back up next. `companion.controller.ts`'s assistant-quota gap
+  is a second candidate, smaller in severity than this run's fix since
+  `ASSISTANT` is free-tier-included, but real.
 
 - 2026-08-11 — **Queue fully checked again; reassessed the "stop after
   population-health" note and resumed the clinical suite with `analytics`
