@@ -3,14 +3,14 @@ import type { AnalyticsService } from './analytics.service.js';
 
 /**
  * clinical-suite.md §2's fault-isolation contract for this module.
- * `requires` stays empty — no dependency ever throws outright, all three
- * degrade — and `degradesWith` names the three sources each summary reads
- * from: `PATIENT_REGISTRY` (row 1), `SCHEDULING` (row 2) and `BILLING`
- * (row 10). All `HIDE`, the same population-health (row 13) reasoning: a
- * summary computed from an incomplete read would misreport a count, and
- * there is no honest partial number to show in its place — so the affected
- * section refuses rather than silently reporting a total that is actually a
- * subset.
+ * `requires` stays empty — no dependency ever throws outright, all four
+ * degrade — and `degradesWith` names the four sources each summary reads
+ * from: `PATIENT_REGISTRY` (row 1), `SCHEDULING` (row 2), `BILLING`
+ * (row 10) and `REFERRALS` (row 12). All `HIDE`, the same population-health
+ * (row 13) reasoning: a summary computed from an incomplete read would
+ * misreport a count, and there is no honest partial number to show in its
+ * place — so the affected section refuses rather than silently reporting a
+ * total that is actually a subset.
  */
 export function createAnalyticsModuleDescriptor(service: AnalyticsService): ClinicalModuleDescriptor {
   return {
@@ -20,6 +20,7 @@ export function createAnalyticsModuleDescriptor(service: AnalyticsService): Clin
       { key: 'PATIENT_REGISTRY', mode: 'HIDE' },
       { key: 'SCHEDULING', mode: 'HIDE' },
       { key: 'BILLING', mode: 'HIDE' },
+      { key: 'REFERRALS', mode: 'HIDE' },
     ],
     health: () => service.health(),
   };

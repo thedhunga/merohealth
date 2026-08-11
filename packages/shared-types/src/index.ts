@@ -1134,3 +1134,8 @@ export interface BillingSummary {
   totalInvoices: number;
   byStatus: Record<InvoiceStatus, number>;
 }
+
+export interface ReferralsSummary {
+  totalReferrals: number;
+  byStatus: Record<ReferralStatus, number>;
+}

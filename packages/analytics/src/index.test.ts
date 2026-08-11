@@ -1,6 +1,11 @@
-import type { Appointment, Invoice, PatientRecord } from '@swasthya/shared-types';
+import type { Appointment, Invoice, PatientRecord, Referral } from '@swasthya/shared-types';
 import { describe, expect, it } from 'vitest';
-import { buildBillingSummary, buildPatientRegistrySummary, buildSchedulingSummary } from './index.js';
+import {
+  buildBillingSummary,
+  buildPatientRegistrySummary,
+  buildReferralsSummary,
+  buildSchedulingSummary,
+} from './index.js';
 
 const now = '2026-08-11T09:00:00.000Z';
 
@@ -45,6 +50,26 @@ function invoice(overrides: Partial<Invoice> & Pick<Invoice, 'id' | 'patientId'>
     payment: null,
     voidedAt: null,
     voidReason: null,
+    createdAt: now,
+    updatedAt: now,
+    version: 1,
+    ...overrides,
+  };
+}
+
+function referral(overrides: Partial<Referral> & Pick<Referral, 'id' | 'patientId'>): Referral {
+  return {
+    clinicianId: 'clinician-1',
+    encounterId: 'encounter-1',
+    referredToEntityId: 'demo-doctor-1',
+    reason: 'Suspected renal involvement',
+    status: 'REQUESTED',
+    acceptedAt: null,
+    declinedAt: null,
+    declineReason: null,
+    cancelledAt: null,
+    cancelReason: null,
+    completedAt: null,
     createdAt: now,
     updatedAt: now,
     version: 1,
@@ -117,6 +142,31 @@ describe('buildBillingSummary', () => {
     expect(buildBillingSummary(invoices)).toEqual({
       totalInvoices: 5,
       byStatus: { DRAFT: 1, ISSUED: 1, PAID: 2, VOID: 1 },
+    });
+  });
+});
+
+describe('buildReferralsSummary', () => {
+  it('reports zero for every status when there are no referrals', () => {
+    expect(buildReferralsSummary([])).toEqual({
+      totalReferrals: 0,
+      byStatus: { REQUESTED: 0, ACCEPTED: 0, DECLINED: 0, CANCELLED: 0, COMPLETED: 0 },
+    });
+  });
+
+  it('counts total referrals and breaks the count down by status', () => {
+    const referrals = [
+      referral({ id: 'referral-1', patientId: 'patient-1', status: 'REQUESTED' }),
+      referral({ id: 'referral-2', patientId: 'patient-1', status: 'ACCEPTED' }),
+      referral({ id: 'referral-3', patientId: 'patient-2', status: 'DECLINED' }),
+      referral({ id: 'referral-4', patientId: 'patient-2', status: 'CANCELLED' }),
+      referral({ id: 'referral-5', patientId: 'patient-2', status: 'COMPLETED' }),
+      referral({ id: 'referral-6', patientId: 'patient-2', status: 'COMPLETED' }),
+    ];
+
+    expect(buildReferralsSummary(referrals)).toEqual({
+      totalReferrals: 6,
+      byStatus: { REQUESTED: 1, ACCEPTED: 1, DECLINED: 1, CANCELLED: 1, COMPLETED: 2 },
     });
   });
 });

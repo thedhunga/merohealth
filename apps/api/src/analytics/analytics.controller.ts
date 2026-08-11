@@ -42,4 +42,12 @@ export class AnalyticsController {
   billing() {
     return this.analytics.billingSummary();
   }
+
+  @Get('referrals')
+  @ApiOperation({
+    summary: 'Referral totals, broken down by status. Refused (503) while referrals is unavailable.',
+  })
+  referrals() {
+    return this.analytics.referralsSummary();
+  }
 }

@@ -9,6 +9,8 @@ import { PatientRegistryRepository } from '../patient-registry/patient-registry.
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
 import { RecordsRepository } from '../records/records.repository.js';
 import { RecordsService } from '../records/records.service.js';
+import { ReferralsRepository } from '../referrals/referrals.repository.js';
+import { ReferralsService } from '../referrals/referrals.service.js';
 import { SchedulingRepository } from '../scheduling/scheduling.repository.js';
 import { SchedulingService } from '../scheduling/scheduling.service.js';
 import { AnalyticsService } from './analytics.service.js';
@@ -19,9 +21,16 @@ function buildStack() {
   const documents = new RecordsService(new RecordsRepository(), new InMemoryDocumentStore('HOSTED'));
   const charting = new ClinicalChartingService(new ClinicalChartingRepository(), documents);
   const billing = new BillingService(new BillingRepository(), charting);
-  const analytics = new AnalyticsService(patients, scheduling, billing);
-  return { patients, scheduling, charting, billing, analytics };
+  const referrals = new ReferralsService(new ReferralsRepository(), charting);
+  const analytics = new AnalyticsService(patients, scheduling, billing, referrals);
+  return { patients, scheduling, charting, billing, referrals, analytics };
 }
+
+const referralRequestInput = {
+  clinicianId: 'clinician-1',
+  referredToEntityId: 'demo-doctor-1',
+  reason: 'Suspected renal involvement',
+};
 
 describe('AnalyticsService.patientRegistrySummary', () => {
   it('counts registered patients, broken down by recorded sex', async () => {
@@ -146,6 +155,51 @@ describe('AnalyticsService.billingSummary', () => {
     await expect(analytics.billingSummary()).resolves.toEqual({
       totalInvoices: 1,
       byStatus: { DRAFT: 1, ISSUED: 0, PAID: 0, VOID: 0 },
+    });
+  });
+});
+
+describe('AnalyticsService.referralsSummary', () => {
+  it('counts referrals, broken down by status', async () => {
+    const { charting, referrals, analytics } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    await referrals.requestReferral(encounter.id, referralRequestInput);
+
+    const summary = await analytics.referralsSummary();
+
+    expect(summary).toEqual({
+      totalReferrals: 1,
+      byStatus: { REQUESTED: 1, ACCEPTED: 0, DECLINED: 0, CANCELLED: 0, COMPLETED: 0 },
+    });
+  });
+
+  it('refuses (503) while referrals is down, even though patient-registry, scheduling and billing are up', async () => {
+    const { referrals, analytics } = buildStack();
+    referrals.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+
+    await expect(analytics.referralsSummary()).rejects.toThrow(ServiceUnavailableException);
+  });
+
+  it('a down referrals does not block the patient or scheduling summaries, and vice versa', async () => {
+    const { patients, charting, referrals, analytics } = buildStack();
+    patients.register({
+      displayName: 'Sita Rai',
+      dateOfBirth: '1990-04-12',
+      sex: 'FEMALE',
+      phone: '9800000000',
+      preferredLocale: 'ne',
+    });
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    await referrals.requestReferral(encounter.id, referralRequestInput);
+
+    referrals.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+    await expect(analytics.patientRegistrySummary()).resolves.toMatchObject({ totalPatients: 1 });
+
+    referrals.health = () => Promise.resolve({ status: 'UP' });
+    patients.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+    await expect(analytics.referralsSummary()).resolves.toEqual({
+      totalReferrals: 1,
+      byStatus: { REQUESTED: 1, ACCEPTED: 0, DECLINED: 0, CANCELLED: 0, COMPLETED: 0 },
     });
   });
 });

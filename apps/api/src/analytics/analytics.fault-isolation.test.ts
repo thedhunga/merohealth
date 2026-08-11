@@ -13,6 +13,9 @@ import { PatientRegistryService } from '../patient-registry/patient-registry.ser
 import { createHealthRecordsModuleDescriptor } from '../records/records.module-descriptor.js';
 import { RecordsRepository } from '../records/records.repository.js';
 import { RecordsService } from '../records/records.service.js';
+import { createReferralsModuleDescriptor } from '../referrals/referrals.module-descriptor.js';
+import { ReferralsRepository } from '../referrals/referrals.repository.js';
+import { ReferralsService } from '../referrals/referrals.service.js';
 import { createSchedulingModuleDescriptor } from '../scheduling/scheduling.module-descriptor.js';
 import { SchedulingRepository } from '../scheduling/scheduling.repository.js';
 import { SchedulingService } from '../scheduling/scheduling.service.js';
@@ -25,13 +28,14 @@ function buildStack() {
   const documents = new RecordsService(new RecordsRepository(), new InMemoryDocumentStore('HOSTED'));
   const charting = new ClinicalChartingService(new ClinicalChartingRepository(), documents);
   const billing = new BillingService(new BillingRepository(), charting);
-  const analytics = new AnalyticsService(patients, scheduling, billing);
-  return { patients, scheduling, documents, charting, billing, analytics };
+  const referrals = new ReferralsService(new ReferralsRepository(), charting);
+  const analytics = new AnalyticsService(patients, scheduling, billing, referrals);
+  return { patients, scheduling, documents, charting, billing, referrals, analytics };
 }
 
 describe('analytics fault isolation', () => {
   it('resolveAvailability marks ANALYTICS available but HIDE-degraded when PATIENT_REGISTRY is DOWN', async () => {
-    const { patients, scheduling, documents, charting, billing, analytics } = buildStack();
+    const { patients, scheduling, documents, charting, billing, referrals, analytics } = buildStack();
 
     // buildModuleRegistry validates every degradesWith reference, so every
     // module ANALYTICS or its own dependencies point at — including
@@ -45,6 +49,7 @@ describe('analytics fault isolation', () => {
     const schedulingDescriptor = createSchedulingModuleDescriptor(scheduling);
     const chartingDescriptor = createClinicalChartingModuleDescriptor(charting);
     const billingDescriptor = createBillingModuleDescriptor(billing);
+    const referralsDescriptor = createReferralsModuleDescriptor(referrals);
     const analyticsDescriptor = createAnalyticsModuleDescriptor(analytics);
 
     const registry = buildModuleRegistry([
@@ -53,6 +58,7 @@ describe('analytics fault isolation', () => {
       schedulingDescriptor,
       chartingDescriptor,
       billingDescriptor,
+      referralsDescriptor,
       analyticsDescriptor,
     ]);
     const states = await collectHealthStates(registry);
@@ -67,7 +73,7 @@ describe('analytics fault isolation', () => {
   });
 
   it('resolveAvailability marks ANALYTICS available but HIDE-degraded when SCHEDULING is DOWN', async () => {
-    const { patients, scheduling, documents, charting, billing, analytics } = buildStack();
+    const { patients, scheduling, documents, charting, billing, referrals, analytics } = buildStack();
 
     const patientsDescriptor = createPatientRegistryModuleDescriptor(patients);
     const recordsDescriptor = createHealthRecordsModuleDescriptor(documents);
@@ -77,6 +83,7 @@ describe('analytics fault isolation', () => {
     };
     const chartingDescriptor = createClinicalChartingModuleDescriptor(charting);
     const billingDescriptor = createBillingModuleDescriptor(billing);
+    const referralsDescriptor = createReferralsModuleDescriptor(referrals);
     const analyticsDescriptor = createAnalyticsModuleDescriptor(analytics);
 
     const registry = buildModuleRegistry([
@@ -85,6 +92,7 @@ describe('analytics fault isolation', () => {
       forcedDownSchedulingDescriptor,
       chartingDescriptor,
       billingDescriptor,
+      referralsDescriptor,
       analyticsDescriptor,
     ]);
     const states = await collectHealthStates(registry);
@@ -99,7 +107,7 @@ describe('analytics fault isolation', () => {
   });
 
   it('resolveAvailability marks ANALYTICS available but HIDE-degraded when BILLING is DOWN', async () => {
-    const { patients, scheduling, documents, charting, billing, analytics } = buildStack();
+    const { patients, scheduling, documents, charting, billing, referrals, analytics } = buildStack();
 
     const patientsDescriptor = createPatientRegistryModuleDescriptor(patients);
     const recordsDescriptor = createHealthRecordsModuleDescriptor(documents);
@@ -109,6 +117,7 @@ describe('analytics fault isolation', () => {
       ...createBillingModuleDescriptor(billing),
       health: () => Promise.resolve({ status: 'DOWN' as const, detail: 'simulated outage' }),
     };
+    const referralsDescriptor = createReferralsModuleDescriptor(referrals);
     const analyticsDescriptor = createAnalyticsModuleDescriptor(analytics);
 
     const registry = buildModuleRegistry([
@@ -117,6 +126,7 @@ describe('analytics fault isolation', () => {
       schedulingDescriptor,
       chartingDescriptor,
       forcedDownBillingDescriptor,
+      referralsDescriptor,
       analyticsDescriptor,
     ]);
     const states = await collectHealthStates(registry);
@@ -127,6 +137,40 @@ describe('analytics fault isolation', () => {
       available: true,
       health: 'UP',
       degradations: [{ dependency: 'BILLING', mode: 'HIDE' }],
+    });
+  });
+
+  it('resolveAvailability marks ANALYTICS available but HIDE-degraded when REFERRALS is DOWN', async () => {
+    const { patients, scheduling, documents, charting, billing, referrals, analytics } = buildStack();
+
+    const patientsDescriptor = createPatientRegistryModuleDescriptor(patients);
+    const recordsDescriptor = createHealthRecordsModuleDescriptor(documents);
+    const schedulingDescriptor = createSchedulingModuleDescriptor(scheduling);
+    const chartingDescriptor = createClinicalChartingModuleDescriptor(charting);
+    const billingDescriptor = createBillingModuleDescriptor(billing);
+    const forcedDownReferralsDescriptor = {
+      ...createReferralsModuleDescriptor(referrals),
+      health: () => Promise.resolve({ status: 'DOWN' as const, detail: 'simulated outage' }),
+    };
+    const analyticsDescriptor = createAnalyticsModuleDescriptor(analytics);
+
+    const registry = buildModuleRegistry([
+      patientsDescriptor,
+      recordsDescriptor,
+      schedulingDescriptor,
+      chartingDescriptor,
+      billingDescriptor,
+      forcedDownReferralsDescriptor,
+      analyticsDescriptor,
+    ]);
+    const states = await collectHealthStates(registry);
+    const resolved = resolveAvailability(registry, states);
+
+    expect(resolved.get('REFERRALS')).toMatchObject({ available: false, health: 'DOWN' });
+    expect(resolved.get('ANALYTICS')).toMatchObject({
+      available: true,
+      health: 'UP',
+      degradations: [{ dependency: 'REFERRALS', mode: 'HIDE' }],
     });
   });
 
@@ -176,6 +220,22 @@ describe('analytics fault isolation', () => {
     billing.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
 
     await expect(analytics.billingSummary()).rejects.toThrow('billing is down');
+    await expect(analytics.patientRegistrySummary()).resolves.toMatchObject({ totalPatients: 1 });
+  });
+
+  it('behaviourally: a down referrals summary does not take the patient summary down with it', async () => {
+    const { patients, referrals, analytics } = buildStack();
+    patients.register({
+      displayName: 'Sita Rai',
+      dateOfBirth: '1990-04-12',
+      sex: 'FEMALE',
+      phone: '9800000000',
+      preferredLocale: 'ne',
+    });
+
+    referrals.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+
+    await expect(analytics.referralsSummary()).rejects.toThrow('referrals is down');
     await expect(analytics.patientRegistrySummary()).resolves.toMatchObject({ totalPatients: 1 });
   });
 });

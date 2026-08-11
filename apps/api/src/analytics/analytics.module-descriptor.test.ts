@@ -8,6 +8,8 @@ import { PatientRegistryRepository } from '../patient-registry/patient-registry.
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
 import { RecordsRepository } from '../records/records.repository.js';
 import { RecordsService } from '../records/records.service.js';
+import { ReferralsRepository } from '../referrals/referrals.repository.js';
+import { ReferralsService } from '../referrals/referrals.service.js';
 import { SchedulingRepository } from '../scheduling/scheduling.repository.js';
 import { SchedulingService } from '../scheduling/scheduling.service.js';
 import { createAnalyticsModuleDescriptor } from './analytics.module-descriptor.js';
@@ -19,11 +21,12 @@ function buildService(): AnalyticsService {
   const documents = new RecordsService(new RecordsRepository(), new InMemoryDocumentStore('HOSTED'));
   const charting = new ClinicalChartingService(new ClinicalChartingRepository(), documents);
   const billing = new BillingService(new BillingRepository(), charting);
-  return new AnalyticsService(patients, scheduling, billing);
+  const referrals = new ReferralsService(new ReferralsRepository(), charting);
+  return new AnalyticsService(patients, scheduling, billing, referrals);
 }
 
 describe('createAnalyticsModuleDescriptor', () => {
-  it('declares the ANALYTICS key with empty requires and all three real degradations', () => {
+  it('declares the ANALYTICS key with empty requires and all four real degradations', () => {
     const descriptor = createAnalyticsModuleDescriptor(buildService());
 
     expect(descriptor.key).toBe('ANALYTICS');
@@ -32,6 +35,7 @@ describe('createAnalyticsModuleDescriptor', () => {
       { key: 'PATIENT_REGISTRY', mode: 'HIDE' },
       { key: 'SCHEDULING', mode: 'HIDE' },
       { key: 'BILLING', mode: 'HIDE' },
+      { key: 'REFERRALS', mode: 'HIDE' },
     ]);
   });
 

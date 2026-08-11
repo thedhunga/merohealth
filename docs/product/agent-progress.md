@@ -518,6 +518,84 @@ Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
 - 2026-08-11 — **Queue fully checked again; extended `analytics` (capability
+  map row 14) with a fourth source, `referrals`.** Grepped for `- [ ]` first —
+  zero hits. The prior run's own log entry (directly below) named two open
+  candidates for row 14's next source — `referrals` and `clinical-charting` —
+  and left the choice for whoever picked it up next. An Explore agent
+  surveyed both: `clinical-charting`'s `SoapNote` has no status field at all
+  (only the encounter itself has a thin `OPEN`/`CLOSED` `EncounterStatus`),
+  which would force a judgment call about what a "clinical-charting summary"
+  even counts — the same ambiguity the billing-over-referrals choice two
+  entries back was written to avoid. `referrals` has none of that: `Referral.status`
+  is a single closed five-value enum (`REQUESTED`/`ACCEPTED`/`DECLINED`/
+  `CANCELLED`/`COMPLETED`), structurally identical to `Invoice.status`, so
+  `buildReferralsSummary` follows `buildBillingSummary`'s shape exactly with
+  no new judgment calls. `referrals` won on that basis.
+
+  **What was built.**
+  1. `packages/shared-types/src/index.ts`: `ReferralsSummary` (`totalReferrals`
+     plus a count per `ReferralStatus`), placed next to `BillingSummary`.
+  2. `packages/analytics`: `buildReferralsSummary`, zero-filling every
+     `ReferralStatus` the same way the other three summary builders already
+     do. 2 new tests (empty list, mixed statuses).
+  3. `apps/api/src/analytics/`: `AnalyticsService` now takes `ReferralsService`
+     as a fourth injected port and gates `referralsSummary()` on only
+     `referrals.health()` — the same one-hop-per-summary shape as the other
+     three sources, so a referrals outage never touches the patient,
+     scheduling or billing summaries and vice versa.
+     `AnalyticsController` gained `GET /analytics/referrals`.
+     `AnalyticsModule` imports `ReferralsModule` (already imported at the
+     `app.module.ts`/`clinical-suite.module.ts` level, so no new circular-import
+     risk). `createAnalyticsModuleDescriptor` gained a fourth `degradesWith`
+     edge, `{ key: 'REFERRALS', mode: 'HIDE' }`.
+  4. Updated every test that constructs `AnalyticsService` directly
+     (`analytics.service.test.ts`, `.controller.test.ts`,
+     `.module-descriptor.test.ts`, `.fault-isolation.test.ts`,
+     `clinical-suite.service.test.ts`) to pass a real `ReferralsService`,
+     built the same way `referrals.service.test.ts`'s own `buildStack`
+     already does (`RecordsService` → `ClinicalChartingService` →
+     `ReferralsService`). `analytics.fault-isolation.test.ts`'s three
+     existing registry-construction tests each needed a `ReferralsService`
+     descriptor added to their `buildModuleRegistry` call too — `ANALYTICS`'s
+     new edge means `buildModuleRegistry`'s own reference validation now
+     requires it in every registry that includes `ANALYTICS`, not just the
+     one edge each test exercises. 1 new fault-isolation test (REFERRALS-down
+     cascade) plus a new behavioural refusal test, plus the referrals branch
+     of the existing service/controller describe blocks.
+     `clinical-suite.service.test.ts`'s three existing assertions needed no
+     behavioural changes — `REFERRALS` stays `available: true` under a
+     `CLINICAL_CHARTING` outage (only `HIDE`-degraded), so `ANALYTICS`'s new
+     edge to it never fires there, matching the doc-comment expectation; only
+     its explanatory comment was extended to name `REFERRALS` alongside
+     `BILLING`.
+
+  **What was deliberately not built.** No `clinical-charting` source in the
+  same run — see the ambiguity above; a future run could still add one once
+  someone decides what an encounter-only summary should mean. No change to
+  `packages/referrals`, `referrals.service.ts` or the Prisma schema — this
+  stayed additive to `analytics` only, reading through `ReferralsService`'s
+  existing `listReferrals()`.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new package, only new fields/methods on an existing one). `pnpm lint`
+  37/37. `pnpm typecheck` 37/37. `pnpm test` 68/68 tasks — `@swasthya/api`
+  480 tests (up from 473: 7 new — 2 service, 2 controller, 0
+  module-descriptor test count change beyond the existing two being
+  extended, 3 fault-isolation), `@swasthya/analytics` 8 tests (up from 6).
+  `pnpm build` 37/37, including `apps/web`'s static export and
+  `apps/mobile`'s Expo web bundle.
+
+  **For the next run.** `clinical-charting` remains the one open row-14
+  source candidate, now with a concrete reason it was skipped twice rather
+  than an unexplained gap — someone should decide what it counts (encounters
+  by `EncounterStatus`, most likely) before building it, not invent that
+  definition inside a "queue exhausted" run. The `companion.controller.ts`
+  missing-`EntitlementsGuard` gap (flagged five log entries back) remains
+  open and untouched — still needs the product decision on anonymous-vs-signed-in
+  use that no prior run has made. Row 15 (`engagement`) remains exactly
+  where every prior reassessment has left it.
+
+- 2026-08-11 — **Queue fully checked again; extended `analytics` (capability
   map row 14) with a third source, `billing`.** Grepped for `- [ ]` first —
   zero hits. Two named candidates were open going into this run: the
   `companion.controller.ts` missing-`EntitlementsGuard` gap, and extending

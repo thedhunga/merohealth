@@ -1,13 +1,20 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { buildBillingSummary, buildPatientRegistrySummary, buildSchedulingSummary } from '@swasthya/analytics';
+import {
+  buildBillingSummary,
+  buildPatientRegistrySummary,
+  buildReferralsSummary,
+  buildSchedulingSummary,
+} from '@swasthya/analytics';
 import type {
   BillingSummary,
   ClinicalModuleHealth,
   PatientRegistrySummary,
+  ReferralsSummary,
   SchedulingSummary,
 } from '@swasthya/shared-types';
 import { BillingService } from '../billing/billing.service.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
+import { ReferralsService } from '../referrals/referrals.service.js';
 import { SchedulingService } from '../scheduling/scheduling.service.js';
 
 /**
@@ -26,6 +33,7 @@ export class AnalyticsService {
     private readonly patients: PatientRegistryService,
     private readonly scheduling: SchedulingService,
     private readonly billing: BillingService,
+    private readonly referrals: ReferralsService,
   ) {}
 
   async patientRegistrySummary(): Promise<PatientRegistrySummary> {
@@ -41,6 +49,11 @@ export class AnalyticsService {
   async billingSummary(): Promise<BillingSummary> {
     await this.assertBillingAvailable();
     return buildBillingSummary(this.billing.listInvoices());
+  }
+
+  async referralsSummary(): Promise<ReferralsSummary> {
+    await this.assertReferralsAvailable();
+    return buildReferralsSummary(this.referrals.listReferrals());
   }
 
   private async assertPatientRegistryAvailable(): Promise<void> {
@@ -66,6 +79,15 @@ export class AnalyticsService {
     if (health.status === 'DOWN') {
       throw new ServiceUnavailableException(
         'Analytics unavailable: billing is down (clinical-suite.md capability map row 14)',
+      );
+    }
+  }
+
+  private async assertReferralsAvailable(): Promise<void> {
+    const health = await this.referrals.health();
+    if (health.status === 'DOWN') {
+      throw new ServiceUnavailableException(
+        'Analytics unavailable: referrals is down (clinical-suite.md capability map row 14)',
       );
     }
   }

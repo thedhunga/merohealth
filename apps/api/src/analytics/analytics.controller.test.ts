@@ -9,6 +9,8 @@ import { PatientRegistryRepository } from '../patient-registry/patient-registry.
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
 import { RecordsRepository } from '../records/records.repository.js';
 import { RecordsService } from '../records/records.service.js';
+import { ReferralsRepository } from '../referrals/referrals.repository.js';
+import { ReferralsService } from '../referrals/referrals.service.js';
 import { SchedulingRepository } from '../scheduling/scheduling.repository.js';
 import { SchedulingService } from '../scheduling/scheduling.service.js';
 import { AnalyticsController } from './analytics.controller.js';
@@ -20,10 +22,17 @@ function buildController() {
   const documents = new RecordsService(new RecordsRepository(), new InMemoryDocumentStore('HOSTED'));
   const charting = new ClinicalChartingService(new ClinicalChartingRepository(), documents);
   const billing = new BillingService(new BillingRepository(), charting);
-  const analytics = new AnalyticsService(patients, scheduling, billing);
+  const referrals = new ReferralsService(new ReferralsRepository(), charting);
+  const analytics = new AnalyticsService(patients, scheduling, billing, referrals);
   const controller = new AnalyticsController(analytics);
-  return { controller, patients, scheduling, charting, billing };
+  return { controller, patients, scheduling, charting, billing, referrals };
 }
+
+const referralRequestInput = {
+  clinicianId: 'clinician-1',
+  referredToEntityId: 'demo-doctor-1',
+  reason: 'Suspected renal involvement',
+};
 
 describe('AnalyticsController.patients', () => {
   it('returns the patient registry summary', async () => {
@@ -98,6 +107,26 @@ describe('AnalyticsController.billing', () => {
     billing.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
 
     await expect(controller.billing()).rejects.toThrow(ServiceUnavailableException);
+  });
+});
+
+describe('AnalyticsController.referrals', () => {
+  it('returns the referrals summary', async () => {
+    const { controller, charting, referrals } = buildController();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    await referrals.requestReferral(encounter.id, referralRequestInput);
+
+    await expect(controller.referrals()).resolves.toEqual({
+      totalReferrals: 1,
+      byStatus: { REQUESTED: 1, ACCEPTED: 0, DECLINED: 0, CANCELLED: 0, COMPLETED: 0 },
+    });
+  });
+
+  it('rejects (503) while referrals is down', async () => {
+    const { controller, referrals } = buildController();
+    referrals.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+
+    await expect(controller.referrals()).rejects.toThrow(ServiceUnavailableException);
   });
 });
 

@@ -7,6 +7,9 @@ import type {
   PatientRecord,
   PatientRegistrySummary,
   PatientSex,
+  Referral,
+  ReferralsSummary,
+  ReferralStatus,
   SchedulingSummary,
 } from '@swasthya/shared-types';
 
@@ -31,6 +34,7 @@ import type {
 const PATIENT_SEXES: readonly PatientSex[] = ['FEMALE', 'MALE', 'OTHER', 'UNDISCLOSED'];
 const APPOINTMENT_STATUSES: readonly AppointmentStatus[] = ['SCHEDULED', 'CANCELLED'];
 const INVOICE_STATUSES: readonly InvoiceStatus[] = ['DRAFT', 'ISSUED', 'PAID', 'VOID'];
+const REFERRAL_STATUSES: readonly ReferralStatus[] = ['REQUESTED', 'ACCEPTED', 'DECLINED', 'CANCELLED', 'COMPLETED'];
 
 /** Every key starts at zero so a status with no rows yet still appears in the summary. */
 function zeroCounts<T extends string>(keys: readonly T[]): Record<T, number> {
@@ -53,4 +57,10 @@ export function buildBillingSummary(invoices: readonly Invoice[]): BillingSummar
   const byStatus = zeroCounts(INVOICE_STATUSES);
   for (const invoice of invoices) byStatus[invoice.status] += 1;
   return { totalInvoices: invoices.length, byStatus };
+}
+
+export function buildReferralsSummary(referrals: readonly Referral[]): ReferralsSummary {
+  const byStatus = zeroCounts(REFERRAL_STATUSES);
+  for (const referral of referrals) byStatus[referral.status] += 1;
+  return { totalReferrals: referrals.length, byStatus };
 }
