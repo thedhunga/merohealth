@@ -206,6 +206,10 @@ Design in
       reviewed by a qualified Nepali clinician, the demonstration notice
       removed only when nothing fictional remains, substantiated figures or no
       figures, and a real registered address.
+- [x] Queue exhausted — added: `Header`/`MobileNav` session-awareness, the
+      gap D2's own log entry flagged and deliberately deferred. Sign-in/
+      register links now swap to an account link for a signed-in visitor on
+      all ~70 marketing routes, via a non-redirecting `useOptionalSession`.
 
 ### Visual system — Round one, complete
 
@@ -407,6 +411,76 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked; picked the highest-value improvement to
+  work already done.** Grepped the whole ledger for `- [ ]` first to confirm —
+  zero hits, every task through D3 is checked. Per the working agreement's
+  fallback rule, read the D2 log entry's own "for the next run" note, which
+  named two things: (1) `Header`/`MobileNav` still unconditionally show
+  Sign in/Register on every marketing route, and (2) a real `apps/api` grants
+  endpoint for `GuardianshipGrant`/`DelegationGrant`.
+
+  **Why (1) and not (2).** Looked at (2) first since the D2 note called it
+  out by name. `packages/family` still has no Prisma-backed store — same
+  in-memory-map convention every other `apps/api` module in this round uses
+  (`RecordsRepository`, `PatientRegistryRepository`,
+  `CredentialingRepository` all say so in their own doc comments), so a read
+  endpoint would need something to read. The seed data's
+  `caregiverRelationships` (Prisma's older, generic `CaregiverRelationship`
+  model — one row, Sunita's guardianship of Roshani) is the only real
+  candidate, but its own doc comment in `packages/database/src/seed-data.ts`
+  says outright it predates `packages/family` and deliberately doesn't
+  attempt delegation because that state machine "hasn't built yet" — which is
+  now stale, but mapping that generic row onto `packages/family`'s richer
+  `GuardianshipGrant` (which also wants `groundsForGuardianship`,
+  `consentMethod` for delegations, structured expiry) would mean inventing
+  fields the seed row doesn't carry, which is exactly what "invent no facts"
+  rules out. That reconciliation is a real, separate task, not this run's.
+
+  (1) had no such trap: `useSession` already calls the real, tested
+  `GET /auth/me`; the only gap was that it redirects to `/signin` on *any*
+  rejection, including the ordinary 401 an anonymous visitor gets on every
+  one of the ~70 public marketing pages — which is exactly why D2 stopped
+  short of wiring it into the header instead of silently shipping something
+  broken.
+
+  **What was built.** `apps/web/src/hooks/useSession.ts`: factored the
+  fetch-`GET /auth/me` logic into a shared `useSessionQuery()`, then two
+  thin callers — `useSession()` (unchanged behaviour: redirects to `/signin`
+  on failure, for protected pages like `/account`) and the new
+  `useOptionalSession()` (reports `{ status: 'anonymous' }` instead of
+  redirecting, for nav chrome that must render on public pages regardless of
+  sign-in state). `Header.tsx` now calls `useOptionalSession()` once and, for
+  an authenticated visitor, swaps the Sign in/Register button pair for a
+  single account link to `/account`; the same resolved session is passed down
+  as a prop to `MobileNav.tsx` (rendered only when the drawer opens) rather
+  than having it fetch a second time. Added `nav.actions.account` ("मेरो
+  खाता" / "My account") to both `messages/ne.json` and `messages/en.json`,
+  same location as the existing `signIn`/`register` keys.
+
+  **What was deliberately not built.** No sign-out affordance in the header
+  itself — `/account` already has one, and adding a second one in the header
+  chrome for a one-word label is scope the task didn't ask for. No test file
+  for `useOptionalSession`/the two components — matches this repo's existing
+  convention (confirmed `useSession.ts`, `Header.tsx`, `MobileNav.tsx` have
+  no test files today and `apps/web` has zero `.test.tsx` component-render
+  tests anywhere, per the D2 log entry).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 31/31;
+  `pnpm typecheck` 31/31; `pnpm test` 56/56 tasks, 300 tests in `apps/api`
+  alone, all passing, none touched by this change; `pnpm build` 31/31
+  including `apps/web`'s static export and `apps/mobile`'s Expo web bundle.
+  Did not manually exercise the signed-in header state against a running
+  `apps/api` + Postgres in this run (same gap D2 left for its own manual
+  redirect checks) — worth a real click-through the next time anyone touches
+  this surface.
+
+  **For the next run.** The real item left from D2 is still open: an
+  `apps/api` grants endpoint backed by real persistence, plus reconciling
+  `packages/family`'s `GuardianshipGrant`/`DelegationGrant` shape against the
+  seed data's older `CaregiverRelationship` model (or replacing that seed
+  table's use entirely) — without inventing any field the seed data doesn't
+  actually carry.
 
 - 2026-08-10 — **Round two, task D3: launch-gate checklist for the robots
   noindex flip.** First unchecked task — D2 (the `apps/web` authenticated

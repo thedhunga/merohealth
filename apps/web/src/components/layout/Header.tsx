@@ -12,6 +12,7 @@ import { LocaleSwitcher } from '@/components/layout/LocaleSwitcher';
 import { MegaMenu } from '@/components/layout/MegaMenu';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useOptionalSession } from '@/hooks/useSession';
 import { cn } from '@/lib/cn';
 
 /** Grace period so the pointer can cross the gap between trigger and panel. */
@@ -20,6 +21,7 @@ const CLOSE_DELAY_MS = 140;
 export function Header() {
   const t = useTranslations('nav');
   const pathname = usePathname();
+  const session = useOptionalSession();
   const [openSegment, setOpenSegment] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -162,17 +164,25 @@ export function Header() {
 
         <div className="hidden items-center gap-3 lg:flex">
           <LocaleSwitcher tone="light" />
-          <ButtonLink href="/signin" variant="ghostOnDark">
-            {t('actions.signIn')}
-          </ButtonLink>
-          {/*
-            `inverse`, not `accent`: Hero's primary CTA is already marigold
-            and sits in the same viewport on the homepage, so a second
-            marigold button here would spend the accent twice on one screen.
-          */}
-          <ButtonLink href="/register" variant="inverse">
-            {t('actions.register')}
-          </ButtonLink>
+          {session.status === 'authenticated' ? (
+            <ButtonLink href="/account" variant="ghostOnDark">
+              {t('actions.account')}
+            </ButtonLink>
+          ) : (
+            <>
+              <ButtonLink href="/signin" variant="ghostOnDark">
+                {t('actions.signIn')}
+              </ButtonLink>
+              {/*
+                `inverse`, not `accent`: Hero's primary CTA is already marigold
+                and sits in the same viewport on the homepage, so a second
+                marigold button here would spend the accent twice on one screen.
+              */}
+              <ButtonLink href="/register" variant="inverse">
+                {t('actions.register')}
+              </ButtonLink>
+            </>
+          )}
         </div>
 
         <button
@@ -215,7 +225,7 @@ export function Header() {
           tabIndex={-1}
         >
           <div className="container-site pt-4">
-            <MobileNav onNavigate={closeAll} />
+            <MobileNav onNavigate={closeAll} session={session} />
           </div>
         </div>
       ) : null}

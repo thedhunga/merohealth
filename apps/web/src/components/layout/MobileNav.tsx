@@ -8,9 +8,16 @@ import { navSegments } from '@/content/navigation';
 import { Link } from '@/i18n/navigation';
 import { ButtonLink } from '@/components/ui/Button';
 import { LocaleSwitcher } from '@/components/layout/LocaleSwitcher';
+import type { OptionalSessionState } from '@/hooks/useSession';
 import { cn } from '@/lib/cn';
 
-export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
+export function MobileNav({
+  onNavigate,
+  session,
+}: {
+  onNavigate: () => void;
+  session: OptionalSessionState;
+}) {
   const t = useTranslations('nav');
   const [open, setOpen] = useState<string | null>(navSegments[0]?.key ?? null);
 
@@ -90,9 +97,15 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
         <ButtonLink href="/get-care" size="lg" variant="primary">
           {t('items.getCareNow')}
         </ButtonLink>
-        <ButtonLink href="/signin" size="lg" variant="secondary">
-          {t('actions.signIn')}
-        </ButtonLink>
+        {session.status === 'authenticated' ? (
+          <ButtonLink href="/account" size="lg" variant="secondary">
+            {t('actions.account')}
+          </ButtonLink>
+        ) : (
+          <ButtonLink href="/signin" size="lg" variant="secondary">
+            {t('actions.signIn')}
+          </ButtonLink>
+        )}
       </div>
 
       <LocaleSwitcher />

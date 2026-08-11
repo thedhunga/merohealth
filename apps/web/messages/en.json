@@ -89,6 +89,7 @@
     },
     "actions": {
       "signIn": "Sign in",
+      "account": "My account",
       "register": "Register now",
       "openMenu": "Open menu",
       "closeMenu": "Close menu",
