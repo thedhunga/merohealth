@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 
 import { RecordTransform } from '@/components/art/RecordTransform';
 import { DelegationForm } from '@/components/account/DelegationForm';
+import { DelegationsGrantedList } from '@/components/account/DelegationsGrantedList';
 import { ProfileSwitcher } from '@/components/account/ProfileSwitcher';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { PageTemplate } from '@/components/ui/PageTemplate';
@@ -109,6 +110,11 @@ export function AccountView() {
           </div>
 
           <DelegationForm onCreated={refreshFamilyGrants} />
+
+          <DelegationsGrantedList
+            grants={familyGrants.status === 'loaded' ? familyGrants.grants.delegationsGranted : []}
+            onRevoked={refreshFamilyGrants}
+          />
 
           <div className="flex flex-col gap-4 rounded-2xl bg-forest-800 p-8 text-white md:flex-row md:items-center md:justify-between">
             <div>

@@ -228,6 +228,18 @@ Design in
       deliberately not included — see the 2026-08-11 log entry for why
       `PatientProfile` having no structured date-of-birth field blocks it
       honestly rather than being an oversight.
+- [x] Queue exhausted a fourth time — added: letting the granter see and
+      revoke the delegations she has made, the concrete unblocked follow-up
+      the delegation-creation run's own log entry named (guardianship
+      creation stayed blocked on the same missing date-of-birth field).
+      `GET /family/grants` now also returns `delegationsGranted`; new
+      `DELETE /family/grants/delegations/:id`
+      (`FamilyGrantsService.revokeDelegation` fetches by id, 404s as
+      `DELEGATION_NOT_FOUND` on any owner mismatch, then persists
+      `packages/family`'s pure `revokeDelegation` result) plus a
+      `DelegationsGrantedList` on `/account` showing each grant's raw
+      delegate id (no name-lookup exists, so none was invented), status and
+      a revoke button.
 
 ### Visual system — Round one, complete
 
@@ -429,6 +441,90 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; picked the highest-value
+  improvement to work already done: letting a granter see and revoke the
+  delegations she has made.** Grepped for `- [ ]` first — zero hits, same as
+  every recent run. Re-read the prior run's own "for the next run" note,
+  which named two things: a `delegationsGrantedBy` read plus a revoke route
+  (unblocked), and guardianship creation (still blocked on `PatientProfile`
+  having no structured date-of-birth field — a real product decision, not
+  something this run could resolve honestly). Picked the unblocked one.
+
+  **What was built — the write half `packages/family`'s own `revokeDelegation`
+  had no caller for yet.**
+  1. `apps/api/src/family/family-grants.store.ts`: three additions to the
+     `FamilyGrantsStore` port — `delegationsGrantedBy(granterId)` (the
+     granter-scoped read, mirroring `delegationsFor`'s delegate-scoped one),
+     `findDelegation(id)` and `saveDelegation(grant)`. Deliberately not a
+     single `revokeDelegation(id, granterId)` store method: the ownership
+     check and the pure `revokeDelegation` transition both belong in
+     `FamilyGrantsService`, the same "domain logic in the service, not the
+     Prisma adapter" split `RecordsService.#requireObservation` +
+     `RecordsRepository.findObservation`/`saveObservation` already
+     establish for an identical fetch-check-transition-persist shape.
+     Implemented in `PrismaFamilyGrantsStore` (plain `findUnique`/`update`)
+     and `InMemoryFamilyGrantsStore` (array scan/splice, same convention as
+     its existing `createDelegation`).
+  2. `apps/api/src/family/family-grants.service.ts`: `SubjectGrants` gained
+     `delegationsGranted`; `grantsFor` now also calls
+     `store.delegationsGrantedBy(subjectId)`. New
+     `revokeDelegation(granterId, delegationId)`: fetches by id alone, 404s
+     as `DELEGATION_NOT_FOUND` on any owner mismatch (never a 403 — a wrong
+     id and someone else's real grant id must be indistinguishable to the
+     caller, the same rule the records module's cross-owner fix set), then
+     persists `packages/family`'s pure `revokeDelegation(grant, now)`
+     result. Idempotent, matching that function's own contract.
+  3. `apps/api/src/family/family-grants.controller.ts`: new `DELETE
+     /family/grants/delegations/:id`, `SessionAuthGuard`-protected, granter
+     id from `@CurrentUser()`, delegation id from the path — the path param
+     is fine precisely because the service re-checks it against the caller
+     before touching anything.
+  4. `apps/web/src/lib/family-api.ts`: `SubjectGrantsResponse` gained
+     `delegationsGranted`; new `revokeDelegation(id)` client
+     (`DELETE`, `credentials: 'include'`, no body). New
+     `apps/web/src/components/account/DelegationsGrantedList.tsx`: one row
+     per granted delegation showing the delegate's raw id (no id→name
+     lookup exists anywhere in this app, so none was invented here — same
+     call `acting-subjects.ts`'s `buildActingSubjects` already made for the
+     switcher), its scopes, a computed active/revoked/expired status, and a
+     revoke button shown only while active (revoking an already-inactive
+     grant would still succeed — idempotent — but the button would be
+     misleading). Mounted into `AccountView.tsx` under `DelegationForm`,
+     sharing its `refreshFamilyGrants` callback so a revoke updates the list
+     without a full reload. New `account.delegation.granted.*` and
+     `account.delegation.errors.DELEGATION_NOT_FOUND` keys in both
+     `messages/en.json` and `messages/ne.json`.
+
+  **What was deliberately not built.** No confirmation dialog before
+  revoking — the button itself is the explicit action, and this codebase has
+  no existing modal/confirm pattern to match; a follow-up UX pass, not this
+  task. No guardianship read/revoke — guardianship has no creation path yet
+  either (see above), so a revoke UI for it would have nothing real to show.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 31/31;
+  `pnpm typecheck` 31/31; `pnpm test` 56/56 tasks — `@swasthya/api` 323 tests
+  (up from 314: 9 new, across `family-grants.service.test.ts`,
+  `family-grants.controller.test.ts`, `in-memory-family-grants.store
+  .test.ts`), `@swasthya/web` 56 tests (up from 54: 2 new in
+  `family-api.test.ts`); `pnpm build` 31/31, including `apps/web`'s static
+  export and `apps/mobile`'s Expo web bundle. No schema/migration change —
+  `GuardianshipGrant`/`DelegationGrant` tables already existed, so this run
+  needed no live Postgres to verify against and didn't stand one up. Did not
+  manually click through `/account`'s new revoke button against a live
+  `apps/api` + Postgres — same gap the last several family-grants entries
+  have each left open, worth a real click-through the next time anyone with
+  a live database touches this surface.
+
+  **For the next run.** Guardianship creation is still the real remaining
+  gap, still blocked on the same thing: `PatientProfile` has no structured
+  date-of-birth field for `guardianshipExpiryForMinor` to read. That needs a
+  product decision (add a typed DOB field to the profile? capture it at
+  guardianship-creation time instead, as a one-off input?) before it can be
+  built without inventing a data source. Also still open: reconciling or
+  retiring the seed data's older `CaregiverRelationship` model, and the
+  "stop after prescribing and reassess" note under Clinical suite — modules
+  7-20 remain deferred, not blocked.
 
 - 2026-08-11 — **Queue fully checked again; picked the highest-value
   improvement to work already done: self-service delegation creation.**

@@ -4,6 +4,7 @@ import {
   EmptyDelegationScopeError,
   grantDelegation,
   InvalidDelegationExpiryError,
+  revokeDelegation,
   SelfDelegationError,
   type DelegationGrant,
   type DelegationScope,
@@ -16,6 +17,8 @@ import { FAMILY_GRANTS_STORE, type FamilyGrantsStore } from './family-grants.sto
 export interface SubjectGrants {
   guardianships: readonly GuardianshipGrant[];
   delegations: readonly DelegationGrant[];
+  /** Delegations this subject granted to someone else — the read side `revokeDelegation` needs. */
+  delegationsGranted: readonly DelegationGrant[];
 }
 
 /**
@@ -42,11 +45,12 @@ export class FamilyGrantsService {
   ) {}
 
   async grantsFor(subjectId: string): Promise<SubjectGrants> {
-    const [guardianships, delegations] = await Promise.all([
+    const [guardianships, delegations, delegationsGranted] = await Promise.all([
       this.store.guardianshipsFor(subjectId),
       this.store.delegationsFor(subjectId),
+      this.store.delegationsGrantedBy(subjectId),
     ]);
-    return { guardianships, delegations };
+    return { guardianships, delegations, delegationsGranted };
   }
 
   /**
@@ -79,5 +83,24 @@ export class FamilyGrantsService {
       throw error;
     }
     return this.store.createDelegation(grant);
+  }
+
+  /**
+   * Revokes a delegation the caller herself granted. Fetches by id alone
+   * then checks `granterId` against the caller — the same fetch-then-check
+   * shape `RecordsService.#requireObservation` uses for its cross-owner
+   * 404 — rather than trusting a store method scoped by id and granterId
+   * together, so a wrong id and someone else's real grant id are
+   * indistinguishable to the caller: both 404 as `DELEGATION_NOT_FOUND`,
+   * never a 403 that would confirm the id exists. Idempotent on an
+   * already-revoked grant, the same as `packages/family`'s `revokeDelegation`
+   * itself — revoking twice is not an error.
+   */
+  async revokeDelegation(granterId: string, delegationId: string): Promise<DelegationGrant> {
+    const grant = await this.store.findDelegation(delegationId);
+    if (!grant || grant.granterId !== granterId) {
+      throw new NotFoundException({ code: 'DELEGATION_NOT_FOUND', message: `No delegation ${delegationId}` });
+    }
+    return this.store.saveDelegation(revokeDelegation(grant, new Date().toISOString()));
   }
 }

@@ -1,5 +1,5 @@
-import { BadRequestException, Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import type { CurrentUserResult } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -27,14 +27,21 @@ function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
  * `GET /grants` is the real endpoint `apps/web`'s `AccountView.tsx` has
  * been calling with `[]`/`[]` since Round two D2, and the item the
  * 2026-08-10/11 ledger entries left as the next honest step. `POST
- * /grants/delegations` is this run's addition — the first real caller of
- * `packages/family`'s `grantDelegation`. Both are guarded by
- * `SessionAuthGuard`, the same guard `AuthController`'s own `/auth/me`
- * uses, and both take the acting subject id from `@CurrentUser()` — never a
- * query/path param or a request-body field — for the same reason the
- * records module's cross-owner fix moved ownership checks off a
- * client-supplied id: a forged `granterId` would let anyone hand out access
- * to someone else's record.
+ * /grants/delegations` was the first real caller of `packages/family`'s
+ * `grantDelegation`. `DELETE /grants/delegations/:id` is this run's
+ * addition — the granter's own way to see (`GET /grants`'s
+ * `delegationsGranted`) and take back (this route) access she granted,
+ * the "next natural piece" the 2026-08-11 delegation-creation ledger entry
+ * named. All three are guarded by `SessionAuthGuard`, the same guard
+ * `AuthController`'s own `/auth/me` uses, and all three take the acting
+ * subject id from `@CurrentUser()` — never a query/path param or a
+ * request-body field — for the same reason the records module's cross-owner
+ * fix moved ownership checks off a client-supplied id: a forged `granterId`
+ * would let anyone hand out, or take back, access to someone else's record.
+ * The delegation id itself *is* a path param on the revoke route — that is
+ * fine, because `FamilyGrantsService.revokeDelegation` still checks it
+ * against `@CurrentUser()`'s id before touching anything, 404ing a mismatch
+ * exactly like the records module's `ownerId` check does.
  */
 @ApiTags('family')
 @Controller('family')
@@ -65,5 +72,13 @@ export class FamilyGrantsController {
   createDelegation(@CurrentUser() user: CurrentUserResult, @Body() body: unknown) {
     const input = parseOrThrow(createDelegationSchema, body);
     return this.grants.createDelegation(user.subjectId, input.delegatePhone, input.scopes, input.expiresAt);
+  }
+
+  @Delete('grants/delegations/:id')
+  @UseGuards(SessionAuthGuard)
+  @ApiParam({ name: 'id' })
+  @ApiOperation({ summary: 'Revokes a delegation grant the signed-in subject made as granter' })
+  revokeDelegation(@CurrentUser() user: CurrentUserResult, @Param('id') id: string) {
+    return this.grants.revokeDelegation(user.subjectId, id);
   }
 }

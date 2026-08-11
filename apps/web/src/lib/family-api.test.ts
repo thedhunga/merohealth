@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createDelegation, FamilyApiError, getFamilyGrants } from '@/lib/family-api';
+import { createDelegation, FamilyApiError, getFamilyGrants, revokeDelegation } from '@/lib/family-api';
 
 function mockFetchOnce(status: number, body: unknown) {
   const fetchMock = vi.fn().mockResolvedValue({
@@ -92,5 +92,36 @@ describe('createDelegation', () => {
     await expect(createDelegation({ delegatePhone: '9800000000', scopes: ['VIEW_RECORD'], expiresAt: '2027-01-01T00:00:00.000Z' })).rejects.toMatchObject(
       { code: 'DELEGATE_NOT_FOUND' },
     );
+  });
+});
+
+describe('revokeDelegation', () => {
+  it('deletes /v1/family/grants/delegations/:id with credentials included and no body', async () => {
+    const grant = {
+      id: 'd-1',
+      granterId: 'janaki',
+      delegateId: 'sunita',
+      scopes: ['VIEW_RECORD'],
+      grantedAt: '2026-01-01T00:00:00.000Z',
+      expiresAt: '2027-01-01T00:00:00.000Z',
+      revokedAt: '2026-06-01T00:00:00.000Z',
+      enrolment: null,
+    };
+    const fetchMock = mockFetchOnce(200, grant);
+
+    const result = await revokeDelegation('d-1');
+
+    expect(result).toEqual(grant);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://localhost:4000/v1/family/grants/delegations/d-1');
+    expect(init.method).toBe('DELETE');
+    expect(init.credentials).toBe('include');
+    expect(init.body).toBeUndefined();
+  });
+
+  it('surfaces the server-provided machine-readable code on failure, e.g. DELEGATION_NOT_FOUND', async () => {
+    mockFetchOnce(404, { code: 'DELEGATION_NOT_FOUND', message: 'No delegation d-1' });
+
+    await expect(revokeDelegation('d-1')).rejects.toMatchObject({ code: 'DELEGATION_NOT_FOUND' });
   });
 });

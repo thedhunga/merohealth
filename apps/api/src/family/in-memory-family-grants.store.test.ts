@@ -29,4 +29,24 @@ describe('InMemoryFamilyGrantsStore', () => {
     expect(await freshStore.delegationsFor('arjun')).toEqual([delegation]);
     expect(seeded).toEqual([delegation]);
   });
+
+  it('scopes delegationsGrantedBy to the requested granter, never returning another granter’s grants', async () => {
+    expect(await store.delegationsGrantedBy('janaki')).toEqual([delegation]);
+    expect(await store.delegationsGrantedBy('someone-else')).toEqual([]);
+  });
+
+  it('findDelegation resolves by id regardless of granter or delegate, and null for an unknown id', async () => {
+    expect(await store.findDelegation('d-1')).toEqual(delegation);
+    expect(await store.findDelegation('no-such-id')).toBeNull();
+  });
+
+  it('saveDelegation overwrites the stored state of an existing grant by id', async () => {
+    const freshStore = new InMemoryFamilyGrantsStore([], [delegation]);
+    const revoked = { ...delegation, revokedAt: '2026-06-01T00:00:00.000Z' };
+
+    const returned = await freshStore.saveDelegation(revoked);
+
+    expect(returned).toEqual(revoked);
+    expect(await freshStore.findDelegation('d-1')).toEqual(revoked);
+  });
 });

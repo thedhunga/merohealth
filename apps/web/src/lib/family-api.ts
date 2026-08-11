@@ -35,6 +35,8 @@ function familyUrl(path: string): string {
 export interface SubjectGrantsResponse {
   guardianships: readonly GuardianshipGrant[];
   delegations: readonly DelegationGrant[];
+  /** Delegations the signed-in subject granted to someone else — the read side `revokeDelegation` needs. */
+  delegationsGranted: readonly DelegationGrant[];
 }
 
 /**
@@ -74,6 +76,24 @@ export async function createDelegation(input: CreateDelegationInput): Promise<De
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
+  const parsed = (await response.json().catch(() => null)) as unknown;
+  if (!response.ok) {
+    const error = (parsed as FamilyApiErrorBody | null) ?? {};
+    throw new FamilyApiError(error.message ?? `Request failed (${response.status})`, error.code ?? null);
+  }
+  return parsed as DelegationGrant;
+}
+
+/**
+ * Client for `DELETE /family/grants/delegations/:id` — revokes a delegation
+ * the signed-in visitor granted as granter. The server checks ownership
+ * itself (`FamilyGrantsService.revokeDelegation`) and 404s a grant that
+ * exists but belongs to someone else, so this carries no `granterId` — the
+ * same reason `createDelegation` above carries no `delegatePhone`-adjacent
+ * caller id.
+ */
+export async function revokeDelegation(delegationId: string): Promise<DelegationGrant> {
+  const response = await fetch(familyUrl(`/grants/delegations/${delegationId}`), { method: 'DELETE', credentials: 'include' });
   const parsed = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
     const error = (parsed as FamilyApiErrorBody | null) ?? {};

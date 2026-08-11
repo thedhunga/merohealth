@@ -1272,8 +1272,21 @@
         "SelfDelegationError": "You can't grant access to your own account.",
         "EmptyDelegationScopeError": "Choose at least one thing they may do.",
         "InvalidDelegationExpiryError": "Choose a date after today.",
+        "DELEGATION_NOT_FOUND": "That access grant no longer exists.",
         "VALIDATION_ERROR": "Check the form and try again.",
         "GENERIC": "Something went wrong — please try again."
+      },
+      "granted": {
+        "heading": "Access you've granted",
+        "empty": "You haven't granted anyone access yet.",
+        "delegateLabel": "Delegate:",
+        "status": {
+          "active": "Active",
+          "revoked": "Revoked",
+          "expired": "Expired"
+        },
+        "revokeCta": "Revoke access",
+        "revoking": "Revoking…"
       }
     },
     "openApp": {

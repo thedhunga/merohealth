@@ -28,8 +28,23 @@ export class InMemoryFamilyGrantsStore implements FamilyGrantsStore {
     return Promise.resolve(this.delegations.filter((grant) => grant.delegateId === delegateId));
   }
 
+  delegationsGrantedBy(granterId: string): Promise<readonly DelegationGrant[]> {
+    return Promise.resolve(this.delegations.filter((grant) => grant.granterId === granterId));
+  }
+
   createDelegation(grant: DelegationGrant): Promise<DelegationGrant> {
     this.delegations.push(grant);
+    return Promise.resolve(grant);
+  }
+
+  findDelegation(id: string): Promise<DelegationGrant | null> {
+    return Promise.resolve(this.delegations.find((grant) => grant.id === id) ?? null);
+  }
+
+  saveDelegation(grant: DelegationGrant): Promise<DelegationGrant> {
+    const index = this.delegations.findIndex((existing) => existing.id === grant.id);
+    if (index === -1) this.delegations.push(grant);
+    else this.delegations[index] = grant;
     return Promise.resolve(grant);
   }
 }

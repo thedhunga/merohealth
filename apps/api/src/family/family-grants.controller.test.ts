@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { grantDelegation } from '@swasthya/family';
 import { describe, expect, it } from 'vitest';
 import { InMemoryAuthStore } from '../auth/in-memory-auth.store.js';
@@ -30,11 +30,47 @@ describe('FamilyGrantsController.grantsForCurrentUser', () => {
     expect(await controller.grantsForCurrentUser(currentUser('sunita'))).toEqual({
       guardianships: [],
       delegations: [delegation],
+      delegationsGranted: [],
+    });
+    expect(await controller.grantsForCurrentUser(currentUser('janaki'))).toEqual({
+      guardianships: [],
+      delegations: [],
+      delegationsGranted: [delegation],
     });
     expect(await controller.grantsForCurrentUser(currentUser('someone-else'))).toEqual({
       guardianships: [],
       delegations: [],
+      delegationsGranted: [],
     });
+  });
+});
+
+describe('FamilyGrantsController.revokeDelegation', () => {
+  it('takes the granter id from @CurrentUser() and the delegation id from the path, and returns the revoked grant', async () => {
+    const delegation = grantDelegation('d-1', 'janaki', 'sunita', ['VIEW_RECORD'], '2026-01-01T00:00:00.000Z', '2026-12-31T00:00:00.000Z');
+    const controller = new FamilyGrantsController(
+      new FamilyGrantsService(new InMemoryFamilyGrantsStore([], [delegation]), new InMemoryAuthStore()),
+    );
+
+    const revoked = await controller.revokeDelegation(currentUser('janaki'), 'd-1');
+
+    expect(revoked.revokedAt).not.toBeNull();
+    // A second read through the read endpoint sees the revoked grant, not the original.
+    expect(await controller.grantsForCurrentUser(currentUser('janaki'))).toEqual({
+      guardianships: [],
+      delegations: [],
+      delegationsGranted: [revoked],
+    });
+  });
+
+  it('404s rather than revoking when the caller is not the grant’s granter', async () => {
+    const delegation = grantDelegation('d-1', 'janaki', 'sunita', ['VIEW_RECORD'], '2026-01-01T00:00:00.000Z', '2026-12-31T00:00:00.000Z');
+    const controller = new FamilyGrantsController(
+      new FamilyGrantsService(new InMemoryFamilyGrantsStore([], [delegation]), new InMemoryAuthStore()),
+    );
+
+    // `sunita` is the delegate, not the granter — asking as `sunita` must not revoke `janaki`'s grant.
+    await expect(controller.revokeDelegation(currentUser('sunita'), 'd-1')).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 
@@ -60,7 +96,11 @@ describe('FamilyGrantsController.createDelegation', () => {
     expect(grant.granterId).toBe('janaki');
     expect(grant.delegateId).toBe(delegate.id);
     // A second read through the read endpoint sees the same grant it just wrote.
-    expect(await controller.grantsForCurrentUser(currentUser(delegate.id))).toEqual({ guardianships: [], delegations: [grant] });
+    expect(await controller.grantsForCurrentUser(currentUser(delegate.id))).toEqual({
+      guardianships: [],
+      delegations: [grant],
+      delegationsGranted: [],
+    });
   });
 
   // `parseOrThrow` throws synchronously — `createDelegation` never even

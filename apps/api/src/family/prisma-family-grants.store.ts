@@ -38,6 +38,11 @@ export class PrismaFamilyGrantsStore implements FamilyGrantsStore {
     return rows.map(toDelegationGrant);
   }
 
+  async delegationsGrantedBy(granterId: string): Promise<readonly DelegationGrant[]> {
+    const rows = await this.prisma.client.delegationGrant.findMany({ where: { granterId } });
+    return rows.map(toDelegationGrant);
+  }
+
   /**
    * `grant.id` is already a caller-generated uuid (`randomUUID()` in
    * `FamilyGrantsService.createDelegation`), so this is a plain insert, not
@@ -47,6 +52,35 @@ export class PrismaFamilyGrantsStore implements FamilyGrantsStore {
     const row = await this.prisma.client.delegationGrant.create({
       data: {
         id: grant.id,
+        granterId: grant.granterId,
+        delegateId: grant.delegateId,
+        scopes: [...grant.scopes],
+        grantedAt: new Date(grant.grantedAt),
+        expiresAt: new Date(grant.expiresAt),
+        revokedAt: grant.revokedAt ? new Date(grant.revokedAt) : null,
+        enrolmentMethod: grant.enrolment?.method ?? null,
+        enrolmentRecordedBy: grant.enrolment?.recordedBy ?? null,
+      },
+    });
+    return toDelegationGrant(row);
+  }
+
+  async findDelegation(id: string): Promise<DelegationGrant | null> {
+    const row = await this.prisma.client.delegationGrant.findUnique({ where: { id } });
+    return row ? toDelegationGrant(row) : null;
+  }
+
+  /**
+   * `FamilyGrantsService.revokeDelegation` is the only caller today and only
+   * ever changes `revokedAt`, but this writes every field back rather than a
+   * narrower `{ revokedAt }` update — the same "persist what the domain
+   * function produced, verbatim" contract `createDelegation` already follows
+   * for the grant it receives.
+   */
+  async saveDelegation(grant: DelegationGrant): Promise<DelegationGrant> {
+    const row = await this.prisma.client.delegationGrant.update({
+      where: { id: grant.id },
+      data: {
         granterId: grant.granterId,
         delegateId: grant.delegateId,
         scopes: [...grant.scopes],
