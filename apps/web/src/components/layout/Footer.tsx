@@ -83,13 +83,13 @@ export function Footer() {
                   build of the Expo product surface rather than a dead link.
                 */}
                 <a
-                  className="rounded-xl border border-white/25 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+                  className="inline-flex min-h-11 items-center rounded-xl border border-white/25 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/10"
                   href="/app"
                 >
                   App Store
                 </a>
                 <a
-                  className="rounded-xl border border-white/25 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+                  className="inline-flex min-h-11 items-center rounded-xl border border-white/25 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/10"
                   href="/app"
                 >
                   Google Play

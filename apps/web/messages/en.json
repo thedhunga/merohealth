@@ -222,6 +222,24 @@
       "body": "Ask in your own language, understand what you are told, and reach the right care.",
       "primaryCta": "Get started",
       "secondaryCta": "Download the app"
+    },
+    "symptom": {
+      "heading": "What are you feeling?",
+      "body": "Write it in your own language. We help you understand the safe next step.",
+      "placeholder": "For example: fever for three days",
+      "inputLabel": "Describe what you are feeling",
+      "voiceLabel": "Speak instead",
+      "submitLabel": "Continue",
+      "quickLabel": "Common problems",
+      "quick": {
+        "fever": "Fever",
+        "headache": "Headache",
+        "stomach": "Stomach pain",
+        "cough": "Cough or cold",
+        "chest": "Chest pain",
+        "skin": "Skin"
+      },
+      "disclaimer": "This is not a diagnosis. In an emergency, go to the nearest hospital immediately."
     }
   },
   "common": {

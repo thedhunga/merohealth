@@ -41,7 +41,7 @@ export function OrganizationTabs() {
                 aria-controls={`${baseId}-panel-${tab.key}`}
                 aria-selected={selected}
                 className={cn(
-                  'rounded-pill px-5 py-2.5 text-[0.9375rem] font-semibold transition-colors',
+                  'inline-flex min-h-11 items-center rounded-pill px-5 text-[0.9375rem] font-semibold transition-colors',
                   selected
                     ? 'bg-white text-indigo-800'
                     : 'bg-white/10 text-white ring-1 ring-inset ring-white/25 hover:bg-white/20',

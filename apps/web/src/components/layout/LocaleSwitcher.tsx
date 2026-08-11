@@ -47,7 +47,7 @@ export function LocaleSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
         <button
           aria-current={locale === active ? 'true' : undefined}
           className={cn(
-            'rounded-pill px-3 py-1.5 text-sm font-semibold transition-colors',
+            'inline-flex min-h-11 items-center rounded-pill px-3 text-sm font-semibold transition-colors',
             locale === active
               ? tone === 'dark'
                 ? 'bg-white text-indigo-800 shadow-sm'
