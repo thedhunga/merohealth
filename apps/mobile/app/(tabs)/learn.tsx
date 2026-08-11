@@ -117,7 +117,15 @@ export default function LearnScreen() {
 
         <View style={styles.playerControls}>
           <Pressable
-            accessibilityLabel={playing ? 'Pause walkthrough' : 'Play walkthrough'}
+            accessibilityLabel={
+              playing
+                ? language === 'en'
+                  ? 'Pause walkthrough'
+                  : 'वाकथ्रु रोक्नुहोस्'
+                : language === 'en'
+                  ? 'Play walkthrough'
+                  : 'वाकथ्रु चलाउनुहोस्'
+            }
             onPress={() => setPlaying((current) => !current)}
             style={styles.playButton}
           >
@@ -129,14 +137,14 @@ export default function LearnScreen() {
             <Text style={styles.playButtonText}>{playing ? 'Pause' : 'Play guide'}</Text>
           </Pressable>
           <Pressable
-            accessibilityLabel="Listen to this step"
+            accessibilityLabel={language === 'en' ? 'Listen to this step' : 'यो चरण सुन्नुहोस्'}
             onPress={speakCurrentStep}
             style={styles.roundControl}
           >
             <Volume2 color="white" size={19} />
           </Pressable>
           <Pressable
-            accessibilityLabel="Restart walkthrough"
+            accessibilityLabel={language === 'en' ? 'Restart walkthrough' : 'वाकथ्रु फेरि सुरु गर्नुहोस्'}
             onPress={restart}
             style={styles.roundControl}
           >
@@ -215,7 +223,9 @@ export default function LearnScreen() {
                   <View style={styles.transcriptHead}>
                     <Text style={styles.transcriptLabel}>READABLE TRANSCRIPT</Text>
                     <Pressable
-                      accessibilityLabel="Listen to this lesson"
+                      accessibilityLabel={
+                        language === 'en' ? 'Listen to this lesson' : 'यो पाठ सुन्नुहोस्'
+                      }
                       onPress={() =>
                         Speech.speak(
                           language === 'en' ? lesson.transcriptEn : lesson.transcriptNe,

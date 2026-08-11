@@ -511,6 +511,13 @@ suite grows. A module that "works" but has no outage test is not finished.
       'queue exhausted' pick." See the 2026-08-11 log entry below (the one
       added by this run) for what it composes and why.
 
+- [x] Translated `apps/mobile`'s hardcoded-English `accessibilityLabel` props —
+      the low-severity accessibility gap the 2026-08-11 `care.tsx`/
+      `consultation.tsx` run flagged as "a reasonable next 'queue exhausted'
+      pick." See the 2026-08-11 log entry below (the one added by this run)
+      for the full file list, why `apps/web` needed no change, and why
+      `index.web.tsx` was deliberately excluded.
+
 Stop after analytics and reassess again. Modules 11 and 15-20 in the
 capability map are sequenced but must not be started while anything above is
 unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
@@ -526,6 +533,84 @@ run should re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; translated `apps/mobile`'s
+  hardcoded-English `accessibilityLabel` props.** Grepped for `- [ ]` first —
+  zero hits, same as every prior "queue exhausted" run. The prior run's own
+  log entry (directly below) had already surveyed the repo and flagged this
+  exact gap as "a reasonable next 'queue exhausted' pick if nobody has picked
+  up the suite or a product decision by then" — that recommendation is what
+  this run acted on. Before touching code, had an Explore agent size the gap
+  precisely across both `apps/mobile` and `apps/web`, since the prior entry
+  had only speculated web might share the problem.
+
+  **What the survey found.** `apps/mobile` had 27 `accessibilityLabel` props;
+  5 were already correctly localized (`consent.tsx`, `ProfileSwitcher.tsx`,
+  `capture.tsx`'s document-title field, `records.tsx`'s two title fields). Of
+  the remaining 22: 19 were a pure copy of the file's own existing
+  `language === 'en' ? … : …` ternary (the screen already destructures
+  `language` from `useAppState()` for other visible text), 1 needed a
+  `language` prop threaded through the shared `SathiOrb` component (used at 3
+  call sites, all of which already have `language` in scope), and 2 sit on
+  `app/index.web.tsx` — a standalone marketing landing page with **zero**
+  localization scaffolding anywhere, where every other visible string is
+  hardcoded Nepali-only. `apps/web`'s `aria-label` usage (20 occurrences, 12
+  files) turned out to already route entirely through `useTranslations`/
+  `t(...)`, except one hardcoded hit (`Footer.tsx`'s social-network names —
+  "Facebook", "Instagram", etc. — proper nouns, identical in both languages).
+  The prior entry's "might also affect apps/web" speculation did not hold up;
+  this run made no `apps/web` changes.
+
+  **What was built.** All 19 mechanical labels got the file's own ternary
+  convention applied to the accessibility string, reusing existing on-screen
+  Nepali copy where the same action already had visible text elsewhere in the
+  file (e.g. `capture.tsx`'s "Retake" reuses the same फेरि खिच्नुहोस् already
+  shown on its visible retry button; `companion.tsx`'s
+  record/stop-recording label reuses its own visible-button Nepali text) and
+  a plain, literal Nepali translation of the English verb where no existing
+  in-app translation existed (Go back → पछाडि जानुहोस्, used identically
+  across all 5 screens that have it, since it is the same action everywhere).
+  Files touched: `app/(tabs)/index.tsx`, `app/(tabs)/learn.tsx` (4 labels),
+  `app/consent.tsx`, `app/capture.tsx` (2), `app/records.tsx`,
+  `app/consultation.tsx` (4), `app/(tabs)/care.tsx`, `app/(tabs)/companion.tsx`
+  (5). `src/components/ui.tsx`'s `SathiOrb` gained a required
+  `language: LanguageCode` prop (matching `ProfileSwitcher`'s own
+  no-default convention) and its accessibility label now reads
+  "Swasthya Sathi companion" / "स्वास्थ्य साथी"; the 4 call sites
+  (`app/index.tsx`, `app/(tabs)/index.tsx`, `app/(tabs)/companion.tsx` ×2)
+  all already had `language` in scope, so this was prop-threading only, no
+  new state access.
+
+  **What was deliberately left alone, and why.** `app/index.web.tsx`'s 2
+  accessibility labels stayed Nepali-only — the survey confirmed this screen
+  has no `language`/`useAppState` usage anywhere and ~20 other visible
+  strings on the same page are hardcoded Nepali too; localizing only its
+  accessibility labels would be a smaller inconsistency than the one this
+  task exists to fix. Localizing the whole page is a separate, larger task
+  for a future run. `Footer.tsx`'s social-network `aria-label`s stayed as
+  literal English brand names — they are proper nouns, not translatable
+  copy. No visible `<Text>` copy was changed anywhere except where an
+  accessibility label's own translation was written by reusing text a
+  sibling visible element in the same file already displays — no new prose
+  was invented.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 37/37. `pnpm typecheck` 37/37 (the new required `SathiOrb`
+  `language` prop caught all 4 call sites at compile time — no runtime-only
+  gap). `pnpm test` 68/68 tasks, `@swasthya/api` 480/480 (no count change —
+  copy/prop-threading only, no new logic, matching the mobile app's existing
+  precedent of no colocated test for `app/*.tsx` screens or `ui.tsx`
+  presentational components). `pnpm build` 37/37, including `apps/mobile`'s
+  Expo web bundle and `apps/web`'s static export.
+
+  **For the next run.** `app/index.web.tsx`'s full-page localization is a
+  real, larger follow-up if anyone wants this specific gap fully closed. The
+  three candidates named five-plus entries back remain open and untouched:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (blocked on a
+  product decision about anonymous-vs-signed-in use), extending `analytics`
+  with a `clinical-charting` source (blocked on deciding what an
+  encounter-only summary counts), and capability-map row 15 `engagement`
+  (flagged repeatedly as deserving its own dedicated run).
 
 - 2026-08-11 — **Queue fully checked again; fixed `apps/mobile`'s
   `care.tsx`/`consultation.tsx` ignoring the `language` toggle.** Grepped for

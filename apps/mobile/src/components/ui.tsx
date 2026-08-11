@@ -20,6 +20,7 @@ import Animated, {
 import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronRight } from 'lucide-react-native';
 import { colors, radii, spacing } from '@swasthya/configuration';
+import type { LanguageCode } from '@swasthya/shared-types';
 import type { LucideIcon } from 'lucide-react-native';
 
 export function Screen({ children, contentContainerStyle, ...props }: ScrollViewProps) {
@@ -39,7 +40,7 @@ export function Screen({ children, contentContainerStyle, ...props }: ScrollView
   );
 }
 
-export function SathiOrb({ size = 68 }: { size?: number }) {
+export function SathiOrb({ language, size = 68 }: { language: LanguageCode; size?: number }) {
   const progress = useSharedValue(0);
   const reduced = useReducedMotion();
 
@@ -64,7 +65,7 @@ export function SathiOrb({ size = 68 }: { size?: number }) {
   return (
     <Animated.View
       accessible
-      accessibilityLabel="Swasthya Sathi companion"
+      accessibilityLabel={language === 'en' ? 'Swasthya Sathi companion' : 'स्वास्थ्य साथी'}
       style={[styles.orbWrap, { height: size, width: size }, animated]}
     >
       <View

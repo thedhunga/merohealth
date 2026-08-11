@@ -130,7 +130,11 @@ export default function CaptureScreen() {
     return (
       <ScrollView contentContainerStyle={styles.reviewPage}>
         <View style={styles.header}>
-          <Pressable accessibilityLabel="Retake" onPress={retake} style={styles.back}>
+          <Pressable
+            accessibilityLabel={language === 'en' ? 'Retake' : 'फेरि खिच्नुहोस्'}
+            onPress={retake}
+            style={styles.back}
+          >
             <ArrowLeft color={colors.ink} />
           </Pressable>
           <Text style={styles.headerTitle}>
@@ -210,7 +214,11 @@ export default function CaptureScreen() {
   return (
     <View style={styles.cameraPage}>
       <View style={styles.header}>
-        <Pressable accessibilityLabel="Go back" onPress={() => router.back()} style={styles.back}>
+        <Pressable
+          accessibilityLabel={language === 'en' ? 'Go back' : 'पछाडि जानुहोस्'}
+          onPress={() => router.back()}
+          style={styles.back}
+        >
           <ArrowLeft color="white" />
         </Pressable>
         <Text style={styles.headerTitleLight}>

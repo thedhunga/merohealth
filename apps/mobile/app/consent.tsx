@@ -57,7 +57,11 @@ export default function ConsentScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <Pressable accessibilityLabel="Go back" onPress={() => router.back()} style={styles.back}>
+        <Pressable
+          accessibilityLabel={isEnglish ? 'Go back' : 'पछाडि जानुहोस्'}
+          onPress={() => router.back()}
+          style={styles.back}
+        >
           <ArrowLeft color={colors.ink} />
         </Pressable>
         <Text style={styles.headerTitle}>{isEnglish ? 'Data consent' : 'तथ्याङ्क सहमति'}</Text>

@@ -66,7 +66,11 @@ export default function ConsultationPreviewScreen() {
     >
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <View style={styles.topbar}>
-          <Pressable accessibilityLabel="Go back" onPress={() => router.back()} style={styles.back}>
+          <Pressable
+            accessibilityLabel={language === 'en' ? 'Go back' : 'पछाडि जानुहोस्'}
+            onPress={() => router.back()}
+            style={styles.back}
+          >
             <ArrowLeft color="white" size={21} />
           </Pressable>
           <View style={styles.roomMeta}>
@@ -172,7 +176,15 @@ export default function ConsultationPreviewScreen() {
 
         <View style={styles.controls}>
           <Pressable
-            accessibilityLabel={microphoneOn ? 'Mute microphone' : 'Unmute microphone'}
+            accessibilityLabel={
+              microphoneOn
+                ? language === 'en'
+                  ? 'Mute microphone'
+                  : 'माइक्रोफोन बन्द गर्नुहोस्'
+                : language === 'en'
+                  ? 'Unmute microphone'
+                  : 'माइक्रोफोन खुला गर्नुहोस्'
+            }
             onPress={() => setMicrophoneOn((current) => !current)}
             style={[styles.control, !microphoneOn && styles.controlOff]}
           >
@@ -180,7 +192,15 @@ export default function ConsultationPreviewScreen() {
           </Pressable>
 
           <Pressable
-            accessibilityLabel={cameraOn ? 'Turn camera off' : 'Turn camera on'}
+            accessibilityLabel={
+              cameraOn
+                ? language === 'en'
+                  ? 'Turn camera off'
+                  : 'क्यामेरा बन्द गर्नुहोस्'
+                : language === 'en'
+                  ? 'Turn camera on'
+                  : 'क्यामेरा खोल्नुहोस्'
+            }
             onPress={() => {
               void enableCamera();
             }}
@@ -190,7 +210,15 @@ export default function ConsultationPreviewScreen() {
           </Pressable>
 
           <Pressable
-            accessibilityLabel={captionsOn ? 'Turn captions off' : 'Turn captions on'}
+            accessibilityLabel={
+              captionsOn
+                ? language === 'en'
+                  ? 'Turn captions off'
+                  : 'क्याप्सन बन्द गर्नुहोस्'
+                : language === 'en'
+                  ? 'Turn captions on'
+                  : 'क्याप्सन खोल्नुहोस्'
+            }
             onPress={() => setCaptionsOn((current) => !current)}
             style={[styles.control, captionsOn && styles.controlSelected]}
           >

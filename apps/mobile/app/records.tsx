@@ -89,7 +89,11 @@ export default function RecordsScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <Pressable accessibilityLabel="Go back" onPress={() => router.back()} style={styles.back}>
+        <Pressable
+          accessibilityLabel={language === 'en' ? 'Go back' : 'पछाडि जानुहोस्'}
+          onPress={() => router.back()}
+          style={styles.back}
+        >
           <ArrowLeft color={colors.ink} />
         </Pressable>
         <Text style={styles.headerTitle}>

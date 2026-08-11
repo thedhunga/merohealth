@@ -38,7 +38,7 @@ export default function CareScreen() {
       <View style={styles.search}>
         <Search color={colors.muted} size={20} />
         <TextInput
-          accessibilityLabel="Search care directory"
+          accessibilityLabel={language === 'en' ? 'Search care directory' : 'सेवा निर्देशिका खोज्नुहोस्'}
           value={text}
           onChangeText={setText}
           placeholder={language === 'en' ? 'Name, specialty or district…' : 'नाम, विशेषज्ञता वा जिल्ला…'}

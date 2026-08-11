@@ -199,7 +199,11 @@ export default function CompanionScreen() {
   return (
     <Screen keyboardShouldPersistTaps="handled">
       <View style={styles.header}>
-        <Pressable accessibilityLabel="Go back" onPress={() => router.back()} style={styles.back}>
+        <Pressable
+          accessibilityLabel={language === 'en' ? 'Go back' : 'पछाडि जानुहोस्'}
+          onPress={() => router.back()}
+          style={styles.back}
+        >
           <ArrowLeft color={colors.ink} />
         </Pressable>
         <View style={styles.headerCopy}>
@@ -207,7 +211,7 @@ export default function CompanionScreen() {
           <Text style={styles.headerTitle}>स्वास्थ्य साथी</Text>
           <Text style={styles.meta}>सुरक्षित अर्को कदम खोजौँ</Text>
         </View>
-        <SathiOrb size={52} />
+        <SathiOrb language={language} size={52} />
       </View>
 
       <ProfileSwitcher
@@ -229,7 +233,7 @@ export default function CompanionScreen() {
               </Text>
             </View>
             <Pressable
-              accessibilityLabel="Listen to guidance"
+              accessibilityLabel={language === 'en' ? 'Listen to guidance' : 'मार्गदर्शन सुन्नुहोस्'}
               onPress={speakGuidance}
               style={styles.listen}
             >
@@ -248,7 +252,7 @@ export default function CompanionScreen() {
             </View>
 
             <TextInput
-              accessibilityLabel="Health question"
+              accessibilityLabel={language === 'en' ? 'Health question' : 'स्वास्थ्य प्रश्न'}
               multiline
               value={message}
               onChangeText={setMessage}
@@ -260,7 +264,13 @@ export default function CompanionScreen() {
             <View style={styles.voiceRow}>
               <Pressable
                 accessibilityLabel={
-                  recorderState.isRecording ? 'Stop recording' : 'Record voice note'
+                  recorderState.isRecording
+                    ? language === 'en'
+                      ? 'Stop recording'
+                      : 'रेकर्ड रोक्नुहोस्'
+                    : language === 'en'
+                      ? 'Record voice note'
+                      : 'आवाजमा भन्नुहोस्'
                 }
                 onPress={() => {
                   void toggleVoice();
@@ -334,13 +344,15 @@ export default function CompanionScreen() {
         <>
           <View style={styles.card}>
             <View style={styles.answerHead}>
-              <SathiOrb size={48} />
+              <SathiOrb language={language} size={48} />
               <View style={styles.answerHeadCopy}>
                 <Text style={styles.stepLabel}>GUIDED INFORMATION · NOT A DIAGNOSIS</Text>
                 <Text style={styles.headerTitle}>साथीको जानकारी</Text>
               </View>
               <Pressable
-                accessibilityLabel="Listen to this information"
+                accessibilityLabel={
+                  language === 'en' ? 'Listen to this information' : 'यो जानकारी सुन्नुहोस्'
+                }
                 onPress={speakAnswer}
                 style={styles.listen}
               >

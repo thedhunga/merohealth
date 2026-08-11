@@ -40,7 +40,9 @@ export default function HomeScreen() {
           </View>
         </View>
         <Pressable
-          accessibilityLabel="Open updates and learning"
+          accessibilityLabel={
+            language === 'en' ? 'Open updates and learning' : 'अपडेट र सिकाइ खोल्नुहोस्'
+          }
           onPress={() => router.push('/(tabs)/learn')}
           style={styles.notification}
         >
@@ -75,7 +77,7 @@ export default function HomeScreen() {
           </View>
         </View>
         <View style={styles.orbColumn}>
-          <SathiOrb size={wide ? 126 : 88} />
+          <SathiOrb language={language} size={wide ? 126 : 88} />
           <View style={styles.voiceChip}>
             <View style={styles.voicePulse} />
             <Text style={styles.voiceChipText}>Voice ready</Text>
