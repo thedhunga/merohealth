@@ -1,5 +1,6 @@
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
+import { AnalyticsService } from '../analytics/analytics.service.js';
 import { BillingRepository } from '../billing/billing.repository.js';
 import { BillingService } from '../billing/billing.service.js';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
@@ -44,6 +45,7 @@ function buildStack() {
   const billing = new BillingService(new BillingRepository(), charting);
   const referrals = new ReferralsService(new ReferralsRepository(), charting);
   const populationHealth = new PopulationHealthService(summary, scheduling);
+  const analytics = new AnalyticsService(patients, scheduling);
   return {
     records,
     patients,
@@ -57,6 +59,7 @@ function buildStack() {
     billing,
     referrals,
     populationHealth,
+    analytics,
   };
 }
 
@@ -74,19 +77,21 @@ function buildSuite(stack: ReturnType<typeof buildStack>): ClinicalSuiteService 
     stack.billing,
     stack.referrals,
     stack.populationHealth,
+    stack.analytics,
   );
 }
 
 describe('ClinicalSuiteService', () => {
-  it('reports all twelve registered modules available with no degradations when everything is up', async () => {
+  it('reports all thirteen registered modules available with no degradations when everything is up', async () => {
     const stack = buildStack();
     const suite = buildSuite(stack);
 
     const resolved = await suite.resolve();
 
-    expect(resolved).toHaveLength(12);
+    expect(resolved).toHaveLength(13);
     expect(resolved.map((module) => module.key).sort()).toEqual(
       [
+        'ANALYTICS',
         'BILLING',
         'CLINICAL_CHARTING',
         'CLINICAL_SUMMARY',
@@ -139,18 +144,20 @@ describe('ClinicalSuiteService', () => {
       available: true,
       degradations: [{ dependency: 'CLINICAL_CHARTING', mode: 'HIDE' }],
     });
-    // patient-registry, scheduling, teleconsultation, health-records and
-    // population-health have no dependency on clinical-charting at all and
-    // must read as fully available — teleconsultation's own dependencies
-    // are SCHEDULING, and population-health's are CLINICAL_SUMMARY/
-    // SCHEDULING, none of them CLINICAL_CHARTING, and CLINICAL_SUMMARY
-    // being merely degraded (not DOWN) does not cascade to it either (§2's
+    // patient-registry, scheduling, teleconsultation, health-records,
+    // population-health and analytics have no dependency on
+    // clinical-charting at all and must read as fully available —
+    // teleconsultation's own dependencies are SCHEDULING, population-health's
+    // are CLINICAL_SUMMARY/SCHEDULING and analytics's are PATIENT_REGISTRY/
+    // SCHEDULING, none of them CLINICAL_CHARTING, and CLINICAL_SUMMARY being
+    // merely degraded (not DOWN) does not cascade to it either (§2's
     // "degradesWith never cascades past one hop").
     expect(byKey.get('PATIENT_REGISTRY')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('SCHEDULING')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('TELECONSULTATION')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('HEALTH_RECORDS')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('POPULATION_HEALTH')).toMatchObject({ available: true, degradations: [] });
+    expect(byKey.get('ANALYTICS')).toMatchObject({ available: true, degradations: [] });
   });
 
   it('a probe that throws is reported DOWN rather than rejecting the whole resolve() call', async () => {
@@ -175,5 +182,12 @@ describe('ClinicalSuiteService', () => {
     // as fully available too.
     expect(byKey.get('TELECONSULTATION')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('POPULATION_HEALTH')).toMatchObject({ available: true, degradations: [] });
+    // analytics declares its own direct HIDE edge on PATIENT_REGISTRY (not
+    // only on SCHEDULING), so unlike the two modules above it does react
+    // here — one hop, straight to the module that actually went DOWN.
+    expect(byKey.get('ANALYTICS')).toMatchObject({
+      available: true,
+      degradations: [{ dependency: 'PATIENT_REGISTRY', mode: 'HIDE' }],
+    });
   });
 });

@@ -469,15 +469,21 @@ suite grows. A module that "works" but has no outage test is not finished.
       that owns no data of its own — see the 2026-08-11 log entry below (the
       one added by this run) for why it has no repository and how "invent no
       facts" shaped it.
+- [x] `analytics` (capability map row 14): read-only dashboard summaries
+      over `patient-registry`/`scheduling`, added once the queue was found
+      fully checked — see the 2026-08-11 log entry below (the one added by
+      this run) for why each summary degrades against exactly one source
+      instead of the whole module hiding together, and what was
+      deliberately left out.
 
-Stop after population-health and reassess again. Modules 11 and 14-20 in the
+Stop after analytics and reassess again. Modules 11 and 15-20 in the
 capability map are sequenced but must not be started while anything above is
 unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
 not a module that plugs into this registry, and row 11 (`coverage`) was
 deliberately skipped, not built, because the table's own note calls it
 "blocked on Nepali insurer interfaces that do not yet exist" with no
 compliance-register row naming an interim control the way row 10's did. Row
-14 (`analytics`) may be the realistic next candidate whenever this note is
+15 (`engagement`) may be the realistic next candidate whenever this note is
 next revisited — but that is this run's own guess, not a decision; the next
 run should re-read the table itself rather than trust this paragraph.
 
@@ -485,6 +491,130 @@ run should re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; reassessed the "stop after
+  population-health" note and resumed the clinical suite with `analytics`
+  (capability map row 14).** Grepped for `- [ ]` first — zero hits. The
+  prior run's own log entry named row 14 explicitly as "the realistic next
+  candidate," with the same explicit caveat every prior reassessment has
+  carried — a guess, not a decision — so this run re-read
+  `clinical-suite.md` §3 itself before picking anything up. Row 14's own
+  note, "Read-only replica. Must never slow the clinical path," pairs
+  naturally with row 13's own "reads from other modules; never writes to
+  them," so this run reused population-health's shape rather than
+  inventing a new one.
+
+  **Where this run's design departs from population-health's, and why.**
+  Population-health's `buildRegistry`/`buildRecall` each read from *two*
+  dependencies chained together (a recall list needs the registry, which
+  needs clinical-summary), so one dependency going down genuinely leaves no
+  honest partial answer for either method. Analytics has no such chain:
+  `patientRegistrySummary()` reads only `patient-registry`, and
+  `schedulingSummary()` reads only `scheduling` — the two counts have
+  nothing to do with each other. So `AnalyticsService` gates each summary
+  on only its own one source, meaning a patient-registry outage never
+  touches the scheduling summary and vice versa — the `ANALYTICS`
+  module-descriptor still declares both dependencies `HIDE` (per §2's
+  contract, at the module level), but the *service* implements one-hop
+  isolation per summary rather than an all-or-nothing refusal, which is
+  what "must never slow the clinical path" concretely means for a
+  dashboard: one broken tile must not blank the rest of it. This is
+  documented with a dedicated fault-isolation test ("a down patient-registry
+  does not block the scheduling summary" and the reverse), not just
+  asserted in a comment.
+
+  **What "invent no facts" means here, specifically.** A dashboard invites
+  fabricating a benchmark or a target ("appointment no-show rate should be
+  under 15%") to make an empty-looking number feel meaningful. Nothing here
+  does that — `PatientRegistrySummary`/`SchedulingSummary` are counts of
+  rows that already exist in `patient-registry`/`scheduling`, nothing more.
+  No trend, no percentage, no comparison to a prior period, since none of
+  those exist yet in either source module either.
+
+  **What was built.**
+  1. `packages/shared-types/src/index.ts`: `PatientRegistrySummary`/
+     `SchedulingSummary`, in a new "Analytics (clinical-suite.md capability
+     map row 14)" section following the header-comment convention every
+     prior section uses. Updated the stale `ClinicalModuleKey` header
+     comment ("stop after population-health" → "stop after analytics").
+  2. `packages/analytics` (new package): `buildPatientRegistrySummary`
+     (total plus a count per `PatientSex`) and `buildSchedulingSummary`
+     (total plus a count per `AppointmentStatus`), both pure functions of an
+     already-resolved list, zero-filling every enum key so a status with no
+     rows yet still appears rather than being silently absent. 4 tests.
+  3. `apps/api/src/analytics/`: service (`PatientRegistryService` and
+     `SchedulingService` injected as their public ports per §2 rule 3, each
+     summary gated on only its own source), controller (GET-only —
+     `/patients`, `/scheduling`, `/health`, no POST route since this module
+     never writes), module-descriptor (`ANALYTICS`, empty `requires`, two
+     `degradesWith` edges, both `HIDE`), and module. No repository file,
+     the same population-health precedent for a module with nothing of its
+     own to persist. Service, controller, module-descriptor and
+     fault-isolation test files, 17 new `apps/api` tests total.
+  4. Wired into `apps/api/src/app.module.ts` and the `clinical-suite`
+     aggregate (`clinical-suite.module.ts`/`clinical-suite.service.ts`):
+     `GET /clinical-suite/modules` now reports thirteen modules, not
+     twelve. Updated `clinical-suite.service.test.ts`'s "all N modules
+     available" test for the new count, added `ANALYTICS` to the
+     `CLINICAL_CHARTING`-outage cascade test as an *unaffected* module
+     (analytics depends on neither), and added an explicit `ANALYTICS`
+     assertion to the `PATIENT_REGISTRY`-probe-throws test, since analytics
+     — unlike teleconsultation/population-health in that same test —
+     declares a *direct* edge on `PATIENT_REGISTRY`, not only on
+     `SCHEDULING`, so it does react there.
+  5. `apps/api/package.json`: added `@swasthya/analytics` as a real
+     dependency; regenerated `pnpm-lock.yaml` via `--no-frozen-lockfile`,
+     then confirmed `--frozen-lockfile` passes clean afterward, same
+     sequence every prior new-package run used.
+
+  **What was deliberately not built.** No combined `/analytics/dashboard`
+  endpoint aggregating both summaries into one response — each is already
+  independently reachable, and a combined endpoint would have to invent a
+  partial-failure response shape (which fields are `null` when only one
+  source is down) that nothing else in this codebase has established a
+  precedent for. Two more capability-map row-14 candidates —
+  `clinical-charting`/`billing`/`referrals`-derived counts — were
+  considered and left out: adding more sources in the same run would mean
+  more untested cross-source interactions than one run can honestly verify
+  against real data, not a principled scope boundary, so a future run
+  should feel free to add them incrementally the same way this run added to
+  population-health's shape rather than treating today's two sources as
+  final. No benchmark, target or trend of any kind — see above. No
+  entitlement wiring — matches every module 1-7/9/10/12/13 precedent (no
+  `ClinicalModuleKey` `ANALYTICS` value exists in `packages/entitlements`'s
+  own `ModuleKey` type either). No clinician-facing UI — matches every
+  prior module.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the lockfile
+  regeneration (one transient `ECONNRESET` fetching `@prisma/engines` on
+  the first `--no-frozen-lockfile` attempt, and one transient self-signed-
+  certificate failure fetching the Prisma schema-engine binary during the
+  first `pnpm lint` — both resolved on retry with no code change, network
+  flakiness in this run's sandbox, not a real failure); `pnpm lint` 37/37
+  (up from 36 — the new package); `pnpm typecheck` 37/37; `pnpm test` 68/68
+  tasks — `@swasthya/api` 463 tests (up from 446: 17 new, across
+  `analytics.service.test.ts`, `.controller.test.ts`,
+  `.module-descriptor.test.ts`, `.fault-isolation.test.ts`, plus the
+  updated `clinical-suite.service.test.ts`), `@swasthya/analytics` 4 new
+  tests; `pnpm build` 37/37, including `apps/web`'s static export and
+  `apps/mobile`'s Expo web bundle. No schema/migration change — this
+  module has no Prisma model and never will, matching every module 1-7/9/
+  10/12/13 precedent for in-memory-or-no-data modules — so no live Postgres
+  was needed this run.
+
+  **For the next run.** Guardianship creation stays open, understood to be
+  blocked on a minor's account-enrolment mechanism, not a DOB field (see
+  earlier log entries). The clinical suite is parked again, this time after
+  row 14. Row 15 (`engagement`, "SMS/WhatsApp. QUEUE_AND_RETRY by nature.")
+  is this run's own non-binding guess at what comes next, and unlike every
+  prior module built so far it would be the first to actually need
+  `QUEUE_AND_RETRY` rather than `HIDE`/`READ_ONLY`/`MANUAL` — re-read
+  `clinical-suite.md` §3 rather than trust this paragraph, and expect that
+  mode to require new ground rather than reusing an existing module's
+  shape. Alternatively, extending today's `analytics` module with more
+  sources (billing, referrals, clinical-charting) is an equally honest,
+  lower-risk next step within row 14 itself, deliberately left incomplete
+  above.
 
 - 2026-08-11 — **Queue fully checked again; reassessed the "stop after
   referrals" note and resumed the clinical suite with `population-health`

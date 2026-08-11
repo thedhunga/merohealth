@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { buildModuleRegistry, collectHealthStates, resolveAvailability, type ModuleRegistry, type ResolvedModule } from '@swasthya/module-registry';
+import { createAnalyticsModuleDescriptor } from '../analytics/analytics.module-descriptor.js';
+import { AnalyticsService } from '../analytics/analytics.service.js';
 import { createBillingModuleDescriptor } from '../billing/billing.module-descriptor.js';
 import { BillingService } from '../billing/billing.service.js';
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
@@ -27,8 +29,8 @@ import { createTeleconsultationModuleDescriptor } from '../teleconsultation/tele
 
 /**
  * clinical-suite.md §2 rule 5: "the shell renders around holes." Every
- * module up to `population-health` (capability map rows 1–7, 9, 10, 12 and
- * 13, plus `HEALTH_RECORDS` from row 16, which `clinical-charting` already
+ * module up to `analytics` (capability map rows 1–7, 9, 10, 12–14, plus
+ * `HEALTH_RECORDS` from row 16, which `clinical-charting` already
  * degrades against) ships its own `ModuleDescriptor` and its own fault-isolation test
  * proving *its* `requires`/`degradesWith` edges resolve correctly in a
  * registry built just for that test. None of those ad hoc registries is the
@@ -57,6 +59,7 @@ export class ClinicalSuiteService {
     billing: BillingService,
     referrals: ReferralsService,
     populationHealth: PopulationHealthService,
+    analytics: AnalyticsService,
   ) {
     // Built once, at DI wiring time, per `buildModuleRegistry`'s own
     // contract: a typo'd or missing dependency key fails app bootstrap
@@ -75,6 +78,7 @@ export class ClinicalSuiteService {
       createBillingModuleDescriptor(billing),
       createReferralsModuleDescriptor(referrals),
       createPopulationHealthModuleDescriptor(populationHealth),
+      createAnalyticsModuleDescriptor(analytics),
     ]);
   }
 

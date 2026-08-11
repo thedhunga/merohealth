@@ -16,6 +16,7 @@
     "@nestjs/core": "11.1.28",
     "@nestjs/platform-express": "11.1.28",
     "@nestjs/swagger": "11.4.6",
+    "@swasthya/analytics": "workspace:*",
     "@swasthya/auth": "workspace:*",
     "@swasthya/billing": "workspace:*",
     "@swasthya/care-directory": "workspace:*",

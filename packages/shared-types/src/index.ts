@@ -315,13 +315,14 @@ export interface CredentialingBadge {
  *
  * docs/architecture/clinical-suite.md §3's capability map, minus row 8
  * ("Patient portal" — that is `apps/web` + `apps/mobile` themselves, not a
- * module that plugs into this fault-isolation system). Modules 1-7, 9, 10
- * and 12 are built; 11 and 13-20 are sequenced but deliberately parked — see
+ * module that plugs into this fault-isolation system). Modules 1-7, 9, 10,
+ * 12-14 are built; 11 and 15-20 are sequenced but deliberately parked — see
  * agent-progress.md's "stop after prescribing and reassess" note, extended
  * first to "stop after diagnostics-orders" once row 7 shipped, then to "stop
  * after teleconsultation" once row 9 shipped, then to "stop after billing"
  * once row 10 shipped, then to "stop after referrals" once row 12 shipped,
- * then to "stop after population-health" once row 13 shipped — row 11
+ * then to "stop after population-health" once row 13 shipped, then to "stop
+ * after analytics" once row 14 shipped — row 11
  * (`coverage`) was skipped in table order, the same way row 8 was, because
  * the capability map's own note calls it "blocked on Nepali insurer
  * interfaces that do not yet exist," with no compliance-register row naming
@@ -1093,4 +1094,31 @@ export interface PopulationHealthRecallEntry extends PopulationHealthRegistryEnt
   nextScheduledAppointmentAt: string | null;
   /** True exactly when `nextScheduledAppointmentAt` is null — named for what a caller actually asks. */
   dueForRecall: boolean;
+}
+
+/* ------------------------------------------------------------------ *
+ * Analytics (clinical-suite.md capability map row 14)
+ *
+ * "Analytics and dashboards ... Read-only replica. Must never slow the
+ * clinical path." Owns no schema namespace, the same reasoning as
+ * population-health (row 13): every count below is computed at request time
+ * from another module's already-persisted list, never duplicated into a
+ * store this module maintains itself. Unlike population-health, each
+ * summary here depends on exactly one source module, so one source being
+ * unavailable only hides the section derived from it, never the others —
+ * see apps/api/src/analytics/analytics.service.ts.
+ *
+ * No target, benchmark or "normal" range is defined anywhere in this
+ * package or `packages/analytics`. A count is a fact already in the
+ * record; a figure to compare it against is not, and inventing one would be
+ * exactly the kind of fabricated statistic the standing constraints forbid.
+ * ------------------------------------------------------------------ */
+export interface PatientRegistrySummary {
+  totalPatients: number;
+  bySex: Record<PatientSex, number>;
+}
+
+export interface SchedulingSummary {
+  totalAppointments: number;
+  byStatus: Record<AppointmentStatus, number>;
 }
