@@ -16,6 +16,8 @@ import { PrescribingRepository } from '../prescribing/prescribing.repository.js'
 import { PrescribingService } from '../prescribing/prescribing.service.js';
 import { RecordsRepository } from '../records/records.repository.js';
 import { RecordsService } from '../records/records.service.js';
+import { ReferralsRepository } from '../referrals/referrals.repository.js';
+import { ReferralsService } from '../referrals/referrals.service.js';
 import { SchedulingRepository } from '../scheduling/scheduling.repository.js';
 import { SchedulingService } from '../scheduling/scheduling.service.js';
 import { TeleconsultationRepository } from '../teleconsultation/teleconsultation.repository.js';
@@ -39,6 +41,7 @@ function buildStack() {
   const diagnosticsOrders = new DiagnosticsOrdersService(new DiagnosticsOrdersRepository(), charting);
   const teleconsultation = new TeleconsultationService(new TeleconsultationRepository(), scheduling);
   const billing = new BillingService(new BillingRepository(), charting);
+  const referrals = new ReferralsService(new ReferralsRepository(), charting);
   return {
     records,
     patients,
@@ -50,6 +53,7 @@ function buildStack() {
     diagnosticsOrders,
     teleconsultation,
     billing,
+    referrals,
   };
 }
 
@@ -65,17 +69,18 @@ function buildSuite(stack: ReturnType<typeof buildStack>): ClinicalSuiteService 
     stack.diagnosticsOrders,
     stack.teleconsultation,
     stack.billing,
+    stack.referrals,
   );
 }
 
 describe('ClinicalSuiteService', () => {
-  it('reports all ten registered modules available with no degradations when everything is up', async () => {
+  it('reports all eleven registered modules available with no degradations when everything is up', async () => {
     const stack = buildStack();
     const suite = buildSuite(stack);
 
     const resolved = await suite.resolve();
 
-    expect(resolved).toHaveLength(10);
+    expect(resolved).toHaveLength(11);
     expect(resolved.map((module) => module.key).sort()).toEqual(
       [
         'BILLING',
@@ -86,6 +91,7 @@ describe('ClinicalSuiteService', () => {
         'MEDICATION_SAFETY',
         'PATIENT_REGISTRY',
         'PRESCRIBING',
+        'REFERRALS',
         'SCHEDULING',
         'TELECONSULTATION',
       ].sort(),
@@ -104,10 +110,10 @@ describe('ClinicalSuiteService', () => {
     const byKey = new Map(resolved.map((module) => [module.key, module]));
 
     expect(byKey.get('CLINICAL_CHARTING')).toMatchObject({ available: false, health: 'DOWN' });
-    // clinical-summary, prescribing, diagnostics-orders and billing each
-    // declare a HIDE degradesWith on CLINICAL_CHARTING — the aggregate view
-    // has to surface all four, not just the one edge any single module's
-    // own test happens to check.
+    // clinical-summary, prescribing, diagnostics-orders, billing and
+    // referrals each declare a HIDE degradesWith on CLINICAL_CHARTING — the
+    // aggregate view has to surface all five, not just the one edge any
+    // single module's own test happens to check.
     expect(byKey.get('CLINICAL_SUMMARY')).toMatchObject({
       available: true,
       degradations: [{ dependency: 'CLINICAL_CHARTING', mode: 'HIDE' }],
@@ -121,6 +127,10 @@ describe('ClinicalSuiteService', () => {
       degradations: [{ dependency: 'CLINICAL_CHARTING', mode: 'HIDE' }],
     });
     expect(byKey.get('BILLING')).toMatchObject({
+      available: true,
+      degradations: [{ dependency: 'CLINICAL_CHARTING', mode: 'HIDE' }],
+    });
+    expect(byKey.get('REFERRALS')).toMatchObject({
       available: true,
       degradations: [{ dependency: 'CLINICAL_CHARTING', mode: 'HIDE' }],
     });

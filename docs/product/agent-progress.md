@@ -457,24 +457,136 @@ suite grows. A module that "works" but has no outage test is not finished.
       only — see the 2026-08-11 log entry below for why real WebRTC stays
       explicitly out of scope and what was built instead.
 - [x] `billing` (capability map row 10): invoice lifecycle only — see the
-      2026-08-11 log entry below (the one added by this run) for why no real
-      Nepali payment settlement integration is in scope and what was built
+      2026-08-11 log entry below for why no real Nepali payment settlement
+      integration is in scope and what was built instead.
+- [x] `referrals` (capability map row 12): request/accept/decline/complete/
+      cancel lifecycle, pairing with `care-directory` — see the 2026-08-11
+      log entry below (the one added by this run) for why row 11
+      (`coverage`) was skipped rather than built first, and what was built
       instead.
 
-Stop after billing and reassess again. Modules 11-20 in the capability map
-are sequenced but must not be started while anything above is unfinished —
-row 8 (patient portal) is `apps/web`/`apps/mobile` themselves, not a module
-that plugs into this registry. The table's own note on row 11 (`coverage`,
-eligibility/insurance verification) already says it is "blocked on Nepali
-insurer interfaces that do not yet exist," so row 12 (`referrals`, pairing
-with `care-directory`) may be the realistic next candidate whenever this note
-is next revisited — but that is this run's own guess, not a decision; the
-next run should re-read the table itself rather than trust this paragraph.
+Stop after referrals and reassess again. Modules 11 and 13-20 in the
+capability map are sequenced but must not be started while anything above is
+unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
+not a module that plugs into this registry, and row 11 (`coverage`) was
+deliberately skipped, not built, because the table's own note calls it
+"blocked on Nepali insurer interfaces that do not yet exist" with no
+compliance-register row naming an interim control the way row 10's did. Row
+13 (`population-health`) may be the realistic next candidate whenever this
+note is next revisited — but that is this run's own guess, not a decision;
+the next run should re-read the table itself rather than trust this
+paragraph.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; reassessed the "stop after
+  billing" note and resumed the clinical suite with `referrals` (capability
+  map row 12).** Grepped for `- [ ]` first — zero hits. The prior run's own
+  log entry named row 12 explicitly as "the realistic next candidate," with
+  row 11 (`coverage`) named as blocked, but was explicit that this was a
+  guess, not a decision — so this run re-read `clinical-suite.md` §3 itself
+  before picking anything up.
+
+  **Why row 12 and not row 11, decided fresh rather than inherited.** The
+  capability map's own row 11 note is stronger language than any prior
+  "skip" this ledger has used — "blocked on Nepali insurer interfaces that
+  do not yet exist" — and unlike row 10 (`billing`), which had
+  `compliance-gap-register.md`'s "Payments/refunds" row naming its own
+  interim control ("configurable ledger; mock provider") to build against
+  honestly, grepping the compliance register for "eligibility", "insurance"
+  and "coverage" returned nothing. Building row 11 today would mean
+  inventing an eligibility-check response shape and an interim control with
+  no textual grounding anywhere in this repo — a bigger, riskier
+  product-and-compliance decision than this run has standing to make
+  unilaterally. Row 12's own note, "Pairs with care-directory," names a
+  real, already-built package to pair with and carries no such gap.
+  Skipping row 11 in table order is not a new kind of exception — row 8
+  (patient portal) was already skipped for a comparable stated reason (it
+  is not a module for this registry at all).
+
+  **What was built — the module 1-7/9/10 shape, applied to row 12.**
+  1. `packages/shared-types/src/index.ts`: `Referral` and its supporting
+     types, in a new "Referrals (capability map row 12)" section following
+     the same header-comment convention every prior section uses. Updated
+     the stale `ClinicalModuleKey` header comment. `ClinicalModuleKey`
+     already declared `'REFERRALS'`/`'COVERAGE'` as of the row 9 run's own
+     "all 19 keys declared up front" precedent, so no shared-types key
+     change was needed there.
+  2. `packages/care-directory/src/index.ts`: added `findDirectoryEntity(id)`,
+     a small lookup port so `referrals` resolves a `referredToEntityId`
+     through care-directory's own export rather than reaching into
+     `fictionalDirectory` directly — §2 rule 1's "resolved through the
+     owning module's port," applied even though care-directory itself is a
+     plain function package with no DI service. One new test.
+  3. `packages/referrals` (new package): `requestReferral`, `acceptReferral`,
+     `declineReferral`, `completeReferral`, `cancelReferral` — a five-state
+     REQUESTED -> ACCEPTED -> COMPLETED machine, REQUESTED also reaching
+     DECLINED or CANCELLED. Modelled deliberately on row 10's own honesty
+     precedent: `care-directory` is a static demonstration registry with no
+     live provider on the other end to accept or decline anything over a
+     network, so `acceptReferral`/`declineReferral`/`completeReferral` are
+     all recorded by the referring clinic's own staff, the same "an outcome
+     reached through an unspecified real-world channel" reasoning
+     `recordPayment` already established rather than a new invention. Once
+     ACCEPTED, only COMPLETED is reachable — cancelling an agreement the
+     target has already accepted outside this system would misrepresent it,
+     mirroring row 9's uncancellable-ACTIVE-session precedent. Full
+     `index.test.ts` coverage, 11 tests including the "cannot cancel once
+     accepted" refusal.
+  4. `apps/api/src/referrals/`: repository (in-memory map, same convention
+     as every sibling), service (`ClinicalChartingService` injected as its
+     public port per §2 rule 3 — `requestReferral` is the one action gated
+     on it; `findDirectoryEntity` is called directly, not injected, since
+     care-directory has no DI service or health state of its own and is
+     therefore not a `degradesWith` edge either), controller (zod-validated),
+     module-descriptor (`REFERRALS`, empty `requires`, one `degradesWith`
+     edge: `HIDE` against `CLINICAL_CHARTING`), and module. Repository,
+     service, controller, module-descriptor and fault-isolation test files,
+     same five-file split every prior module used (28 new `apps/api` tests
+     total).
+  5. Wired into `apps/api/src/app.module.ts` and the `clinical-suite`
+     aggregate (`clinical-suite.module.ts`/`clinical-suite.service.ts`):
+     `GET /clinical-suite/modules` now reports eleven modules, not ten.
+     Updated `clinical-suite.service.test.ts`'s "all N modules available"
+     test for the new count, and added an explicit `REFERRALS` assertion to
+     the existing `CLINICAL_CHARTING`-outage cascade test, alongside
+     `CLINICAL_SUMMARY`/`PRESCRIBING`/`DIAGNOSTICS_ORDERS`/`BILLING` — all
+     five `HIDE`-degrade on the same dependency.
+  6. `apps/api/package.json`: added `@swasthya/referrals` as a real
+     dependency; regenerated `pnpm-lock.yaml` via `--no-frozen-lockfile`,
+     then confirmed `--frozen-lockfile` passes clean afterward, same
+     sequence the row 9/10 runs used for the same reason.
+
+  **What was deliberately not built.** Row 11 (`coverage`) — see above for
+  why this run judged it not yet buildable honestly, not merely
+  out-of-order. No entitlement wiring — confirmed no module 1-7/9/10
+  controller wires entitlements either, so adding it here alone would
+  invent an inconsistency, not fix one. No clinician-facing UI — matches
+  every prior module. No notification to the target provider of any kind —
+  `care-directory` entities have no login or channel to receive one; every
+  status transition here is a manual record, not a live handshake.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the lockfile
+  regeneration; `pnpm lint` 35/35 (up from 34 — the new package); `pnpm
+  typecheck` 35/35; `pnpm test` 64/64 tasks — `@swasthya/api` 426 tests (up
+  from 398: 28 new, across `referrals.repository.test.ts`,
+  `.service.test.ts`, `.controller.test.ts`, `.module-descriptor.test.ts`,
+  `.fault-isolation.test.ts`, plus the updated `clinical-suite.service
+  .test.ts`), `@swasthya/referrals` 11 new tests, `@swasthya/care-directory`
+  up by one (4, from 3); `pnpm build` 35/35, including `apps/web`'s static
+  export and `apps/mobile`'s Expo web bundle. No schema/migration change —
+  this module has no Prisma model yet, matching every module 1-7/9/10
+  precedent (in-memory only) — so no live Postgres was needed this run.
+
+  **For the next run.** Guardianship creation stays open, understood to be
+  blocked on a minor's account-enrolment mechanism, not a DOB field (see
+  earlier log entries). The clinical suite is parked again, this time after
+  row 12 (row 11 deliberately skipped, not built — see above). Row 13
+  (`population-health`) is this run's own non-binding guess at what comes
+  next; re-read `clinical-suite.md` §3 rather than trust it.
 
 - 2026-08-11 — **Queue fully checked again; reassessed the "stop after
   teleconsultation" note and resumed the clinical suite with `billing`

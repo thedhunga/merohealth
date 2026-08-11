@@ -16,6 +16,8 @@ import { PrescribingService } from '../prescribing/prescribing.service.js';
 import { createPrescribingModuleDescriptor } from '../prescribing/prescribing.module-descriptor.js';
 import { RecordsService } from '../records/records.service.js';
 import { createHealthRecordsModuleDescriptor } from '../records/records.module-descriptor.js';
+import { createReferralsModuleDescriptor } from '../referrals/referrals.module-descriptor.js';
+import { ReferralsService } from '../referrals/referrals.service.js';
 import { SchedulingService } from '../scheduling/scheduling.service.js';
 import { createSchedulingModuleDescriptor } from '../scheduling/scheduling.module-descriptor.js';
 import { TeleconsultationService } from '../teleconsultation/teleconsultation.service.js';
@@ -23,7 +25,7 @@ import { createTeleconsultationModuleDescriptor } from '../teleconsultation/tele
 
 /**
  * clinical-suite.md §2 rule 5: "the shell renders around holes." Every
- * module up to `billing` (capability map rows 1–7, 9 and 10, plus
+ * module up to `referrals` (capability map rows 1–7, 9, 10 and 12, plus
  * `HEALTH_RECORDS` from row 16, which `clinical-charting` already degrades
  * against) ships its own `ModuleDescriptor` and its own fault-isolation test
  * proving *its* `requires`/`degradesWith` edges resolve correctly in a
@@ -51,6 +53,7 @@ export class ClinicalSuiteService {
     diagnosticsOrders: DiagnosticsOrdersService,
     teleconsultation: TeleconsultationService,
     billing: BillingService,
+    referrals: ReferralsService,
   ) {
     // Built once, at DI wiring time, per `buildModuleRegistry`'s own
     // contract: a typo'd or missing dependency key fails app bootstrap
@@ -67,6 +70,7 @@ export class ClinicalSuiteService {
       createDiagnosticsOrdersModuleDescriptor(diagnosticsOrders),
       createTeleconsultationModuleDescriptor(teleconsultation),
       createBillingModuleDescriptor(billing),
+      createReferralsModuleDescriptor(referrals),
     ]);
   }
 

@@ -17,6 +17,7 @@ import { PerplexityHealthService } from './perplexity-health.service.js';
 import { PrescribingModule } from './prescribing/prescribing.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RecordsModule } from './records/records.module.js';
+import { ReferralsModule } from './referrals/referrals.module.js';
 import { SchedulingModule } from './scheduling/scheduling.module.js';
 import { TeleconsultationModule } from './teleconsultation/teleconsultation.module.js';
 
@@ -35,6 +36,7 @@ import { TeleconsultationModule } from './teleconsultation/teleconsultation.modu
     DiagnosticsOrdersModule,
     TeleconsultationModule,
     BillingModule,
+    ReferralsModule,
     ClinicalSuiteModule,
     LanguageCorpusModule,
     FamilyModule,

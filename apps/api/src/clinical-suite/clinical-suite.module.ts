@@ -7,13 +7,14 @@ import { MedicationSafetyModule } from '../medication-safety/medication-safety.m
 import { PatientRegistryModule } from '../patient-registry/patient-registry.module.js';
 import { PrescribingModule } from '../prescribing/prescribing.module.js';
 import { RecordsModule } from '../records/records.module.js';
+import { ReferralsModule } from '../referrals/referrals.module.js';
 import { SchedulingModule } from '../scheduling/scheduling.module.js';
 import { TeleconsultationModule } from '../teleconsultation/teleconsultation.module.js';
 import { ClinicalSuiteController } from './clinical-suite.controller.js';
 import { ClinicalSuiteService } from './clinical-suite.service.js';
 
 /**
- * Imports every module up to `billing` purely to reuse the services Nest
+ * Imports every module up to `referrals` purely to reuse the services Nest
  * already constructed for them — this module owns no data and no
  * repository of its own, only the aggregate view over the others'
  * already-exported ports.
@@ -30,6 +31,7 @@ import { ClinicalSuiteService } from './clinical-suite.service.js';
     DiagnosticsOrdersModule,
     TeleconsultationModule,
     BillingModule,
+    ReferralsModule,
   ],
   controllers: [ClinicalSuiteController],
   providers: [ClinicalSuiteService],

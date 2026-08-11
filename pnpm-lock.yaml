@@ -107,6 +107,9 @@ importers:
       '@swasthya/prescribing':
         specifier: workspace:*
         version: link:../../packages/prescribing
+      '@swasthya/referrals':
+        specifier: workspace:*
+        version: link:../../packages/referrals
       '@swasthya/scheduling':
         specifier: workspace:*
         version: link:../../packages/scheduling
@@ -653,6 +656,19 @@ importers:
         version: 4.1.10(@types/node@24.1.0)(vite@8.2.1(@types/node@24.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.9)(yaml@2.9.0))
 
   packages/prescribing:
+    dependencies:
+      '@swasthya/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@types/node@24.1.0)(vite@8.2.1(@types/node@24.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.9)(yaml@2.9.0))
+
+  packages/referrals:
     dependencies:
       '@swasthya/shared-types':
         specifier: workspace:*

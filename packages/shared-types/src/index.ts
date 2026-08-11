@@ -315,12 +315,17 @@ export interface CredentialingBadge {
  *
  * docs/architecture/clinical-suite.md §3's capability map, minus row 8
  * ("Patient portal" — that is `apps/web` + `apps/mobile` themselves, not a
- * module that plugs into this fault-isolation system). Modules 1-7, 9 and 10
- * are built; 11-20 are sequenced but deliberately parked — see
+ * module that plugs into this fault-isolation system). Modules 1-7, 9, 10
+ * and 12 are built; 11 and 13-20 are sequenced but deliberately parked — see
  * agent-progress.md's "stop after prescribing and reassess" note, extended
  * first to "stop after diagnostics-orders" once row 7 shipped, then to "stop
  * after teleconsultation" once row 9 shipped, then to "stop after billing"
- * once row 10 shipped. All 19 keys are declared up front so
+ * once row 10 shipped, then to "stop after referrals" once row 12 shipped —
+ * row 11 (`coverage`) was skipped in table order, the same way row 8 was,
+ * because the capability map's own note calls it "blocked on Nepali insurer
+ * interfaces that do not yet exist," with no compliance-register row naming
+ * an interim control the way row 10's "mock provider" one did. All 19 keys
+ * are declared up front so
  * `requires`/`degradesWith` references compile-check against the full
  * eventual map, not just whichever module happens to exist today.
  * ------------------------------------------------------------------ */
@@ -989,4 +994,68 @@ export interface OpenInvoiceInput {
 export interface RecordPaymentInput {
   reference: string;
   recordedBy: string;
+}
+
+/* ------------------------------------------------------------------ *
+ * Referrals (clinical-suite.md capability map row 12)
+ *
+ * "Referral management ... Pairs with care-directory." `care-directory` is
+ * a static, in-memory fictional demonstration registry (see
+ * `packages/care-directory`) with no live counterpart on the other end to
+ * accept or decline anything over a network — every referral outcome
+ * recorded here is entered by the referring clinic's own staff, the same
+ * "the system records an outcome reached through an unspecified real-world
+ * channel" honesty row 10's `recordPayment` already established for a phone
+ * call or a bank transfer it cannot see. `referredToEntityId` is a
+ * `DirectoryEntity.id`, resolved through care-directory's own
+ * `findDirectoryEntity` port (§2 rule 1) rather than trusted as an opaque
+ * string nobody checked — see
+ * `apps/api/src/referrals/referrals.service.ts`.
+ *
+ * Every referral is requested against an existing `clinical-charting`
+ * encounter, the same precedent rows 6/7/9/10 set for placing a clinical
+ * action against one; `patientId` is therefore derived rather than
+ * caller-supplied.
+ *
+ * The lifecycle is REQUESTED -> ACCEPTED -> COMPLETED, with REQUESTED also
+ * reachable to DECLINED or CANCELLED. Once ACCEPTED, the only forward
+ * transition is COMPLETED — cancelling an agreement the target provider has
+ * already accepted outside this system would misrepresent it, the same
+ * reasoning row 9's ACTIVE session being uncancellable already established.
+ * ------------------------------------------------------------------ */
+export type ReferralStatus = 'REQUESTED' | 'ACCEPTED' | 'DECLINED' | 'CANCELLED' | 'COMPLETED';
+
+export interface Referral {
+  id: string;
+  patientId: string;
+  clinicianId: string;
+  encounterId: string;
+  referredToEntityId: string;
+  reason: string;
+  status: ReferralStatus;
+  /** Set only once accepted; stays null otherwise. */
+  acceptedAt: string | null;
+  /** Set together, only once declined; both stay null otherwise. */
+  declinedAt: string | null;
+  declineReason: string | null;
+  /** Set together, only once cancelled; both stay null otherwise. */
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  /** Set only once completed; stays null otherwise. */
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+/**
+ * `patientId` is deliberately absent, the same precedent
+ * `OpenPrescriptionInput`/`OpenInvoiceInput` set: the API boundary derives
+ * it from the `clinical-charting` encounter the referral is requested
+ * against.
+ */
+export interface RequestReferralInput {
+  clinicianId: string;
+  referredToEntityId: string;
+  reason: string;
 }
