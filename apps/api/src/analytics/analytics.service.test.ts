@@ -1,7 +1,14 @@
 import { ServiceUnavailableException } from '@nestjs/common';
+import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
+import { BillingRepository } from '../billing/billing.repository.js';
+import { BillingService } from '../billing/billing.service.js';
+import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
+import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
 import { PatientRegistryRepository } from '../patient-registry/patient-registry.repository.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
+import { RecordsRepository } from '../records/records.repository.js';
+import { RecordsService } from '../records/records.service.js';
 import { SchedulingRepository } from '../scheduling/scheduling.repository.js';
 import { SchedulingService } from '../scheduling/scheduling.service.js';
 import { AnalyticsService } from './analytics.service.js';
@@ -9,8 +16,11 @@ import { AnalyticsService } from './analytics.service.js';
 function buildStack() {
   const patients = new PatientRegistryService(new PatientRegistryRepository());
   const scheduling = new SchedulingService(new SchedulingRepository(), patients);
-  const analytics = new AnalyticsService(patients, scheduling);
-  return { patients, scheduling, analytics };
+  const documents = new RecordsService(new RecordsRepository(), new InMemoryDocumentStore('HOSTED'));
+  const charting = new ClinicalChartingService(new ClinicalChartingRepository(), documents);
+  const billing = new BillingService(new BillingRepository(), charting);
+  const analytics = new AnalyticsService(patients, scheduling, billing);
+  return { patients, scheduling, charting, billing, analytics };
 }
 
 describe('AnalyticsService.patientRegistrySummary', () => {
@@ -94,6 +104,48 @@ describe('AnalyticsService.schedulingSummary', () => {
     await expect(analytics.schedulingSummary()).resolves.toEqual({
       totalAppointments: 1,
       byStatus: { SCHEDULED: 1, CANCELLED: 0 },
+    });
+  });
+});
+
+describe('AnalyticsService.billingSummary', () => {
+  it('counts invoices, broken down by status', async () => {
+    const { charting, billing, analytics } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    await billing.openInvoice(encounter.id, { clinicianId: 'clinician-1' });
+
+    const summary = await analytics.billingSummary();
+
+    expect(summary).toEqual({ totalInvoices: 1, byStatus: { DRAFT: 1, ISSUED: 0, PAID: 0, VOID: 0 } });
+  });
+
+  it('refuses (503) while billing is down, even though patient-registry and scheduling are up', async () => {
+    const { billing, analytics } = buildStack();
+    billing.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+
+    await expect(analytics.billingSummary()).rejects.toThrow(ServiceUnavailableException);
+  });
+
+  it('a down billing does not block the patient or scheduling summaries, and vice versa', async () => {
+    const { patients, charting, billing, analytics } = buildStack();
+    patients.register({
+      displayName: 'Sita Rai',
+      dateOfBirth: '1990-04-12',
+      sex: 'FEMALE',
+      phone: '9800000000',
+      preferredLocale: 'ne',
+    });
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    await billing.openInvoice(encounter.id, { clinicianId: 'clinician-1' });
+
+    billing.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+    await expect(analytics.patientRegistrySummary()).resolves.toMatchObject({ totalPatients: 1 });
+
+    billing.health = () => Promise.resolve({ status: 'UP' });
+    patients.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+    await expect(analytics.billingSummary()).resolves.toEqual({
+      totalInvoices: 1,
+      byStatus: { DRAFT: 1, ISSUED: 0, PAID: 0, VOID: 0 },
     });
   });
 });

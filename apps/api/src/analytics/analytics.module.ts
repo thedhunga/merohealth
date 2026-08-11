@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BillingModule } from '../billing/billing.module.js';
 import { PatientRegistryModule } from '../patient-registry/patient-registry.module.js';
 import { SchedulingModule } from '../scheduling/scheduling.module.js';
 import { AnalyticsController } from './analytics.controller.js';
@@ -9,7 +10,7 @@ import { AnalyticsService } from './analytics.service.js';
  * clinical-suite.md capability map row 14's "read-only replica."
  */
 @Module({
-  imports: [PatientRegistryModule, SchedulingModule],
+  imports: [PatientRegistryModule, SchedulingModule, BillingModule],
   controllers: [AnalyticsController],
   providers: [AnalyticsService],
   exports: [AnalyticsService],

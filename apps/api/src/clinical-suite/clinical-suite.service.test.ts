@@ -45,7 +45,7 @@ function buildStack() {
   const billing = new BillingService(new BillingRepository(), charting);
   const referrals = new ReferralsService(new ReferralsRepository(), charting);
   const populationHealth = new PopulationHealthService(summary, scheduling);
-  const analytics = new AnalyticsService(patients, scheduling);
+  const analytics = new AnalyticsService(patients, scheduling, billing);
   return {
     records,
     patients,
@@ -149,9 +149,11 @@ describe('ClinicalSuiteService', () => {
     // clinical-charting at all and must read as fully available —
     // teleconsultation's own dependencies are SCHEDULING, population-health's
     // are CLINICAL_SUMMARY/SCHEDULING and analytics's are PATIENT_REGISTRY/
-    // SCHEDULING, none of them CLINICAL_CHARTING, and CLINICAL_SUMMARY being
-    // merely degraded (not DOWN) does not cascade to it either (§2's
-    // "degradesWith never cascades past one hop").
+    // SCHEDULING/BILLING, none of them CLINICAL_CHARTING directly, and
+    // neither CLINICAL_SUMMARY nor BILLING being merely degraded (not DOWN)
+    // cascades to what depends on them either (§2's "degradesWith never
+    // cascades past one hop") — BILLING stays `available: true` above, so
+    // analytics's own edge to it never fires.
     expect(byKey.get('PATIENT_REGISTRY')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('SCHEDULING')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('TELECONSULTATION')).toMatchObject({ available: true, degradations: [] });

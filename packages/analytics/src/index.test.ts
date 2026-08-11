@@ -1,6 +1,6 @@
-import type { Appointment, PatientRecord } from '@swasthya/shared-types';
+import type { Appointment, Invoice, PatientRecord } from '@swasthya/shared-types';
 import { describe, expect, it } from 'vitest';
-import { buildPatientRegistrySummary, buildSchedulingSummary } from './index.js';
+import { buildBillingSummary, buildPatientRegistrySummary, buildSchedulingSummary } from './index.js';
 
 const now = '2026-08-11T09:00:00.000Z';
 
@@ -28,6 +28,23 @@ function appointment(overrides: Partial<Appointment> & Pick<Appointment, 'id' | 
     scheduledStart: '2026-09-01T09:00:00.000Z',
     scheduledEnd: '2026-09-01T09:30:00.000Z',
     status: 'SCHEDULED',
+    createdAt: now,
+    updatedAt: now,
+    version: 1,
+    ...overrides,
+  };
+}
+
+function invoice(overrides: Partial<Invoice> & Pick<Invoice, 'id' | 'patientId'>): Invoice {
+  return {
+    clinicianId: 'clinician-1',
+    encounterId: 'encounter-1',
+    status: 'DRAFT',
+    lineItems: [],
+    issuedAt: null,
+    payment: null,
+    voidedAt: null,
+    voidReason: null,
     createdAt: now,
     updatedAt: now,
     version: 1,
@@ -76,6 +93,30 @@ describe('buildSchedulingSummary', () => {
     expect(buildSchedulingSummary(appointments)).toEqual({
       totalAppointments: 3,
       byStatus: { SCHEDULED: 2, CANCELLED: 1 },
+    });
+  });
+});
+
+describe('buildBillingSummary', () => {
+  it('reports zero for every status when there are no invoices', () => {
+    expect(buildBillingSummary([])).toEqual({
+      totalInvoices: 0,
+      byStatus: { DRAFT: 0, ISSUED: 0, PAID: 0, VOID: 0 },
+    });
+  });
+
+  it('counts total invoices and breaks the count down by status', () => {
+    const invoices = [
+      invoice({ id: 'invoice-1', patientId: 'patient-1', status: 'DRAFT' }),
+      invoice({ id: 'invoice-2', patientId: 'patient-1', status: 'ISSUED' }),
+      invoice({ id: 'invoice-3', patientId: 'patient-2', status: 'PAID' }),
+      invoice({ id: 'invoice-4', patientId: 'patient-2', status: 'VOID' }),
+      invoice({ id: 'invoice-5', patientId: 'patient-2', status: 'PAID' }),
+    ];
+
+    expect(buildBillingSummary(invoices)).toEqual({
+      totalInvoices: 5,
+      byStatus: { DRAFT: 1, ISSUED: 1, PAID: 2, VOID: 1 },
     });
   });
 });

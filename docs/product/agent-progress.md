@@ -475,6 +475,11 @@ suite grows. A module that "works" but has no outage test is not finished.
       this run) for why each summary degrades against exactly one source
       instead of the whole module hiding together, and what was
       deliberately left out.
+- [x] Extended `analytics` with a third source, `billing` (invoice totals
+      by status) — the item that run's own log entry named as "an equally
+      honest, lower-risk next step within row 14 itself, deliberately left
+      incomplete above." See the 2026-08-11 log entry below (the one added
+      by this run) for why this stayed a plain count, no revenue figure.
 - [x] Wired `TeleconsultationController.schedule` behind
       `SessionAuthGuard`/`EntitlementsGuard`/`@RequireModule('TELECONSULTATION')`
       — added once the queue was found fully checked again, per the working
@@ -511,6 +516,101 @@ run should re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; extended `analytics` (capability
+  map row 14) with a third source, `billing`.** Grepped for `- [ ]` first —
+  zero hits. Two named candidates were open going into this run: the
+  `companion.controller.ts` missing-`EntitlementsGuard` gap, and extending
+  `analytics` with more sources (billing/referrals/clinical-charting),
+  explicitly left incomplete by the run that built the module. A
+  general-purpose agent scoped the companion gap first and found it is
+  **not** the small fix its name suggests: `apps/mobile/app/(tabs)/companion.tsx`
+  calls `/companion/research` with no `Authorization` header, and the mobile
+  app has **no login/OTP screen anywhere** under `apps/mobile/app` — adding
+  `SessionAuthGuard` would 401 every current caller of the one flow the
+  companion tab exists for. Honestly metering
+  `ASSISTANT_MESSAGES_PER_MONTH` would also need a new Prisma model (nothing
+  in the schema fits — `AiConversation`/`AiMessage` exist but are wired to
+  nothing) plus a decision about anonymous use that only the product owner
+  should make, not something to invent inside a "queue exhausted" run. Left
+  untouched, flagged plainly below instead of quietly fixed halfway.
+
+  **Why billing instead of referrals or clinical-charting.** Both are
+  equally valid per the prior run's note; billing was picked because
+  `InvoiceStatus` (`DRAFT`/`ISSUED`/`PAID`/`VOID`) is a closed, already-typed
+  enum exactly like `AppointmentStatus`, so `buildBillingSummary` could
+  follow `buildSchedulingSummary`'s shape line-for-line with no new judgment
+  calls about what "counts." Referrals/clinical-charting remain open for
+  whichever run picks up row 14 next.
+
+  **What was built.**
+  1. `packages/shared-types/src/index.ts`: `BillingSummary` (`totalInvoices`
+     plus a count per `InvoiceStatus`), with a doc comment stating explicitly
+     why this is an invoice **count**, not a revenue sum — summing
+     `amountPaisa` would be a different, higher-stakes claim with no
+     reconciliation step behind it yet.
+  2. `packages/analytics`: `buildBillingSummary`, zero-filling every
+     `InvoiceStatus` the same way `buildSchedulingSummary` already does. 2
+     new tests.
+  3. `apps/api/src/analytics/`: `AnalyticsService` now takes `BillingService`
+     as a third injected port and gates `billingSummary()` on only
+     `billing.health()` — the same one-hop-per-summary shape the module
+     already had, so a billing outage never touches the patient or
+     scheduling summaries and vice versa. `AnalyticsController` gained
+     `GET /analytics/billing`. `AnalyticsModule` imports `BillingModule`.
+     `createAnalyticsModuleDescriptor` gained a third `degradesWith` edge,
+     `{ key: 'BILLING', mode: 'HIDE' }`.
+  4. Updated every test that constructs `AnalyticsService` directly
+     (`analytics.service.test.ts`, `.controller.test.ts`,
+     `.module-descriptor.test.ts`, `.fault-isolation.test.ts`,
+     `clinical-suite.service.test.ts`) to pass a real `BillingService`, built
+     the same way `billing.service.test.ts`'s own `buildStack` already does
+     (`RecordsService` → `ClinicalChartingService` → `BillingService`, since
+     billing itself depends on clinical-charting). Registering `ANALYTICS`
+     in a `buildModuleRegistry` call now transitively requires
+     `CLINICAL_CHARTING`'s and `BILLING`'s own descriptors, which in turn
+     requires `HEALTH_RECORDS`'s — `buildModuleRegistry` validates every
+     `degradesWith` reference, so the fault-isolation tests needed all four
+     real descriptors registered together, not just the one edge each test
+     exercises. 3 new fault-isolation tests (BILLING-down cascade,
+     BILLING-down behavioural refusal, cross-isolation both ways) plus the
+     billing branch of the existing service/controller describe blocks.
+     `clinical-suite.service.test.ts`'s three existing assertions needed no
+     behavioural changes — `BILLING` stays `available: true` under a
+     `CLINICAL_CHARTING` outage (only `HIDE`-degraded), so `ANALYTICS`'s new
+     edge to it never fires there, matching the doc-comment expectation.
+
+  **What was deliberately not built.** No revenue/amount aggregation — see
+  the `BillingSummary` doc comment above. No `referrals` or
+  `clinical-charting` source added in the same run — the prior run's own
+  note already flagged three candidates and doing more than one in a run
+  means more untested cross-source interactions than "queue exhausted"
+  should take on at once. No `companion.controller.ts` change — see above.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new package, only new fields/methods on an existing one). `pnpm lint`
+  37/37. `pnpm typecheck` 37/37. `pnpm test` 68/68 tasks — `@swasthya/api`
+  473 tests (up from 466: 7 new — 2 service, 2 controller, 0
+  module-descriptor test count change beyond the existing two being
+  extended, 3 fault-isolation), `@swasthya/analytics` 6 tests (up from 4).
+  `pnpm build` 37/37, including `apps/web`'s static export and
+  `apps/mobile`'s Expo web bundle. No schema/migration change — `BILLING`
+  already had its own Prisma-free in-memory repository from its own
+  original run; this only added a read path analytics didn't have before.
+
+  **For the next run.** The `companion.controller.ts` gap is real but bigger
+  than a "queue exhausted" pick: it needs (a) a product decision on whether
+  the companion assistant stays anonymous or requires sign-in, (b) if it
+  stays anonymous, a different enforcement shape than `SessionAuthGuard`
+  entirely (a per-device or per-IP rate limit, not a per-`subjectId` quota),
+  and (c) either way, a new Prisma model to meter real usage — the unused
+  `AiConversation`/`AiMessage` models in the schema are not scoped to a
+  caller and would need real wiring, not reuse. This deserves its own
+  dedicated run with that decision made explicit, not a silent guess folded
+  into whichever task happens to be picked up next. `referrals` and
+  `clinical-charting` remain open, equally valid next sources for `analytics`
+  row 14. Row 15 (`engagement`) remains exactly where every prior
+  reassessment left it.
 
 - 2026-08-11 — **Queue fully checked again; wrote the sibling "asked by a
   delegate on another subject's behalf" test in

@@ -1122,3 +1122,15 @@ export interface SchedulingSummary {
   totalAppointments: number;
   byStatus: Record<AppointmentStatus, number>;
 }
+
+/**
+ * Deliberately a count of invoices by status, not a revenue figure. Summing
+ * `amountPaisa` across line items would report money moved, which is a
+ * different, higher-stakes claim than "this many invoices exist" and this
+ * module has no reconciliation step to stand behind it — a future run can
+ * add a revenue summary once one does.
+ */
+export interface BillingSummary {
+  totalInvoices: number;
+  byStatus: Record<InvoiceStatus, number>;
+}

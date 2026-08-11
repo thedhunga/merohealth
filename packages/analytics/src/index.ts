@@ -1,6 +1,9 @@
 import type {
   Appointment,
   AppointmentStatus,
+  BillingSummary,
+  Invoice,
+  InvoiceStatus,
   PatientRecord,
   PatientRegistrySummary,
   PatientSex,
@@ -27,6 +30,7 @@ import type {
 
 const PATIENT_SEXES: readonly PatientSex[] = ['FEMALE', 'MALE', 'OTHER', 'UNDISCLOSED'];
 const APPOINTMENT_STATUSES: readonly AppointmentStatus[] = ['SCHEDULED', 'CANCELLED'];
+const INVOICE_STATUSES: readonly InvoiceStatus[] = ['DRAFT', 'ISSUED', 'PAID', 'VOID'];
 
 /** Every key starts at zero so a status with no rows yet still appears in the summary. */
 function zeroCounts<T extends string>(keys: readonly T[]): Record<T, number> {
@@ -43,4 +47,10 @@ export function buildSchedulingSummary(appointments: readonly Appointment[]): Sc
   const byStatus = zeroCounts(APPOINTMENT_STATUSES);
   for (const appointment of appointments) byStatus[appointment.status] += 1;
   return { totalAppointments: appointments.length, byStatus };
+}
+
+export function buildBillingSummary(invoices: readonly Invoice[]): BillingSummary {
+  const byStatus = zeroCounts(INVOICE_STATUSES);
+  for (const invoice of invoices) byStatus[invoice.status] += 1;
+  return { totalInvoices: invoices.length, byStatus };
 }

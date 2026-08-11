@@ -1,7 +1,14 @@
 import { ServiceUnavailableException } from '@nestjs/common';
+import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
+import { BillingRepository } from '../billing/billing.repository.js';
+import { BillingService } from '../billing/billing.service.js';
+import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
+import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
 import { PatientRegistryRepository } from '../patient-registry/patient-registry.repository.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
+import { RecordsRepository } from '../records/records.repository.js';
+import { RecordsService } from '../records/records.service.js';
 import { SchedulingRepository } from '../scheduling/scheduling.repository.js';
 import { SchedulingService } from '../scheduling/scheduling.service.js';
 import { AnalyticsController } from './analytics.controller.js';
@@ -10,9 +17,12 @@ import { AnalyticsService } from './analytics.service.js';
 function buildController() {
   const patients = new PatientRegistryService(new PatientRegistryRepository());
   const scheduling = new SchedulingService(new SchedulingRepository(), patients);
-  const analytics = new AnalyticsService(patients, scheduling);
+  const documents = new RecordsService(new RecordsRepository(), new InMemoryDocumentStore('HOSTED'));
+  const charting = new ClinicalChartingService(new ClinicalChartingRepository(), documents);
+  const billing = new BillingService(new BillingRepository(), charting);
+  const analytics = new AnalyticsService(patients, scheduling, billing);
   const controller = new AnalyticsController(analytics);
-  return { controller, patients, scheduling };
+  return { controller, patients, scheduling, charting, billing };
 }
 
 describe('AnalyticsController.patients', () => {
@@ -68,6 +78,26 @@ describe('AnalyticsController.scheduling', () => {
     scheduling.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
 
     await expect(controller.scheduling()).rejects.toThrow(ServiceUnavailableException);
+  });
+});
+
+describe('AnalyticsController.billing', () => {
+  it('returns the billing summary', async () => {
+    const { controller, charting, billing } = buildController();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    await billing.openInvoice(encounter.id, { clinicianId: 'clinician-1' });
+
+    await expect(controller.billing()).resolves.toEqual({
+      totalInvoices: 1,
+      byStatus: { DRAFT: 1, ISSUED: 0, PAID: 0, VOID: 0 },
+    });
+  });
+
+  it('rejects (503) while billing is down', async () => {
+    const { controller, billing } = buildController();
+    billing.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+
+    await expect(controller.billing()).rejects.toThrow(ServiceUnavailableException);
   });
 });
 

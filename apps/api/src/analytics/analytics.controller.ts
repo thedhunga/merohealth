@@ -34,4 +34,12 @@ export class AnalyticsController {
   scheduling() {
     return this.analytics.schedulingSummary();
   }
+
+  @Get('billing')
+  @ApiOperation({
+    summary: 'Invoice totals, broken down by status. Refused (503) while billing is unavailable.',
+  })
+  billing() {
+    return this.analytics.billingSummary();
+  }
 }
