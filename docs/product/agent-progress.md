@@ -489,6 +489,12 @@ suite grows. A module that "works" but has no outage test is not finished.
       round two §B shipped and unblocked once §C did. See the 2026-08-11
       log entry below (the one added by this run) for what it composes and
       why.
+- [x] Wrote the sibling "asked by a delegate on another subject's behalf"
+      half of `packages/evaluation/src/index.test.ts:60`, replacing its own
+      `describe.todo` — the last of the two `packages/family`-blocked test
+      gaps a run's own log entry had explicitly named as "the more obvious
+      'queue exhausted' pick." See the 2026-08-11 log entry below (the one
+      added by this run) for what it composes and why.
 
 Stop after analytics and reassess again. Modules 11 and 15-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -505,6 +511,60 @@ run should re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; wrote the sibling "asked by a
+  delegate on another subject's behalf" test in
+  `packages/evaluation/src/index.test.ts`, replacing its own
+  `describe.todo`.** Grepped for `- [ ]` first — zero hits. This run's own
+  immediate predecessor (the intent-router cross-subject-leakage entry
+  directly below) had just done the `packages/intent-router` half of the
+  same pair and named this one explicitly as "the more obvious 'queue
+  exhausted' pick" for whoever came next — that recommendation is what this
+  run acted on, rather than re-surveying the repo from scratch or reaching
+  for row 15 (`engagement`), which two prior entries have already flagged as
+  a guess deserving its own dedicated run.
+
+  **What was built.** `@swasthya/family` added as a devDependency of
+  `packages/evaluation` only (mirroring `packages/intent-router`'s own
+  boundary exactly — `runEvaluationCase`/`route` still take a plain
+  `subjectId` and know nothing about delegation; this package gains a test
+  proving delegation composes with the evaluation harness, not a runtime
+  feature). The `describe.todo` in `describe('evaluationCases', ...)` is
+  replaced with a real `describe` block reproducing the actual seeded
+  Janaki→Sunita `DelegationGrant` (`packages/database/src/seed-data.ts`'s
+  `delegationGrants[0]`: `VIEW_RECORD`/`ASK_ASSISTANT`, assisted enrolment
+  recorded by Sunita, `IN_PERSON_VERBAL`) via
+  `grantDelegationByAssistedEnrolment` — same ids, scopes and dates as the
+  seed, not an invented grant. Four tests: (1) `hasScope` is the gate a real
+  call site checks before resolving Sunita's question to Janaki's
+  `subjectId`; (2) a revoked grant fails that gate; (3) Sunita asking on
+  Janaki's behalf — i.e. the effective `subjectId` resolved from the grant —
+  reruns the existing `janaki-glucose-trend-ne` case unchanged and asserts
+  every citation's `documentId` is one of Janaki's, never Sunita's (derived
+  from `demonstrationCorpus.observations` at runtime rather than hardcoding
+  a second copy of the seed's document ids); (4) the symmetric case — Sunita
+  asking in her own context, via `sunita-thyroid-trend-ne` — asserts no
+  citation's `documentId` is Janaki's, so the delegation Sunita holds into
+  Janaki's record never leaks the other way.
+
+  **Verify.** `pnpm install --frozen-lockfile` failed as expected (new
+  devDependency), `pnpm install --no-frozen-lockfile` added the three-line
+  lockfile entry for `@swasthya/family` under `@swasthya/evaluation`,
+  nothing else changed. `pnpm lint` 37/37. `pnpm typecheck` 37/37. `pnpm
+  test` 68/68 tasks — `@swasthya/evaluation` went from 9 to 13 tests; every
+  other package's count unchanged, `@swasthya/api` still at 466. `pnpm
+  build` 37/37, including `apps/web`'s static export and `apps/mobile`'s
+  Expo web bundle.
+
+  **For the next run.** Both `packages/family`-blocked `describe.todo`
+  blocks named across the last several log entries are now done. The
+  remaining named-but-untouched candidate is still
+  `companion.controller.ts`'s `assess`/`research` routes carrying no
+  `EntitlementsGuard` at all — flagged three log entries back as real but
+  lower severity than the teleconsultation gap that run fixed instead, since
+  `ASSISTANT` is FREE-tier-included so this is a metering omission, not a
+  paywall bypass. Row 15 (`engagement`) remains open too, exactly as every
+  prior reassessment has left it.
 
 - 2026-08-11 — **Queue fully checked again; wrote the real "under an active
   delegation" cross-subject-leakage test that had been left as a
