@@ -523,22 +523,149 @@ suite grows. A module that "works" but has no outage test is not finished.
       follow-up if anyone wants this specific gap fully closed." See the
       2026-08-11 log entry below (the one added by this run) for what stayed
       unconditional (brand lockup, all-caps eyebrow badges) and why.
+- [x] `engagement` (capability map row 15): patient messaging/reminders over
+      SMS/WhatsApp, `QUEUE_AND_RETRY` by nature — the module every recent
+      log entry had repeated as "the strongest actual candidate left." See
+      the 2026-08-11 log entry below (the one added by this run) for the
+      queue/deliver/retry design and why there is no DELIVERED status.
 
-Stop after analytics and reassess again. Modules 11 and 15-20 in the
+Stop after engagement and reassess again. Modules 11 and 16-20 in the
 capability map are sequenced but must not be started while anything above is
 unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
 not a module that plugs into this registry, and row 11 (`coverage`) was
 deliberately skipped, not built, because the table's own note calls it
 "blocked on Nepali insurer interfaces that do not yet exist" with no
-compliance-register row naming an interim control the way row 10's did. Row
-15 (`engagement`) may be the realistic next candidate whenever this note is
-next revisited — but that is this run's own guess, not a decision; the next
-run should re-read the table itself rather than trust this paragraph.
+compliance-register row naming an interim control the way row 10's did. With
+row 15 now built, `health-records` (row 16, already built), `interop` (row
+17, already queued/built in the platform vision) and `immunization`/
+`quality-reporting`/`tenancy` (rows 18-20) are what remain — but which of
+those is the realistic next candidate is this run's own guess, not a
+decision; the next run should re-read the table itself rather than trust
+this paragraph.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; built the `engagement` module
+  (capability map row 15).** Grepped for `- [ ]` first — zero hits, same as
+  every prior "queue exhausted" run. Five consecutive prior log entries had
+  each named row 15 as "the strongest actual candidate left" without
+  building it, so this run read `clinical-suite.md` row 15's note in
+  full — "Patient messaging, reminders ... SMS/WhatsApp. `QUEUE_AND_RETRY`
+  by nature" — and the existing `apps/api/src/auth/sms-provider.ts` (a
+  logging mock built for OTP delivery, env-gated on `SMS_PROVIDER=mock`,
+  with no real gateway contracted) before designing anything, since that
+  file is the closest precedent for an SMS-shaped port in this repo.
+
+  **What was built.** `packages/shared-types` gained an `Engagement`
+  section (`EngagementChannel = 'SMS' | 'WHATSAPP'`, `EngagementMessageKind
+  = 'REMINDER' | 'GENERAL'`, `EngagementMessage`,
+  `QueueEngagementMessageInput`) with a header comment working through why
+  `channel` is a real union (row 15 names both real channels directly,
+  unlike row 10's `PaymentProvider`, which stayed `'MOCK'`-only because
+  nothing in the repo names a real Nepali payment integration) and why
+  there is no `DELIVERED` status (no adapter here has a delivery receipt to
+  report — `SENT`, meaning "handed to a channel," is the honest limit). New
+  `packages/engagement` is the pure domain layer: `queueMessage` (always
+  QUEUED, never throws), `markSent`/`markFailed` (both require QUEUED), and
+  `retryMessage` (requires FAILED, returns to QUEUED without touching
+  `attemptCount` — that only advances on the next `markSent`/`markFailed`).
+  New `apps/api/src/engagement/`: `delivery-provider.ts`
+  (`EngagementDeliveryProvider` port + `MockEngagementDeliveryProvider`,
+  logging, env-gated on a new `ENGAGEMENT_PROVIDER=mock`, mirroring
+  `sms-provider.ts` line for line down to the "throw on an unrecognised
+  value" boot-time check), `engagement.repository.ts` (in-memory, same
+  `ReferralsRepository` shape), `engagement.service.ts`,
+  `engagement.module-descriptor.ts`, `engagement.controller.ts` and
+  `engagement.module.ts`. `EngagementService.queueMessage` resolves the
+  patient through `PatientRegistryService` (refusing, 503, while
+  patient-registry is DOWN — the same `HIDE`-on-open-action shape
+  `ReferralsService.requestReferral` already uses for clinical-charting),
+  captures `phone` onto the message at queue time, and immediately attempts
+  delivery, recording SENT or FAILED rather than leaving a message
+  perpetually QUEUED. `retryMessage` deliberately never touches
+  patient-registry — the destination was already captured — so it stays
+  available even if patient-registry has since gone down, the same
+  "terminal transitions don't re-depend on the foundation that opened the
+  record" property `referrals`' accept/decline/complete/cancel already
+  established for clinical-charting.
+
+  **Wiring.** `ENGAGEMENT` was already reserved in
+  `ClinicalModuleKey` (a prior run's own comment names it explicitly), so
+  no enum change was needed there. `EngagementModule` added to
+  `app.module.ts` and to `clinical-suite.module.ts`;
+  `ClinicalSuiteService` now takes a fourteenth constructor argument and
+  registers `createEngagementModuleDescriptor` alongside the other
+  thirteen — `clinical-suite.service.test.ts` updated throughout: the
+  "everything up" test now expects fourteen modules including `ENGAGEMENT`,
+  the `CLINICAL_CHARTING`-down test asserts `ENGAGEMENT` reads fully
+  available (it has no edge to charting), and the `PATIENT_REGISTRY`-down
+  test asserts `ENGAGEMENT` gets the same one-hop `HIDE` degradation
+  `ANALYTICS` already gets, for the same reason (both declare a direct
+  edge on `PATIENT_REGISTRY`, not only a transitive one through
+  `SCHEDULING`). `health.controller.ts`'s static integrations object
+  gained `engagement: 'mock'`, matching its existing `sms: 'mock'` entry.
+  `.env.example` gained `ENGAGEMENT_PROVIDER=mock`. New
+  `@swasthya/engagement` workspace package required a non-frozen
+  `pnpm install` once to regenerate `pnpm-lock.yaml`, then verified clean
+  under `--frozen-lockfile` before any other step ran.
+
+  **Tests.** `packages/engagement/src/index.test.ts` (10 tests) covers the
+  full QUEUED→SENT / QUEUED→FAILED→QUEUED state machine and both guard
+  errors. `apps/api/src/engagement/` gained
+  `engagement.repository.test.ts` (3), `engagement.service.test.ts` (10,
+  including "records FAILED rather than throwing when the provider
+  rejects" and "stays available to retry even while patient-registry is
+  down"), `engagement.controller.test.ts` (5),
+  `engagement.module-descriptor.test.ts` (2) and
+  `engagement.fault-isolation.test.ts` (4) — the last following
+  `referrals.fault-isolation.test.ts`'s exact three-part shape: a broken
+  repository doesn't take patient-registry down with it, `resolveAvailability`
+  reports the one real `HIDE` edge correctly, and two behavioural tests
+  (refuses-then-resumes on queue; retry stays available) exercise the
+  service directly rather than only the registry. One eslint fix along the
+  way: `engagement.service.test.ts` originally typed its mock provider as
+  `EngagementDeliveryProvider` and asserted
+  `expect(provider.send).toHaveBeenCalledWith(...)`, which trips
+  `@typescript-eslint/unbound-method` — reused `auth.service.test.ts`'s own
+  documented workaround (keep the mock as an untyped
+  `{ send: ReturnType<typeof vi.fn> }` shape, cast to the port type only at
+  the constructor boundary) rather than inventing a new one.
+
+  **What was deliberately left out.** No real SMS/WhatsApp gateway
+  integration — there is no contracted provider named anywhere in this
+  repo, and inventing one (a partner name, an API shape) would be exactly
+  the fabrication the standing constraints forbid;
+  `MockEngagementDeliveryProvider` logs and returns, the same honesty
+  `MockSmsProvider` already established for OTP. No analytics integration —
+  extending `analytics` with an `engagement` source is a separate, smaller
+  follow-up for whoever picks it up next, not folded in here. No
+  compliance-register row — unlike `prescribing`/`billing`, messaging
+  carries no prescribing-grade safety weight or `billing`-grade
+  financial-liability weight, so nothing in `docs/compliance/` needed to
+  lead this module.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the one-time
+  lockfile regeneration. `pnpm lint` 38/38 workspace tasks. `pnpm typecheck`
+  38/38. `pnpm test` 70/70 turbo tasks (includes each dependency's `^build`
+  step, not one-per-package) — `@swasthya/api` 504/504 (up from 480),
+  `@swasthya/engagement` 10/10 (new package). `pnpm build` 38/38.
+
+  **For the next run.** Extending `analytics` (row 14) with an `engagement`
+  source is the concrete, small follow-up this run's own scope left out.
+  `companion.controller.ts`'s missing `EntitlementsGuard` and extending
+  `analytics` with a `clinical-charting` source both remain open, blocked on
+  the same product decisions every recent entry has named. With row 15
+  built, row 16 (`health-records`) is already both built and wired into the
+  `clinical-suite` module registry (`createHealthRecordsModuleDescriptor` is
+  already in `ClinicalSuiteService`'s list) — only `packages/interop` (row
+  17) exists as a package with no `ModuleDescriptor`/fault-isolation test of
+  its own. Whether wiring `interop` in the same shape is worth doing, versus
+  rows 18-20 (`immunization`/`quality-reporting`/`tenancy`), is a real open
+  question for whoever reads the capability map next, not a decision this
+  run made.
 
 - 2026-08-11 — **Queue fully checked again; fully localized
   `apps/mobile/app/index.web.tsx`.** Grepped for `- [ ]` first — zero hits,

@@ -10,6 +10,8 @@ import { ClinicalSummaryService } from '../clinical-summary/clinical-summary.ser
 import { createClinicalSummaryModuleDescriptor } from '../clinical-summary/clinical-summary.module-descriptor.js';
 import { createDiagnosticsOrdersModuleDescriptor } from '../diagnostics-orders/diagnostics-orders.module-descriptor.js';
 import { DiagnosticsOrdersService } from '../diagnostics-orders/diagnostics-orders.service.js';
+import { createEngagementModuleDescriptor } from '../engagement/engagement.module-descriptor.js';
+import { EngagementService } from '../engagement/engagement.service.js';
 import { MedicationSafetyService } from '../medication-safety/medication-safety.service.js';
 import { createMedicationSafetyModuleDescriptor } from '../medication-safety/medication-safety.module-descriptor.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
@@ -29,7 +31,7 @@ import { createTeleconsultationModuleDescriptor } from '../teleconsultation/tele
 
 /**
  * clinical-suite.md §2 rule 5: "the shell renders around holes." Every
- * module up to `analytics` (capability map rows 1–7, 9, 10, 12–14, plus
+ * module up to `engagement` (capability map rows 1–7, 9, 10, 12–15, plus
  * `HEALTH_RECORDS` from row 16, which `clinical-charting` already
  * degrades against) ships its own `ModuleDescriptor` and its own fault-isolation test
  * proving *its* `requires`/`degradesWith` edges resolve correctly in a
@@ -60,6 +62,7 @@ export class ClinicalSuiteService {
     referrals: ReferralsService,
     populationHealth: PopulationHealthService,
     analytics: AnalyticsService,
+    engagement: EngagementService,
   ) {
     // Built once, at DI wiring time, per `buildModuleRegistry`'s own
     // contract: a typo'd or missing dependency key fails app bootstrap
@@ -79,6 +82,7 @@ export class ClinicalSuiteService {
       createReferralsModuleDescriptor(referrals),
       createPopulationHealthModuleDescriptor(populationHealth),
       createAnalyticsModuleDescriptor(analytics),
+      createEngagementModuleDescriptor(engagement),
     ]);
   }
 

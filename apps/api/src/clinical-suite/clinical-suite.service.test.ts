@@ -1,5 +1,5 @@
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AnalyticsService } from '../analytics/analytics.service.js';
 import { BillingRepository } from '../billing/billing.repository.js';
 import { BillingService } from '../billing/billing.service.js';
@@ -9,6 +9,8 @@ import { ClinicalSummaryRepository } from '../clinical-summary/clinical-summary.
 import { ClinicalSummaryService } from '../clinical-summary/clinical-summary.service.js';
 import { DiagnosticsOrdersRepository } from '../diagnostics-orders/diagnostics-orders.repository.js';
 import { DiagnosticsOrdersService } from '../diagnostics-orders/diagnostics-orders.service.js';
+import { EngagementRepository } from '../engagement/engagement.repository.js';
+import { EngagementService } from '../engagement/engagement.service.js';
 import { MedicationSafetyRepository } from '../medication-safety/medication-safety.repository.js';
 import { MedicationSafetyService } from '../medication-safety/medication-safety.service.js';
 import { PatientRegistryRepository } from '../patient-registry/patient-registry.repository.js';
@@ -46,6 +48,7 @@ function buildStack() {
   const referrals = new ReferralsService(new ReferralsRepository(), charting);
   const populationHealth = new PopulationHealthService(summary, scheduling);
   const analytics = new AnalyticsService(patients, scheduling, billing, referrals);
+  const engagement = new EngagementService(new EngagementRepository(), patients, { send: vi.fn().mockResolvedValue(undefined) });
   return {
     records,
     patients,
@@ -60,6 +63,7 @@ function buildStack() {
     referrals,
     populationHealth,
     analytics,
+    engagement,
   };
 }
 
@@ -78,17 +82,18 @@ function buildSuite(stack: ReturnType<typeof buildStack>): ClinicalSuiteService 
     stack.referrals,
     stack.populationHealth,
     stack.analytics,
+    stack.engagement,
   );
 }
 
 describe('ClinicalSuiteService', () => {
-  it('reports all thirteen registered modules available with no degradations when everything is up', async () => {
+  it('reports all fourteen registered modules available with no degradations when everything is up', async () => {
     const stack = buildStack();
     const suite = buildSuite(stack);
 
     const resolved = await suite.resolve();
 
-    expect(resolved).toHaveLength(13);
+    expect(resolved).toHaveLength(14);
     expect(resolved.map((module) => module.key).sort()).toEqual(
       [
         'ANALYTICS',
@@ -96,6 +101,7 @@ describe('ClinicalSuiteService', () => {
         'CLINICAL_CHARTING',
         'CLINICAL_SUMMARY',
         'DIAGNOSTICS_ORDERS',
+        'ENGAGEMENT',
         'HEALTH_RECORDS',
         'MEDICATION_SAFETY',
         'PATIENT_REGISTRY',
@@ -145,22 +151,23 @@ describe('ClinicalSuiteService', () => {
       degradations: [{ dependency: 'CLINICAL_CHARTING', mode: 'HIDE' }],
     });
     // patient-registry, scheduling, teleconsultation, health-records,
-    // population-health and analytics have no dependency on
+    // population-health, analytics and engagement have no dependency on
     // clinical-charting at all and must read as fully available —
     // teleconsultation's own dependencies are SCHEDULING, population-health's
-    // are CLINICAL_SUMMARY/SCHEDULING and analytics's are PATIENT_REGISTRY/
-    // SCHEDULING/BILLING/REFERRALS, none of them CLINICAL_CHARTING directly,
-    // and neither CLINICAL_SUMMARY nor BILLING nor REFERRALS being merely
-    // degraded (not DOWN) cascades to what depends on them either (§2's
-    // "degradesWith never cascades past one hop") — BILLING and REFERRALS
-    // both stay `available: true` above, so analytics's own edges to them
-    // never fire.
+    // are CLINICAL_SUMMARY/SCHEDULING, analytics's are PATIENT_REGISTRY/
+    // SCHEDULING/BILLING/REFERRALS and engagement's is PATIENT_REGISTRY,
+    // none of them CLINICAL_CHARTING directly, and neither CLINICAL_SUMMARY
+    // nor BILLING nor REFERRALS being merely degraded (not DOWN) cascades to
+    // what depends on them either (§2's "degradesWith never cascades past
+    // one hop") — BILLING and REFERRALS both stay `available: true` above,
+    // so analytics's own edges to them never fire.
     expect(byKey.get('PATIENT_REGISTRY')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('SCHEDULING')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('TELECONSULTATION')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('HEALTH_RECORDS')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('POPULATION_HEALTH')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('ANALYTICS')).toMatchObject({ available: true, degradations: [] });
+    expect(byKey.get('ENGAGEMENT')).toMatchObject({ available: true, degradations: [] });
   });
 
   it('a probe that throws is reported DOWN rather than rejecting the whole resolve() call', async () => {
@@ -185,10 +192,15 @@ describe('ClinicalSuiteService', () => {
     // as fully available too.
     expect(byKey.get('TELECONSULTATION')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('POPULATION_HEALTH')).toMatchObject({ available: true, degradations: [] });
-    // analytics declares its own direct HIDE edge on PATIENT_REGISTRY (not
-    // only on SCHEDULING), so unlike the two modules above it does react
-    // here — one hop, straight to the module that actually went DOWN.
+    // analytics and engagement each declare their own direct HIDE edge on
+    // PATIENT_REGISTRY (not only on SCHEDULING), so unlike the two modules
+    // above they do react here — one hop, straight to the module that
+    // actually went DOWN.
     expect(byKey.get('ANALYTICS')).toMatchObject({
+      available: true,
+      degradations: [{ dependency: 'PATIENT_REGISTRY', mode: 'HIDE' }],
+    });
+    expect(byKey.get('ENGAGEMENT')).toMatchObject({
       available: true,
       degradations: [{ dependency: 'PATIENT_REGISTRY', mode: 'HIDE' }],
     });

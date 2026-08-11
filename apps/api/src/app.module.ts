@@ -9,6 +9,7 @@ import { CompanionController } from './companion.controller.js';
 import { CredentialingModule } from './credentialing/credentialing.module.js';
 import { DiagnosticsOrdersModule } from './diagnostics-orders/diagnostics-orders.module.js';
 import { DirectoryController } from './directory.controller.js';
+import { EngagementModule } from './engagement/engagement.module.js';
 import { FamilyModule } from './family/family.module.js';
 import { HealthController } from './health.controller.js';
 import { LanguageCorpusModule } from './language-corpus/language-corpus.module.js';
@@ -41,6 +42,7 @@ import { TeleconsultationModule } from './teleconsultation/teleconsultation.modu
     ReferralsModule,
     PopulationHealthModule,
     AnalyticsModule,
+    EngagementModule,
     ClinicalSuiteModule,
     LanguageCorpusModule,
     FamilyModule,

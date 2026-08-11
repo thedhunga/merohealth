@@ -1139,3 +1139,74 @@ export interface ReferralsSummary {
   totalReferrals: number;
   byStatus: Record<ReferralStatus, number>;
 }
+
+/* ------------------------------------------------------------------ *
+ * Engagement (clinical-suite.md capability map row 15)
+ *
+ * "Patient messaging, reminders ... SMS/WhatsApp. QUEUE_AND_RETRY by
+ * nature." Unlike row 10's `PaymentProvider` ('MOCK' only — see that
+ * section's own comment on why no real provider is named there), the
+ * capability map names its two real channels directly, so `channel` is a
+ * real union the same way row 7's `resultSource` and row 9's
+ * `connectionMode` are: `apps/api/src/engagement/delivery-provider.ts`'s
+ * `MockEngagementDeliveryProvider` is the only adapter this repo ships
+ * today (mirroring `apps/api/src/auth/sms-provider.ts`, already built for
+ * OTP delivery), not a claim that a real gateway is connected.
+ *
+ * Every message is queued against an existing `patient-registry` record —
+ * sending needs a phone number, resolved through that module's own port,
+ * the same "opening a clinical action against an existing foundation"
+ * shape rows 6/7/10/12 already established for `clinical-charting`.
+ * `patientId` is caller-supplied (unlike those rows' encounter-derived id)
+ * because `patient-registry`, not `clinical-charting`, is the foundation
+ * being opened against here. `phone` is captured from that record at queue
+ * time and carried on the message itself, rather than re-resolved on every
+ * retry — a queued message has a fixed destination, and re-deriving it
+ * would make `retryMessage` depend on `patient-registry` staying up too,
+ * the same "terminal transitions do not touch the dependency that opened
+ * the record" precedent row 12's `acceptReferral`/`completeReferral`
+ * already set for `clinical-charting`.
+ *
+ * "QUEUE_AND_RETRY by nature" is read literally: queuing a message always
+ * succeeds — `queueMessage` never throws because a delivery attempt
+ * failed — and a delivery attempt is made immediately, recording SENT or
+ * FAILED rather than leaving the caller to guess. A FAILED message can be
+ * retried, which re-attempts delivery. There is no DELIVERED status:
+ * no adapter here, mock or real, has a delivery receipt to report, so SENT
+ * (this system handed the message to a channel) is the honest limit of
+ * what can be confirmed — the same restraint row 10's "count of invoices,
+ * not a revenue figure" comment applies to a different unverifiable claim.
+ * ------------------------------------------------------------------ */
+export type EngagementChannel = 'SMS' | 'WHATSAPP';
+
+/** "Patient messaging" and "reminders" are the two things row 15 names — nothing more specific is invented. */
+export type EngagementMessageKind = 'REMINDER' | 'GENERAL';
+
+export type EngagementMessageStatus = 'QUEUED' | 'SENT' | 'FAILED';
+
+export interface EngagementMessage {
+  id: string;
+  patientId: string;
+  /** The destination captured from patient-registry at queue time — see this section's header comment on why. */
+  phone: string;
+  channel: EngagementChannel;
+  kind: EngagementMessageKind;
+  body: string;
+  status: EngagementMessageStatus;
+  /** Delivery attempts made so far, including the queue-time attempt and every retry. */
+  attemptCount: number;
+  /** Set once a delivery attempt succeeds; stays null otherwise. Terminal — a SENT message is never retried. */
+  sentAt: string | null;
+  /** Set by the most recent failed attempt; cleared by `retryMessage` back to null while the retry is pending. */
+  failedAt: string | null;
+  failureReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface QueueEngagementMessageInput {
+  channel: EngagementChannel;
+  kind: EngagementMessageKind;
+  body: string;
+}
