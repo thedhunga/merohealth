@@ -33,6 +33,7 @@
     "@swasthya/medication-safety": "workspace:*",
     "@swasthya/module-registry": "workspace:*",
     "@swasthya/patient-registry": "workspace:*",
+    "@swasthya/population-health": "workspace:*",
     "@swasthya/prescribing": "workspace:*",
     "@swasthya/referrals": "workspace:*",
     "@swasthya/scheduling": "workspace:*",

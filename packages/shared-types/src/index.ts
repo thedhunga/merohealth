@@ -320,9 +320,10 @@ export interface CredentialingBadge {
  * agent-progress.md's "stop after prescribing and reassess" note, extended
  * first to "stop after diagnostics-orders" once row 7 shipped, then to "stop
  * after teleconsultation" once row 9 shipped, then to "stop after billing"
- * once row 10 shipped, then to "stop after referrals" once row 12 shipped —
- * row 11 (`coverage`) was skipped in table order, the same way row 8 was,
- * because the capability map's own note calls it "blocked on Nepali insurer
+ * once row 10 shipped, then to "stop after referrals" once row 12 shipped,
+ * then to "stop after population-health" once row 13 shipped — row 11
+ * (`coverage`) was skipped in table order, the same way row 8 was, because
+ * the capability map's own note calls it "blocked on Nepali insurer
  * interfaces that do not yet exist," with no compliance-register row naming
  * an interim control the way row 10's "mock provider" one did. All 19 keys
  * are declared up front so
@@ -1058,4 +1059,38 @@ export interface RequestReferralInput {
   clinicianId: string;
   referredToEntityId: string;
   reason: string;
+}
+
+/* ------------------------------------------------------------------ *
+ * Population health (clinical-suite.md capability map row 13)
+ *
+ * "Population health, registries, recall ... Reads from other modules;
+ * never writes to them." Unlike every module built so far, this one owns no
+ * schema namespace and no repository — §2 rule 1 ("a module owns its data")
+ * has nothing to assign here, because there is no data to own. Every field
+ * below is derived, at request time, from `clinical-summary` (row 4, the
+ * problem/allergy/medication list) and `scheduling` (row 2, appointments).
+ *
+ * No recall interval, condition list or clinical guideline is hardcoded
+ * anywhere in this package or `packages/population-health` — "diabetics
+ * should be recalled every 90 days" is exactly the kind of clinical claim
+ * agent-progress.md's "invent no facts" constraint forbids fabricating, the
+ * same way a fake statistic would be. `kind`/`label` (which condition,
+ * allergy or medication defines the registry) and `asOf` (the recall cutoff
+ * instant) are therefore always caller-supplied, never defaulted to a
+ * guessed clinical value.
+ * ------------------------------------------------------------------ */
+export interface PopulationHealthRegistryEntry {
+  patientId: string;
+  /** The ClinicalSummaryItem that qualified this patient for the registry. */
+  matchedItemId: string;
+  /** The matched item's own label, exact as recorded — not the normalised match key. */
+  label: string;
+}
+
+export interface PopulationHealthRecallEntry extends PopulationHealthRegistryEntry {
+  /** The soonest SCHEDULED appointment at or after `asOf`, or null if none exists. */
+  nextScheduledAppointmentAt: string | null;
+  /** True exactly when `nextScheduledAppointmentAt` is null — named for what a caller actually asks. */
+  dueForRecall: boolean;
 }

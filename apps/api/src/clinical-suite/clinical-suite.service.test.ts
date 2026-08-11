@@ -12,6 +12,7 @@ import { MedicationSafetyRepository } from '../medication-safety/medication-safe
 import { MedicationSafetyService } from '../medication-safety/medication-safety.service.js';
 import { PatientRegistryRepository } from '../patient-registry/patient-registry.repository.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
+import { PopulationHealthService } from '../population-health/population-health.service.js';
 import { PrescribingRepository } from '../prescribing/prescribing.repository.js';
 import { PrescribingService } from '../prescribing/prescribing.service.js';
 import { RecordsRepository } from '../records/records.repository.js';
@@ -42,6 +43,7 @@ function buildStack() {
   const teleconsultation = new TeleconsultationService(new TeleconsultationRepository(), scheduling);
   const billing = new BillingService(new BillingRepository(), charting);
   const referrals = new ReferralsService(new ReferralsRepository(), charting);
+  const populationHealth = new PopulationHealthService(summary, scheduling);
   return {
     records,
     patients,
@@ -54,6 +56,7 @@ function buildStack() {
     teleconsultation,
     billing,
     referrals,
+    populationHealth,
   };
 }
 
@@ -70,17 +73,18 @@ function buildSuite(stack: ReturnType<typeof buildStack>): ClinicalSuiteService 
     stack.teleconsultation,
     stack.billing,
     stack.referrals,
+    stack.populationHealth,
   );
 }
 
 describe('ClinicalSuiteService', () => {
-  it('reports all eleven registered modules available with no degradations when everything is up', async () => {
+  it('reports all twelve registered modules available with no degradations when everything is up', async () => {
     const stack = buildStack();
     const suite = buildSuite(stack);
 
     const resolved = await suite.resolve();
 
-    expect(resolved).toHaveLength(11);
+    expect(resolved).toHaveLength(12);
     expect(resolved.map((module) => module.key).sort()).toEqual(
       [
         'BILLING',
@@ -90,6 +94,7 @@ describe('ClinicalSuiteService', () => {
         'HEALTH_RECORDS',
         'MEDICATION_SAFETY',
         'PATIENT_REGISTRY',
+        'POPULATION_HEALTH',
         'PRESCRIBING',
         'REFERRALS',
         'SCHEDULING',
@@ -134,14 +139,18 @@ describe('ClinicalSuiteService', () => {
       available: true,
       degradations: [{ dependency: 'CLINICAL_CHARTING', mode: 'HIDE' }],
     });
-    // patient-registry, scheduling, teleconsultation and health-records have
-    // no dependency on clinical-charting at all and must read as fully
-    // available — teleconsultation's own dependency is SCHEDULING, not
-    // CLINICAL_CHARTING.
+    // patient-registry, scheduling, teleconsultation, health-records and
+    // population-health have no dependency on clinical-charting at all and
+    // must read as fully available — teleconsultation's own dependencies
+    // are SCHEDULING, and population-health's are CLINICAL_SUMMARY/
+    // SCHEDULING, none of them CLINICAL_CHARTING, and CLINICAL_SUMMARY
+    // being merely degraded (not DOWN) does not cascade to it either (§2's
+    // "degradesWith never cascades past one hop").
     expect(byKey.get('PATIENT_REGISTRY')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('SCHEDULING')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('TELECONSULTATION')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('HEALTH_RECORDS')).toMatchObject({ available: true, degradations: [] });
+    expect(byKey.get('POPULATION_HEALTH')).toMatchObject({ available: true, degradations: [] });
   });
 
   it('a probe that throws is reported DOWN rather than rejecting the whole resolve() call', async () => {
@@ -160,10 +169,11 @@ describe('ClinicalSuiteService', () => {
       available: true,
       degradations: [{ dependency: 'PATIENT_REGISTRY', mode: 'READ_ONLY' }],
     });
-    // teleconsultation only reacts to SCHEDULING's own `available`
-    // (§2's "degradesWith never cascades past one hop"), and SCHEDULING
-    // stays `available` here — only degraded — so teleconsultation must
-    // read as fully available too.
+    // teleconsultation and population-health only react to SCHEDULING's own
+    // `available` (§2's "degradesWith never cascades past one hop"), and
+    // SCHEDULING stays `available` here — only degraded — so both must read
+    // as fully available too.
     expect(byKey.get('TELECONSULTATION')).toMatchObject({ available: true, degradations: [] });
+    expect(byKey.get('POPULATION_HEALTH')).toMatchObject({ available: true, degradations: [] });
   });
 });

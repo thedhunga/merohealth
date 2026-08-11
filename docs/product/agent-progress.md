@@ -464,23 +464,131 @@ suite grows. A module that "works" but has no outage test is not finished.
       log entry below (the one added by this run) for why row 11
       (`coverage`) was skipped rather than built first, and what was built
       instead.
+- [x] `population-health` (capability map row 13): read-only registry and
+      recall lists over `clinical-summary`/`scheduling`, the first module
+      that owns no data of its own — see the 2026-08-11 log entry below (the
+      one added by this run) for why it has no repository and how "invent no
+      facts" shaped it.
 
-Stop after referrals and reassess again. Modules 11 and 13-20 in the
+Stop after population-health and reassess again. Modules 11 and 14-20 in the
 capability map are sequenced but must not be started while anything above is
 unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
 not a module that plugs into this registry, and row 11 (`coverage`) was
 deliberately skipped, not built, because the table's own note calls it
 "blocked on Nepali insurer interfaces that do not yet exist" with no
 compliance-register row naming an interim control the way row 10's did. Row
-13 (`population-health`) may be the realistic next candidate whenever this
-note is next revisited — but that is this run's own guess, not a decision;
-the next run should re-read the table itself rather than trust this
-paragraph.
+14 (`analytics`) may be the realistic next candidate whenever this note is
+next revisited — but that is this run's own guess, not a decision; the next
+run should re-read the table itself rather than trust this paragraph.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; reassessed the "stop after
+  referrals" note and resumed the clinical suite with `population-health`
+  (capability map row 13).** Grepped for `- [ ]` first — zero hits. The
+  prior run's own log entry named row 13 explicitly as "the realistic next
+  candidate," with the same explicit caveat every prior reassessment has
+  carried — a guess, not a decision — so this run re-read
+  `clinical-suite.md` §3 itself before picking anything up. Row 13's own
+  note, "Reads from other modules; never writes to them," made it a
+  different shape from every module built so far, so most of this run's
+  effort went into deciding what that shape honestly is before writing any
+  code.
+
+  **What "never writes to them" means for the design.** Every prior module
+  (1–7, 9, 10, 12) owns a schema namespace and a repository, per §2 rule 1.
+  Row 13 owns neither — there is nothing for it to persist. The closest
+  existing precedent is `medication-safety` (row 5): a service with no
+  patient data of its own, injecting another module's service as its read
+  port and computing a pure result. Population-health follows that same
+  split (pure `@swasthya/population-health` package, no repository in
+  `apps/api/src/population-health/`) but goes one step further — even its
+  own package has nothing local to read, unlike `medication-safety`'s own
+  interaction-rule repository.
+
+  **What "invent no facts" means here, specifically.** A population-health
+  module invites two kinds of fabrication this run refused: a recall
+  interval ("diabetics should be seen every 90 days") and a fixed condition
+  list ("hypertension, diabetes, ... are the registries this module
+  tracks"). Both would be clinical claims with no source in this repository,
+  the same class of invention agent-progress.md's standing constraint
+  already forbids for a statistic or a partner name. So `kind`/`label` (what
+  defines a registry) and `asOf` (the recall cutoff instant) are both
+  caller-supplied on every call — nothing is hardcoded, and the API layer
+  defaults nothing either.
+
+  **What was built.**
+  1. `packages/shared-types/src/index.ts`: `PopulationHealthRegistryEntry`/
+     `PopulationHealthRecallEntry`, in a new "Population health (capability
+     map row 13)" section following the header-comment convention every
+     prior section uses. Updated the stale `ClinicalModuleKey` header
+     comment ("stop after referrals" → "stop after population-health").
+  2. `packages/population-health` (new package): `buildConditionRegistry`
+     (every patient with an ACTIVE `ClinicalSummaryItem` of a given kind and
+     label, NFKC-normalised match like `medication-safety`'s own
+     `normalizeLabel`, one entry per patient) and `buildRecallList` (each
+     registry patient marked `dueForRecall` when they have no `SCHEDULED`
+     appointment at or after a caller-supplied `asOf`). Both pure functions
+     of already-resolved inputs, no repository, 11 tests.
+  3. `apps/api/src/population-health/`: service (`ClinicalSummaryService`
+     and `SchedulingService` injected as their public ports per §2 rule 3;
+     `buildRegistry` gates on clinical-summary, `buildRecall` on both),
+     controller (GET-only — `/registry` and `/recall`, zod-validated query
+     params, no POST route since this module never writes), module-descriptor
+     (`POPULATION_HEALTH`, empty `requires`, two `degradesWith` edges — both
+     `HIDE`, not `MEDICATION_SAFETY`'s `MANUAL`, because an incomplete
+     registry read has no honest partial answer to show, unlike a
+     medication check a clinician can still act on), and module. No
+     repository file — the first module in this suite without one.
+     Controller, service, module-descriptor and fault-isolation tests (22
+     new `apps/api` tests total).
+  4. Wired into `apps/api/src/app.module.ts` and the `clinical-suite`
+     aggregate (`clinical-suite.module.ts`/`clinical-suite.service.ts`):
+     `GET /clinical-suite/modules` now reports twelve modules, not eleven.
+     Updated `clinical-suite.service.test.ts`'s "all N modules available"
+     test for the new count, and added `POPULATION_HEALTH` to both existing
+     cascade tests as an *unaffected* module — its dependencies are
+     `CLINICAL_SUMMARY`/`SCHEDULING`, and both existing tests force down a
+     module further up the chain (`CLINICAL_CHARTING`, `PATIENT_REGISTRY`)
+     whose outage only *degrades* (not takes down) the module
+     population-health actually depends on, so §2's "degradesWith never
+     cascades past one hop" means population-health must read as fully
+     available in both.
+  5. `apps/api/package.json`: added `@swasthya/population-health` as a real
+     dependency; regenerated `pnpm-lock.yaml` via `--no-frozen-lockfile`,
+     then confirmed `--frozen-lockfile` passes clean afterward, same
+     sequence every prior new-package run used.
+
+  **What was deliberately not built.** No recall interval or condition
+  registry list of any kind — see above. No entitlement wiring — matches
+  every module 1-7/9/10/12 precedent (no `ClinicalModuleKey`
+  `POPULATION_HEALTH` value exists in `packages/entitlements`'s own
+  `ModuleKey` type either). No clinician-facing UI — matches every prior
+  module. No write path of any kind, by design, not by omission — the
+  capability map's own note is the spec here, not a starting point to extend.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the lockfile
+  regeneration; `pnpm lint` 36/36 (up from 35 — the new package); `pnpm
+  typecheck` 36/36; `pnpm test` 66/66 tasks — `@swasthya/api` 446 tests (up
+  from 426: 22 new, across `population-health.service.test.ts`,
+  `.controller.test.ts`, `.module-descriptor.test.ts`,
+  `.fault-isolation.test.ts`, plus the updated `clinical-suite.service
+  .test.ts`), `@swasthya/population-health` 11 new tests; `pnpm build`
+  36/36, including `apps/web`'s static export and `apps/mobile`'s Expo web
+  bundle. No schema/migration change — this module has no Prisma model and
+  never will, matching every module 1-7/9/10/12 precedent for in-memory
+  modules but here permanently rather than provisionally — so no live
+  Postgres was needed this run.
+
+  **For the next run.** Guardianship creation stays open, understood to be
+  blocked on a minor's account-enrolment mechanism, not a DOB field (see
+  earlier log entries). The clinical suite is parked again, this time after
+  row 13 — see this run's edit to the "Stop after population-health" note
+  above for the honest, non-committal guess at what comes next (row 14,
+  `analytics`).
 
 - 2026-08-11 — **Queue fully checked again; reassessed the "stop after
   billing" note and resumed the clinical suite with `referrals` (capability

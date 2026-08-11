@@ -5,6 +5,7 @@ import { ClinicalSummaryModule } from '../clinical-summary/clinical-summary.modu
 import { DiagnosticsOrdersModule } from '../diagnostics-orders/diagnostics-orders.module.js';
 import { MedicationSafetyModule } from '../medication-safety/medication-safety.module.js';
 import { PatientRegistryModule } from '../patient-registry/patient-registry.module.js';
+import { PopulationHealthModule } from '../population-health/population-health.module.js';
 import { PrescribingModule } from '../prescribing/prescribing.module.js';
 import { RecordsModule } from '../records/records.module.js';
 import { ReferralsModule } from '../referrals/referrals.module.js';
@@ -14,9 +15,9 @@ import { ClinicalSuiteController } from './clinical-suite.controller.js';
 import { ClinicalSuiteService } from './clinical-suite.service.js';
 
 /**
- * Imports every module up to `referrals` purely to reuse the services Nest
- * already constructed for them — this module owns no data and no
- * repository of its own, only the aggregate view over the others'
+ * Imports every module up to `population-health` purely to reuse the
+ * services Nest already constructed for them — this module owns no data and
+ * no repository of its own, only the aggregate view over the others'
  * already-exported ports.
  */
 @Module({
@@ -32,6 +33,7 @@ import { ClinicalSuiteService } from './clinical-suite.service.js';
     TeleconsultationModule,
     BillingModule,
     ReferralsModule,
+    PopulationHealthModule,
   ],
   controllers: [ClinicalSuiteController],
   providers: [ClinicalSuiteService],

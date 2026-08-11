@@ -14,6 +14,7 @@ import { LanguageCorpusModule } from './language-corpus/language-corpus.module.j
 import { MedicationSafetyModule } from './medication-safety/medication-safety.module.js';
 import { PatientRegistryModule } from './patient-registry/patient-registry.module.js';
 import { PerplexityHealthService } from './perplexity-health.service.js';
+import { PopulationHealthModule } from './population-health/population-health.module.js';
 import { PrescribingModule } from './prescribing/prescribing.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RecordsModule } from './records/records.module.js';
@@ -37,6 +38,7 @@ import { TeleconsultationModule } from './teleconsultation/teleconsultation.modu
     TeleconsultationModule,
     BillingModule,
     ReferralsModule,
+    PopulationHealthModule,
     ClinicalSuiteModule,
     LanguageCorpusModule,
     FamilyModule,
