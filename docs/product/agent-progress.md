@@ -256,6 +256,16 @@ Design in
       modelled as assisted enrolment (`IN_PERSON_VERBAL`, recorded by
       Sunita) so the family module's demo data finally has one row of each
       of the two state machines `packages/family` actually models.
+- [x] Queue exhausted a seventh time — fixed a language-consistency gap in
+      `apps/mobile`: `app/(tabs)/care.tsx` was fully hardcoded Nepali and
+      `app/consultation.tsx` was fully hardcoded English, both ignoring the
+      `language` toggle every sibling screen (`companion.tsx`, `twin.tsx`,
+      `learn.tsx`, `records.tsx`) already respects via inline
+      `language === 'en' ? … : …` ternaries. See the 2026-08-11 log entry
+      below for the general-purpose agent survey that found this over the
+      three candidates prior runs had already ruled out (companion's missing
+      `EntitlementsGuard`, an `analytics` `clinical-charting` source, and
+      capability-map row 15), and for what was and wasn't translated.
 
 ### Visual system — Round one, complete
 
@@ -516,6 +526,90 @@ run should re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; fixed `apps/mobile`'s
+  `care.tsx`/`consultation.tsx` ignoring the `language` toggle.** Grepped for
+  `- [ ]` first — zero hits, same as every prior "queue exhausted" run. Before
+  touching code, had a general-purpose agent survey the repo (read-only) for a
+  genuine, single-run-sized gap, explicitly ruling out the three candidates
+  every recent log entry had already named and deferred as needing a product
+  decision this kind of run isn't authorized to make: `companion.controller.ts`'s
+  missing `EntitlementsGuard` (needs a decision on anonymous-vs-signed-in use
+  plus a new Prisma model), extending `analytics` with a `clinical-charting`
+  source (needs someone to decide what an encounter-only summary even counts,
+  since `SoapNote` has no clean status field), and capability-map row 15
+  `engagement` (a new module, flagged repeatedly as deserving its own
+  dedicated run). The survey also checked, and found clean: every
+  clinical-suite module has a real fault-isolation test, `ne.json`/`en.json`
+  have zero key-set mismatches, `CONFIRMED`/`CORRECTED`-only filtering is
+  applied consistently in `packages/interop`/`packages/retrieval`/
+  `packages/intent-router`, and no live `describe.todo`/`it.todo`/`test.skip`
+  remains anywhere in the repo.
+
+  **What the survey found instead.** `apps/mobile/app/(tabs)/care.tsx` was
+  fully hardcoded Nepali (filter pills, search placeholder, the demonstration
+  banner, verification labels) and `apps/mobile/app/consultation.tsx` was
+  fully hardcoded English (every visible string) — neither imported
+  `useAppState`/`language` at all, unlike every sibling screen
+  (`companion.tsx`, `twin.tsx`, `learn.tsx`, `records.tsx`), which already
+  render body copy through the same `language === 'en' ? … : …` ternary. Both
+  screens are live and linked from `(tabs)/index.tsx`, not dead code.
+  `consultation.tsx` was confirmed still in its own documented scope (a
+  disconnected camera-permission UI demo, per the 2026-08-11 teleconsultation
+  log entry two thousand-odd lines below) — this is a pure copy/i18n fix, it
+  does not touch that decision.
+
+  **What was built.** Both screens now read `language` from `useAppState` and
+  render every visible `<Text>` node through the same inline ternary
+  convention already used elsewhere in `apps/mobile`. `care.tsx`'s `filters`
+  array gained `labelNe`/`labelEn` pairs (translations of the existing Nepali
+  labels — `सबै`/`All`, `अस्पताल`/`Hospital`, etc. — matching
+  `DirectoryEntityType`'s own values, not invented copy). The demonstration
+  banner and verification labels (`डेमो प्रमाणित`/`समीक्षा गरिएको`) got English
+  translations reusing the tone already established in
+  `apps/web/messages/*.json`'s own `demoNotice`/`fictional example` copy,
+  since this is a legally-relevant disclaimer and its wording shouldn't drift
+  screen to screen. `care.tsx`'s date formatting also switched from a
+  hardcoded `'en-CA'` locale to the `language === 'en' ? 'en-US' : 'ne-NP'`
+  pattern `records.tsx` already uses, for the same reason. `consultation.tsx`
+  gained Nepali translations for its remote-participant copy, camera
+  placeholder, captions notice, safety line, and controls — including the
+  scope disclaimer ("Demonstration room · No clinician, recording, signaling
+  server, or WebRTC provider is connected") that a prior log entry had quoted
+  verbatim as load-bearing, translated without altering its meaning.
+
+  **What was deliberately left alone, and why.** All-caps eyebrow-style badges
+  (`VERIFIED CARE NETWORK`, `CLINICIAN PARTICIPANT`, `PRIVATE VIDEO ROOM ·
+  PREVIEW`, `YOU · LOCAL PREVIEW`) stayed English — every sibling screen's
+  eyebrows (`PATIENT-CONTROLLED`, `LEARN BY WATCHING…`, `STEP 1 · ASK`) follow
+  the same convention, so changing only these two screens' eyebrows would have
+  been an inconsistency in the other direction. `accessibilityLabel` props
+  (`Go back`, `Mute microphone`, `Search care directory`, etc.) also stayed
+  English, matching `records.tsx`'s own precedent of leaving icon-button
+  accessibility labels untranslated while translating visible copy — a real,
+  separate accessibility gap across the whole app, not something to fix
+  piecemeal inside two files. No change to `consultation.tsx`'s scope
+  (still no networking code, per its own documented boundary) and no change
+  to `care.tsx`'s data (`packages/care-directory`'s demonstration entities
+  untouched).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new dependency, only a new import of the existing `@/state/app-state`
+  hook). `pnpm lint` 37/37. `pnpm typecheck` 37/37. `pnpm test` 68/68 tasks,
+  no count change — this app has no DOM/React Native rendering harness (see
+  the document-capture run's own note on this), so, matching every other
+  `app/*.tsx` screen, there is no colocated test for either file; both
+  changes are copy/prop-threading only, not new logic. `pnpm build` 37/37,
+  including `apps/mobile`'s Expo web bundle (`/care` and `/consultation`
+  both present in the static-route list) and `apps/web`'s static export.
+
+  **For the next run.** The three candidates this run's survey ruled out
+  remain exactly where prior entries left them: `companion.controller.ts`'s
+  metering gap, `analytics`'s open `clinical-charting` source, and row 15
+  `engagement`. The `accessibilityLabel`-in-English pattern flagged above is a
+  real, low-severity accessibility gap spanning the whole `apps/mobile` app
+  (and likely `apps/web` too) — a reasonable next "queue exhausted" pick if
+  nobody has picked up the suite or a product decision by then.
 
 - 2026-08-11 — **Queue fully checked again; extended `analytics` (capability
   map row 14) with a fourth source, `referrals`.** Grepped for `- [ ]` first —

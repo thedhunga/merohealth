@@ -17,8 +17,10 @@ import {
   Users,
 } from 'lucide-react-native';
 import { colors, radii, spacing } from '@swasthya/configuration';
+import { useAppState } from '@/state/app-state';
 
 export default function ConsultationPreviewScreen() {
+  const { language } = useAppState();
   const { width } = useWindowDimensions();
   const wide = width >= 860;
   const [permission, requestPermission] = useCameraPermissions();
@@ -69,11 +71,15 @@ export default function ConsultationPreviewScreen() {
           </Pressable>
           <View style={styles.roomMeta}>
             <Text style={styles.roomEyebrow}>PRIVATE VIDEO ROOM · PREVIEW</Text>
-            <Text style={styles.roomTitle}>Consultation experience</Text>
+            <Text style={styles.roomTitle}>
+              {language === 'en' ? 'Consultation experience' : 'परामर्श अनुभव'}
+            </Text>
           </View>
           <View style={styles.secure}>
             <LockKeyhole color={colors.jadeBright} size={15} />
-            <Text style={styles.secureText}>No call is connected</Text>
+            <Text style={styles.secureText}>
+              {language === 'en' ? 'No call is connected' : 'कुनै कल जोडिएको छैन'}
+            </Text>
           </View>
         </View>
 
@@ -89,15 +95,26 @@ export default function ConsultationPreviewScreen() {
                 <Stethoscope color={colors.primaryDark} size={46} strokeWidth={1.7} />
               </View>
               <Text style={styles.remoteKicker}>CLINICIAN PARTICIPANT</Text>
-              <Text style={styles.remoteTitle}>A verified professional would appear here.</Text>
+              <Text style={styles.remoteTitle}>
+                {language === 'en'
+                  ? 'A verified professional would appear here.'
+                  : 'यहाँ एक प्रमाणित पेशेवर देखिनेछन्।'}
+              </Text>
               <Text style={styles.remoteBody}>
-                This preview demonstrates the room controls only. It does not create a public link,
-                contact a clinician, or transmit health information.
+                {language === 'en'
+                  ? 'This preview demonstrates the room controls only. It does not create a public link, contact a clinician, or transmit health information.'
+                  : 'यो पूर्वावलोकनले कोठाका नियन्त्रणहरू मात्र देखाउँछ। यसले सार्वजनिक लिंक बनाउँदैन, कुनै चिकित्सकलाई सम्पर्क गर्दैन, र स्वास्थ्य जानकारी पठाउँदैन।'}
               </Text>
               <View style={styles.waitingChip}>
                 <Users color={colors.mintStrong} size={16} />
                 <Text style={styles.waitingText}>
-                  {started ? 'Preview session active' : 'Ready when you are'}
+                  {started
+                    ? language === 'en'
+                      ? 'Preview session active'
+                      : 'पूर्वावलोकन सत्र सक्रिय'
+                    : language === 'en'
+                      ? 'Ready when you are'
+                      : 'तपाईं तयार हुँदा सुरु गर्नुहोस्'}
                 </Text>
               </View>
             </LinearGradient>
@@ -114,8 +131,12 @@ export default function ConsultationPreviewScreen() {
                 <View style={styles.cameraIcon}>
                   <CameraOff color={colors.primaryDark} size={30} />
                 </View>
-                <Text style={styles.cameraTitle}>Your camera is off</Text>
-                <Text style={styles.cameraBody}>Preview stays on this device.</Text>
+                <Text style={styles.cameraTitle}>
+                  {language === 'en' ? 'Your camera is off' : 'तपाईंको क्यामेरा बन्द छ'}
+                </Text>
+                <Text style={styles.cameraBody}>
+                  {language === 'en' ? 'Preview stays on this device.' : 'पूर्वावलोकन यही उपकरणमा रहन्छ।'}
+                </Text>
               </LinearGradient>
             )}
             <View style={styles.youBadge}>
@@ -128,7 +149,9 @@ export default function ConsultationPreviewScreen() {
           <View accessibilityLiveRegion="polite" style={styles.captionBar}>
             <Captions color={colors.jadeBright} size={18} />
             <Text style={styles.captionText}>
-              Live captions will appear here when a secure video provider is configured.
+              {language === 'en'
+                ? 'Live captions will appear here when a secure video provider is configured.'
+                : 'सुरक्षित भिडियो प्रदायक कन्फिगर गरेपछि प्रत्यक्ष क्याप्सन यहाँ देखिनेछ।'}
             </Text>
           </View>
         ) : null}
@@ -136,9 +159,15 @@ export default function ConsultationPreviewScreen() {
         <View style={styles.statusRow}>
           <View style={styles.safetyStatus}>
             <ShieldCheck color={colors.jadeBright} size={18} />
-            <Text style={styles.safetyText}>Consent and participant authorization required</Text>
+            <Text style={styles.safetyText}>
+              {language === 'en'
+                ? 'Consent and participant authorization required'
+                : 'सहमति र सहभागी अनुमति आवश्यक छ'}
+            </Text>
           </View>
-          <Text style={styles.timer}>{started ? timerLabel : 'PREVIEW'}</Text>
+          <Text style={styles.timer}>
+            {started ? timerLabel : language === 'en' ? 'PREVIEW' : 'पूर्वावलोकन'}
+          </Text>
         </View>
 
         <View style={styles.controls}>
@@ -171,19 +200,22 @@ export default function ConsultationPreviewScreen() {
           {!started ? (
             <Pressable onPress={() => setStarted(true)} style={styles.startButton}>
               <Camera color={colors.primaryDark} size={20} />
-              <Text style={styles.startText}>Start private preview</Text>
+              <Text style={styles.startText}>
+                {language === 'en' ? 'Start private preview' : 'निजी पूर्वावलोकन सुरु गर्नुहोस्'}
+              </Text>
             </Pressable>
           ) : (
             <Pressable onPress={endPreview} style={styles.endButton}>
               <PhoneOff color="white" size={21} />
-              <Text style={styles.endText}>End</Text>
+              <Text style={styles.endText}>{language === 'en' ? 'End' : 'अन्त्य'}</Text>
             </Pressable>
           )}
         </View>
 
         <Text style={styles.disclaimer}>
-          Demonstration room · No clinician, recording, signaling server, or WebRTC provider is
-          connected
+          {language === 'en'
+            ? 'Demonstration room · No clinician, recording, signaling server, or WebRTC provider is connected'
+            : 'प्रदर्शन कोठा · कुनै चिकित्सक, रेकर्डिङ, सिग्नलिङ सर्भर वा WebRTC प्रदायक जोडिएको छैन'}
         </Text>
       </ScrollView>
     </LinearGradient>
