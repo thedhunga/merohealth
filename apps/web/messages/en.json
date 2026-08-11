@@ -1251,6 +1251,31 @@
         "IDENTITY_VERIFIED": "Identity verified"
       }
     },
+    "delegation": {
+      "heading": "Give someone access",
+      "body": "Share scoped, revocable access to your record with someone you trust — a spouse, an adult child, a caregiver. They will see only what you check below.",
+      "phoneLabel": "Their phone number",
+      "phonePlaceholder": "98XXXXXXXX",
+      "scopesLabel": "What they may do",
+      "scopes": {
+        "VIEW_RECORD": "View your record",
+        "ASK_ASSISTANT": "Ask the assistant on your behalf",
+        "MANAGE_APPOINTMENTS": "Manage your appointments",
+        "UPLOAD_DOCUMENTS": "Upload documents for you"
+      },
+      "expiresLabel": "Access ends on",
+      "submitCta": "Grant access",
+      "success": "Access granted. They can act on your behalf until the date you chose.",
+      "errors": {
+        "INVALID_PHONE": "That doesn't look like a Nepali mobile number.",
+        "DELEGATE_NOT_FOUND": "No registered Mero Health account uses that phone number.",
+        "SelfDelegationError": "You can't grant access to your own account.",
+        "EmptyDelegationScopeError": "Choose at least one thing they may do.",
+        "InvalidDelegationExpiryError": "Choose a date after today.",
+        "VALIDATION_ERROR": "Check the form and try again.",
+        "GENERIC": "Something went wrong — please try again."
+      }
+    },
     "openApp": {
       "heading": "Open the Mero Health app",
       "body": "Your health record, documents and assistant live there.",

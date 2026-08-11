@@ -219,6 +219,15 @@ Design in
       `FamilyGrantsController`/`Service`/`PrismaFamilyGrantsStore` following
       `AuthStore`'s port-adapter pattern, and `apps/web`'s `AccountView.tsx`
       now calls it instead of passing `[]`/`[]`.
+- [x] Queue exhausted a third time — added: self-service delegation
+      creation, the item that run's own log entry named as "the natural
+      next piece." `POST /family/grants/delegations` (delegate resolved by
+      phone via `AuthStore.findUserByPhone`, `grantDelegation` for the
+      actual validation, domain errors mapped to `BadRequestException`) and
+      a `DelegationForm` on `/account` calling it. Guardianship creation
+      deliberately not included — see the 2026-08-11 log entry for why
+      `PatientProfile` having no structured date-of-birth field blocks it
+      honestly rather than being an oversight.
 
 ### Visual system — Round one, complete
 
@@ -420,6 +429,115 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-11 — **Queue fully checked again; picked the highest-value
+  improvement to work already done: self-service delegation creation.**
+  Grepped for `- [ ]` first — zero hits. Read the prior run's own "for the
+  next run" note, which named the real remaining gap in one sentence: "there
+  is still no way to *create* a `GuardianshipGrant`/`DelegationGrant`
+  anywhere in the app... A guardianship/delegation creation flow (mobile or
+  web) is the natural next piece."
+
+  **Scoped to delegation only, not guardianship, and said why up front.**
+  `packages/family`'s `grantGuardianshipForMinor` needs the ward's date of
+  birth, and `PatientProfile` has no such field — `demographics` is an
+  untyped `Json?` blob nothing in this app parses a DOB out of. Wiring
+  guardianship creation now would mean inventing a source for that input,
+  which the standing "invent no facts" constraint rules out. Delegation has
+  no such trap: `grantDelegation` (self-service) only needs a granter, a
+  delegate, scopes and an expiry, and `AuthStore.findUserByPhone` already
+  exists to resolve "the person at this phone number" to a real `User.id`.
+
+  **What was built — a real write path, end to end.**
+  1. `apps/api/src/family/family-grants.store.ts`: added `createDelegation`
+     to the `FamilyGrantsStore` port — its first write. Implemented in
+     `PrismaFamilyGrantsStore` (a plain insert against the
+     `DelegationGrant` table the 2026-08-11 migration already added; no new
+     migration needed this run) and `InMemoryFamilyGrantsStore` (copies its
+     constructor-seeded array into a private mutable one first, so a test's
+     `readonly` fixture is never mutated from under it).
+  2. `apps/api/src/family/family-grants.service.ts`: new
+     `createDelegation(granterId, delegatePhone, scopes, expiresAt)` —
+     normalises the phone via `AuthService.parsePhone` (exported for this,
+     rather than duplicated: same `INVALID_PHONE` `BadRequestException`
+     shape as the OTP flow), 404s as `DELEGATE_NOT_FOUND` if no account
+     holds that phone, then calls `grantDelegation` and maps its domain
+     errors (`SelfDelegationError`, `EmptyDelegationScopeError`,
+     `InvalidDelegationExpiryError`) to `BadRequestException`s carrying the
+     error's own `name` as `code`. `enrolment` is always `null` — this is
+     the self-service path only; assisted enrolment needs a witness/consent
+     UI this run does not build, so wiring
+     `grantDelegationByAssistedEnrolment` in stays a separate task rather
+     than being half-built here.
+  3. `apps/api/src/auth/auth.module.ts`: exported `AUTH_STORE` alongside
+     `AuthService`/`SessionAuthGuard` so `FamilyModule` (already importing
+     `AuthModule` for the guard) can inject the same store — not a second
+     one — for the phone lookup.
+  4. `apps/api/src/family/family-grants.controller.ts`: new `POST
+     /family/grants/delegations`, `SessionAuthGuard`-protected, a zod
+     schema validating `scopes` against the closed `DelegationScope` union
+     before the request ever reaches the service, granter id from
+     `@CurrentUser()` only — never a body field, for the same reason the
+     records module's cross-owner fix moved ownership off client-supplied
+     ids: a forged `granterId` would let anyone hand out access to someone
+     else's record.
+  5. `apps/web/src/lib/family-api.ts`: `createDelegation()` client, shaped
+     after `getFamilyGrants()`. `apps/web/src/hooks/useFamilyGrants.ts`: now
+     returns `[state, refresh]` instead of bare `state` — `refresh` re-runs
+     the fetch, needed so a successful grant doesn't leave the hook's
+     `loaded` cache stale until a full page reload; updated `AccountView.tsx`
+     for the new tuple shape. New `apps/web/src/components/account/
+     DelegationForm.tsx`: phone input, one real checkbox per
+     `DelegationScope` (native inputs, not a custom combined switch — same
+     "separately toggleable" precedent `DataConsentView.tsx` set), a native
+     date input for `expiresAt`, error mapping over the exact code set the
+     endpoint can return (mirrors `PhoneOtpFlow`'s `KNOWN_ERROR_CODES`
+     pattern). Mounted into `AccountView.tsx` between the identity card and
+     the "open the app" CTA. New `account.delegation.*` keys in both
+     `messages/en.json` and `messages/ne.json` — heading, body, all four
+     scope labels, and every error code's message.
+
+  **What was deliberately not built.** No listing of grants the signed-in
+  person has made *as granter* — `FamilyGrantsStore` only ever answers "what
+  was granted to me" (`guardianshipsFor`/`delegationsFor`, both keyed by
+  guardian/delegate id), and adding a `delegationsGrantedBy` read endpoint
+  just to show a history list was more scope than this task needed; the
+  form instead shows an inline success message using the `DelegationGrant`
+  the `POST` response itself returned. No revoke UI — `revokeDelegation`
+  exists in `packages/family` but has no route either; same reasoning, next
+  task. No test for `PrismaFamilyGrantsStore` itself, matching the existing
+  convention for that file (see the 2026-08-11 grants-endpoint entry below).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 31/31;
+  `pnpm typecheck` 31/31; `pnpm test` 56/56 tasks — `@swasthya/api` 314
+  tests (up from 305: 9 new, across `family-grants.service.test.ts`,
+  `family-grants.controller.test.ts`, `in-memory-family-grants.store
+  .test.ts`), `@swasthya/web` 54 tests (up from 52: 2 new in
+  `family-api.test.ts`); `pnpm build` 31/31, including `apps/web`'s static
+  export and `apps/mobile`'s Expo web bundle. One test-writing mistake
+  caught by the run itself and fixed before commit: the first draft of the
+  controller's two validation tests used `await expect(...).rejects...`,
+  but `createDelegation` throws synchronously (zod's `parseOrThrow` runs
+  before the `async` service call is ever reached), so the throw escaped
+  the test rather than rejecting a promise — switched those two to
+  `expect(() => ...).toThrow(...)`. Did not manually click through
+  `/account` against a live `apps/api` + Postgres in this run — no Docker
+  daemon in this environment and standing up `pg_ctlcluster` again wasn't
+  needed since no migration changed; worth a real click-through the next
+  time anyone touches this surface with a live database available.
+
+  **For the next run.** Two natural follow-ups this run left honestly
+  incomplete: a way for the granter to see and revoke delegations she has
+  already made (needs `delegationsGrantedBy` on the store plus a `DELETE`
+  or similar route calling `revokeDelegation`), and guardianship creation —
+  still blocked on `PatientProfile` having no structured date-of-birth
+  field to source `guardianshipExpiryForMinor`'s input from; that blocker
+  needs a real decision (add a typed DOB field? capture it at guardianship-
+  creation time instead?) before it can be built honestly. Also still open
+  from before: reconciling or retiring the seed data's older
+  `CaregiverRelationship` model, and the "stop after prescribing and
+  reassess" note under Clinical suite — modules 7-20 remain deferred, not
+  blocked.
 
 - 2026-08-11 — **Queue fully checked again; picked the highest-value
   improvement to work already done: a real `apps/api` grants endpoint.**

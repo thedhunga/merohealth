@@ -35,17 +35,54 @@ export class PrismaFamilyGrantsStore implements FamilyGrantsStore {
 
   async delegationsFor(delegateId: string): Promise<readonly DelegationGrant[]> {
     const rows = await this.prisma.client.delegationGrant.findMany({ where: { delegateId } });
-    return rows.map((row) => ({
-      id: row.id,
-      granterId: row.granterId,
-      delegateId: row.delegateId,
-      scopes: row.scopes,
-      grantedAt: row.grantedAt.toISOString(),
-      expiresAt: row.expiresAt.toISOString(),
-      revokedAt: row.revokedAt ? row.revokedAt.toISOString() : null,
-      enrolment: toEnrolment(row),
-    }));
+    return rows.map(toDelegationGrant);
   }
+
+  /**
+   * `grant.id` is already a caller-generated uuid (`randomUUID()` in
+   * `FamilyGrantsService.createDelegation`), so this is a plain insert, not
+   * an upsert — there is no path that creates the same grant twice.
+   */
+  async createDelegation(grant: DelegationGrant): Promise<DelegationGrant> {
+    const row = await this.prisma.client.delegationGrant.create({
+      data: {
+        id: grant.id,
+        granterId: grant.granterId,
+        delegateId: grant.delegateId,
+        scopes: [...grant.scopes],
+        grantedAt: new Date(grant.grantedAt),
+        expiresAt: new Date(grant.expiresAt),
+        revokedAt: grant.revokedAt ? new Date(grant.revokedAt) : null,
+        enrolmentMethod: grant.enrolment?.method ?? null,
+        enrolmentRecordedBy: grant.enrolment?.recordedBy ?? null,
+      },
+    });
+    return toDelegationGrant(row);
+  }
+}
+
+/** Shared by `delegationsFor` and `createDelegation` so the row shape has exactly one place to map from Prisma's `DateTime`/enrolment columns. */
+function toDelegationGrant(row: {
+  id: string;
+  granterId: string;
+  delegateId: string;
+  scopes: DelegationGrant['scopes'];
+  grantedAt: Date;
+  expiresAt: Date;
+  revokedAt: Date | null;
+  enrolmentMethod: ConsentMethod | null;
+  enrolmentRecordedBy: string | null;
+}): DelegationGrant {
+  return {
+    id: row.id,
+    granterId: row.granterId,
+    delegateId: row.delegateId,
+    scopes: row.scopes,
+    grantedAt: row.grantedAt.toISOString(),
+    expiresAt: row.expiresAt.toISOString(),
+    revokedAt: row.revokedAt ? row.revokedAt.toISOString() : null,
+    enrolment: toEnrolment(row),
+  };
 }
 
 /**

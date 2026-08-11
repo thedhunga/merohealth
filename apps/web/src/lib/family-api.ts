@@ -10,7 +10,7 @@
  * less than the cross-module naming mismatch would.
  */
 
-import type { DelegationGrant, GuardianshipGrant } from '@swasthya/family';
+import type { DelegationGrant, DelegationScope, GuardianshipGrant } from '@swasthya/family';
 
 export interface FamilyApiErrorBody {
   code?: string;
@@ -52,4 +52,32 @@ export async function getFamilyGrants(): Promise<SubjectGrantsResponse> {
     throw new FamilyApiError(error.message ?? `Request failed (${response.status})`, error.code ?? null);
   }
   return parsed as SubjectGrantsResponse;
+}
+
+export interface CreateDelegationInput {
+  delegatePhone: string;
+  scopes: readonly DelegationScope[];
+  expiresAt: string;
+}
+
+/**
+ * Client for `POST /family/grants/delegations` — self-service delegation
+ * only, the same restriction `FamilyGrantsService.createDelegation`
+ * documents server-side. The signed-in visitor is always the granter; there
+ * is no field for one here, the same reason `RecordsController`'s capture
+ * endpoint has no client-supplied owner id.
+ */
+export async function createDelegation(input: CreateDelegationInput): Promise<DelegationGrant> {
+  const response = await fetch(familyUrl('/grants/delegations'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const parsed = (await response.json().catch(() => null)) as unknown;
+  if (!response.ok) {
+    const error = (parsed as FamilyApiErrorBody | null) ?? {};
+    throw new FamilyApiError(error.message ?? `Request failed (${response.status})`, error.code ?? null);
+  }
+  return parsed as DelegationGrant;
 }

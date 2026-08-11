@@ -1,5 +1,7 @@
+import { BadRequestException } from '@nestjs/common';
 import { grantDelegation } from '@swasthya/family';
 import { describe, expect, it } from 'vitest';
+import { InMemoryAuthStore } from '../auth/in-memory-auth.store.js';
 import type { CurrentUserResult } from '../auth/auth.service.js';
 import { FamilyGrantsController } from './family-grants.controller.js';
 import { FamilyGrantsService } from './family-grants.service.js';
@@ -14,10 +16,12 @@ function currentUser(subjectId: string): CurrentUserResult {
   };
 }
 
-describe('FamilyGrantsController', () => {
+describe('FamilyGrantsController.grantsForCurrentUser', () => {
   it('reads the subject id from @CurrentUser(), never from a request parameter', async () => {
     const delegation = grantDelegation('d-1', 'janaki', 'sunita', ['VIEW_RECORD'], '2026-01-01T00:00:00.000Z', '2026-12-31T00:00:00.000Z');
-    const controller = new FamilyGrantsController(new FamilyGrantsService(new InMemoryFamilyGrantsStore([], [delegation])));
+    const controller = new FamilyGrantsController(
+      new FamilyGrantsService(new InMemoryFamilyGrantsStore([], [delegation]), new InMemoryAuthStore()),
+    );
 
     // The same account id asked as someone else must never see `janaki`'s
     // grant to `sunita` — this is the cross-owner failure the records
@@ -31,5 +35,53 @@ describe('FamilyGrantsController', () => {
       guardianships: [],
       delegations: [],
     });
+  });
+});
+
+describe('FamilyGrantsController.createDelegation', () => {
+  const DELEGATE_PHONE = '9812345678';
+
+  async function buildController() {
+    const authStore = new InMemoryAuthStore();
+    const delegate = await authStore.createPatientUser({ phone: DELEGATE_PHONE, locale: 'ne' });
+    const controller = new FamilyGrantsController(new FamilyGrantsService(new InMemoryFamilyGrantsStore(), authStore));
+    return { controller, delegate };
+  }
+
+  it('takes the granter id from @CurrentUser(), validates the body, and returns the created grant', async () => {
+    const { controller, delegate } = await buildController();
+
+    const grant = await controller.createDelegation(currentUser('janaki'), {
+      delegatePhone: DELEGATE_PHONE,
+      scopes: ['VIEW_RECORD'],
+      expiresAt: '2027-01-01T00:00:00.000Z',
+    });
+
+    expect(grant.granterId).toBe('janaki');
+    expect(grant.delegateId).toBe(delegate.id);
+    // A second read through the read endpoint sees the same grant it just wrote.
+    expect(await controller.grantsForCurrentUser(currentUser(delegate.id))).toEqual({ guardianships: [], delegations: [grant] });
+  });
+
+  // `parseOrThrow` throws synchronously — `createDelegation` never even
+  // reaches the `async` service call, so the rejection surfaces as a thrown
+  // error at the call site itself rather than a rejected promise; `toThrow`,
+  // not `rejects`, is the correct matcher for that.
+  it('rejects a body with no scopes before it ever reaches the service', async () => {
+    const { controller } = await buildController();
+    expect(() =>
+      controller.createDelegation(currentUser('janaki'), { delegatePhone: DELEGATE_PHONE, scopes: [], expiresAt: '2027-01-01T00:00:00.000Z' }),
+    ).toThrow(BadRequestException);
+  });
+
+  it('rejects an out-of-range scope value before it ever reaches the service', async () => {
+    const { controller } = await buildController();
+    expect(() =>
+      controller.createDelegation(currentUser('janaki'), {
+        delegatePhone: DELEGATE_PHONE,
+        scopes: ['DELETE_EVERYTHING'],
+        expiresAt: '2027-01-01T00:00:00.000Z',
+      }),
+    ).toThrow(BadRequestException);
   });
 });

@@ -219,7 +219,8 @@ export class AuthService {
   }
 }
 
-function parsePhone(rawPhone: string): string {
+/** Exported for `family-grants.service.ts`'s delegate-lookup-by-phone — same normalisation and `INVALID_PHONE` shape a second call site would otherwise have to duplicate. */
+export function parsePhone(rawPhone: string): string {
   try {
     return normalizeNepaliPhone(rawPhone);
   } catch (error) {

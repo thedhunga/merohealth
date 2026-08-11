@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 
 import { RecordTransform } from '@/components/art/RecordTransform';
+import { DelegationForm } from '@/components/account/DelegationForm';
 import { ProfileSwitcher } from '@/components/account/ProfileSwitcher';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { PageTemplate } from '@/components/ui/PageTemplate';
@@ -35,7 +36,7 @@ export function AccountView() {
   const [signingOut, setSigningOut] = useState(false);
 
   const user = session.status === 'authenticated' ? session.user : null;
-  const familyGrants = useFamilyGrants(user !== null);
+  const [familyGrants, refreshFamilyGrants] = useFamilyGrants(user !== null);
 
   const actingSubjects = useMemo(() => {
     if (!user) return [];
@@ -106,6 +107,8 @@ export function AccountView() {
               {t(`identity.assurance.${user.assuranceLevel}`)}
             </p>
           </div>
+
+          <DelegationForm onCreated={refreshFamilyGrants} />
 
           <div className="flex flex-col gap-4 rounded-2xl bg-forest-800 p-8 text-white md:flex-row md:items-center md:justify-between">
             <div>

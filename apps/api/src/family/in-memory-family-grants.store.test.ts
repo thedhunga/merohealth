@@ -16,4 +16,17 @@ describe('InMemoryFamilyGrantsStore', () => {
     expect(await store.delegationsFor('arjun')).toEqual([delegation]);
     expect(await store.delegationsFor('someone-else')).toEqual([]);
   });
+
+  it('createDelegation persists a new grant without mutating the array the constructor was seeded with', async () => {
+    const seeded: readonly ReturnType<typeof grantDelegation>[] = [delegation];
+    const freshStore = new InMemoryFamilyGrantsStore([], seeded);
+    const created = grantDelegation('d-2', 'sunita', 'roshani', ['ASK_ASSISTANT'], '2026-02-01T00:00:00.000Z', '2027-02-01T00:00:00.000Z');
+
+    const returned = await freshStore.createDelegation(created);
+
+    expect(returned).toEqual(created);
+    expect(await freshStore.delegationsFor('roshani')).toEqual([created]);
+    expect(await freshStore.delegationsFor('arjun')).toEqual([delegation]);
+    expect(seeded).toEqual([delegation]);
+  });
 });
