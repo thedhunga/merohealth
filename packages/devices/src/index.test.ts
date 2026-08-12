@@ -291,6 +291,21 @@ describe('normalizeHealthKitSample', () => {
     expect(result?.value).toBe(110);
   });
 
+  it('converts body mass from lb to the canonical kg', () => {
+    const raw: HealthKitSample = {
+      identifier: 'HKQuantityTypeIdentifierBodyMass',
+      uuid: 'hk-body-mass-1',
+      startDate: '2026-06-01T07:00:00.000Z',
+      endDate: '2026-06-01T07:00:00.000Z',
+      value: 154,
+      unit: 'lb',
+    };
+    const [result] = normalizeHealthKitSample(raw, OWNER);
+    expect(result?.kind).toBe('BODY_WEIGHT');
+    expect(result?.value).toBeCloseTo(69.9, 1);
+    expect(result?.unit).toBe('kg');
+  });
+
   it('converts body temperature reported in degF', () => {
     const raw: HealthKitSample = {
       identifier: 'HKQuantityTypeIdentifierBodyTemperature',

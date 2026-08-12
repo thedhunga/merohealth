@@ -636,6 +636,11 @@ suite grows. A module that "works" but has no outage test is not finished.
       entry found nothing new. See the 2026-08-12 log entry below (the one
       added by this run) for why this package specifically and what each
       new test guards against.
+- [x] Covered `packages/devices`'s untested `HKQuantityTypeIdentifierBodyMass`
+      HealthKit weight-unit-conversion path — the concrete, named follow-up
+      the `emergency-chest-001` run's own log entry left open as "a real,
+      small, unblocked follow-up." See the 2026-08-12 log entry below (the
+      one added by this run) for the test and why it stayed a single case.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -659,6 +664,59 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; covered `packages/devices`'s untested
+  `HKQuantityTypeIdentifierBodyMass` HealthKit weight-conversion path.**
+  Grepped for `- [ ]` first — zero hits, same as every prior "queue exhausted"
+  run. Rather than re-survey the whole repo again, took the prior run's own
+  named follow-up at face value and verified it before touching anything:
+  `packages/devices/src/index.ts:667-681` normalizes
+  `HKQuantityTypeIdentifierBodyMass` through the same `massToKg(value, unit)`
+  helper the Health Connect `WeightRecord` case already uses, but
+  `index.test.ts` only ever exercised the Health Connect side (`'converts
+  weight from lb to kg'`, line 137) — `grep -n "BodyMass" index.test.ts`
+  before this run returned nothing. Every other HealthKit quantity type in
+  the file (glucose, temperature, oxygen saturation) already had its own
+  conversion test; body mass was the one silent gap, consistent with what
+  the survey agent two runs ago had already found and the prior run had
+  deliberately left open rather than scope-creep into.
+
+  **What was built.** One new test in `packages/devices/src/index.test.ts`,
+  `'converts body mass from lb to the canonical kg'`, mirroring the existing
+  Health Connect weight test's shape and inputs exactly (154 lb →
+  `toBeCloseTo(69.9, 1)`, `unit: 'kg'`) plus an assertion on `kind` —
+  `'BODY_WEIGHT'` — that the Health Connect test omits, since `massToKg`'s
+  own correctness was already proven there and this test's job is confirming
+  the HealthKit branch routes to it and tags the result correctly. No source
+  line in `index.ts` changed; `massToKg`, the `HealthKitBodyMassSample`
+  interface and its `switch` case were already correct — this closed a
+  coverage gap, not a behavior bug.
+
+  **What was deliberately not added.** A second HealthKit body-mass case for
+  the untouched `kg`-unit passthrough was considered and skipped: the
+  Health Connect suite doesn't test that branch either (only lb→kg is
+  covered there), and `massToKg`'s `kg` branch is a one-line `round(value,
+  1)` with no unit-conversion logic to verify — adding it here without the
+  same test existing on the Health Connect side would have been asymmetric
+  coverage for its own sake, not a real gap.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73 turbo tasks —
+  `@swasthya/devices` now 27/27 tests (was 26/26), `@swasthya/api` unchanged
+  at 583/583. `pnpm build` 39/39 (34 cached; this package has no
+  `apps/web`/`apps/mobile` build-time dependency).
+
+  **For the next run.** The two standing blocked items are unchanged:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (needs a product
+  decision on anonymous-vs-signed-in metering) and `analytics`'s open
+  `clinical-charting` source (needs a decision on what an encounter-only
+  summary should count). `quality-reporting`/`tenancy` (capability map rows
+  19-20) remain the only two unbuilt clinical-suite modules and still carry
+  the no-real-dataset risk multiple prior entries have already described. No
+  new candidate was surfaced by this run — it closed the one already named
+  rather than searching for another — so the next "queue exhausted" run
+  should do a fresh, independent survey rather than assume this list is
+  exhaustive.
 
 - 2026-08-12 — **Queue fully checked; covered `packages/clinical-safety`'s
   untested `emergency-chest-001` rule and two other test gaps in the same
