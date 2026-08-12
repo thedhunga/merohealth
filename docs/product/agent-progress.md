@@ -709,6 +709,13 @@ suite grows. A module that "works" but has no outage test is not finished.
       survey after the `language-corpus.controller.ts` run's own log entry
       reported the `isoInstant` vein closed. See the 2026-08-12 log entry
       below for the two call sites fixed and what was deliberately left open.
+- [x] `apps/api/src/perplexity-health.service.ts`'s `research` `disclaimer`
+      now has its own `ne-Latn` branch instead of collapsing to Devanagari —
+      the exact same-shape gap the `ne-Latn` emergency-template run's own log
+      entry named and deliberately left open ("a real, same-shape gap, but a
+      general research disclaimer, not a `clinical-safety`-gated emergency
+      message"). See the 2026-08-12 log entry below for the fix and the new
+      test file.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -732,6 +739,52 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; fixed the `ne-Latn`-collapses-to-
+  Devanagari gap in `apps/api/src/perplexity-health.service.ts`'s `research`
+  disclaimer.** Grepped for `- [ ]` first — zero hits, same as every recent
+  "queue exhausted" run. Rather than open a fresh independent survey, took the
+  concrete candidate the prior run's own log entry had already named and
+  deliberately left open: that run fixed the same `ne-Latn`-collapse bug class
+  in `packages/clinical-safety`'s emergency templates, found the identical
+  pattern a few lines from `research`'s already-correct `languageInstruction`
+  branch, and explicitly deferred it as "a real, same-shape gap ... left as
+  the next run's candidate rather than folded in to keep this run to one
+  task."
+
+  **What was found.** `PerplexityHealthService.research`'s `disclaimer`
+  ternary only branched on `language === 'en'`, so both `'ne'` and `'ne-Latn'`
+  fell through to the Devanagari string — identical to the bug already fixed
+  in `clinical-safety`'s templates, but here on the general research
+  disclaimer rather than a `clinical-safety`-gated emergency message. A person
+  who chose Romanized Nepali because they cannot read Devanagari would still
+  see this one line rendered in Devanagari on every research answer.
+
+  **What was built.** Added a `language === 'ne-Latn'` branch to the
+  `disclaimer` ternary, giving it its own Romanized string
+  ("Yo samanya swasthya jankari matra ho. Yo nidan wa upachar sifaris
+  hoina.") — a direct transliteration of the existing `ne` wording, following
+  the no-diacritics informal style already established in
+  `clinical-safety`'s `ne-Latn` entries and confirmed against that file
+  before writing this one. The service had no colocated test file at all
+  (`companion.controller.test.ts` only exercises it through a mock), so added
+  `apps/api/src/perplexity-health.service.test.ts` with one case per language,
+  asserting `ne-Latn` returns the Romanized string rather than the Devanagari
+  fallback. `PERPLEXITY_API_KEY` is unset in the test environment, so all
+  three cases exercise the real `disclaimer` assembly via the existing
+  `setup-required` early return — no `fetch` mocking needed.
+
+  **What was deliberately not touched.** `languageInstruction` in the same
+  file already branched on `ne-Latn` correctly and needed no change. No other
+  `ne-Latn`-collapse instance was found while reading this file; a fresh
+  survey for further instances elsewhere is the honest next step rather than
+  assuming this was the last one.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 589/589 (was 586/586, +3 new tests in the new file), all
+  other package counts unchanged. `pnpm build` 40/40; mobile's 16 static
+  routes unchanged in count and size.
 
 - 2026-08-12 — **Queue fully checked; `packages/clinical-safety`'s emergency
   templates now have a `ne-Latn` entry, and the two call sites that fired
