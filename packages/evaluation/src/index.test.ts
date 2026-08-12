@@ -146,10 +146,14 @@ describe('runEvaluationCase', () => {
 
 describe('runEvaluationSet', () => {
   it('passes every case whose expected outcome is the ideal answer, not just today\'s behavior', () => {
-    // The two `idealNote` cases are excluded here on purpose — asserting
+    // Cases carrying an `idealNote` are excluded here on purpose — asserting
     // them 100% clean would make this test lie about the classifier's real
     // accuracy the moment someone reads a green run. They get their own
-    // check below instead.
+    // check below instead. Both cases that once needed this exclusion
+    // (`janaki-definition-marker-collision`, `janaki-advice-suffix-gap`) have
+    // since been fixed and dropped their `idealNote`, so this currently
+    // equals the full set — kept as a filter, not simplified away, because
+    // the next real gap this evaluation set finds will need it again.
     const idealCases = evaluationCases.filter((evalCase) => evalCase.idealNote === undefined);
     const report = runEvaluationSet(demonstrationCorpus, idealCases);
     const failures = report.failed.map((result) => `${result.evalCase.id}: ${result.mismatch}`).join('\n');
@@ -162,11 +166,16 @@ describe('runEvaluationSet', () => {
     // `idealNote`. If this ever fails, `packages/intent-router` changed in a
     // way that resolved (or altered) the gap — that is good news, and the
     // fix is to move the case out of this list and drop its `idealNote`, not
-    // to weaken this assertion.
+    // to weaken this assertion. Zero is a legitimate count today — both
+    // known gaps this evaluation set originally documented are fixed — so
+    // `runEvaluationSet` over an empty list, which trivially reports
+    // `passed === total === 0`, is the correct assertion rather than a
+    // vacuous one; the moment a fresh survey documents a new `idealNote`
+    // case, this starts exercising it again with no other change needed.
     const knownGapCases = evaluationCases.filter((evalCase) => evalCase.idealNote !== undefined);
-    expect(knownGapCases.length).toBeGreaterThan(0);
     const report = runEvaluationSet(demonstrationCorpus, knownGapCases);
     const failures = report.failed.map((result) => `${result.evalCase.id}: ${result.mismatch}`).join('\n');
     expect(report.failed, failures).toHaveLength(0);
+    expect(report.passed).toBe(report.total);
   });
 });

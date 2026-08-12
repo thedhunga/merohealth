@@ -109,6 +109,19 @@ describe('expandQuery', () => {
     expect(expansion.matchedConcepts).not.toContain('bloodPressure');
   });
 
+  it('matches a term with a Nepali possessive suffix glued onto it', () => {
+    const expansion = expandQuery('मेरो सुगरको लागि के गर्ने?');
+
+    expect(expansion.matchedConcepts).toContain('glucose');
+    expect(expansion.terms).toContain('glucose');
+  });
+
+  it('does not turn the possessive-suffix match into a substring match elsewhere in the term map', () => {
+    const expansion = expandQuery('मेरो मुटुको बारेमा');
+
+    expect(expansion.matchedConcepts).toEqual(['heart']);
+  });
+
   it('still matches the raw query when nothing in the term map applies', () => {
     const expansion = expandQuery('when is my next appointment');
 

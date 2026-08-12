@@ -672,6 +672,14 @@ suite grows. A module that "works" but has no outage test is not finished.
       after the `normalizeLabel`-dedup run's own log entry said one was
       overdue. See the 2026-08-12 log entry below (the one added by this
       run) for the fix and why the case moved out of the known-gaps list.
+- [x] Fixed `packages/retrieval`'s `termAppears` so a Nepali term glued to a
+      possessive suffix (सुगर + को → सुगरको) still matches — the sibling
+      known-gap case, `janaki-advice-suffix-gap`, the
+      `classifyIntent`-marker-collision run's own log entry named as "the
+      other standing, already-diagnosed candidate." See the 2026-08-12 log
+      entry below (the one added by this run) for the fix and why the
+      known-gap test now has zero cases rather than an empty describe block
+      deleted outright.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -695,6 +703,100 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; fixed `packages/retrieval`'s
+  `termAppears` so a Nepali possessive suffix glued onto a clinical term no
+  longer blocks the match, closing the `janaki-advice-suffix-gap` known
+  gap.** Grepped for `- [ ]` first — zero hits, same as every prior "queue
+  exhausted" run. The `classifyIntent`-marker-collision run's own log entry
+  (immediately below) named this as "the other standing, already-diagnosed
+  candidate" in `packages/evaluation`, so this run went straight to it
+  rather than spawning a fresh survey — the case was diagnosed in enough
+  depth (down to the exact function and line) by the 2026-08-10 run that
+  built the evaluation set that a repeat survey would only have rediscovered
+  the same gap.
+
+  **What was found.** `packages/evaluation/src/index.ts`'s
+  `janaki-advice-suffix-gap` case: "मेरो सुगरको लागि के गर्ने?" ("what should
+  I do for my sugar?") came back a fully unrecognised `NOT_UNDERSTOOD`
+  refusal instead of naming glucose, because `packages/retrieval/src/index.ts`'s
+  `termAppears` requires a single-word term to equal a whole query token
+  (`queryTokens.includes(normalizedTerm)`), and `tokenize` — which only
+  splits on non-letter/mark/digit boundaries — has no notion of Nepali
+  morphology. सुगर ("sugar") with the possessive suffix को glued directly
+  onto it with no space tokenizes as one token, `सुगरको`, which never equals
+  `सुगर`. Confirmed the gap was still live by rereading `git log` on
+  `packages/retrieval/src/index.ts` since the 2026-08-10 evaluation-set run
+  (untouched) and by the known-gap test asserting the fully-unrecognised
+  output before this run's change.
+
+  **What was built, and why the narrower of the `idealNote`'s two options.**
+  The case's own `idealNote` named two possible fixes: a general
+  suffix-stripping pass inside `tokenize`/`termAppears`, or listing inflected
+  forms per term. Took a third, narrower option instead — a small,
+  additive check in `termAppears` alone, not a change to `tokenize` (which
+  every term in the map runs through, including phrase terms, romanized
+  forms and English) or to `clinicalTermMap` (which would mean hand-listing
+  को/की/का variants for all eleven concepts' Nepali forms, a much larger
+  surface for a translation mistake to hide in). A new
+  `POSSESSIVE_SUFFIXES = ['को', 'की', 'का']` constant and a same-token
+  fallback check: `queryTokens.includes(normalizedTerm + suffix)`, tried only
+  after the existing exact-token check fails, and only for single-word terms
+  — a multi-word (phrase) term keeps matching by substring against the whole
+  normalized query, unaffected. Two new tests in
+  `packages/retrieval/src/index.test.ts`: the exact
+  `janaki-advice-suffix-gap` query now matches `glucose`, and a second case
+  (`मेरो मुटुको बारेमा`, "about my heart") confirming the fix only adds the
+  suffixed form of the matching term rather than loosening matching into a
+  general substring check that could pull in unrelated concepts.
+
+  **Evaluation-set fallout.** Updated the `janaki-advice-suffix-gap` case's
+  `expected` to `{ kind: 'REFUSAL', intent: 'ADVICE', reason:
+  'NO_MATCHING_RECORD', concepts: ['glucose'] }` (worked through
+  `composeAnswer`'s branching by hand: `ADVICE` is never in
+  `COMPUTABLE_INTENTS`, so it is always `NOT_COMPUTABLE`;
+  `unconfirmedDraftsOnly` is hardcoded `false` for a non-computable intent;
+  with a non-empty `matchedConcepts` that leaves `NO_MATCHING_RECORD`, not
+  `NOT_UNDERSTOOD`) and dropped its `idealNote`, the same "move it out of the
+  known-gaps list" instruction the marker-collision run followed for its own
+  case. That left `evaluationCases` with **zero** `idealNote` entries — the
+  `known-gap cases still match their documented, verified current behavior`
+  test's `expect(knownGapCases.length).toBeGreaterThan(0)` assumed at least
+  one would always exist, which stopped being true. Rewrote that assertion
+  to run `runEvaluationSet` over the (now empty) known-gap list and assert
+  `passed === total` instead of asserting a nonzero count — the property the
+  test exists to guard ("known-gap cases match their documented behavior")
+  holds vacuously at zero and the same assertion starts exercising real
+  cases again the moment a future survey documents a new `idealNote`. This
+  is a real behavior-preserving fix to an assumption the test's own history
+  invalidated, not a weakened assertion — it was checked against the working
+  agreement's "never weaken a test" rule before making the change.
+
+  **What was deliberately not touched.** `tokenize` itself, and the other
+  Nepali case markers (`लाई`, `ले`, `मा`, `बाट`, `देखि`, `हरू`) — the
+  `idealNote` and this case both named specifically the possessive family
+  (को/की/का), and generalizing to every Nepali postposition without a
+  concrete failing case to verify against would be exactly the "broad,
+  unverified change to the core matching primitive" the original `idealNote`
+  warned against.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/retrieval` now 25/25 (was 23/23, +2 new tests),
+  `@swasthya/evaluation` 13/13 (unchanged count), `@swasthya/intent-router`
+  37/37 (unchanged), `@swasthya/api` unchanged at 583/583. `pnpm build`
+  40/40 (35 cached); mobile's 16 static routes unchanged in count and size.
+
+  **For the next run.** Both `packages/evaluation` known-gap cases from the
+  2026-08-10 evaluation-set run are now fixed; a fresh independent survey is
+  likely needed to find the next candidate rather than trusting this entry's
+  guess. The two long-standing blocked items are unchanged:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (needs a product
+  decision on anonymous-vs-signed-in metering) and `analytics`'s open
+  `clinical-charting` source (needs a decision on what an encounter-only
+  summary should count). `quality-reporting`/`tenancy` (capability map rows
+  19-20) remain the only two unbuilt clinical-suite modules and still carry
+  the no-real-dataset risk multiple prior entries have already described.
 
 - 2026-08-12 — **Queue fully checked; fixed `classifyIntent`'s
   DEFINITION/LATEST_VALUE marker collision, closing the
