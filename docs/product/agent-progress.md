@@ -570,6 +570,14 @@ suite grows. A module that "works" but has no outage test is not finished.
       added by this run) for why this was picked over the two items the
       diagnostics-orders run's own log entry left open (both still genuinely
       blocked on a product decision).
+- [x] Closed the two mobile language-toggle gaps the fault-isolation run's
+      own log entry (immediately above) named as fallback candidates:
+      `app/(tabs)/companion.tsx`'s research-answer panel and
+      `app/(tabs)/learn.tsx`'s "Accessible by design"/"Reviewed scripts"
+      notice, neither of which branched on the `language` state already in
+      scope in both files. See the 2026-08-12 log entry below (the one added
+      by this run) for exactly what changed, what stayed English on purpose,
+      and a real disclaimer-text bug found and fixed along the way.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -593,6 +601,109 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; closed the two mobile
+  language-toggle gaps flagged by the `records.fault-isolation.test.ts`
+  run's own log entry (immediately below).** Grepped for `- [ ]` first —
+  zero hits, same as every prior "queue exhausted" run. That prior run's
+  survey had already found and named two small, genuinely unblocked gaps
+  as fallback candidates rather than forcing `quality-reporting`/`tenancy`
+  open: a handful of hardcoded-English strings in
+  `apps/mobile/app/(tabs)/companion.tsx` and `app/(tabs)/learn.tsx` that
+  don't branch on the `language` state already in scope in both files —
+  the same bug class the 2026-08-11 `care.tsx`/`consultation.tsx` and
+  `accessibilityLabel` runs already fixed elsewhere. This run read both
+  files in full rather than trusting the prior entry's line numbers, since
+  the file had changed shape since that survey ran.
+
+  **What was found, and the one genuine bug among it.** In
+  `companion.tsx`: the module-level `DEFAULT_ANSWER_TEXT` fallback, the
+  "Searching trusted sources…" status line, the "Evidence-backed
+  information"/"General information" heading, the "Sources" citation-list
+  label, the "Open Perplexity Health" button, the fallback disclaimer
+  text, and the closing source-citation line were all fixed English
+  regardless of the toggle. One of these was an actual bug rather than a
+  missing translation: the `catch` block's `disclaimer` field already had
+  a `language === 'en' ? … : …` ternary, but **both branches held the
+  identical English sentence** — so the ternary always evaluated to the
+  same string and the Nepali branch had silently never been written. In
+  `learn.tsx`: the "Accessible by design" notice title, "Reviewed
+  scripts" hint, and the Play/Pause button's visible label (its
+  `accessibilityLabel` two lines above already branched correctly; only
+  the visible `Text` did not) were the same class of gap.
+
+  **What was deliberately left alone, and why.** `companion.tsx`'s "GUIDED
+  INFORMATION · NOT A DIAGNOSIS" eyebrow — named as a candidate by the
+  original survey — was not touched. It is all-caps badge chrome in the
+  same `stepLabel` style as the file's own `STEP 1 · WHAT MATTERS
+  NOW`/`STEP 1 · REPHRASE` eyebrow two sections below, which already stays
+  English under both languages by design; translating only the newer
+  eyebrow while its sibling stays fixed would have been the inconsistency
+  in the other direction. This matches the precedent two separate prior
+  entries already established for `index.web.tsx` and the teleconsultation
+  screens: all-caps eyebrow badges are left as English chrome, sentence-
+  and title-case body copy is translated. `learn.tsx`'s "INTERACTIVE
+  WALKTHROUGH" badge and "READABLE TRANSCRIPT" label, and every
+  `walkthroughSteps[].eyebrow` (`STEP 1 · ASK` etc.), were left alone for
+  the same reason. `lesson.reviewStatus.replaceAll('_', ' ')` (a raw enum
+  value rendered as a duration/status caption) was also left alone — it is
+  a data label, not authored copy, and translating it would mean
+  inventing a status-label table this run has no source for. The "GUIDED
+  INFORMATION" eyebrow aside, every other change in both files was a
+  straight `language === 'en' ? english : nepali` ternary matching the
+  files' own existing convention exactly — no new pattern was introduced.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change
+  (no new package). `pnpm lint` 39/39. `pnpm typecheck` 39/39 (the new
+  `defaultAnswerText(language: LanguageCode)` helper typechecks against
+  `@swasthya/shared-types`'s `LanguageCode`, matching the type every
+  sibling ternary in the file already narrows against). `pnpm test`
+  73/73 turbo tasks, `@swasthya/api` unchanged at 583/583 — neither file
+  has or needed a test; no `apps/mobile/app` screen in this repo has one,
+  matching the pattern the 2026-08-11 `care.tsx`/`consultation.tsx` run
+  already established. `pnpm build` 39/39, including
+  `@swasthya/mobile:build` bundling `/companion` and `/learn` cleanly.
+
+  **For the next run — this vein is not exhausted, it is larger than
+  before.** While verifying there was nothing else obvious in this class,
+  this run read every `apps/mobile/app/(tabs)/*.tsx` and top-level
+  `app/*.tsx` screen and found two real, unblocked gaps bigger than the
+  ones just fixed, deliberately left untouched to keep this run to the one
+  task named above:
+  - `app/(tabs)/index.tsx` — the home tab, the highest-traffic screen in
+    the app — mixes two localization strategies: several strings correctly
+    go through `t(language, key)` (`@swasthya/localization`), but a
+    second set of real sentences is hardcoded English with no ternary and
+    no `t()` call at all: `contextTitle` ("No upcoming care", "Explore
+    verified demo listings"), `sectionHint` ("Tap any card to explore"),
+    `voiceChipText` ("Voice ready"), and the entire "health story" card —
+    `healthStoryTitle` ("A useful picture grows one confirmed fact at a
+    time."), `healthStoryBody` (two full sentences), `storyButtonText`
+    ("Build my picture"). A Nepali-reading user sees a page that is mostly
+    Nepali with several stray English sentences; an English-reading user
+    sees the reverse for the same card. All-caps badges (`AVAILABLE`,
+    `PATIENT-CONTROLLED`, etc.) match this file's own established eyebrow
+    convention and should stay as they are.
+  - `app/(tabs)/twin.tsx` — the opposite direction of the bug this run
+    just fixed: the screen is almost entirely hardcoded Nepali (title,
+    progress copy, empty state, fact captions) and only the *prompt*
+    content itself (`prompt.questionEn`/`whyEn` vs `questionNe`/`whyNe`)
+    branches on `language`. An English-reading user gets an English
+    question inside an otherwise all-Nepali screen. This is the same bug
+    class the 2026-08-11 run already fixed once on `care.tsx` (also fully
+    hardcoded Nepali) — `twin.tsx` was apparently missed by that survey.
+
+  Both are real candidates for the next "queue exhausted" run, and neither
+  needs a product decision — only translation work, same as this run's own
+  fix. The two standing blocked items are otherwise unchanged:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (needs a product
+  decision on anonymous-vs-signed-in metering) and analytics's open
+  `clinical-charting` source (needs a decision on what an encounter-only
+  summary should count). `quality-reporting`/`tenancy` (capability map rows
+  19-20) remain the only two unbuilt clinical-suite modules, and still
+  carry the no-real-dataset risk multiple prior entries have already
+  described — re-read `clinical-suite.md`'s capability map before starting
+  either rather than trusting this paragraph's framing.
 
 - 2026-08-12 — **Queue fully checked; wrote the missing
   `records.fault-isolation.test.ts` for `HEALTH_RECORDS`.** Grepped for

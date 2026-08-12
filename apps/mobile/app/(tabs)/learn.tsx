@@ -134,7 +134,15 @@ export default function LearnScreen() {
             ) : (
               <Play color={colors.primaryDark} fill={colors.primaryDark} size={17} />
             )}
-            <Text style={styles.playButtonText}>{playing ? 'Pause' : 'Play guide'}</Text>
+            <Text style={styles.playButtonText}>
+              {playing
+                ? language === 'en'
+                  ? 'Pause'
+                  : 'रोक्नुहोस्'
+                : language === 'en'
+                  ? 'Play guide'
+                  : 'गाइड चलाउनुहोस्'}
+            </Text>
           </Pressable>
           <Pressable
             accessibilityLabel={language === 'en' ? 'Listen to this step' : 'यो चरण सुन्नुहोस्'}
@@ -172,7 +180,9 @@ export default function LearnScreen() {
       <View style={styles.notice}>
         <Captions color={colors.info} />
         <View style={styles.noticeCopy}>
-          <Text style={styles.noticeTitle}>Accessible by design</Text>
+          <Text style={styles.noticeTitle}>
+            {language === 'en' ? 'Accessible by design' : 'सुगम्य बनाइएको'}
+          </Text>
           <Text style={styles.noticeText}>
             यो walkthrough काम गर्छ। उत्पादन MP4 प्रशिक्षण भिडियो, मानवीय narration र चिकित्सा
             समीक्षा अझै प्रकाशन gate भित्र छन्।
@@ -182,7 +192,9 @@ export default function LearnScreen() {
 
       <View style={styles.lessonHead}>
         <Text style={styles.lessonHeading}>पढेर सिक्ने पाठ</Text>
-        <Text style={styles.lessonHint}>Reviewed scripts</Text>
+        <Text style={styles.lessonHint}>
+          {language === 'en' ? 'Reviewed scripts' : 'समीक्षा गरिएका स्क्रिप्ट'}
+        </Text>
       </View>
 
       <View style={styles.lessons}>

@@ -29,13 +29,17 @@ import {
 import * as Speech from 'expo-speech';
 import { assessSafety, getSafetyTemplate } from '@swasthya/clinical-safety';
 import { colors, radii, spacing } from '@swasthya/configuration';
+import type { LanguageCode } from '@swasthya/shared-types';
 import { Screen, SathiOrb, uiStyles } from '@/components/ui';
 import { ProfileSwitcher } from '@/components/ProfileSwitcher';
 import { useAppState } from '@/state/app-state';
 import { classifyCompanionCapture, type CompanionCapture } from '@/lib/companion-capture';
 
-const DEFAULT_ANSWER_TEXT =
-  'Symptoms can have many causes. Consider duration, severity, and other signs with a qualified health professional.';
+function defaultAnswerText(language: LanguageCode): string {
+  return language === 'en'
+    ? 'Symptoms can have many causes. Consider duration, severity, and other signs with a qualified health professional.'
+    : 'लक्षणका धेरै कारण हुन सक्छन्। अवधि, गम्भीरता र अन्य संकेतबारे योग्य स्वास्थ्यकर्मीसँग छलफल गर्नुहोस्।';
+}
 
 interface ResearchResult {
   provider: 'perplexity-sonar';
@@ -168,7 +172,7 @@ export default function CompanionScreen() {
         disclaimer:
           language === 'en'
             ? 'General health information only. This is not a diagnosis or treatment recommendation.'
-            : 'General health information only. This is not a diagnosis or treatment recommendation.',
+            : 'सामान्य स्वास्थ्य जानकारी मात्र हो। यो निदान वा उपचार सिफारिस होइन।',
         externalHealthHubUrl: 'https://www.perplexity.ai/health',
       });
     } finally {
@@ -362,19 +366,29 @@ export default function CompanionScreen() {
             {isResearching ? (
               <View accessibilityLiveRegion="polite" style={styles.researching}>
                 <ActivityIndicator color={colors.primary} />
-                <Text style={styles.researchingText}>Searching trusted sources…</Text>
+                <Text style={styles.researchingText}>
+                  {language === 'en' ? 'Searching trusted sources…' : 'भरपर्दो स्रोत खोजिँदैछ…'}
+                </Text>
               </View>
             ) : (
               <>
                 <Text style={styles.question}>
                   {research?.status === 'complete'
-                    ? 'Evidence-backed information'
-                    : 'General information'}
+                    ? language === 'en'
+                      ? 'Evidence-backed information'
+                      : 'प्रमाणमा आधारित जानकारी'
+                    : language === 'en'
+                      ? 'General information'
+                      : 'सामान्य जानकारी'}
                 </Text>
-                <Text style={styles.answer}>{research?.answer ?? DEFAULT_ANSWER_TEXT}</Text>
+                <Text style={styles.answer}>
+                  {research?.answer ?? defaultAnswerText(language)}
+                </Text>
                 {research?.citations.length ? (
                   <View style={styles.citationList}>
-                    <Text style={styles.citationHeading}>Sources</Text>
+                    <Text style={styles.citationHeading}>
+                      {language === 'en' ? 'Sources' : 'स्रोतहरू'}
+                    </Text>
                     {research.citations.map((citation, index) => (
                       <Pressable
                         key={citation.url}
@@ -399,7 +413,9 @@ export default function CompanionScreen() {
                     style={styles.perplexityButton}
                   >
                     <BookOpen color="white" size={18} />
-                    <Text style={styles.perplexityButtonText}>Open Perplexity Health</Text>
+                    <Text style={styles.perplexityButtonText}>
+                      {language === 'en' ? 'Open Perplexity Health' : 'Perplexity Health खोल्नुहोस्'}
+                    </Text>
                     <ExternalLink color="white" size={16} />
                   </Pressable>
                 )}
@@ -407,7 +423,9 @@ export default function CompanionScreen() {
                   <AlertTriangle color={colors.saffronDeep} size={18} />
                   <Text style={styles.warningText}>
                     {research?.disclaimer ??
-                      'General information only—not a diagnosis or treatment recommendation. See a qualified clinician for new or worsening symptoms.'}
+                      (language === 'en'
+                        ? 'General information only—not a diagnosis or treatment recommendation. See a qualified clinician for new or worsening symptoms.'
+                        : 'सामान्य जानकारी मात्र हो—यो निदान वा उपचार सिफारिस होइन। नयाँ वा बढ्दो लक्षणका लागि योग्य चिकित्सकलाई भेट्नुहोस्।')}
                   </Text>
                 </View>
               </>
@@ -416,7 +434,9 @@ export default function CompanionScreen() {
           <View style={styles.source}>
             <BookOpen color={colors.info} size={20} />
             <Text style={styles.sourceText}>
-              Approved Demonstration Health Guide, v1 · उत्पादनका लागि होइन
+              {language === 'en'
+                ? 'Approved Demonstration Health Guide, v1 · not for production'
+                : 'स्वीकृत प्रदर्शन स्वास्थ्य गाइड, संस्करण १ · उत्पादनका लागि होइन'}
             </Text>
           </View>
 
@@ -463,7 +483,7 @@ export default function CompanionScreen() {
 
           <Pressable
             onPress={() => {
-              setLastAssistantText(research?.answer ?? DEFAULT_ANSWER_TEXT);
+              setLastAssistantText(research?.answer ?? defaultAnswerText(language));
               setIsRephrasing(true);
               setSubmitted(false);
               setMessage('');
