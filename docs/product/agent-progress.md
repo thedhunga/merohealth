@@ -628,6 +628,14 @@ suite grows. A module that "works" but has no outage test is not finished.
       original fix. See the 2026-08-12 log entry below (the one added by
       this run) for the shared `filename.ts` helper both adapters now import
       instead of carrying their own diverging copies.
+- [x] Covered `packages/clinical-safety`'s untested `emergency-chest-001`
+      rule (the chest-pain/heart-attack detector) plus the untested
+      default/negative path and the untested positive path of
+      `getSafetyTemplate` — the highest-consequence test gap found in a
+      fresh, independent survey after the `hosted-store.ts` run's own log
+      entry found nothing new. See the 2026-08-12 log entry below (the one
+      added by this run) for why this package specifically and what each
+      new test guards against.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -651,6 +659,80 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; covered `packages/clinical-safety`'s
+  untested `emergency-chest-001` rule and two other test gaps in the same
+  file.** Grepped for `- [ ]` first — zero hits, same as every prior "queue
+  exhausted" run. The prior run's own log entry (the `hosted-store.ts`
+  dedupe, immediately below) said it found no new candidate and recommended
+  "a fresh, wider survey next time rather than assuming this file's own
+  guess at candidates is exhaustive," so this run spawned an independent
+  general-purpose survey agent instructed to re-search the codebase itself
+  rather than trust the ledger's own running list of blocked/done items, and
+  to explicitly confirm each candidate wasn't already covered. It re-verified
+  (not just repeated) that the filename-sanitization bug class, the mobile
+  localization vein and the fault-isolation-test coverage across all 16
+  clinical-suite modules are genuinely exhausted, then found this: `src/index.ts:11`
+  defines `emergency-chest-001` — the chest-pain/heart-attack pattern, with
+  both an English regex (`/chest (pain|pressure).*(severe|sweat|faint|arm|jaw)/i`)
+  and a Nepali one (`/छाती.*(कडा|दुखाइ|पसिना|बेहोस)/u`) — but
+  `src/index.test.ts`'s `it.each` block exercised the other four safety
+  rules and never this one. `grep -rn "chest" --include="*.test.ts"` across
+  the whole repo returned zero hits before this run. Standing constraints
+  name this exact package ("Never weaken the safety layer... runs its
+  deterministic interception before any model call"), so an entirely
+  untested rule inside it — the one built specifically to catch a described
+  heart attack — was the highest-consequence gap found anywhere in the
+  survey, and closing it required no source change and no product decision,
+  only tests.
+
+  **What was built.** Extended the existing `it.each` table in
+  `packages/clinical-safety/src/index.test.ts` with one English phrasing
+  (`'I have severe chest pain and I am sweating'`) and one Nepali phrasing
+  (`'छाती दुखाइ र पसिना आइरहेको छ'`) asserting `emergency-chest-001` fires with
+  `riskLevel: 'EMERGENCY_NOW'` and `interruptConversation: true`, matching
+  the exact shape already used for the other four rules — no new assertion
+  style introduced. Also added, since the same file had two other silent
+  gaps once actually read: a negative-path test asserting a benign message
+  ('What is a normal blood pressure range?') returns
+  `{ riskLevel: 'CLINICIAN_RECOMMENDED', matchedRuleIds: [], interruptConversation: false }`
+  — `assessSafety`'s no-match branch (`index.ts:39`) had no test at all
+  before this, positive or negative; and two `getSafetyTemplate` tests
+  iterating every real `templateId`/language pair in `approvedSafetyTemplates`,
+  asserting the returned string matches the source record exactly and that
+  no template's `ne` and `en` wording are ever identical — the exact bug
+  class an earlier run (2026-08-12, `companion.tsx`'s disclaimer) found and
+  fixed elsewhere in this repo, where a language ternary's two branches held
+  the same English sentence. Before this run, nothing in
+  `clinical-safety`'s own suite would have caught that same mistake inside
+  `approvedSafetyTemplates`.
+
+  **What was deliberately not touched.** No source line in
+  `packages/clinical-safety/src/index.ts` changed — every regex, every
+  template string and every rule's `level`/`interrupt`/`templateId` were
+  already correct; this was purely a coverage gap, not a behavior bug. The
+  survey's #2 candidate (an untested `HKQuantityTypeIdentifierBodyMass`
+  weight-unit conversion path in `packages/devices`, mirroring a test that
+  already exists on the Health Connect side) was left open — lower stakes
+  than a missed emergency-detection rule and a reasonable next pick if this
+  vein is revisited.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73 turbo tasks —
+  `@swasthya/clinical-safety` now 13/13 tests (was 7/7), `@swasthya/api`
+  unchanged at 583/583. `pnpm build` 39/39 (34 cached, this package has no
+  `apps/web`/`apps/mobile` build-time dependency, only a runtime import from
+  `apps/api`, and no `apps/api` route changed).
+
+  **For the next run.** `packages/devices`'s untested HealthKit `BodyMass`
+  path (survey candidate #2 above) is a real, small, unblocked follow-up.
+  The two standing blocked items are still unchanged:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (needs a product
+  decision on anonymous-vs-signed-in metering) and `analytics`'s open
+  `clinical-charting` source (needs a decision on what an encounter-only
+  summary should count). `quality-reporting`/`tenancy` (capability map rows
+  19-20) remain the only two unbuilt clinical-suite modules and still carry
+  the no-real-dataset risk multiple prior entries have already described.
 
 - 2026-08-12 — **Queue fully checked; fixed `packages/storage-adapters`'s
   `hosted-store.ts` carrying the same non-ASCII-filename bug already fixed
