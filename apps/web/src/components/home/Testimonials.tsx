@@ -1,8 +1,8 @@
-import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { Play, Quote, User } from 'lucide-react';
 
 import { testimonialKeys } from '@/content/home';
+import { EditorialImage } from '@/components/ui/EditorialImage';
 import { SectionHeading } from '@/components/ui/Section';
 import { hasAsset } from '@/lib/assets';
 
@@ -93,19 +93,17 @@ export function Testimonials() {
                       photograph is decorative — the name beside it already
                       carries the meaning — so alt is empty.
                     */}
-                    <span className="relative size-11 shrink-0 overflow-hidden rounded-full bg-white/15 ring-1 ring-white/25">
-                      {hasAsset(`/imagery/portrait-${key}.webp`) ? (
-                        <Image
-                          alt=""
-                          className="object-cover"
-                          fill
-                          sizes="44px"
-                          src={`/imagery/portrait-${key}.webp`}
-                        />
-                      ) : (
-                        <User aria-hidden className="absolute inset-0 m-auto size-5 text-jade-200" />
-                      )}
-                    </span>
+                    <EditorialImage
+                      alt=""
+                      className="size-11 shrink-0 rounded-full bg-white/15 ring-1 ring-white/25"
+                      fallback={
+                        <span className="relative grid size-11 shrink-0 place-items-center overflow-hidden rounded-full bg-white/15 ring-1 ring-white/25">
+                          <User aria-hidden className="size-5 text-jade-200" />
+                        </span>
+                      }
+                      sizes="44px"
+                      src={`/imagery/portrait-${key}.webp`}
+                    />
                     <span>
                       <span className="block font-semibold text-white">
                         {t(`items.${key}.name`)}

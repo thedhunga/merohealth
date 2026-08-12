@@ -607,6 +607,12 @@ suite grows. A module that "works" but has no outage test is not finished.
       actual bug rather than a DRY or architecture item. See the 2026-08-12
       log entry below (the one added by this run) for the fix and two new
       tests.
+- [x] Deduped `apps/web`'s `Testimonials.tsx` onto the `EditorialImage`
+      component instead of hand-rolling the same `hasAsset(...) ? <Image/> :
+      <fallback/>` conditional — the item two consecutive prior "queue
+      exhausted" runs had each named as still open. See the 2026-08-12 log
+      entry below (the one added by this run) for why the fallback needed its
+      own wrapper markup rather than a bare swap-in.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -630,6 +636,74 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; deduped `apps/web`'s `Testimonials.tsx`
+  onto `EditorialImage`.** Grepped for `- [ ]` first — zero hits, same as
+  every prior "queue exhausted" run. Two consecutive prior log entries (the
+  `sanitizeFilename` run below, and the `companion`-tab-title run before it)
+  had both named this as a real, open, non-blocked candidate: `EditorialImage`
+  (the `next/image`-with-SVG-fallback component built as its own checked
+  task, back when the photography pipeline was still empty) had zero import
+  sites anywhere in `apps/web`, while `Testimonials.tsx` hand-duplicated the
+  exact same `hasAsset(...) ? <Image/> : <fallback/>` conditional for its
+  portrait avatars. Picked this over the other two remaining named
+  candidates — the `apps/web` root-layout restructure (still genuinely
+  bigger, needs its own scoped run per the entry that first flagged it) and
+  the two standing blocked items (`companion.controller.ts`'s missing
+  `EntitlementsGuard`, `analytics`'s open `clinical-charting` source), both
+  of which still need a product decision no run is positioned to make.
+
+  **What was built.** `Testimonials.tsx`'s per-testimonial avatar `<span>`
+  now renders `<EditorialImage>` instead of its own `hasAsset` check. The one
+  wrinkle: `EditorialImage`'s fallback branch (`apps/web/src/components/ui/
+  EditorialImage.tsx:39-41`) returns the `fallback` node bare, with no
+  wrapper — it only applies `relative overflow-hidden` plus the caller's
+  `className` to the *image-present* branch. The original inline code wrapped
+  both branches in one `span` carrying the sizing/shape classes
+  (`size-11 shrink-0 rounded-full bg-white/15 ring-1 ring-white/25`), so a
+  naive swap would have left the fallback `<User>` icon unstyled and
+  unsized the moment an asset went missing. Fixed by passing those same
+  classes to `EditorialImage`'s `className` prop for the image case, and
+  passing a fully self-contained `<span>` (same classes, plus its own
+  `relative`/`overflow-hidden`/`grid place-items-center` for centering) as
+  the `fallback` prop for the other. Confirmed byte-for-byte equivalent
+  output by diffing the portrait markup in `apps/web/.next/server/app/
+  en.html` after `pnpm build` against what the pre-change component emitted
+  (same `next/image` `srcSet`, same wrapper classes) — the portraits
+  (`portrait-mina.webp` etc.) already exist in `apps/web/public/imagery/`,
+  so this render path is live today, not hypothetical. `import Image from
+  'next/image'` dropped from `Testimonials.tsx`; `hasAsset` stays imported
+  for the unrelated story-video check on the same file.
+
+  **Why no new test.** Checked first: `apps/web` has zero React-component
+  tests anywhere (`find apps/web/src -name '*.test.ts*'` returns 12 files,
+  all pure logic in `content/`/`lib/`) — this repo's actual convention for
+  `apps/web`, despite the working agreement's general colocated-test rule,
+  is that components render logic gets exercised by `pnpm build`'s static
+  prerender, not a component test harness that does not exist here. Adding
+  one file's worth of component-testing infrastructure to fix one dedupe
+  would have been scope creep beyond this task.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73 turbo tasks,
+  `@swasthya/api` unchanged at 583/583 (no `apps/web` test suite to move).
+  `pnpm build` 39/39 — inspected the prerendered `en.html`/`ne.html` output
+  directly to confirm the portrait markup matches pre-change byte-for-byte.
+
+  **For the next run.** Two named candidates remain open, both flagged
+  repeatedly as needing more than a single-task run: the `apps/web`
+  root-layout restructure so its default `Stack` title can read `language`,
+  and widening past this dedupe to check whether any other component
+  hand-rolls the same `hasAsset` pattern. Checked: `hasAsset(` has exactly
+  one other call site outside `EditorialImage.tsx`/`Testimonials.tsx` —
+  `Hero.tsx`'s `heroVideoReady` — but that gates a bare `<source>` on a
+  `<video>`, not an `<Image>`/fallback pair, so it is not the same
+  duplication and `EditorialImage`'s sibling `hasVideo` export was built for
+  exactly this narrower case; swapping it in there would be a same-shape,
+  lower-value follow-up, not a bug. The two standing blocked items
+  (`companion.controller.ts`'s `EntitlementsGuard`, `analytics`'s
+  `clinical-charting` source) and `quality-reporting`/`tenancy`
+  (capability map rows 19-20) are unchanged from every prior entry.
 
 - 2026-08-12 — **Queue fully checked; widened `packages/storage-adapters`'s
   `google-drive-store.ts` `sanitizeFilename` to preserve non-ASCII
