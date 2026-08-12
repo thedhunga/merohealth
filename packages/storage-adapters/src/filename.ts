@@ -19,6 +19,16 @@ import { createHash } from 'node:crypto';
 export const RESERVED_FILENAME_CHARS = new Set(['/', '\\', ':', '*', '?', '"', '<', '>', '|']);
 
 /**
+ * Fallback used when sanitizing leaves nothing behind — an input that is
+ * empty, or made up entirely of control characters and reserved separators,
+ * trims down to `''`. Both callers concatenate this into an object name
+ * (`hosted-store.ts`) or hand it straight to an external API as a `name`
+ * field (`google-drive-store.ts:208`, which would otherwise upload with
+ * `name: ''`), so the empty string can never be allowed to reach either.
+ */
+const FALLBACK_FILENAME = 'document';
+
+/**
  * Strips control characters and the reserved set above while preserving
  * everything else, including Devanagari, spaces and punctuation — a naive
  * `[^a-zA-Z0-9._-]` regex silently turns every Devanagari filename (the
@@ -30,10 +40,11 @@ export function sanitizeFilename(
   filename: string,
   reserved: ReadonlySet<string> = RESERVED_FILENAME_CHARS,
 ): string {
-  return Array.from(filename)
+  const sanitized = Array.from(filename)
     .map((char) => (isUnsafeFilenameChar(char, reserved) ? '_' : char))
     .join('')
     .trim();
+  return sanitized === '' ? FALLBACK_FILENAME : sanitized;
 }
 
 function isUnsafeFilenameChar(char: string, reserved: ReadonlySet<string>): boolean {

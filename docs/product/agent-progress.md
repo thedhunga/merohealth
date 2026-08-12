@@ -651,6 +651,11 @@ suite grows. A module that "works" but has no outage test is not finished.
       candidate. See the 2026-08-12 log entry below (the one added by this
       run) for the new `assertNonNegative` guard and what was deliberately
       left out.
+- [x] `packages/storage-adapters`: `sanitizeFilename` now falls back to a
+      placeholder name instead of returning an empty string — the concrete,
+      unblocked candidate the `assertNonNegative` run's own log entry left
+      open. See the 2026-08-12 log entry below (the one added by this run)
+      for why an empty result was reachable and what the fallback is.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -674,6 +679,62 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; `packages/storage-adapters`'s
+  `sanitizeFilename` no longer returns an empty string.** Grepped for
+  `- [ ]` first — zero hits, same as every prior "queue exhausted" run. The
+  prior run's own log entry (the `assertNonNegative` guard, immediately
+  below) named two concrete, unblocked candidates rather than leaving a
+  vague pointer to "survey again," so this run verified the higher-severity
+  one before touching anything: `sanitizeFilename` (`filename.ts`) maps each
+  character to itself or `_`, never drops one, so the only way its result
+  can be empty is an input that is itself empty or entirely whitespace
+  (control characters get replaced with `_`, not stripped, so they don't
+  trigger it). Confirmed both call sites take that string uncritically —
+  `hosted-store.ts:96` concatenates it into an object key (survivable, if
+  ugly: `ownerId/uuid-`) but `google-drive-store.ts:208` hands it straight to
+  the Drive API as the multipart request's `name` field, which would upload
+  a file with no name at all. `grep -n "BodyMass\|sanitizeFilename" -r
+  packages/storage-adapters/src` confirmed no existing test exercised the
+  empty/whitespace-only input on either function.
+
+  **What was built.** A `FALLBACK_FILENAME = 'document'` constant in
+  `filename.ts`; `sanitizeFilename` now returns it whenever the sanitized,
+  trimmed result is `''`, instead of returning `''` itself. Both adapters
+  pick this up for free since they already import the shared helper — no
+  change needed in `hosted-store.ts` or `google-drive-store.ts` themselves,
+  which is exactly the point of the shared-helper extraction the
+  `hosted-store.ts` run did earlier the same day. Three new tests in
+  `filename.test.ts`: empty-string input, whitespace-only input (both assert
+  `'document'`), and a control case confirming a string of only reserved
+  characters (`/\:*?"<>|`) does *not* fall back, since those characters
+  survive as underscores rather than vanishing — `'_________'`, not
+  `'document'` — so the fallback only fires for the genuinely-empty case,
+  not for "every character happened to be unsafe."
+
+  **What was deliberately not touched.** `normalizeLabel` (NFKC + trim +
+  lowercase), duplicated verbatim between
+  `packages/medication-safety/src/index.ts:27-29` and
+  `packages/population-health/src/index.ts:27-29` — the `assertNonNegative`
+  run's other named candidate — was left open: it is a DRY/drift risk, not a
+  reachable bug the way the empty-filename case was, and this run's working
+  agreement is one task.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73 turbo tasks —
+  `@swasthya/storage-adapters` now 46/46 tests (was 43/43), `@swasthya/api`
+  unchanged at 583/583. `pnpm build` 39/39 (34 cached; this package has no
+  `apps/web`/`apps/mobile` build-time dependency).
+
+  **For the next run.** `normalizeLabel`'s duplication (above) is still a
+  real, small, unblocked candidate. The two standing blocked items are
+  unchanged: `companion.controller.ts`'s missing `EntitlementsGuard` (needs a
+  product decision on anonymous-vs-signed-in metering) and `analytics`'s
+  open `clinical-charting` source (needs a decision on what an
+  encounter-only summary should count). `quality-reporting`/`tenancy`
+  (capability map rows 19-20) remain the only two unbuilt clinical-suite
+  modules and still carry the no-real-dataset risk multiple prior entries
+  have already described.
 
 - 2026-08-12 — **Queue fully checked; `packages/devices` now rejects
   negative readings for metrics that can never physiologically be negative.**
