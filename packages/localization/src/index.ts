@@ -6,6 +6,7 @@ export const copy = {
     medicines: 'औषधि अर्डर', record: 'मेरो स्वास्थ्य विवरण', lab: 'प्रयोगशाला जाँच',
     emergency: 'आपतकालीन सहयोग', companion: 'साथी', twin: 'मेरो स्वास्थ्य चित्र',
     care: 'सेवा खोज्नुहोस्', learn: 'कसरी चलाउने', documents: 'कागजातहरू',
+    appTitle: 'मेरो स्वास्थ्य - तपाईंको स्वास्थ्य, तपाईंको भाषामा',
   },
   en: {
     greeting: 'Namaste, I am your Swasthya Sathi', homePrompt: 'What would you like help with today?',
@@ -13,6 +14,7 @@ export const copy = {
     record: 'My health record', lab: 'Book a laboratory test', emergency: 'Emergency help',
     companion: 'Companion', twin: 'My health picture', care: 'Find care', learn: 'How it works',
     documents: 'Documents',
+    appTitle: 'Mero Health - Your health, in your language',
   },
   'ne-Latn': {
     greeting: 'Namaste, ma Swasthya Sathi hu', homePrompt: 'Aaja tapailai k ma sahayog chahinchha?',
@@ -20,6 +22,7 @@ export const copy = {
     record: 'Mero swasthya bibaran', lab: 'Laboratory jaanch', emergency: 'Aapatkalin sahayog',
     companion: 'Sathi', twin: 'Mero swasthya chitra', care: 'Sewa khojnuhos', learn: 'Kasari chalaune',
     documents: 'Kagajatharu',
+    appTitle: 'Mero Swasthya - Tapaiko swasthya, tapaiko bhasama',
   },
 } as const;
 export type CopyKey = keyof (typeof copy)['en'];

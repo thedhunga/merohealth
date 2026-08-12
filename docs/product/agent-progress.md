@@ -613,6 +613,13 @@ suite grows. A module that "works" but has no outage test is not finished.
       exhausted" runs had each named as still open. See the 2026-08-12 log
       entry below (the one added by this run) for why the fallback needed its
       own wrapper markup rather than a bare swap-in.
+- [x] Restructured `apps/mobile/app/_layout.tsx` so the root `Stack`'s
+      document title reads `language` instead of a fixed English sentence —
+      the "genuinely bigger" candidate three consecutive prior log entries had
+      each left open as needing its own scoped run. See the 2026-08-12 log
+      entry below (the one added by this run) for why it turned out to be a
+      small extraction, not an architecture change, and for the new
+      `appTitle` localization key.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -636,6 +643,72 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; restructured `apps/mobile/app/_layout.tsx`
+  so the root `Stack`'s document title reads `language`.** Grepped for
+  `- [ ]` first — zero hits, same as every prior "queue exhausted" run. Three
+  consecutive prior log entries (the `Testimonials.tsx`/`EditorialImage`
+  dedupe run and the two before it) had each named this candidate and each
+  deferred it, describing it as "a genuinely bigger change" needing its own
+  scoped run, or (in the run that first found it) blocked because "`RootLayout`
+  renders `AppStateProvider` itself — it sits *outside* the context that
+  carries `language`... a real architectural change." Read the file before
+  trusting that description: it was not an architecture change, just a
+  render-scope one. `RootLayout`'s own function body runs *before*
+  `AppStateProvider` mounts, so it can never call `useAppState()` itself —
+  but a child component rendered *inside* `<AppStateProvider>` can, exactly
+  the pattern `app/(tabs)/_layout.tsx` already uses for its five tab titles
+  (`t(language, 'companion')` etc.), one directory below this same file.
+
+  **What was built.** Extracted the `Stack` (plus the sibling `StatusBar`)
+  out of `RootLayout` into a new `RootStack` component, rendered as
+  `AppStateProvider`'s child instead of alongside it in the same JSX
+  expression. `RootStack` calls `useAppState()` for `language` and passes
+  `t(language, 'appTitle')` to `screenOptions.title` instead of the literal
+  `'Mero Health - Your health, in your language'`. Added the `appTitle` key
+  to `packages/localization/src/index.ts`'s `copy` object for all three
+  `LanguageCode`s (`ne`/`en`/`ne-Latn`) — the first new key added there since
+  the package's initial build — with an original Nepali translation (no
+  existing Nepali source for this exact tagline anywhere in the repo) and a
+  Romanized `ne-Latn` variant, both following `index.web.tsx`'s established
+  precedent of translating "Mero Health" to "मेरो स्वास्थ्य"/"Mero Swasthya"
+  inside a Nepali sentence rather than leaving the English brand name
+  embedded. New test in `packages/localization/src/index.test.ts` asserting
+  the Nepali and Romanized variants are not just the English string copied
+  three times — the failure mode a translation-less "make it typecheck" fix
+  could have produced.
+
+  **What was deliberately left alone, and why.** `app/+html.tsx` — the
+  static HTML shell React Navigation replaces once the app hydrates, used
+  for the very first paint and for `og:title`/`twitter:title` meta tags —
+  keeps its own hardcoded English title unchanged. It has no access to
+  `AppStateProvider` at all (it runs before any React tree mounts, as a
+  literal static template Expo's web export fills in once at build time) and
+  a person's language preference is client-side, session state with nothing
+  server-rendered to read it from; treating that as in scope here would have
+  been the same invented-scope problem the profile-switcher entry (round two
+  §C) already flagged for a different feature. This is genuinely a
+  first-paint-only string, not a second copy of the same user-visible bug —
+  the tab bar, the `(tabs)` titles and every screen the app actually renders
+  already respect the toggle.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73 turbo tasks —
+  `@swasthya/localization` now 2/2 (was 1/1), `@swasthya/api` unchanged at
+  583/583. `pnpm build` 39/39, `@swasthya/mobile:build` unchanged bundle set
+  (16 static routes, same sizes) — this change touches `screenOptions`, not
+  route content, so no route's bundle size was expected to move and none did.
+
+  **For the next run.** The two standing blocked items are unchanged:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (needs a product
+  decision on anonymous-vs-signed-in metering) and `analytics`'s open
+  `clinical-charting` source (needs a decision on what an encounter-only
+  summary should count). `quality-reporting`/`tenancy` (capability map rows
+  19-20) remain the only two unbuilt clinical-suite modules and still carry
+  the no-real-dataset risk multiple prior entries have already described. No
+  new candidate was found this run beyond those already on record — the next
+  "queue exhausted" run should re-survey rather than assume this list is
+  exhaustive.
 
 - 2026-08-12 — **Queue fully checked; deduped `apps/web`'s `Testimonials.tsx`
   onto `EditorialImage`.** Grepped for `- [ ]` first — zero hits, same as
