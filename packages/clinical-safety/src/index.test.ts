@@ -22,12 +22,16 @@ describe('clinical safety routing', () => {
   it('never fabricates a template', () => expect(getSafetyTemplate('made-up', 'en')).toBeNull());
   it('returns the approved template text for every known id and language', () => {
     for (const templateId of Object.keys(approvedSafetyTemplates) as (keyof typeof approvedSafetyTemplates)[]) {
-      for (const language of ['ne', 'en'] as const) {
+      for (const language of ['ne', 'en', 'ne-Latn'] as const) {
         expect(getSafetyTemplate(templateId, language)).toBe(approvedSafetyTemplates[templateId][language]);
       }
     }
   });
-  it('never leaves a template with identical wording across ne and en', () => {
-    for (const template of Object.values(approvedSafetyTemplates)) expect(template.ne).not.toBe(template.en);
+  it('never leaves a template with identical wording across ne, en and ne-Latn', () => {
+    for (const template of Object.values(approvedSafetyTemplates)) {
+      expect(template.ne).not.toBe(template.en);
+      expect(template['ne-Latn']).not.toBe(template.ne);
+      expect(template['ne-Latn']).not.toBe(template.en);
+    }
   });
 });

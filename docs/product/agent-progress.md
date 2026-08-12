@@ -700,6 +700,16 @@ suite grows. A module that "works" but has no outage test is not finished.
       below for why this was the named, unblocked follow-up left by the
       `family-grants.controller.ts` `expiresAt` fix.
 
+- [x] `packages/clinical-safety`'s emergency safety templates now carry a
+      `ne-Latn` entry alongside `ne`/`en`, and `getSafetyTemplate` accepts the
+      real `LanguageCode` instead of a hardcoded `'ne' | 'en'` — a person who
+      chose Romanized Nepali (because they don't read Devanagari) was being
+      silently downgraded to a Devanagari emergency warning at the exact
+      moment reading it correctly matters most. Found by an independent
+      survey after the `language-corpus.controller.ts` run's own log entry
+      reported the `isoInstant` vein closed. See the 2026-08-12 log entry
+      below for the two call sites fixed and what was deliberately left open.
+
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
 unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
@@ -722,6 +732,83 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; `packages/clinical-safety`'s emergency
+  templates now have a `ne-Latn` entry, and the two call sites that fired
+  them stop collapsing `ne-Latn` to `ne`.** Grepped for `- [ ]` first — zero
+  hits, same as every prior "queue exhausted" run. Rather than trust the
+  prior run's own "for the next run" guess (a fresh survey, not a repeat of
+  the closed `isoInstant` vein or the mined mobile-language-toggle vein),
+  delegated an independent survey agent, which came back with this as its
+  top pick over a higher-severity but genuinely blocked fallback (records
+  routes trusting a bare `ownerId` with no session auth — blocked on
+  `apps/mobile` having no sign-in flow, the same shape as the two
+  already-named blocked items).
+
+  **What was found.** `LanguageCode` is `'ne' | 'en' | 'ne-Latn'` and
+  `ne-Latn` (Romanized Nepali, for people who understand spoken/read Nepali
+  but not the Devanagari script) is a real, user-selectable option in
+  `apps/mobile/app/index.tsx`'s language picker — `packages/localization`'s
+  own `copy` object already carries a full `ne-Latn` variant of every string
+  it holds, including `emergency`. But `packages/clinical-safety`'s
+  `approvedSafetyTemplates` only ever had `ne`/`en` keys, and both call
+  sites — `apps/api/src/companion.controller.ts`'s `assess`/`research` and
+  `apps/mobile/app/(tabs)/companion.tsx`'s inline `template` derivation —
+  collapsed any non-`en` language to `'ne'` before calling
+  `getSafetyTemplate`, because the function's signature only accepted
+  `'ne' | 'en'`. A person who picked Romanized Nepali specifically because
+  they don't read Devanagari would see the chest-pain/self-harm/maternal/
+  pediatric emergency instruction rendered in the one script they may not be
+  able to read, at the highest-stakes moment the app has. This is squarely
+  inside "never weaken the safety layer" — not a new safety decision, a gap
+  in delivering an already-approved one to a language the product already
+  claims to support.
+
+  **What was built.** Added a `'ne-Latn'` key to each of the four templates
+  in `approvedSafetyTemplates` — direct Romanized transliterations of the
+  already-approved `ne` wording sitting next to them, not new clinical
+  content, following the exact no-diacritics informal-transliteration style
+  `packages/localization/src/index.ts`'s own `ne-Latn` entries already use
+  (confirmed against that file before writing these, rather than inventing a
+  style). Widened `getSafetyTemplate`'s signature from `'ne' | 'en'` to the
+  real `LanguageCode` from `@swasthya/shared-types`. Updated both call sites
+  to pass `language` through unmodified instead of collapsing it — this also
+  fixes `apps/mobile`'s inline `template` derivation, which had the
+  identical collapse. Extended `packages/clinical-safety/src/index.test.ts`'s
+  existing "known id and language" loop and "never leaves a template with
+  identical wording" test to cover `ne-Latn` as a third case (asserting it
+  differs from *both* `ne` and `en`, not just from `en`), and added one
+  `CompanionController` test asserting a `ne-Latn` breathing-emergency
+  request returns the Romanized template text verbatim, not a Devanagari
+  fallback.
+
+  **What was deliberately not touched.** `apps/api/src/perplexity-health.service.ts`'s
+  `research`'s `disclaimer` string has the identical collapse (`language ===
+  'en' ? en : ne`, silently dropping `ne-Latn` to Devanagari) a few lines
+  from where its own `languageInstruction` already branches on `ne-Latn`
+  correctly — a real, same-shape gap, but a general research disclaimer, not
+  a `clinical-safety`-gated emergency message, so it was left as the next
+  run's candidate rather than folded in to keep this run to one task. No
+  other `ne-Latn` collapse was found in `clinical-safety`'s own call graph.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/clinical-safety` 13/13 (was 9, +4 new assertions across
+  extended cases), `@swasthya/api` 586/586 (was 585/585, +1 new test), all
+  other package counts unchanged. `pnpm build` 40/40; mobile's 16 static
+  routes unchanged in count and size.
+
+  **For the next run.** The `perplexity-health.service.ts` disclaimer
+  collapse above is a concrete, unblocked, same-shape follow-up. Beyond
+  that, the two long-standing blocked items are unchanged: `companion.controller.ts`'s
+  missing `EntitlementsGuard` (needs a product decision on
+  anonymous-vs-signed-in metering) and `analytics`'s open `clinical-charting`
+  source (needs a decision on what an encounter-only summary should count).
+  `quality-reporting`/`tenancy` (capability map rows 19-20) remain the only
+  two unbuilt clinical-suite modules. A fresh independent survey worked well
+  this run (it found a real, previously-unmined gap) — repeating that
+  approach rather than re-grepping the same closed veins is likely the
+  better use of the next run's first move too.
 
 - 2026-08-12 — **Queue fully checked; `language-corpus.controller.ts`'s
   `ingestSchema.capturedAt` now rejects a non-ISO-instant value instead of

@@ -11,6 +11,17 @@ describe('CompanionController', () => {
     expect(result.generatedAnswer).toBeNull();
   });
 
+  it('returns a Romanized-Nepali template for a ne-Latn emergency, not a Devanagari fallback', () => {
+    const result = new CompanionController().assess({
+      message: 'ma saas ferna sakdina',
+      language: 'ne-Latn',
+    });
+    expect(result.assessment.interruptConversation).toBe(true);
+    expect(result.template).toBe(
+      'Yo aapatkalin awastha huna sakchha. Yo app le aapatkalin upachar dina sakdaina. Ahile nai najikko upayukta aapatkalin sewama sampark garnuhos wa najikko aspatal januhos.',
+    );
+  });
+
   it('never sends an emergency question to external research', async () => {
     const research = vi.fn();
     const controller = new CompanionController({ research } as never);

@@ -83,7 +83,7 @@ export default function CompanionScreen() {
   const recorderState = useAudioRecorderState(recorder, 200);
   const assessment = submitted ? assessSafety(message) : null;
   const template = assessment?.templateId
-    ? getSafetyTemplate(assessment.templateId, language === 'en' ? 'en' : 'ne')
+    ? getSafetyTemplate(assessment.templateId, language)
     : null;
 
   const toggleVoice = async () => {
