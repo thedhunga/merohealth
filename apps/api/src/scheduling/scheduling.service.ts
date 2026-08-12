@@ -41,7 +41,9 @@ export class SchedulingService {
     // registered there, the same 404 shape every other lookup in this API
     // already uses.
     this.patients.get(input.patientId);
-    return this.repository.save(scheduleAppointment(randomUUID(), input, new Date().toISOString()));
+    return this.repository.save(
+      scheduleAppointment(randomUUID(), input, new Date().toISOString(), this.repository.list()),
+    );
   }
 
   get(id: string): Appointment {

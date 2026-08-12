@@ -724,6 +724,17 @@ suite grows. A module that "works" but has no outage test is not finished.
       "time-limited" design property. See the 2026-08-12 log entry below for
       the trace, the new `MAX_SHARE_LINK_TTL_SECONDS` constant, and why 30
       days.
+- [x] `packages/scheduling`'s `scheduleAppointment` now rejects a new
+      appointment that overlaps another `SCHEDULED` appointment already on
+      the same clinician's calendar — previously the only invariant enforced
+      was `scheduledEnd > scheduledStart`, so two different patients could be
+      booked with the same clinician for the same or overlapping time with no
+      rejection at all. Found by an independent survey after the
+      `issueShareLink` run's own log entry reported no further duration/TTL
+      field without a ceiling. See the 2026-08-12 log entry below (the one
+      added by this run) for the new `AppointmentConflictError`, the
+      half-open-interval overlap check, and why cancelled appointments and
+      different clinicians are exempt.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -747,6 +758,87 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; `packages/scheduling` now rejects a
+  double-booked clinician.** Grepped for `- [ ]` first — zero hits, same as
+  every recent "queue exhausted" run. Delegated an independent survey agent
+  with instructions to read the full log and avoid every already-mined vein
+  (isoInstant/duration ceilings, ne-Latn collapse, mobile language-toggle
+  gaps, filename sanitization, `normalizeLabel` dedup, `classifyIntent`/
+  `termAppears`, analytics sources, and the two named-blocked items —
+  `companion.controller.ts`'s missing `EntitlementsGuard` and analytics'
+  open `clinical-charting` source). It traced several plausible-looking leads
+  to dead ends first — `packages/family`'s guardianship-for-incapacity
+  `expiresAt`, `RecordsUsageReader` counting `DELETED` documents, and
+  engagement's uncapped retries all turned out to be unreachable: no
+  controller or route in `apps/api` exercises the code path yet, so there is
+  no live failure scenario to point at.
+
+  **What was found.** `packages/scheduling/src/index.ts`'s
+  `scheduleAppointment` enforced exactly one invariant —
+  `assertValidWindow` rejecting `scheduledEnd <= scheduledStart` — and
+  nothing else. It never checked a new appointment against the *other*
+  appointments already on the same clinician's calendar.
+  `apps/api/src/scheduling/scheduling.service.ts`'s `schedule()` calls it and
+  saves the result unconditionally once the patient exists and
+  patient-registry is up; the route it backs
+  (`POST /appointments`) is real, wired and unauthenticated. Two different
+  patients could be booked with the same `clinicianId` for the exact same or
+  an overlapping time window with no rejection — the system silently
+  accepted both. `scheduling.repository.ts` already exposes `list()`, so the
+  data needed for the check was sitting right next to the call site; it was
+  simply never consulted. None of `scheduling.service.test.ts`'s 11 prior
+  cases exercised a second booking against an already-booked slot.
+
+  **What was built.** A new `AppointmentConflictError` in
+  `packages/scheduling/src/index.ts`, matching the file's existing
+  error-class style. `scheduleAppointment` now takes a fourth parameter,
+  `existingAppointments: readonly Appointment[]`, and calls a new
+  `assertNoSchedulingConflict` right after `assertValidWindow`. The overlap
+  test (`windowsOverlap`) uses a half-open interval (`aStart < bEnd &&
+  bStart < aEnd`) so an appointment that starts exactly when another ends is
+  back-to-back, not a conflict — the same boundary convention a calendar UI
+  would expect. Only `status === 'SCHEDULED'` appointments for the *same*
+  `clinicianId` count, so a cancelled slot frees its time and a different
+  clinician's identical window is unaffected.
+  `apps/api/src/scheduling/scheduling.service.ts`'s `schedule()` now passes
+  `this.repository.list()` as that fourth argument — the only call site
+  outside the package's own tests; a repo-wide grep confirmed no seed data
+  or other module calls `scheduleAppointment` directly. Added four cases to
+  `packages/scheduling/src/index.test.ts` (overlap throws; same-clinician
+  back-to-back does not; a different clinician's identical window does not;
+  overlap against a cancelled appointment does not) and updated the four
+  existing calls in that file for the new required parameter. No change was
+  needed to `scheduling.service.test.ts`, `scheduling.controller.test.ts` or
+  `scheduling.fault-isolation.test.ts` — all their existing scenarios book
+  at most one appointment per clinician per test, and the broken-repository
+  fault-isolation case throws inside `list()` itself, before
+  `scheduleAppointment` is ever reached, preserving that test's assertion.
+
+  **What was deliberately not touched.** No API-boundary (zod) validation
+  was added — the conflict is a domain impossibility the same way an
+  inverted time window already is, not a request-shape problem, so it
+  follows `InvalidAppointmentWindowError`'s existing convention of
+  propagating unwrapped rather than being pre-validated in the controller.
+  No client (`apps/web`/`apps/mobile`) consumes this endpoint yet, so this
+  was a backend-only change with nothing to wire up in either app.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/scheduling` 8/8 (was 4/4, +4 new tests), all other package
+  counts unchanged. `pnpm build` 40/40 (35 cached); mobile's 16 static
+  routes unchanged in count and size.
+
+  **For the next run.** A fresh independent survey is again the right first
+  move; this pass did not attempt a full sweep of every module for the same
+  missing-cross-record-check shape (e.g. whether `teleconsultation` or
+  `referrals` have an analogous unchecked-conflict gap of their own — worth
+  a look before assuming this was the only instance). The two long-standing
+  blocked items are unchanged: `companion.controller.ts`'s missing
+  `EntitlementsGuard` and analytics' open `clinical-charting` source, both
+  needing a product decision, not code. `quality-reporting`/`tenancy`
+  (capability map rows 19-20) remain the only two unbuilt clinical-suite
+  modules and still carry the no-real-dataset risk prior entries describe.
 
 - 2026-08-12 — **Queue fully checked; `packages/interop`'s `issueShareLink`
   now rejects a `ttlSeconds` above a 30-day ceiling, closing an unbounded-TTL
