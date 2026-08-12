@@ -1,5 +1,6 @@
 import type {
   Appointment,
+  DiagnosticOrder,
   EngagementMessage,
   ImmunizationRecord,
   Invoice,
@@ -9,6 +10,7 @@ import type {
 import { describe, expect, it } from 'vitest';
 import {
   buildBillingSummary,
+  buildDiagnosticsOrdersSummary,
   buildEngagementSummary,
   buildImmunizationSummary,
   buildPatientRegistrySummary,
@@ -120,6 +122,23 @@ function immunizationRecord(
     status: 'ACTIVE',
     voidReason: null,
     recordedAt: now,
+    updatedAt: now,
+    version: 1,
+    ...overrides,
+  };
+}
+
+function diagnosticOrder(overrides: Partial<DiagnosticOrder> & Pick<DiagnosticOrder, 'id' | 'patientId'>): DiagnosticOrder {
+  return {
+    clinicianId: 'clinician-1',
+    encounterId: 'encounter-1',
+    kind: 'LAB',
+    testName: 'Fasting blood glucose',
+    status: 'ORDERED',
+    result: null,
+    cancelledAt: null,
+    cancelReason: null,
+    createdAt: now,
     updatedAt: now,
     version: 1,
     ...overrides,
@@ -261,6 +280,28 @@ describe('buildImmunizationSummary', () => {
     expect(buildImmunizationSummary(records)).toEqual({
       totalRecords: 3,
       byStatus: { ACTIVE: 2, VOIDED: 1 },
+    });
+  });
+});
+
+describe('buildDiagnosticsOrdersSummary', () => {
+  it('reports zero for every status when there are no orders', () => {
+    expect(buildDiagnosticsOrdersSummary([])).toEqual({
+      totalOrders: 0,
+      byStatus: { ORDERED: 0, RESULTED: 0, CANCELLED: 0 },
+    });
+  });
+
+  it('counts total orders and breaks the count down by status', () => {
+    const orders = [
+      diagnosticOrder({ id: 'order-1', patientId: 'patient-1', status: 'ORDERED' }),
+      diagnosticOrder({ id: 'order-2', patientId: 'patient-1', status: 'RESULTED' }),
+      diagnosticOrder({ id: 'order-3', patientId: 'patient-2', status: 'CANCELLED', cancelReason: 'Ordered in error' }),
+    ];
+
+    expect(buildDiagnosticsOrdersSummary(orders)).toEqual({
+      totalOrders: 3,
+      byStatus: { ORDERED: 1, RESULTED: 1, CANCELLED: 1 },
     });
   });
 });

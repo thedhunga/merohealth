@@ -1,6 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import {
   buildBillingSummary,
+  buildDiagnosticsOrdersSummary,
   buildEngagementSummary,
   buildImmunizationSummary,
   buildPatientRegistrySummary,
@@ -10,6 +11,7 @@ import {
 import type {
   BillingSummary,
   ClinicalModuleHealth,
+  DiagnosticsOrdersSummary,
   EngagementSummary,
   ImmunizationSummary,
   PatientRegistrySummary,
@@ -17,6 +19,7 @@ import type {
   SchedulingSummary,
 } from '@swasthya/shared-types';
 import { BillingService } from '../billing/billing.service.js';
+import { DiagnosticsOrdersService } from '../diagnostics-orders/diagnostics-orders.service.js';
 import { EngagementService } from '../engagement/engagement.service.js';
 import { ImmunizationService } from '../immunization/immunization.service.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
@@ -42,6 +45,7 @@ export class AnalyticsService {
     private readonly referrals: ReferralsService,
     private readonly engagement: EngagementService,
     private readonly immunization: ImmunizationService,
+    private readonly diagnosticsOrders: DiagnosticsOrdersService,
   ) {}
 
   async patientRegistrySummary(): Promise<PatientRegistrySummary> {
@@ -72,6 +76,11 @@ export class AnalyticsService {
   async immunizationSummary(): Promise<ImmunizationSummary> {
     await this.assertImmunizationAvailable();
     return buildImmunizationSummary(this.immunization.listRecords());
+  }
+
+  async diagnosticsOrdersSummary(): Promise<DiagnosticsOrdersSummary> {
+    await this.assertDiagnosticsOrdersAvailable();
+    return buildDiagnosticsOrdersSummary(this.diagnosticsOrders.listOrders());
   }
 
   private async assertPatientRegistryAvailable(): Promise<void> {
@@ -124,6 +133,15 @@ export class AnalyticsService {
     if (health.status === 'DOWN') {
       throw new ServiceUnavailableException(
         'Analytics unavailable: immunization is down (clinical-suite.md capability map row 14)',
+      );
+    }
+  }
+
+  private async assertDiagnosticsOrdersAvailable(): Promise<void> {
+    const health = await this.diagnosticsOrders.health();
+    if (health.status === 'DOWN') {
+      throw new ServiceUnavailableException(
+        'Analytics unavailable: diagnostics-orders is down (clinical-suite.md capability map row 14)',
       );
     }
   }

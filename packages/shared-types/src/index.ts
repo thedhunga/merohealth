@@ -1163,6 +1163,19 @@ export interface ImmunizationSummary {
   byStatus: Record<ImmunizationStatus, number>;
 }
 
+/**
+ * Defined here rather than beside `DiagnosticOrder` above, for the same
+ * row-of-origin reason as `EngagementSummary`/`ImmunizationSummary` above.
+ * Counts by `status` (`ORDERED`/`RESULTED`/`CANCELLED`), the order's own
+ * lifecycle field — not by the nested `result.releaseStatus`, which only
+ * exists once `status` is `RESULTED` and describes the result sub-object,
+ * not the order.
+ */
+export interface DiagnosticsOrdersSummary {
+  totalOrders: number;
+  byStatus: Record<DiagnosticOrderStatus, number>;
+}
+
 /* ------------------------------------------------------------------ *
  * Engagement (clinical-suite.md capability map row 15)
  *

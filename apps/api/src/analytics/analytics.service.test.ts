@@ -5,6 +5,8 @@ import { BillingRepository } from '../billing/billing.repository.js';
 import { BillingService } from '../billing/billing.service.js';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
+import { DiagnosticsOrdersRepository } from '../diagnostics-orders/diagnostics-orders.repository.js';
+import { DiagnosticsOrdersService } from '../diagnostics-orders/diagnostics-orders.service.js';
 import { EngagementRepository } from '../engagement/engagement.repository.js';
 import { EngagementService } from '../engagement/engagement.service.js';
 import { ImmunizationRepository } from '../immunization/immunization.repository.js';
@@ -28,8 +30,17 @@ function buildStack() {
   const referrals = new ReferralsService(new ReferralsRepository(), charting);
   const engagement = new EngagementService(new EngagementRepository(), patients, { send: vi.fn().mockResolvedValue(undefined) });
   const immunization = new ImmunizationService(new ImmunizationRepository(), charting);
-  const analytics = new AnalyticsService(patients, scheduling, billing, referrals, engagement, immunization);
-  return { patients, scheduling, charting, billing, referrals, engagement, immunization, analytics };
+  const diagnosticsOrders = new DiagnosticsOrdersService(new DiagnosticsOrdersRepository(), charting);
+  const analytics = new AnalyticsService(
+    patients,
+    scheduling,
+    billing,
+    referrals,
+    engagement,
+    immunization,
+    diagnosticsOrders,
+  );
+  return { patients, scheduling, charting, billing, referrals, engagement, immunization, diagnosticsOrders, analytics };
 }
 
 const referralRequestInput = {
@@ -303,6 +314,56 @@ describe('AnalyticsService.immunizationSummary', () => {
     await expect(analytics.immunizationSummary()).resolves.toEqual({
       totalRecords: 1,
       byStatus: { ACTIVE: 1, VOIDED: 0 },
+    });
+  });
+});
+
+describe('AnalyticsService.diagnosticsOrdersSummary', () => {
+  it('counts diagnostic orders, broken down by status', async () => {
+    const { charting, diagnosticsOrders, analytics } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    await diagnosticsOrders.orderDiagnostic(encounter.id, {
+      clinicianId: 'clinician-1',
+      kind: 'LAB',
+      testName: 'Fasting blood glucose',
+    });
+
+    const summary = await analytics.diagnosticsOrdersSummary();
+
+    expect(summary).toEqual({ totalOrders: 1, byStatus: { ORDERED: 1, RESULTED: 0, CANCELLED: 0 } });
+  });
+
+  it('refuses (503) while diagnostics-orders is down, even though the other six sources are up', async () => {
+    const { diagnosticsOrders, analytics } = buildStack();
+    diagnosticsOrders.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+
+    await expect(analytics.diagnosticsOrdersSummary()).rejects.toThrow(ServiceUnavailableException);
+  });
+
+  it('a down diagnostics-orders does not block the patient or scheduling summaries, and vice versa', async () => {
+    const { patients, charting, diagnosticsOrders, analytics } = buildStack();
+    patients.register({
+      displayName: 'Sita Rai',
+      dateOfBirth: '1990-04-12',
+      sex: 'FEMALE',
+      phone: '9800000000',
+      preferredLocale: 'ne',
+    });
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    await diagnosticsOrders.orderDiagnostic(encounter.id, {
+      clinicianId: 'clinician-1',
+      kind: 'LAB',
+      testName: 'Fasting blood glucose',
+    });
+
+    diagnosticsOrders.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+    await expect(analytics.patientRegistrySummary()).resolves.toMatchObject({ totalPatients: 1 });
+
+    diagnosticsOrders.health = () => Promise.resolve({ status: 'UP' });
+    patients.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+    await expect(analytics.diagnosticsOrdersSummary()).resolves.toEqual({
+      totalOrders: 1,
+      byStatus: { ORDERED: 1, RESULTED: 0, CANCELLED: 0 },
     });
   });
 });

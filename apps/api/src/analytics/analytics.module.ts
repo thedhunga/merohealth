@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { BillingModule } from '../billing/billing.module.js';
+import { DiagnosticsOrdersModule } from '../diagnostics-orders/diagnostics-orders.module.js';
 import { EngagementModule } from '../engagement/engagement.module.js';
 import { ImmunizationModule } from '../immunization/immunization.module.js';
 import { PatientRegistryModule } from '../patient-registry/patient-registry.module.js';
@@ -20,6 +21,7 @@ import { AnalyticsService } from './analytics.service.js';
     ReferralsModule,
     EngagementModule,
     ImmunizationModule,
+    DiagnosticsOrdersModule,
   ],
   controllers: [AnalyticsController],
   providers: [AnalyticsService],

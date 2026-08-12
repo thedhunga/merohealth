@@ -554,8 +554,15 @@ suite grows. A module that "works" but has no outage test is not finished.
       applied to the one remaining built module without an analytics
       source. See the 2026-08-12 log entry below for why `status`
       (`ACTIVE`/`VOIDED`), not `provenance`, is the counted field.
+- [x] Extended `analytics` (capability map row 14) with a seventh source,
+      `diagnostics-orders` (order totals by status) — the one candidate the
+      immunization-extension run's own log entry flagged as "worth a second
+      look" after finding `interop` genuinely blocked. See the 2026-08-12 log
+      entry below (the one added by this run) for why `diagnostics-orders`
+      turned out just as mechanical as `immunization` had, and why `interop`
+      is still not a same-shape candidate.
 
-Stop after immunization and reassess again. Modules 11 and 19-20 in the
+Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
 unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
 not a module that plugs into this registry, and row 11 (`coverage`) was
@@ -577,6 +584,113 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; extended `analytics` (capability map
+  row 14) with a seventh source, `diagnostics-orders`.** Grepped for
+  `- [ ]` first — zero hits, same as every prior "queue exhausted" run. The
+  immunization-extension run's own log entry (immediately below) had done
+  the survey work already: it named `diagnostics-orders` (row 7) and
+  `interop` (row 17) as the two clinical-suite modules still missing an
+  `analytics` source, and flagged both as "worth a second look before
+  assuming either is as mechanical as this one was" rather than assuming
+  either was safe to build the same way. This run did that second look with
+  a read-only Explore agent before writing anything, checking both against
+  the same test every existing source already passes: a single closed-enum
+  `status` field describing lifecycle state, and a list-all method the
+  service already exposes.
+
+  **What was found.** `diagnostics-orders` passed cleanly:
+  `DiagnosticOrder.status` (`ORDERED`/`RESULTED`/`CANCELLED`,
+  `packages/shared-types/src/index.ts:791`) is exactly this shape — the
+  order's own lifecycle field, distinct from the nested
+  `result.releaseStatus` (`HELD`/`RELEASED`), which only exists once
+  `status` is `RESULTED` and describes the result sub-object, not the order,
+  the same "don't count a field that exists alongside the real status"
+  reasoning `BillingSummary`'s own comment already states for
+  `amountPaisa`. `DiagnosticsOrdersService.listOrders(patientId?)` already
+  returns every order with no argument, identical to
+  `ImmunizationService.listRecords()`. `interop` did not pass: `ShareLink`
+  has no stored `status` at all — state is a computed tri-state
+  (active/expired/revoked) derived from `revokedAt`/`expiresAt` compared
+  against a clock at read time, which would have broken the
+  pure-reduce-over-an-already-closed-enum shape every summary in this
+  section shares, and `InteropRepository` has no list-all method, only
+  `listForOwner(ownerId)`. `interop` stays a real follow-up, not a
+  mechanical one — it needs an actual design decision (add a stored status
+  field to `ShareLink`, or accept a computed one that takes a clock) before
+  it can be built the way every other source in this section was.
+
+  **What was built.** Same shape as the `immunization` extension, field for
+  field. `packages/shared-types` gained `DiagnosticsOrdersSummary`
+  (`{ totalOrders, byStatus: Record<DiagnosticOrderStatus, number> }`), in
+  the Analytics (row 14) section for the same row-of-origin reason
+  `ImmunizationSummary` documents there. `packages/analytics` gained
+  `buildDiagnosticsOrdersSummary`, a `zeroCounts` reduction over the three
+  statuses. `AnalyticsService` took a seventh constructor argument
+  (`DiagnosticsOrdersService`), gained `diagnosticsOrdersSummary()` and
+  `assertDiagnosticsOrdersAvailable()` mirroring the other six exactly —
+  refuses (503) only on `diagnosticsOrders.health()` reporting `DOWN`.
+
+  **Routes.** `GET /analytics/diagnostics-orders`, same no-guard shape as
+  every sibling analytics route.
+
+  **Wiring.** `AnalyticsModule` now imports `DiagnosticsOrdersModule`
+  alongside its existing six (which itself imports `ClinicalChartingModule`,
+  the same shape `BillingModule`/`ImmunizationModule` already establish, so
+  no new circular-import risk).
+  `createAnalyticsModuleDescriptor`'s `degradesWith` gained a seventh
+  `{ key: 'DIAGNOSTICS_ORDERS', mode: 'HIDE' }` edge — `ANALYTICS`'s own
+  `requires` stays empty, unchanged. `clinical-suite.service.test.ts`'s
+  `buildStack()` already constructed a `diagnosticsOrders` service (the
+  aggregate registry needs it directly, for `DIAGNOSTICS_ORDERS`'s own
+  descriptor) but had never threaded it into `AnalyticsService`'s
+  constructor — it now is. No assertion values in that file changed: the
+  one place a `DIAGNOSTICS_ORDERS` outage could have touched an `ANALYTICS`
+  assertion is the `CLINICAL_CHARTING`-down cascade test, and
+  `DIAGNOSTICS_ORDERS` there stays `available: true` (only degraded, one
+  hop, per §2's "never cascades past one hop"), so `ANALYTICS`'s edge to it
+  never fires and `degradations: []` still holds — only that test's own
+  explanatory comment was extended to name the new edge.
+
+  **Tests.** `packages/analytics/src/index.test.ts` gained
+  `buildDiagnosticsOrdersSummary` coverage (empty list, mixed statuses). On
+  the `apps/api` side, `analytics.service.test.ts`,
+  `analytics.controller.test.ts`, `analytics.module-descriptor.test.ts` and
+  `analytics.fault-isolation.test.ts` each gained the same shape the other
+  six sources already have: a happy-path count, a 503-while-down check, and
+  (fault-isolation only) both a `resolveAvailability` degradation assertion
+  and a "down diagnostics-orders doesn't block the patient summary"
+  behavioural test.
+
+  **What was deliberately left out.** No rate or ratio (e.g.
+  cancelled-vs-ordered, held-vs-released), same restraint every prior
+  summary in this section states. `interop` was investigated, not built —
+  see above for exactly what blocks it and what a real follow-up would need
+  to decide first. `companion.controller.ts`'s missing `EntitlementsGuard`
+  and analytics's own `clinical-charting` source remain open, still blocked
+  on the same product decisions every recent entry has named; this run made
+  no progress on either.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new package). `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test`
+  73/73 turbo tasks — `@swasthya/api` 581/581 (up from 574), `@swasthya/analytics`
+  14/14 (up from 12). `pnpm build` 39/39.
+
+  **For the next run.** Every clinical-suite module now has an analytics
+  source except `interop` (row 17) — and that one needs a real design
+  decision (stored vs. computed status, plus a list-all repository method)
+  before it can be built, not just wiring; see above for the specifics
+  rather than re-deriving them. With that, the mechanical "add the next
+  analytics source" vein this ledger has been mining since `billing` is
+  genuinely exhausted, not just exhausted-until-the-next-module the way
+  prior entries in this run's position described it. `quality-reporting`/
+  `tenancy` (capability map rows 19-20) are still the only two
+  capability-map modules left unbuilt, and still carry the no-real-dataset
+  risk multiple prior entries have already described in detail — re-read
+  `clinical-suite.md`'s capability map directly before starting either.
+  `companion.controller.ts`'s missing `EntitlementsGuard` and analytics's
+  open `clinical-charting` source are still the two standing blocked items;
+  neither has a decision made for it yet.
 
 - 2026-08-12 — **Queue fully checked; extended `analytics` (capability map
   row 14) with a sixth source, `immunization`.** Grepped for `- [ ]`

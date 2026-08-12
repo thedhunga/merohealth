@@ -2,6 +2,9 @@ import type {
   Appointment,
   AppointmentStatus,
   BillingSummary,
+  DiagnosticOrder,
+  DiagnosticOrderStatus,
+  DiagnosticsOrdersSummary,
   EngagementMessage,
   EngagementMessageStatus,
   EngagementSummary,
@@ -43,6 +46,7 @@ const INVOICE_STATUSES: readonly InvoiceStatus[] = ['DRAFT', 'ISSUED', 'PAID', '
 const REFERRAL_STATUSES: readonly ReferralStatus[] = ['REQUESTED', 'ACCEPTED', 'DECLINED', 'CANCELLED', 'COMPLETED'];
 const ENGAGEMENT_MESSAGE_STATUSES: readonly EngagementMessageStatus[] = ['QUEUED', 'SENT', 'FAILED'];
 const IMMUNIZATION_STATUSES: readonly ImmunizationStatus[] = ['ACTIVE', 'VOIDED'];
+const DIAGNOSTIC_ORDER_STATUSES: readonly DiagnosticOrderStatus[] = ['ORDERED', 'RESULTED', 'CANCELLED'];
 
 /** Every key starts at zero so a status with no rows yet still appears in the summary. */
 function zeroCounts<T extends string>(keys: readonly T[]): Record<T, number> {
@@ -83,4 +87,10 @@ export function buildImmunizationSummary(records: readonly ImmunizationRecord[])
   const byStatus = zeroCounts(IMMUNIZATION_STATUSES);
   for (const record of records) byStatus[record.status] += 1;
   return { totalRecords: records.length, byStatus };
+}
+
+export function buildDiagnosticsOrdersSummary(orders: readonly DiagnosticOrder[]): DiagnosticsOrdersSummary {
+  const byStatus = zeroCounts(DIAGNOSTIC_ORDER_STATUSES);
+  for (const order of orders) byStatus[order.status] += 1;
+  return { totalOrders: orders.length, byStatus };
 }

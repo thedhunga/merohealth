@@ -4,6 +4,8 @@ import { BillingRepository } from '../billing/billing.repository.js';
 import { BillingService } from '../billing/billing.service.js';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
+import { DiagnosticsOrdersRepository } from '../diagnostics-orders/diagnostics-orders.repository.js';
+import { DiagnosticsOrdersService } from '../diagnostics-orders/diagnostics-orders.service.js';
 import { EngagementRepository } from '../engagement/engagement.repository.js';
 import { EngagementService } from '../engagement/engagement.service.js';
 import { ImmunizationRepository } from '../immunization/immunization.repository.js';
@@ -28,11 +30,12 @@ function buildService(): AnalyticsService {
   const referrals = new ReferralsService(new ReferralsRepository(), charting);
   const engagement = new EngagementService(new EngagementRepository(), patients, { send: vi.fn().mockResolvedValue(undefined) });
   const immunization = new ImmunizationService(new ImmunizationRepository(), charting);
-  return new AnalyticsService(patients, scheduling, billing, referrals, engagement, immunization);
+  const diagnosticsOrders = new DiagnosticsOrdersService(new DiagnosticsOrdersRepository(), charting);
+  return new AnalyticsService(patients, scheduling, billing, referrals, engagement, immunization, diagnosticsOrders);
 }
 
 describe('createAnalyticsModuleDescriptor', () => {
-  it('declares the ANALYTICS key with empty requires and all six real degradations', () => {
+  it('declares the ANALYTICS key with empty requires and all seven real degradations', () => {
     const descriptor = createAnalyticsModuleDescriptor(buildService());
 
     expect(descriptor.key).toBe('ANALYTICS');
@@ -44,6 +47,7 @@ describe('createAnalyticsModuleDescriptor', () => {
       { key: 'REFERRALS', mode: 'HIDE' },
       { key: 'ENGAGEMENT', mode: 'HIDE' },
       { key: 'IMMUNIZATION', mode: 'HIDE' },
+      { key: 'DIAGNOSTICS_ORDERS', mode: 'HIDE' },
     ]);
   });
 

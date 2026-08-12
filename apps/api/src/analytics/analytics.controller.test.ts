@@ -5,6 +5,8 @@ import { BillingRepository } from '../billing/billing.repository.js';
 import { BillingService } from '../billing/billing.service.js';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
+import { DiagnosticsOrdersRepository } from '../diagnostics-orders/diagnostics-orders.repository.js';
+import { DiagnosticsOrdersService } from '../diagnostics-orders/diagnostics-orders.service.js';
 import { EngagementRepository } from '../engagement/engagement.repository.js';
 import { EngagementService } from '../engagement/engagement.service.js';
 import { ImmunizationRepository } from '../immunization/immunization.repository.js';
@@ -29,9 +31,18 @@ function buildController() {
   const referrals = new ReferralsService(new ReferralsRepository(), charting);
   const engagement = new EngagementService(new EngagementRepository(), patients, { send: vi.fn().mockResolvedValue(undefined) });
   const immunization = new ImmunizationService(new ImmunizationRepository(), charting);
-  const analytics = new AnalyticsService(patients, scheduling, billing, referrals, engagement, immunization);
+  const diagnosticsOrders = new DiagnosticsOrdersService(new DiagnosticsOrdersRepository(), charting);
+  const analytics = new AnalyticsService(
+    patients,
+    scheduling,
+    billing,
+    referrals,
+    engagement,
+    immunization,
+    diagnosticsOrders,
+  );
   const controller = new AnalyticsController(analytics);
-  return { controller, patients, scheduling, charting, billing, referrals, engagement, immunization };
+  return { controller, patients, scheduling, charting, billing, referrals, engagement, immunization, diagnosticsOrders };
 }
 
 const referralRequestInput = {
@@ -183,6 +194,30 @@ describe('AnalyticsController.immunization', () => {
     immunization.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
 
     await expect(controller.immunization()).rejects.toThrow(ServiceUnavailableException);
+  });
+});
+
+describe('AnalyticsController.diagnosticsOrders', () => {
+  it('returns the diagnostics-orders summary', async () => {
+    const { controller, charting, diagnosticsOrders } = buildController();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    await diagnosticsOrders.orderDiagnostic(encounter.id, {
+      clinicianId: 'clinician-1',
+      kind: 'LAB',
+      testName: 'Fasting blood glucose',
+    });
+
+    await expect(controller.diagnosticsOrders()).resolves.toEqual({
+      totalOrders: 1,
+      byStatus: { ORDERED: 1, RESULTED: 0, CANCELLED: 0 },
+    });
+  });
+
+  it('rejects (503) while diagnostics-orders is down', async () => {
+    const { controller, diagnosticsOrders } = buildController();
+    diagnosticsOrders.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+
+    await expect(controller.diagnosticsOrders()).rejects.toThrow(ServiceUnavailableException);
   });
 });
 

@@ -53,7 +53,15 @@ function buildStack() {
   const populationHealth = new PopulationHealthService(summary, scheduling);
   const engagement = new EngagementService(new EngagementRepository(), patients, { send: vi.fn().mockResolvedValue(undefined) });
   const immunization = new ImmunizationService(new ImmunizationRepository(), charting);
-  const analytics = new AnalyticsService(patients, scheduling, billing, referrals, engagement, immunization);
+  const analytics = new AnalyticsService(
+    patients,
+    scheduling,
+    billing,
+    referrals,
+    engagement,
+    immunization,
+    diagnosticsOrders,
+  );
   const interop = new InteropService(new InteropRepository(), records);
   return {
     records,
@@ -171,14 +179,15 @@ describe('ClinicalSuiteService', () => {
     // dependency on clinical-charting at all and must read as fully
     // available — teleconsultation's own dependencies are SCHEDULING,
     // population-health's are CLINICAL_SUMMARY/SCHEDULING, analytics's are
-    // PATIENT_REGISTRY/SCHEDULING/BILLING/REFERRALS/ENGAGEMENT/IMMUNIZATION,
-    // engagement's is PATIENT_REGISTRY and interop's is HEALTH_RECORDS, none
-    // of them CLINICAL_CHARTING directly, and neither CLINICAL_SUMMARY nor
-    // BILLING nor REFERRALS nor IMMUNIZATION being merely degraded (not
-    // DOWN) cascades to what depends on them either (§2's "degradesWith
-    // never cascades past one hop") — BILLING, REFERRALS and IMMUNIZATION
-    // all stay `available: true` above, so
-    // analytics's own edges to them never fire.
+    // PATIENT_REGISTRY/SCHEDULING/BILLING/REFERRALS/ENGAGEMENT/IMMUNIZATION/
+    // DIAGNOSTICS_ORDERS, engagement's is PATIENT_REGISTRY and interop's is
+    // HEALTH_RECORDS, none of them CLINICAL_CHARTING directly, and neither
+    // CLINICAL_SUMMARY nor BILLING nor REFERRALS nor IMMUNIZATION nor
+    // DIAGNOSTICS_ORDERS being merely degraded (not DOWN) cascades to what
+    // depends on them either (§2's "degradesWith never cascades past one
+    // hop") — BILLING, REFERRALS, IMMUNIZATION and DIAGNOSTICS_ORDERS all
+    // stay `available: true` above, so analytics's own edges to them never
+    // fire.
     expect(byKey.get('PATIENT_REGISTRY')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('SCHEDULING')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('TELECONSULTATION')).toMatchObject({ available: true, degradations: [] });

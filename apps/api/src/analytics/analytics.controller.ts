@@ -66,4 +66,13 @@ export class AnalyticsController {
   immunization() {
     return this.analytics.immunizationSummary();
   }
+
+  @Get('diagnostics-orders')
+  @ApiOperation({
+    summary:
+      'Diagnostic order totals, broken down by status. Refused (503) while diagnostics-orders is unavailable.',
+  })
+  diagnosticsOrders() {
+    return this.analytics.diagnosticsOrdersSummary();
+  }
 }
