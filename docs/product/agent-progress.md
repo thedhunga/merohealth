@@ -561,6 +561,15 @@ suite grows. A module that "works" but has no outage test is not finished.
       entry below (the one added by this run) for why `diagnostics-orders`
       turned out just as mechanical as `immunization` had, and why `interop`
       is still not a same-shape candidate.
+- [x] `records.fault-isolation.test.ts` (`HEALTH_RECORDS`): the module was
+      missing the actual clinical-suite.md §2 deliverable — every sibling
+      module has its own `<module>.fault-isolation.test.ts` proving a broken
+      store in *that* module doesn't take an unrelated one down, plus a
+      `resolveAvailability`-marks-it-DOWN check; `records` only had a
+      descriptor-shape unit test. See the 2026-08-12 log entry below (the one
+      added by this run) for why this was picked over the two items the
+      diagnostics-orders run's own log entry left open (both still genuinely
+      blocked on a product decision).
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -584,6 +593,82 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; wrote the missing
+  `records.fault-isolation.test.ts` for `HEALTH_RECORDS`.** Grepped for
+  `- [ ]` first — zero hits, same as every prior "queue exhausted" run. The
+  prior run's own log entry (immediately below) had already confirmed the
+  mechanical "add an analytics source" vein is genuinely exhausted and that
+  `quality-reporting`/`tenancy` (rows 19-20) both carry an invent-a-dataset
+  risk not worth forcing. Rather than reopen either of those, this run
+  dispatched a read-only survey agent to look for a smaller, honestly
+  unblocked gap first, explicitly ruling out the standing blocked items
+  (`companion.controller.ts`'s missing `EntitlementsGuard`, analytics's
+  `clinical-charting` source, rows 19-20).
+
+  **What the survey found.** Every clinical-suite module directory under
+  `apps/api/src/` ships a `<module>.fault-isolation.test.ts` — the literal
+  deliverable `clinical-suite.md` §2 names ("a test that forces the module
+  DOWN and asserts the rest of the system still works") — except `records`
+  (`HEALTH_RECORDS`). `records/records.module-descriptor.test.ts` only unit
+  tests the descriptor function's shape (key, empty `requires`/
+  `degradesWith`, that `health()` delegates to the service); it never
+  constructs a `ModuleRegistry`, never forces the health probe `DOWN`, and
+  never proves a broken records store leaves an unrelated module unaffected.
+  `clinical-charting.fault-isolation.test.ts` already covers the *consumer*
+  direction (HEALTH_RECORDS down, does clinical-charting survive) but that
+  is a test of clinical-charting's isolation, not records' own. The survey
+  also flagged two small mobile-app language-toggle gaps
+  (`app/(tabs)/companion.tsx`, `app/(tabs)/learn.tsx` have a handful of
+  hardcoded-English strings) as smaller fallback candidates, and named the
+  systemic missing-`@UseGuards` pattern across most clinical-suite
+  controllers as a likely deliberate staging decision, not a bug — flagging
+  it for a future run rather than touching it here.
+
+  **What was built.** `apps/api/src/records/records.fault-isolation.test.ts`,
+  mirroring `patient-registry.fault-isolation.test.ts`'s shape exactly (the
+  other module with empty `requires`/`degradesWith`, so "the rest of the
+  system" is an unrelated sibling with no shared state — used
+  `PatientRegistryService`/`Repository` here). A `BrokenRecordsRepository`
+  overrides `saveDocument`/`findDocument`/`listDocuments` to throw, same
+  "override the methods the exercised code path actually calls" scope
+  `clinical-charting`'s own broken-repository class used. Two tests: (1)
+  `captureDocument` on the broken repository rejects, while a fresh
+  `PatientRegistryService.register` still succeeds right after; (2)
+  `resolveAvailability` marks `HEALTH_RECORDS` `available: false` /
+  `health: 'DOWN'` when its descriptor's health probe is forced down, via
+  `buildModuleRegistry`/`collectHealthStates`/`resolveAvailability` from
+  `@swasthya/module-registry` — the same two-test shape every other
+  fault-isolation file in this section already has.
+
+  **What was deliberately left out.** No change to `records.module.ts`,
+  `records.service.ts` or the descriptor itself — the gap was a missing
+  test, not a missing behaviour; `HEALTH_RECORDS` already reports its real
+  health and already has no dependency edges to assert. No new
+  `resolveAvailability` assertions were added to any *other* module's
+  fault-isolation test, since none of them declare a `requires`/
+  `degradesWith` edge pointing at `HEALTH_RECORDS` beyond the one
+  `clinical-charting` already tests.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new package). `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73
+  turbo tasks — `@swasthya/api` 583/583 (up from 581). `pnpm build` 39/39.
+
+  **For the next run.** The two standing blocked items are unchanged:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (needs a product
+  decision on anonymous-vs-signed-in use) and analytics's open
+  `clinical-charting` source (needs someone to decide what an encounter-only
+  summary counts). The survey's two fallback candidates are real and
+  unblocked if nobody has picked up `quality-reporting`/`tenancy` by then:
+  a handful of hardcoded-English strings in `apps/mobile/app/(tabs)/
+  companion.tsx` (lines around 349-402: the "GUIDED INFORMATION · NOT A
+  DIAGNOSIS" eyebrow, "Searching trusted sources…", the evidence-badge
+  copy, "Sources", "Open Perplexity Health") and in
+  `app/(tabs)/learn.tsx` ("Accessible by design", "Reviewed scripts") that
+  don't branch on the `language` state already in scope in both files, the
+  same class of bug the 2026-08-11 `care.tsx`/`consultation.tsx` and
+  `accessibilityLabel` runs already fixed elsewhere. Neither was touched
+  this run — this run's own pick was the fault-isolation gap instead.
 
 - 2026-08-12 — **Queue fully checked; extended `analytics` (capability map
   row 14) with a seventh source, `diagnostics-orders`.** Grepped for
