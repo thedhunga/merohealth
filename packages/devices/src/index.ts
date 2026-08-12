@@ -108,6 +108,19 @@ function assertFinite(value: number, field: string): void {
   }
 }
 
+/**
+ * Steps, heart rate, oxygen saturation, glucose, blood pressure, body weight
+ * and respiratory rate have no physiologically valid negative reading. A
+ * malformed bridge payload that slips a negative value past `assertFinite`
+ * (still a finite number, just impossible) would otherwise normalize
+ * silently and flow downstream into trends and `digital-twin`.
+ */
+function assertNonNegative(value: number, field: string): void {
+  if (value < 0) {
+    throw new InvalidDeviceRecordError(`Negative ${field}: ${value}`);
+  }
+}
+
 /* ------------------------------------------------------------------ *
  * Health Connect (androidx.health.connect.client.records)
  *
@@ -248,6 +261,7 @@ export function normalizeHealthConnectRecord(
   switch (record.recordType) {
     case 'StepsRecord': {
       assertFinite(record.count, 'count');
+      assertNonNegative(record.count, 'count');
       return [
         sample({
           sourceRecordId: record.metadata.id,
@@ -265,6 +279,7 @@ export function normalizeHealthConnectRecord(
     case 'HeartRateRecord': {
       return record.samples.map((s, index) => {
         assertFinite(s.beatsPerMinute, 'beatsPerMinute');
+        assertNonNegative(s.beatsPerMinute, 'beatsPerMinute');
         return sample({
           sourceRecordId: `${record.metadata.id}:${index}`,
           ownerId,
@@ -280,6 +295,7 @@ export function normalizeHealthConnectRecord(
 
     case 'RestingHeartRateRecord': {
       assertFinite(record.beatsPerMinute, 'beatsPerMinute');
+      assertNonNegative(record.beatsPerMinute, 'beatsPerMinute');
       return [
         sample({
           sourceRecordId: record.metadata.id,
@@ -328,6 +344,7 @@ export function normalizeHealthConnectRecord(
 
     case 'OxygenSaturationRecord': {
       assertFinite(record.percentage, 'percentage');
+      assertNonNegative(record.percentage, 'percentage');
       return [
         sample({
           sourceRecordId: record.metadata.id,
@@ -344,6 +361,7 @@ export function normalizeHealthConnectRecord(
 
     case 'BloodGlucoseRecord': {
       assertFinite(record.level, 'level');
+      assertNonNegative(record.level, 'level');
       return [
         sample({
           sourceRecordId: record.metadata.id,
@@ -361,6 +379,8 @@ export function normalizeHealthConnectRecord(
     case 'BloodPressureRecord': {
       assertFinite(record.systolic, 'systolic');
       assertFinite(record.diastolic, 'diastolic');
+      assertNonNegative(record.systolic, 'systolic');
+      assertNonNegative(record.diastolic, 'diastolic');
       return [
         sample({
           sourceRecordId: `${record.metadata.id}:systolic`,
@@ -387,6 +407,7 @@ export function normalizeHealthConnectRecord(
 
     case 'WeightRecord': {
       assertFinite(record.weight, 'weight');
+      assertNonNegative(record.weight, 'weight');
       return [
         sample({
           sourceRecordId: record.metadata.id,
@@ -419,6 +440,7 @@ export function normalizeHealthConnectRecord(
 
     case 'RespiratoryRateRecord': {
       assertFinite(record.rate, 'rate');
+      assertNonNegative(record.rate, 'rate');
       return [
         sample({
           sourceRecordId: record.metadata.id,
@@ -554,6 +576,7 @@ export function normalizeHealthKitSample(
   switch (raw.identifier) {
     case 'HKQuantityTypeIdentifierStepCount': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,
@@ -570,6 +593,7 @@ export function normalizeHealthKitSample(
 
     case 'HKQuantityTypeIdentifierHeartRate': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,
@@ -586,6 +610,7 @@ export function normalizeHealthKitSample(
 
     case 'HKQuantityTypeIdentifierRestingHeartRate': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,
@@ -602,6 +627,7 @@ export function normalizeHealthKitSample(
 
     case 'HKQuantityTypeIdentifierOxygenSaturation': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,
@@ -618,6 +644,7 @@ export function normalizeHealthKitSample(
 
     case 'HKQuantityTypeIdentifierBloodGlucose': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,
@@ -634,6 +661,7 @@ export function normalizeHealthKitSample(
 
     case 'HKQuantityTypeIdentifierBloodPressureSystolic': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,
@@ -650,6 +678,7 @@ export function normalizeHealthKitSample(
 
     case 'HKQuantityTypeIdentifierBloodPressureDiastolic': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,
@@ -666,6 +695,7 @@ export function normalizeHealthKitSample(
 
     case 'HKQuantityTypeIdentifierBodyMass': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,
@@ -698,6 +728,7 @@ export function normalizeHealthKitSample(
 
     case 'HKQuantityTypeIdentifierRespiratoryRate': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,

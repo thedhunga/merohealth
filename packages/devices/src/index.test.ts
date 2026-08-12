@@ -193,6 +193,17 @@ describe('normalizeHealthConnectRecord', () => {
     expect(() => normalizeHealthConnectRecord(record, OWNER)).toThrow(InvalidDeviceRecordError);
   });
 
+  it('rejects a negative reading as physiologically impossible, distinct from non-finite', () => {
+    const record: HealthConnectRecord = {
+      recordType: 'StepsRecord',
+      metadata: { id: 'hc-16' },
+      count: -50,
+      startTime: '2026-06-01T00:00:00.000Z',
+      endTime: '2026-06-01T23:59:59.000Z',
+    };
+    expect(() => normalizeHealthConnectRecord(record, OWNER)).toThrow(InvalidDeviceRecordError);
+  });
+
   it('rejects a session whose end precedes its start', () => {
     const record: HealthConnectRecord = {
       recordType: 'SleepSessionRecord',
@@ -347,6 +358,18 @@ describe('normalizeHealthKitSample', () => {
       startDate: '2026-06-01T07:00:00.000Z',
       endDate: '2026-06-01T07:00:00.000Z',
       value: Number.POSITIVE_INFINITY,
+    };
+    expect(() => normalizeHealthKitSample(raw, OWNER)).toThrow(InvalidDeviceRecordError);
+  });
+
+  it('rejects a negative reading as physiologically impossible', () => {
+    const raw: HealthKitSample = {
+      identifier: 'HKQuantityTypeIdentifierBodyMass',
+      uuid: 'hk-13',
+      startDate: '2026-06-01T07:00:00.000Z',
+      endDate: '2026-06-01T07:00:00.000Z',
+      value: -1,
+      unit: 'kg',
     };
     expect(() => normalizeHealthKitSample(raw, OWNER)).toThrow(InvalidDeviceRecordError);
   });

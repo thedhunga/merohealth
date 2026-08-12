@@ -641,6 +641,16 @@ suite grows. A module that "works" but has no outage test is not finished.
       the `emergency-chest-001` run's own log entry left open as "a real,
       small, unblocked follow-up." See the 2026-08-12 log entry below (the
       one added by this run) for the test and why it stayed a single case.
+- [x] `packages/devices`: reject physiologically-impossible negative
+      readings (steps, heart rate, resting heart rate, oxygen saturation,
+      glucose, both blood-pressure fields, body weight, respiratory rate) —
+      `assertFinite` accepted any finite number, including negative ones, so
+      a malformed bridge payload (e.g. `count: -50`) normalized silently and
+      would have flowed downstream into trends/`digital-twin`. Found by an
+      independent survey after the prior run's own log entry reported no new
+      candidate. See the 2026-08-12 log entry below (the one added by this
+      run) for the new `assertNonNegative` guard and what was deliberately
+      left out.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -664,6 +674,80 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; `packages/devices` now rejects
+  negative readings for metrics that can never physiologically be negative.**
+  Grepped for `- [ ]` first — zero hits, same as every prior "queue
+  exhausted" run. The prior run's own log entry said it closed the one
+  candidate it already had named and recommended a fresh, independent survey
+  rather than trusting its own guess at what's left, so this run spawned a
+  survey agent instructed to re-search the codebase itself: it re-verified
+  message-key parity between `apps/web/messages/ne.json` and `en.json` (zero
+  mismatches), grepped the whole repo for `TODO`/`FIXME`/`.skip(`/`xit(`/
+  `describe.todo(` (nothing outside a test string asserting their absence),
+  and found three genuinely unblocked gaps. Took the highest-value one:
+  `packages/devices/src/index.ts`'s `assertFinite` (used throughout
+  `normalizeHealthConnectRecord`/`normalizeHealthKitSample`) only ever
+  checked `Number.isFinite`, never sign, for metrics that can never
+  legitimately be negative — `STEPS`, `HEART_RATE`, `RESTING_HEART_RATE`,
+  `BLOOD_OXYGEN`, `BLOOD_GLUCOSE`, both `BLOOD_PRESSURE_*` fields,
+  `BODY_WEIGHT`, `RESPIRATORY_RATE`. A malformed bridge payload (e.g.
+  `count: -50`) would silently normalize and flow downstream into
+  trends/`digital-twin` with no downstream check to catch it. This package
+  has data-integrity consequences closer to the safety layer than the other
+  two candidates the survey found (an empty-string fallback gap in
+  `storage-adapters`'s `sanitizeFilename`, and a `normalizeLabel`
+  duplicated verbatim between `medication-safety` and `population-health`),
+  so it went first.
+
+  **What was built.** A new `assertNonNegative(value, field)` guard next to
+  `assertFinite` in `packages/devices/src/index.ts`, throwing the existing
+  `InvalidDeviceRecordError` with a `Negative <field>: <value>` message —
+  same error type and shape `assertFinite` already uses, so callers
+  (currently none; this package isn't wired to a caller yet) don't need a
+  new catch branch. Called immediately after every existing `assertFinite`
+  call for the nine metric kinds listed above, across both the Health
+  Connect and HealthKit normalizers (18 call sites total). Two new tests in
+  `index.test.ts`: a Health Connect `StepsRecord` with `count: -50` and a
+  HealthKit `HKQuantityTypeIdentifierBodyMass` sample with `value: -1`, both
+  asserting `InvalidDeviceRecordError`, mirroring the existing non-finite
+  rejection tests' shape exactly.
+
+  **What was deliberately not touched.** `BODY_TEMPERATURE` and
+  `SLEEP_DURATION` were left without a non-negative guard: temperature is
+  converted from a raw Fahrenheit/Celsius reading with no natural zero floor
+  the way a count or a percentage has (the survey didn't flag it, and
+  extending the guard there would have been the agent's own invented
+  threshold, not a case backed by the same "count can't be negative" logic
+  as the other nine), and `SLEEP_DURATION` is derived from
+  `minutesBetween`, which already rejects `end < start` and therefore can
+  never itself go negative. The other two survey candidates (the
+  `sanitizeFilename` empty-string fallback and the `normalizeLabel`
+  duplication) were left open for a future run.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73 turbo tasks —
+  `@swasthya/devices` now 29/29 tests (was 27/27), `@swasthya/api` unchanged
+  at 583/583. `pnpm build` 39/39 (34 cached).
+
+  **For the next run.** Two concrete, unblocked candidates from this run's
+  own survey were not taken: (1) `packages/storage-adapters/src/filename.ts`
+  `sanitizeFilename` can return an empty string when the input is empty or
+  entirely whitespace/control characters, with no fallback before
+  `google-drive-store.ts:208` passes it straight to the Drive API as
+  `name:`; (2) `normalizeLabel` (NFKC + trim + lowercase) is copy-pasted
+  verbatim in `packages/medication-safety/src/index.ts:27-29` and
+  `packages/population-health/src/index.ts:27-29`, each with a comment
+  pointing at the other as the "original" — the same DRY-drift risk class
+  already fixed once for `google-drive-store.ts`/`hosted-store.ts`'s
+  filename sanitization, not yet extracted to a shared util. The two
+  standing blocked items are unchanged: `companion.controller.ts`'s missing
+  `EntitlementsGuard` (needs a product decision on anonymous-vs-signed-in
+  metering) and `analytics`'s open `clinical-charting` source (needs a
+  decision on what an encounter-only summary should count).
+  `quality-reporting`/`tenancy` (capability map rows 19-20) remain the only
+  two unbuilt clinical-suite modules and still carry the no-real-dataset
+  risk multiple prior entries have already described.
 
 - 2026-08-12 — **Queue fully checked; covered `packages/devices`'s untested
   `HKQuantityTypeIdentifierBodyMass` HealthKit weight-conversion path.**
