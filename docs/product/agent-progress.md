@@ -681,6 +681,17 @@ suite grows. A module that "works" but has no outage test is not finished.
       known-gap test now has zero cases rather than an empty describe block
       deleted outright.
 
+- [x] `apps/api`'s `family-grants.controller.ts`: `createDelegationSchema`'s
+      `expiresAt` field now requires an ISO 8601 UTC instant, matching the
+      `isoInstant` regex convention `scheduling`/`population-health` already
+      apply to their own instant fields. Previously it only checked
+      non-empty, so a value like `"forever"` passed validation, then dodged
+      `packages/family`'s own `expiresAt <= grantedAt` string-comparison
+      guard (every digit-leading ISO string sorts before a letter-leading
+      one), producing a delegation grant `isDelegationActive` reads as live
+      forever. See the 2026-08-12 log entry below for the fresh survey that
+      found it and the new controller test.
+
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
 unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
@@ -703,6 +714,108 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; `family-grants.controller.ts`'s
+  `createDelegation` now rejects a non-ISO `expiresAt` instead of silently
+  creating a delegation grant that never lapses.** Grepped for `- [ ]` first
+  — zero hits, same as every prior "queue exhausted" run. The prior
+  (`termAppears`) run's own log entry said a fresh, independent survey was
+  likely needed rather than trusting its own guess, and warned the last
+  several runs had been closing out a fixed candidate list found days
+  earlier — so this run spawned a general-purpose survey agent with explicit
+  instructions to search along angles the ledger's own history shows are
+  *not* yet covered (real correctness bugs in under-scrutinized packages,
+  untested risky branches, data-integrity gaps analogous to the
+  `devices`/`assertNonNegative` fix, DRY drift analogous to
+  `normalizeLabel`, a fresh `apps/web` i18n sweep, and unvalidated input at
+  `apps/api` boundaries) and told explicitly not to resurface the two
+  already-named, product-decision-blocked items
+  (`companion.controller.ts`'s `EntitlementsGuard`,
+  `analytics`'s open `clinical-charting` source) or propose building
+  `quality-reporting`/`tenancy` wholesale.
+
+  **What was found.** The survey noticed `apps/api` has an established,
+  three-times-repeated convention: `scheduling.controller.ts` and
+  `population-health.controller.ts` both validate their own ISO-instant
+  fields (`scheduledStart`/`scheduledEnd`, `asOf`) with a shared-shape
+  `isoInstant` regex (`/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/`),
+  `scheduling.controller.ts`'s own comment explaining why (regex, "not
+  zod's built-in `.datetime()`, for the same 'explicit over a library
+  validator' reason `patient-registry`'s `dateOfBirth` regex already set").
+  `family-grants.controller.ts`'s `createDelegationSchema.expiresAt` was
+  still just `z.string().trim().min(1)` — non-empty, nothing else. Verified
+  this was a real, reachable bug rather than a style-only gap by tracing the
+  actual failure through the domain layer: `packages/family/src/index.ts`'s
+  `buildDelegationGrant` (line 240) validates expiry only via
+  `expiresAt <= grantedAt`, a plain string comparison — `'forever' <=
+  '2026-08-12T...Z'` is `false` because ASCII `'f'` sorts after every digit,
+  so the guard never fires. The grant then persists with
+  `expiresAt: 'forever'`, and `isDelegationActive` (line 304) checks
+  `now < grant.expiresAt`, which is `true` for every future ISO timestamp
+  compared against `'forever'` — the grant reads as active forever through
+  the domain layer's own liveness check, directly defeating
+  `family-and-proxy.md` §2's stated guarantee that "an abandoned grant
+  lapses instead of persisting forever." The route is reachable by any
+  authenticated caller (`SessionAuthGuard` only, no schema-side date
+  parsing) — the web form's `new Date(expiresAt).toISOString()` conversion
+  in `DelegationForm.tsx` is a client-side convenience, not a server-side
+  guarantee, so a raw API call (curl, Postman, a future second client) could
+  send any string. No existing test in `family-grants.controller.test.ts`
+  or `family-grants.service.test.ts` exercised a non-ISO `expiresAt` —
+  only empty scopes, an invalid phone, and a syntactically-valid-but-past
+  date were covered.
+
+  **What was built.** Hoisted the same `isoInstant` regex into
+  `family-grants.controller.ts` (a per-controller copy, matching the
+  existing convention — `scheduling` and `population-health` each carry
+  their own rather than sharing one) and applied it to `expiresAt` via
+  `z.string().regex(...)`, same as the two sibling controllers. One new
+  test in `family-grants.controller.test.ts` asserting `expiresAt: 'forever'`
+  throws `BadRequestException` before the service is ever called, matching
+  the file's existing `toThrow`-not-`rejects` pattern for the schema's
+  synchronous rejection. Confirmed `DelegationForm.tsx`'s
+  `new Date(expiresAt).toISOString()` call always emits the exact `.SSSZ`
+  shape the regex expects, so the one real caller needed no change.
+
+  **What was deliberately not touched.** The survey's runner-up,
+  `language-corpus.controller.ts`'s `ingestSchema.capturedAt` (same
+  `z.string().trim().min(1)` gap, same missing `isoInstant` regex), was left
+  open — it is the same bug *shape* but lower severity: `capturedAt` only
+  drives review-queue ordering via `localeCompare`, with no permanent-access
+  consequence the way `expiresAt` has. Left as a named candidate for the
+  next run rather than bundled in, to keep this run to the one concrete,
+  highest-value fix. `packages/family`'s own `expiresAt <= grantedAt`
+  string-comparison guard was also left as-is — tightening the domain
+  layer itself (e.g. parsing to a real `Date` and comparing numerically)
+  would be a second, broader change to a package every guardianship and
+  delegation check depends on, and the boundary fix alone already closes
+  the reachable gap: nothing between the API and `packages/family` can
+  reach `buildDelegationGrant` with an unparseable string anymore.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` now 584/584 (was 583/583, +1 new test), all other package
+  counts unchanged. `pnpm build` 40/40 (35 cached); mobile's 16 static
+  routes unchanged in count and size.
+
+  **For the next run.** `language-corpus.controller.ts`'s `capturedAt` (above)
+  is a real, small, unblocked follow-up in the same bug class. The two
+  long-standing blocked items are unchanged: `companion.controller.ts`'s
+  missing `EntitlementsGuard` (needs a product decision on
+  anonymous-vs-signed-in metering) and `analytics`'s open `clinical-charting`
+  source (needs a decision on what an encounter-only summary should count).
+  `quality-reporting`/`tenancy` (capability map rows 19-20) remain the only
+  two unbuilt clinical-suite modules and still carry the no-real-dataset
+  risk multiple prior entries have already described. This run's survey also
+  read through `packages/entitlements`, `packages/credentialing`,
+  `packages/identity`, `packages/module-registry`, `packages/care-directory`,
+  `packages/digital-twin`, `packages/language-corpus` (the package, not its
+  controller), `packages/family` (the package itself, not its controller),
+  `packages/interop/src/export-pdf.ts`, `packages/scheduling`,
+  `packages/medication-safety`, and the newest `apps/web` account
+  components (`DelegationForm.tsx`, `DelegationsGrantedList.tsx`, both
+  fully localized) — all found clean, so the next survey shouldn't need to
+  repeat them.
 
 - 2026-08-12 — **Queue fully checked; fixed `packages/retrieval`'s
   `termAppears` so a Nepali possessive suffix glued onto a clinical term no

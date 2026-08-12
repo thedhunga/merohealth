@@ -124,4 +124,20 @@ describe('FamilyGrantsController.createDelegation', () => {
       }),
     ).toThrow(BadRequestException);
   });
+
+  // Before this test existed, a non-ISO `expiresAt` like this sailed past
+  // both the old `.min(1)` check here and `grantDelegation`'s own
+  // `expiresAt <= grantedAt` string comparison ('f' sorts after every digit),
+  // producing a delegation that `isDelegationActive` would have read as live
+  // forever. The 400 must happen here, before the service is ever called.
+  it('rejects an expiresAt that is not an ISO 8601 UTC instant', async () => {
+    const { controller } = await buildController();
+    expect(() =>
+      controller.createDelegation(currentUser('janaki'), {
+        delegatePhone: DELEGATE_PHONE,
+        scopes: ['VIEW_RECORD'],
+        expiresAt: 'forever',
+      }),
+    ).toThrow(BadRequestException);
+  });
 });

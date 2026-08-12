@@ -6,13 +6,21 @@ import { CurrentUser } from '../auth/current-user.decorator.js';
 import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { FamilyGrantsService } from './family-grants.service.js';
 
+// Same "explicit over a library validator" regex `scheduling` and
+// `population-health` already apply to their own instant fields — matched
+// here too so a malformed `expiresAt` (e.g. `"forever"`) 400s at the
+// boundary instead of reaching `grantDelegation`, whose own guard
+// (`expiresAt <= grantedAt`) is a string comparison that a non-ISO value can
+// silently dodge, producing a delegation that never lapses.
+const isoInstant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
+
 // Mirrors `packages/family`'s `DelegationScope` union exactly — the
 // controller boundary is where an out-of-range value from the client
 // becomes a 400 rather than reaching `grantDelegation` at all.
 const createDelegationSchema = z.object({
   delegatePhone: z.string().trim().min(1),
   scopes: z.array(z.enum(['VIEW_RECORD', 'ASK_ASSISTANT', 'MANAGE_APPOINTMENTS', 'UPLOAD_DOCUMENTS'])).min(1),
-  expiresAt: z.string().trim().min(1),
+  expiresAt: z.string().regex(isoInstant, 'expiresAt must be an ISO 8601 UTC instant'),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
