@@ -3,6 +3,7 @@ import type { HealthDocument, HealthObservation } from '@swasthya/shared-types';
 
 import {
   InMemoryShareLinkStore,
+  MAX_SHARE_LINK_TTL_SECONDS,
   ShareLinkError,
   ShareLinkNotActiveError,
   UntrustedObservationError,
@@ -206,6 +207,31 @@ describe('issueShareLink', () => {
         ttlSeconds: 0,
       }),
     ).toThrow(ShareLinkError);
+  });
+
+  it('refuses a time limit past the 30-day ceiling, so a "time-limited" link cannot become permanent', () => {
+    expect(() =>
+      issueShareLink({
+        id: 'link-1',
+        token: 'tok-1',
+        ownerId: 'user-1',
+        documentIds: ['doc-1'],
+        createdAt: '2026-04-01T00:00:00.000Z',
+        ttlSeconds: MAX_SHARE_LINK_TTL_SECONDS + 1,
+      }),
+    ).toThrow(ShareLinkError);
+  });
+
+  it('accepts a time limit exactly at the ceiling', () => {
+    const link = issueShareLink({
+      id: 'link-1',
+      token: 'tok-1',
+      ownerId: 'user-1',
+      documentIds: ['doc-1'],
+      createdAt: '2026-04-01T00:00:00.000Z',
+      ttlSeconds: MAX_SHARE_LINK_TTL_SECONDS,
+    });
+    expect(link.expiresAt).toBe('2026-05-01T00:00:00.000Z');
   });
 });
 

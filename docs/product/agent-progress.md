@@ -716,6 +716,14 @@ suite grows. A module that "works" but has no outage test is not finished.
       general research disclaimer, not a `clinical-safety`-gated emergency
       message"). See the 2026-08-12 log entry below for the fix and the new
       test file.
+- [x] `packages/interop`'s `issueShareLink` now rejects a `ttlSeconds` above
+      a 30-day ceiling — previously only `<= 0` was rejected, so an owner
+      could request an unbounded `ttlSeconds` and get a share link that the
+      unauthenticated `GET /interop/share/:token` route would then honour
+      effectively forever, defeating `platform-vision.md` §3.3's stated
+      "time-limited" design property. See the 2026-08-12 log entry below for
+      the trace, the new `MAX_SHARE_LINK_TTL_SECONDS` constant, and why 30
+      days.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -739,6 +747,82 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; `packages/interop`'s `issueShareLink`
+  now rejects a `ttlSeconds` above a 30-day ceiling, closing an unbounded-TTL
+  gap that let a "time-limited" share link become effectively permanent.**
+  Grepped for `- [ ]` first — zero hits, same as every recent "queue
+  exhausted" run. Rather than re-grep the closed `isoInstant`/`ne-Latn`/
+  mobile-language-toggle veins the last several entries had already mined
+  dry, delegated an independent survey agent with explicit instructions to
+  search fresh ground (untested risky branches, correctness bugs, loose
+  numeric/enum validation at `apps/api` boundaries, DRY drift, `apps/web`
+  i18n/a11y) and to avoid every closed vein and the two named blocked items
+  (`companion.controller.ts`'s missing `EntitlementsGuard`, `analytics`'s
+  open `clinical-charting` source).
+
+  **What was found.** `apps/api/src/interop/interop.controller.ts`'s
+  `issueShareLinkSchema` only validated `ttlSeconds: z.number().int().positive()`,
+  and `packages/interop/src/index.ts`'s `issueShareLink` only rejected
+  `ttlSeconds <= 0` — no upper bound anywhere. Traced the actual consequence
+  rather than trusting the pattern match: `GET /interop/share/:token`
+  (`resolveSharedBundle`) is deliberately unauthenticated — per its own doc
+  comment, "the token itself is the credential," since its whole purpose is
+  letting a clinician with no Mero Health account open it. So an owner
+  passing e.g. `Number.MAX_SAFE_INTEGER` as `ttlSeconds` gets a link that,
+  once its token leaks or is reused past the intended visit, grants
+  indefinite, unrevoked access to the owner's real documents/observations —
+  directly defeating `platform-vision.md` §3.3's stated v1 scope, "**a
+  time-limited**, revocable share link scoped to selected records." No test
+  in `interop.controller.test.ts`, `interop.service.test.ts` or
+  `packages/interop/src/index.test.ts` exercised a large `ttlSeconds`; every
+  test used `3600`. Same bug *shape* as the already-fixed `family-grants`
+  `expiresAt`-never-lapses bug, but a distinct code path (a duration field
+  on a different module, not an ISO-instant field), so not a re-open of the
+  closed `isoInstant` vein.
+
+  **What was built.** Added `MAX_SHARE_LINK_TTL_SECONDS = 30 * 24 * 60 * 60`
+  to `packages/interop/src/index.ts` — 30 days, matching `packages/auth`'s
+  own `SESSION_TTL_MS`, the longest lifetime already trusted elsewhere in
+  this system, rather than inventing an arbitrary number. `issueShareLink`
+  now throws `ShareLinkError` above that ceiling, same as its existing
+  `<= 0` branch. Mirrored the cap in the controller's zod schema via
+  `.max(MAX_SHARE_LINK_TTL_SECONDS)` so an over-long request 400s at the
+  boundary rather than round-tripping to the domain layer to be told the
+  same thing — the pattern `family-grants.controller.ts` already uses for
+  its own `expiresAt` regex. Added two cases to
+  `packages/interop/src/index.test.ts` (rejects one second past the
+  ceiling, accepts exactly at it) and one to
+  `apps/api/src/interop/interop.controller.test.ts` (rejects at the
+  controller boundary, confirming the `BadRequestException` fires before
+  the service is ever called).
+
+  **What was deliberately not touched.** The two runners-up the survey
+  flagged were left alone: `immunization.controller.ts`'s
+  `doseNumberSchema`'s missing upper bound has no traced downstream
+  consequence (cosmetic only), and `summaryKindSchema`'s duplication
+  between `clinical-summary.controller.ts` and
+  `population-health.controller.ts` matches this repo's own deliberate
+  per-controller-copy convention (the same one `isoInstant` uses), so
+  de-duplicating it would cut against an existing, intentional pattern
+  rather than fix a bug.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/interop` 33/33 (was 31/31, +2 new tests), `@swasthya/api`
+  590/590 (was 589/589, +1 new test), all other package counts unchanged.
+  `pnpm build` 40/40 (35 cached); mobile's 16 static routes unchanged in
+  count and size.
+
+  **For the next run.** No further TTL/duration field was found without a
+  ceiling in this pass, but this was one controller, not a full sweep — a
+  fresh survey is still the right first move rather than assuming every
+  duration-shaped field elsewhere is already bounded. The two long-standing
+  blocked items are unchanged: `companion.controller.ts`'s missing
+  `EntitlementsGuard` and `analytics`'s open `clinical-charting` source, both
+  needing a product decision, not code. `quality-reporting`/`tenancy`
+  (capability map rows 19-20) remain the only two unbuilt clinical-suite
+  modules and still carry the no-real-dataset risk prior entries describe.
 
 - 2026-08-12 — **Queue fully checked; fixed the `ne-Latn`-collapses-to-
   Devanagari gap in `apps/api/src/perplexity-health.service.ts`'s `research`

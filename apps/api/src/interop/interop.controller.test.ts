@@ -71,6 +71,13 @@ describe('InteropController share links', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('rejects a ttlSeconds past the 30-day ceiling before it ever reaches the domain layer', async () => {
+    const { controller } = buildController();
+    await expect(
+      controller.issueShareLink(currentUser, { documentIds: ['doc-1'], ttlSeconds: 60 * 60 * 24 * 31 }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('lists and revokes the caller’s own links', async () => {
     const { records, controller } = buildController();
     const document = await records.captureDocument(makeCapture());

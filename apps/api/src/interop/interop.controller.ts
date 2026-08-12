@@ -1,5 +1,6 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { MAX_SHARE_LINK_TTL_SECONDS } from '@swasthya/interop';
 import { z } from 'zod';
 import type { CurrentUserResult } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -8,7 +9,9 @@ import { InteropService } from './interop.service.js';
 
 const issueShareLinkSchema = z.object({
   documentIds: z.array(z.string().trim().min(1)).min(1),
-  ttlSeconds: z.number().int().positive(),
+  // Mirrors packages/interop's own ceiling so an over-long request 400s here
+  // rather than round-tripping to the domain layer to be told the same thing.
+  ttlSeconds: z.number().int().positive().max(MAX_SHARE_LINK_TTL_SECONDS),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
