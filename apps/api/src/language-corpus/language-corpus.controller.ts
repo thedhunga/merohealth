@@ -7,13 +7,20 @@ import { LanguageCorpusService } from './language-corpus.service.js';
 const utteranceKindSchema = z.enum(['USER_MESSAGE', 'CORRECTION', 'VOICE_TRANSCRIPT']);
 const localeSchema = z.enum(['ne', 'en', 'ne-Latn']);
 
+// Same regex `SchedulingController`/`FamilyGrantsController` each carry their
+// own copy of, for the same "explicit over a library validator" reason
+// `patient-registry`'s `dateOfBirth` regex sets. Review-queue ordering here
+// sorts `capturedAt` with `localeCompare`, which silently misorders anything
+// that isn't a real zero-padded ISO instant.
+const isoInstant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
+
 const ingestSchema = z.object({
   id: z.string().trim().min(1),
   ownerId: z.string().trim().min(1),
   kind: utteranceKindSchema,
   text: z.string().trim().min(1),
   locale: localeSchema,
-  capturedAt: z.string().trim().min(1),
+  capturedAt: z.string().regex(isoInstant, 'capturedAt must be an ISO 8601 UTC instant'),
   precedingAssistantText: z.string().trim().min(1).nullable().default(null),
   redactionCount: z.number().int().min(0),
   awaitingHumanReview: z.boolean(),

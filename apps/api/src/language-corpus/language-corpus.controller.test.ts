@@ -37,6 +37,14 @@ describe('LanguageCorpusController ingest', () => {
     const controller = buildController();
     expect(() => controller.ingest({ ...validIngest, kind: 'NOT_A_REAL_KIND' })).toThrow(BadRequestException);
   });
+
+  // Before this test existed, a non-ISO `capturedAt` like this passed the
+  // old `.min(1)` check and would have sorted the review queue by
+  // `localeCompare` against real ISO strings with no meaningful order.
+  it('rejects a capturedAt that is not an ISO 8601 UTC instant', () => {
+    const controller = buildController();
+    expect(() => controller.ingest({ ...validIngest, capturedAt: 'yesterday' })).toThrow(BadRequestException);
+  });
 });
 
 describe('LanguageCorpusController reviewer routes', () => {

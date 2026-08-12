@@ -692,6 +692,14 @@ suite grows. A module that "works" but has no outage test is not finished.
       forever. See the 2026-08-12 log entry below for the fresh survey that
       found it and the new controller test.
 
+- [x] `apps/api`'s `language-corpus.controller.ts`: `ingestSchema`'s
+      `capturedAt` field now requires an ISO 8601 UTC instant, matching the
+      `isoInstant` convention `scheduling`/`population-health`/
+      `family-grants` controllers already apply to their own instant fields.
+      Previously it only checked non-empty. See the 2026-08-12 log entry
+      below for why this was the named, unblocked follow-up left by the
+      `family-grants.controller.ts` `expiresAt` fix.
+
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
 unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
@@ -714,6 +722,73 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; `language-corpus.controller.ts`'s
+  `ingestSchema.capturedAt` now rejects a non-ISO-instant value instead of
+  silently accepting any non-empty string.** Grepped for `- [ ]` first — zero
+  hits, same as every prior "queue exhausted" run. The
+  `family-grants.controller.ts` `expiresAt` run's own log entry (immediately
+  below) named this exact gap as its runner-up candidate — same bug shape,
+  same missing `isoInstant` regex — and left it open deliberately to keep
+  that run to one fix. Went straight to it rather than spawning a fresh
+  survey, since the prior run had already diagnosed it down to the field and
+  the fix pattern.
+
+  **What was found.** `language-corpus.controller.ts`'s `ingestSchema` had
+  `capturedAt: z.string().trim().min(1)` — the same shape the
+  `family-grants` controller carried before its own fix, and the same gap
+  the prior run explicitly flagged rather than folding in. Confirmed the
+  consequence is real, if lower-severity than `expiresAt`: `packages/language-corpus`'s
+  `queue()` sorts pending review items with
+  `.toSorted((a, b) => a.capturedAt.localeCompare(b.capturedAt))` — a
+  malformed value (or one in a different format, e.g. no trailing `Z`, or a
+  non-UTC offset) would sort by string rather than by time, silently
+  reordering the human reviewer's queue with no error anywhere. The only
+  real caller, `apps/mobile/src/state/app-state.tsx`'s `captureUtterance`/
+  `grantConsentAndCapture`, always builds `capturedAt` from
+  `new Date().toISOString()`, which already matches the regex, so the
+  tightened schema needed no client-side change.
+
+  **What was built.** Added the same `isoInstant` regex
+  (`/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/`) already carried
+  independently by `scheduling.controller.ts`, `population-health.controller.ts`
+  and `family-grants.controller.ts`, as its own per-controller copy —
+  matching the existing convention of not sharing one across controllers —
+  and applied it to `capturedAt` via `z.string().regex(...)`. One new test
+  in `language-corpus.controller.test.ts` asserting `capturedAt: 'yesterday'`
+  throws `BadRequestException` from `ingest`, mirroring the `family-grants`
+  test's shape.
+
+  **What was deliberately not touched.** `packages/language-corpus` itself
+  was left as-is: unlike `expiresAt`, no domain-layer function silently
+  misinterprets a malformed `capturedAt` as a valid state (there is no
+  liveness check depending on it) — the only consumer is the sort, which a
+  non-ISO string merely reorders rather than breaks a guarantee for. The
+  boundary fix alone closes the reachable gap for the one real caller and
+  any future one. `packages/evaluation`'s test fixtures and
+  `packages/language-corpus`'s own tests already use well-formed ISO strings
+  throughout, so nothing there needed updating.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` now 585/585 (was 584/584, +1 new test), all other package
+  counts unchanged. `pnpm build` 40/40 (35 cached); mobile's 16 static
+  routes unchanged in count and size.
+
+  **For the next run.** No further `- [ ]` items remain in the same
+  `isoInstant`-validation vein — every controller found to date carrying an
+  instant-shaped field (`scheduling`, `population-health`, `family-grants`,
+  `language-corpus`) now validates it. The two long-standing blocked items
+  are unchanged: `companion.controller.ts`'s missing `EntitlementsGuard`
+  (needs a product decision on anonymous-vs-signed-in metering) and
+  `analytics`'s open `clinical-charting` source (needs a decision on what an
+  encounter-only summary should count). `quality-reporting`/`tenancy`
+  (capability map rows 19-20) remain the only two unbuilt clinical-suite
+  modules and still carry the no-real-dataset risk multiple prior entries
+  have already described. A fresh independent survey (not a repeat of the
+  angles the 2026-08-12 `expiresAt` run's own entry already listed as
+  checked clean) is likely the right next step rather than trusting this
+  entry's own guess at what remains.
 
 - 2026-08-12 — **Queue fully checked; `family-grants.controller.ts`'s
   `createDelegation` now rejects a non-ISO `expiresAt` instead of silently
