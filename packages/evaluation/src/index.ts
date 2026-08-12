@@ -323,23 +323,11 @@ export const evaluationCases: readonly EvaluationCase[] = [
   },
   {
     id: 'janaki-definition-marker-collision',
-    description: 'An English value question phrased with "what is" refuses instead of answering.',
+    description: 'An English "what is my current X" value question answers LATEST_VALUE, not DEFINITION.',
     subjectId: janakiId,
     script: 'en',
     query: 'What is my current blood sugar?',
-    expected: {
-      kind: 'REFUSAL',
-      intent: 'DEFINITION',
-      reason: 'NO_MATCHING_RECORD',
-      concepts: ['glucose', 'blood'],
-    },
-    idealNote:
-      'Ideally this answers LATEST_VALUE for glucose, the same as the Nepali अहिले/कति equivalent above — the ' +
-      'question asks for a value, not a definition. `classifyIntent` (packages/intent-router/src/index.ts) checks ' +
-      'DEFINITION_MARKERS before LATEST_VALUE_MARKERS, and "what is" is on the DEFINITION list for the genuine case ' +
-      '("what is thyroid") — it just also matches the opening of any "what is my current X" value question in ' +
-      'English, a collision the Nepali markers (कस्तो/अहिले/कति do not overlap के हो/अर्थ) do not have. Also worth a ' +
-      'dedicated task, not a marker-list edit tucked into this one.',
+    expected: { kind: 'ANSWERED', intent: 'LATEST_VALUE', codes: glucoseCodes },
   },
 ];
 

@@ -662,6 +662,16 @@ suite grows. A module that "works" but has no outage test is not finished.
       DRY-drift risk two consecutive prior log entries had each named and
       left open. See the 2026-08-12 log entry below (the one added by this
       run) for why a new package rather than a cross-import between the two.
+- [x] Fixed `packages/intent-router`'s `classifyIntent` so an English "what
+      is my current X" question routes to `LATEST_VALUE` instead of
+      `DEFINITION` — a correctness bug in the deterministic answer-routing
+      core (not a UI/copy gap), diagnosed and left open as the
+      `janaki-definition-marker-collision` known-gap case in
+      `packages/evaluation/src/index.ts` since the 2026-08-10 run that first
+      built the evaluation set, surfaced again by a fresh independent survey
+      after the `normalizeLabel`-dedup run's own log entry said one was
+      overdue. See the 2026-08-12 log entry below (the one added by this
+      run) for the fix and why the case moved out of the known-gaps list.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -685,6 +695,101 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; fixed `classifyIntent`'s
+  DEFINITION/LATEST_VALUE marker collision, closing the
+  `janaki-definition-marker-collision` known gap.** Grepped for `- [ ]`
+  first — zero hits, same as every prior "queue exhausted" run. The
+  `normalizeLabel`-dedup run's own log entry said a fresh, independent
+  survey was overdue since several runs in a row had been closing out a
+  fixed candidate list two survey agents found days earlier — so this run
+  spawned a new survey (ownership-check audit across every `apps/api`
+  controller, i18n key-parity diff, fault-isolation coverage check across
+  all 16 clinical-suite modules, a fresh TODO/FIXME grep, and a read-through
+  of `packages/evaluation`, a package no recent entry had revisited) rather
+  than continuing down the old list.
+
+  **What was found and why it ranked first.** `packages/evaluation/src/index.ts`
+  already documents two live, unfixed gaps as `idealNote`-carrying "known-gap"
+  cases, both dating to the 2026-08-10 run that built the evaluation set and
+  explicitly deferred fixing them as "real work belonging to a dedicated
+  task." `janaki-definition-marker-collision` (an English "What is my current
+  blood sugar?" question) was the higher-value of the two: it is a
+  correctness bug in the deterministic answer-routing core the whole
+  grounded-answers architecture depends on (`grounded-answers.md` §2 — "a
+  question about a number in the record must never reach the model as
+  something to answer"), not a UI/copy gap, and closer to the
+  safety/correctness tier of prior accepted work (`emergency-chest-001`,
+  `assertNonNegative`) than a translation fix. `packages/intent-router/src/index.ts`'s
+  `classifyIntent` checked `DEFINITION_MARKERS` (which includes the English
+  phrase `'what is'`, needed for the genuine "what is thyroid" case) before
+  `LATEST_VALUE_MARKERS` (which includes `'current'`), so "What is my
+  **current** blood sugar?" matched `'what is'` first and was classified
+  `DEFINITION` — a `NOT_COMPUTABLE` intent — instead of `LATEST_VALUE`, and
+  refused with `NO_MATCHING_RECORD` instead of answering. Confirmed the bug
+  was still live (untouched since the original Round-two commits) via `git
+  log` on both `packages/intent-router/src/index.ts` and
+  `packages/retrieval/src/index.ts`, and via the evaluation suite's own
+  "known-gap cases still match their documented, verified current behavior"
+  test, which passed before this run — i.e. asserted the bug's presence.
+
+  **What was built.** Reordered `classifyIntent`'s marker checks so
+  `LATEST_VALUE_MARKERS && !TREND_MARKERS` is checked before
+  `DEFINITION_MARKERS` (COMPARISON_MARKERS and the TREND fallback unchanged).
+  This only changes English routing — the Nepali markers don't collide
+  (के हो/अर्थ/मतलब never overlap कस्तो/अहिले/पछिल्लो/हालको) — and doesn't
+  disturb any existing `classifyIntent` test: none of the current
+  DEFINITION/COMPARISON test queries contain a `LATEST_VALUE_MARKERS` word,
+  confirmed by rereading `packages/intent-router/src/index.test.ts` and by
+  the full 37/37 intent-router suite staying green. Ran the actual query
+  through `runEvaluationCase` (via a built-`dist` scratch script, not left in
+  the repo) to get the real output rather than guessing it: `route` now
+  retrieves for the LATEST_VALUE intent and answers with exactly
+  `glucoseCodes` (`['4548-4', '1558-6']`, Hemoglobin A1c + Fasting Glucose) —
+  confirming the `matchedConcepts` also picking up `'blood'` (from "blood
+  sugar"/"blood" both being surface forms in `clinicalTermMap`) doesn't pull
+  in an unrelated code, since no other trusted Janaki observation's label
+  contains "blood" on its own. Updated the `janaki-definition-marker-collision`
+  case's `expected` to `{ kind: 'ANSWERED', intent: 'LATEST_VALUE', codes:
+  glucoseCodes }` and dropped its `idealNote`, moving it out of the
+  known-gaps list and into the "ideal answer" set per that test file's own
+  instructions ("the fix is to move the case out of this list ... not to
+  weaken this assertion").
+
+  **What was deliberately not touched.** The sibling known gap,
+  `janaki-advice-suffix-gap` (Nepali possessive-suffix तokenization — "सुगरको"
+  never matches "सुगर" because `termAppears` requires a whole-token match),
+  is unrelated to this collision and stays open with its own `idealNote` —
+  fixing it needs either a suffix-stripping change to `packages/retrieval`'s
+  `tokenize`/`termAppears` (a broad change to the core matching primitive
+  every clinical term goes through) or per-term inflected-form entries in
+  `clinicalTermMap`, either of which is its own task. Did not touch
+  `COMPARISON_MARKERS`'s position relative to `LATEST_VALUE_MARKERS` — no
+  collision between them exists in any current test or the fixed case, so
+  reordering them too would be an unverified change with no evidence behind
+  it.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/intent-router` 37/37 (unchanged count), `@swasthya/evaluation`
+  13/13 (unchanged count, previously 12 passed + 1 failed), `@swasthya/api`
+  unchanged at 583/583. `pnpm build` 40/40 (35 cached); mobile's 16 static
+  routes unchanged in count and size.
+
+  **For the next run.** `janaki-advice-suffix-gap` (above) is the other
+  standing, already-diagnosed candidate in `packages/evaluation`, though it's
+  a narrower win than this one was. The two long-standing blocked items are
+  unchanged: `companion.controller.ts`'s missing `EntitlementsGuard` (needs a
+  product decision on anonymous-vs-signed-in metering) and `analytics`'s open
+  `clinical-charting` source (needs a decision on what an encounter-only
+  summary should count). `quality-reporting`/`tenancy` (capability map rows
+  19-20) remain the only two unbuilt clinical-suite modules and still carry
+  the no-real-dataset risk multiple prior entries have already described.
+  This run's own survey audited every `apps/api` controller's ownership
+  checks (all clean or explicit, already-flagged tenancy debt — see
+  `clinical-suite.md` row 20), diffed `ne.json`/`en.json` key sets (clean,
+  639/639), and confirmed all 16 clinical-suite modules have their
+  `*.fault-isolation.test.ts` — none of those are live candidates anymore.
 
 - 2026-08-12 — **Queue fully checked; extracted the duplicated
   `normalizeLabel` into a new `packages/text-normalization` package.**
