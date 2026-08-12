@@ -589,6 +589,13 @@ suite grows. A module that "works" but has no outage test is not finished.
       `index.tsx` run's own log entry named as "still open." See the
       2026-08-12 log entry below (the one added by this run) for the full
       before/after.
+- [x] Fixed a last hardcoded-English tab title in
+      `app/(tabs)/_layout.tsx`'s hidden `companion` screen — the one
+      instance a fresh independent survey found after the `twin.tsx` run's
+      own log entry declared the mobile language-toggle vein exhausted.
+      See the 2026-08-12 log entry below (the one added by this run) for
+      why it was missed by every prior grep-based sweep and why the fix
+      reuses the existing `ask` key rather than adding a new one.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -612,6 +619,94 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; fixed a hardcoded-English tab title in
+  `apps/mobile/app/(tabs)/_layout.tsx`.** Grepped for `- [ ]` first — zero
+  hits. The `twin.tsx` run's own log entry (immediately below) had declared
+  the mobile language-toggle vein exhausted after surveying every
+  `apps/mobile/app/**/*.tsx` screen; the two standing blocked items
+  (`companion.controller.ts`'s missing `EntitlementsGuard`,
+  `analytics`'s open `clinical-charting` source) still need a product
+  decision neither this run nor any prior one is positioned to make, and
+  `quality-reporting`/`tenancy` (capability map rows 19-20) still carry the
+  no-real-dataset risk multiple entries have described. Rather than force
+  either open, a general-purpose agent ran a fresh, independent audit of the
+  whole repo (not just `apps/mobile`) for a genuine, low-risk improvement to
+  work already shipped — full brief and findings in this run's own
+  transcript, summarised here.
+
+  **What the audit found.** Three real candidates, ranked: (1) `apps/web`'s
+  `EditorialImage` component (the `next/image`-with-SVG-fallback component
+  built as its own checked task) has zero import sites anywhere in
+  `apps/web` — `Testimonials.tsx` hand-duplicates the exact same
+  `hasAsset(...) ? <Image/> : <User/>` conditional instead of using it; (2)
+  `apps/mobile/app/(tabs)/_layout.tsx` line 73 — every sibling
+  `Tabs.Screen` in the file sets `title: t(language, …)` except the hidden
+  `companion` screen (`href: null`), which had a bare `title: 'Ask'`. Every
+  prior i18n sweep missed this because it greps
+  `apps/mobile/app/**/*.tsx` for hardcoded strings in JSX/render bodies, not
+  `Tabs.Screen`/`Stack.Screen` `options` object literals — a blind spot in
+  the sweep method, not evidence the file was actually checked. This route
+  is reached from both `index.web.tsx` and `(tabs)/index.tsx` via
+  `router.push('/(tabs)/companion')`, and React Navigation sets
+  `document.title` from the focused screen's `title` on web — i.e. this
+  reaches the Expo-web build served at `apps/web/public/app`, a real,
+  live surface, not a hypothetical one; (3) `packages/storage-adapters`'s
+  `google-drive-store.ts` `sanitizeFilename` strips every non-ASCII
+  character (so a Devanagari filename becomes all underscores) — real, but
+  currently dormant, since the only caller (`apps/mobile/app/capture.tsx`)
+  always synthesizes an ASCII filename.
+
+  **Why #2, not #1 or #3.** #2 is a direct violation of the standing
+  constraint ("every user-visible string goes in both locales, never
+  hardcode copy") on a route this build actually serves, with an existing
+  `ask` key already carrying the right meaning (`ask: 'स्वास्थ्य प्रश्न
+  सोध्नुहोस्'` / `'Ask a health question'` — already used as the button
+  label on `(tabs)/index.tsx` that navigates to this exact screen), so no
+  new key was invented. #1 is a real DRY violation but not a constraint
+  violation and not user-visible. #3 is a real latent bug but not currently
+  reachable through any code path in this repo, so lower urgency than a
+  currently-live English string; it is named here for whoever picks up
+  `storage-adapters` next rather than silently dropped.
+
+  **What was built.** One line:
+  `apps/mobile/app/(tabs)/_layout.tsx`'s `companion` screen now sets
+  `title: t(language, 'ask')` instead of the literal `'Ask'`. No new
+  localization key — reused `ask`, already defined in `ne`/`en`/`ne-Latn`
+  in `packages/localization/src/index.ts`.
+
+  **What was deliberately not touched, and why.** `apps/web/src/app/…`'s
+  root `_layout.tsx` `Stack screenOptions.title` ("Mero Health - Your
+  health, in your language") is also a hardcoded English sentence, found
+  while checking for siblings of this bug, but `RootLayout` renders
+  `AppStateProvider` itself — it sits *outside* the context that carries
+  `language`, so `useAppState()` cannot be called there without
+  restructuring the provider tree. That is a real architectural change, not
+  a one-line copy fix, and is out of scope for a single-task run; flagged
+  here rather than fixed halfway. `EditorialImage`/`Testimonials.tsx` (audit
+  candidate #1) and the Drive filename sanitizer (candidate #3) were both
+  left untouched — see above.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73 turbo tasks,
+  `@swasthya/api` unchanged at 583/583 — no test file, matching every other
+  `apps/mobile/app` screen. `pnpm build` 39/39, `@swasthya/mobile:build`
+  bundling `/companion` and `/(tabs)/companion` (56KB each) cleanly.
+
+  **For the next run.** Three named, real candidates remain, none requiring
+  a product decision: dedupe `Testimonials.tsx` onto `EditorialImage` (or
+  delete the now-genuinely-dead component if a reviewer would rather not
+  reuse it); widen `google-drive-store.ts`'s `sanitizeFilename` to preserve
+  non-ASCII characters (Drive's API accepts UTF-8 names; only actual
+  path/control characters need stripping) and add a non-ASCII-filename test
+  — currently dormant but a real bug the moment any upload path passes a
+  user-entered filename through; or restructure `apps/web`'s root layout so
+  its default `Stack` title can read `language` (a genuinely bigger change,
+  worth scoping properly rather than rushing into a single-task run). The
+  two standing blocked items (`companion.controller.ts`'s
+  `EntitlementsGuard`, `analytics`'s `clinical-charting` source) and
+  `quality-reporting`/`tenancy` (rows 19-20) are unchanged from every prior
+  entry.
 
 - 2026-08-12 — **Queue fully checked; fully localized `app/(tabs)/twin.tsx`.**
   Grepped for `- [ ]` first — zero hits, same as every prior "queue exhausted"
