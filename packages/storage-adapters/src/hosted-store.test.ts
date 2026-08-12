@@ -46,11 +46,31 @@ describe('MinioDocumentStore', () => {
     expect(ref.backend).toBe('HOSTED');
     expect(ref.byteSize).toBe(plaintext.bytes.byteLength);
     expect(ref.checksumSha256).toHaveLength(64);
-    // The object key sanitises the filename but must still carry it, scoped under the owner.
-    expect(ref.externalId).toMatch(/^owner-1\/.+-lab_report\.jpg$/);
+    // The object key carries the filename verbatim, scoped under the owner — spaces are
+    // not part of the reserved set `sanitizeFilename` strips (see the two tests below).
+    expect(ref.externalId).toMatch(/^owner-1\/.+-lab report\.jpg$/);
 
     const fetched = await store.get(ref);
     expect(fetched).toEqual({ bytes: plaintext.bytes, contentType: 'image/jpeg', clientEncrypted: false });
+  });
+
+  it('preserves Devanagari and other non-ASCII characters in the object key', async () => {
+    // Regression test: `sanitizeFilename` used to be a `[^a-zA-Z0-9._-]` regex that
+    // replaced with `_` — every Devanagari filename (the expected case for a
+    // Nepali-first product) came out as a string of underscores.
+    const store = new MinioDocumentStore({ ...config, bucket: 'mero-health-devanagari' });
+    const ref = await store.put({ ownerId: 'owner-9', filename: 'प्रयोगशाला रिपोर्ट.jpg', blob: plaintext });
+    expect(ref.externalId).toMatch(/^owner-9\/.+-प्रयोगशाला रिपोर्ट\.jpg$/);
+  });
+
+  it('still replaces control characters and filesystem-reserved characters with underscores', async () => {
+    const store = new MinioDocumentStore({ ...config, bucket: 'mero-health-reserved' });
+    const ref = await store.put({
+      ownerId: 'owner-10',
+      filename: 'a/b\\c:d*e?f"g<h>i|j.jpg',
+      blob: plaintext,
+    });
+    expect(ref.externalId).toMatch(/^owner-10\/.+-a_b_c_d_e_f_g_h_i_j\.jpg$/);
   });
 
   it('creates the bucket lazily on first use', async () => {

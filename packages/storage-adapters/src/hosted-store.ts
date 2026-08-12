@@ -1,6 +1,7 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { Client as MinioClient, type BucketItem, type ItemBucketMetadata } from 'minio';
 import type { StoredRef } from '@swasthya/shared-types';
+import { sanitizeFilename, sha256Hex } from './filename.js';
 import {
   assertPlacementAllowed,
   backendCapabilities,
@@ -179,11 +180,6 @@ function requireHostedRef(ref: StoredRef): void {
   }
 }
 
-/** S3 object keys allow most characters, but keeps generated keys predictable and URL-safe. */
-function sanitizeFilename(filename: string): string {
-  return filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-}
-
 /**
  * `ItemBucketMetadata`'s index signature is `any` (minio's own typings, not ours),
  * so this narrows through `unknown` rather than trusting the library's type —
@@ -193,10 +189,6 @@ function sanitizeFilename(filename: string): string {
 function readMetaString(metaData: ItemBucketMetadata, key: string): string | null {
   const value: unknown = metaData[key];
   return typeof value === 'string' ? value : null;
-}
-
-function sha256Hex(bytes: Uint8Array): string {
-  return createHash('sha256').update(bytes).digest('hex');
 }
 
 async function readAll(stream: NodeJS.ReadableStream): Promise<Uint8Array> {

@@ -620,6 +620,14 @@ suite grows. A module that "works" but has no outage test is not finished.
       entry below (the one added by this run) for why it turned out to be a
       small extraction, not an architecture change, and for the new
       `appTitle` localization key.
+- [x] Fixed the same Devanagari-filename-mangling bug the 2026-08-12
+      `google-drive-store.ts` run had already fixed once, still present in
+      `packages/storage-adapters`'s other backend, `hosted-store.ts` — a
+      regression of a bug class the team had already paid to fix, in the
+      adapter more likely to be hit in production than the one that got the
+      original fix. See the 2026-08-12 log entry below (the one added by
+      this run) for the shared `filename.ts` helper both adapters now import
+      instead of carrying their own diverging copies.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -643,6 +651,78 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; fixed `packages/storage-adapters`'s
+  `hosted-store.ts` carrying the same non-ASCII-filename bug already fixed
+  once in `google-drive-store.ts`, and deduped both onto a shared helper.**
+  Grepped for `- [ ]` first — zero hits, same as every prior "queue
+  exhausted" run. Rather than trust my own read of the diff, spawned a
+  general-purpose survey agent instructed to name real, non-blocked
+  candidates and explicitly not resurface the two standing blocked items
+  (`companion.controller.ts`'s missing `EntitlementsGuard`,
+  `analytics`'s open `clinical-charting` source) or the low-value
+  `Hero.tsx` `hasVideo` swap-in a prior entry had already named and
+  deprioritized. It found this: `hosted-store.ts:183-185`'s
+  `sanitizeFilename` was still the original `filename.replace(/[^a-zA-Z0-9._-]/g,
+  '_')` — the exact regex the `google-drive-store.ts` run (earlier the same
+  day) had replaced with a code-point-iterating version, after discovering
+  it turned every Devanagari filename into a string of underscores. That
+  fix never touched the hosted (MinIO/S3) adapter, which is the plain
+  default backend — arguably hit more often than the bring-your-own Drive
+  path — so the identical bug was still live in production-reachable code
+  one file away from where it had already been paid down. Verified by
+  reading both files side by side before touching anything, not by trusting
+  the survey agent's report on its own.
+
+  **What was built.** New `packages/storage-adapters/src/filename.ts`
+  (Node-only, imported by neither the package's React-Native-safe root
+  export nor anything mobile-reachable — both call sites are already
+  Node-only entry points per their own file-header comments) holding one
+  `sanitizeFilename(filename, reserved = RESERVED_FILENAME_CHARS)` and one
+  `sha256Hex(bytes)`, extracted verbatim from `google-drive-store.ts`'s
+  already-correct versions. Both `hosted-store.ts` and
+  `google-drive-store.ts` now import from it instead of each carrying its
+  own copy — the duplication that let the two backends silently diverge on
+  this exact rule in the first place. `hosted-store.ts` keeps the same
+  reserved-character set Drive uses (control characters plus
+  `/ \ : * ? " < > |`); the S3 object key is
+  `${ownerId}/${uuid}-${sanitizeFilename(filename)}`, so keeping `/` in the
+  reserved set still matters there — an unsanitized `/` in the filename
+  would add spurious depth to the key without ever escaping the owner-scoped
+  prefix `list()` already relies on, so nothing about the fix changes that
+  boundary's actual security property, just its predictability.
+
+  **What changed in behavior, not just the fix.** The old regex also
+  stripped spaces (nothing in `[^a-zA-Z0-9._-]` matches a space); the shared
+  helper does not, matching Drive's existing behavior. `hosted-store.test.ts`'s
+  first test asserted the object key contained `lab_report.jpg` for an
+  input of `lab report.jpg` — updated that assertion to the new, correct
+  `lab report.jpg` (space preserved) rather than leaving a test pinned to
+  the bug. Added two new tests mirroring `google-drive-store.test.ts`'s
+  existing pair: one Devanagari round-trip through a real `s3rver` instance,
+  one confirming control/reserved characters still become underscores. New
+  `packages/storage-adapters/src/filename.test.ts` unit-tests the shared
+  helper directly (Devanagari/space/punctuation preserved, reserved set
+  stripped, trims trailing whitespace left after sanitizing, a caller-supplied
+  reserved set is respected, the exported default set is not mutated by a
+  call, and `sha256Hex` matches the known empty-input digest).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73 turbo tasks —
+  `@swasthya/storage-adapters` now 4 test files / 43 tests (was 3 files),
+  `@swasthya/api` unchanged at 583/583. `pnpm build` 39/39, no route or
+  bundle-size changes (this package has no `apps/web`/`apps/mobile` call
+  site of its own — `apps/api` wires it, and no `apps/api` route changed).
+
+  **For the next run.** No new candidate surfaced beyond what was already
+  on record. The two standing blocked items are unchanged, and
+  `quality-reporting`/`tenancy` (capability map rows 19-20) remain the only
+  two unbuilt clinical-suite modules, still carrying the no-real-dataset
+  risk every recent entry has already described. Worth a fresh, wider
+  survey next time rather than assuming this file's own guess at candidates
+  is exhaustive — this run deliberately used an independent search rather
+  than re-deriving the same three names every recent entry had already
+  repeated.
 
 - 2026-08-12 — **Queue fully checked; restructured `apps/mobile/app/_layout.tsx`
   so the root `Stack`'s document title reads `language`.** Grepped for
