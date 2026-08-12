@@ -578,6 +578,11 @@ suite grows. A module that "works" but has no outage test is not finished.
       scope in both files. See the 2026-08-12 log entry below (the one added
       by this run) for exactly what changed, what stayed English on purpose,
       and a real disclaimer-text bug found and fixed along the way.
+- [x] Fully localized `app/(tabs)/index.tsx` — the home tab, the app's
+      highest-traffic screen — the gap that run's own log entry named as
+      "larger than before" and left deliberately untouched to keep that run
+      to one task. See the 2026-08-12 log entry below (the one added by this
+      run) for the full before/after and why `twin.tsx` is still open.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -601,6 +606,79 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; fully localized `app/(tabs)/index.tsx`,
+  the home tab.** Grepped for `- [ ]` first — zero hits, same as every prior
+  "queue exhausted" run. The prior run's own log entry (immediately below)
+  had already surveyed every `apps/mobile` screen and named this file's gap
+  specifically: several strings correctly go through `t(language, key)`
+  (`@swasthya/localization`) or the file's own `language === 'en' ? … : …`
+  ternary, but a second set of real English sentences (`contextTitle` ×2,
+  `sectionHint`, `voiceChipText`, the whole "health story" card) had no
+  ternary at all, so a Nepali-reading visitor saw stray English sentences on
+  the highest-traffic screen in the app.
+
+  **What this run found beyond the flagged list.** Reading the full file
+  before editing showed the gap was bigger than the four flagged spots: most
+  of the screen's other body copy — the hero paragraph, the "video consult"
+  button label, the section heading, every `ActionCard` subtitle, the
+  video-consultation card's title, and the closing "Sathi is not a doctor"
+  trust panel — was hardcoded **Nepali-only**, the mirror-image of the bug
+  the prior run fixed on `companion.tsx`/`learn.tsx`. This is the same
+  fully-hardcoded-in-one-direction shape `care.tsx` had before its own
+  2026-08-11 fix (see that log entry), so this run applied the same
+  established convention `care.tsx` now demonstrates end to end: every real
+  sentence of body copy branches on `language`, while all-caps eyebrow/badge
+  chrome (`YOUR GUIDED HEALTH COMPANION`, `TODAY`, `CARE NETWORK`, `ONE
+  PLACE, CLEAR NEXT STEPS`, `AVAILABLE`, `PATIENT-CONTROLLED`, `GUIDED
+  PREVIEW`, `PHOTOGRAPH & CONFIRM`, `VIDEO ROOM`, `WORKFLOW PREVIEW`, `SAFETY
+  INTERRUPT`, `YOUR HEALTH STORY`) and the brand wordmark ("MERO HEALTH" /
+  "स्वास्थ्य साथी") stay fixed, matching precedent from every prior i18n run
+  in this section.
+
+  **What was built.** Fourteen strings converted to `language === 'en' ? … :
+  …` ternaries: the hero paragraph, the "Video consult" button, the
+  `voiceChipText`, both `contextTitle`s, the section heading and
+  `sectionHint`, all seven `ActionCard` `subtitle`s plus the video-card
+  `title`, and the health-story `healthStoryTitle`/`healthStoryBody`/
+  `storyButtonText` plus the closing `trustTitle`/`trustBody`. English
+  copy is original translation (no existing English source to reuse, unlike
+  the `accessibilityLabel` run which could often borrow visible text) —
+  plain, literal sentences matching the Nepali original's meaning, not new
+  claims. No `@swasthya/localization` keys were added; every new string
+  followed the file's own pre-existing inline-ternary convention instead,
+  consistent with how the prior two i18n runs treated new copy in this class
+  of fix.
+
+  **What was deliberately left alone, and why.** The brand wordmark
+  ("स्वास्थ्य साथी") and "MERO HEALTH" kicker are the product's name, not
+  translatable copy — left untouched, same reasoning as `Footer.tsx`'s
+  social-network names in the 2026-08-11 entry. All eleven all-caps
+  eyebrow/badge strings listed above were left exactly as flagged safe by
+  the prior run's own survey. No change to `app/(tabs)/twin.tsx` — the
+  prior run's log entry named it as a second, separate candidate (almost
+  entirely hardcoded Nepali, only the prompt content branches) and this run
+  stayed to the one screen named first.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new package). `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73
+  turbo tasks, `@swasthya/api` unchanged at 583/583 — the file has no test,
+  matching every other `apps/mobile/app` screen in this repo. `pnpm build`
+  39/39, `@swasthya/mobile:build` bundling `/(tabs)` (75KB, up from the
+  smaller pre-change size) and `/` (index, 86KB) cleanly.
+
+  **For the next run.** `app/(tabs)/twin.tsx` is the one remaining named
+  language-toggle gap: almost entirely hardcoded Nepali, only the prompt
+  content (`questionEn`/`whyEn` vs `questionNe`/`whyNe`) branches on
+  `language`, the same bug class `care.tsx` had before its 2026-08-11 fix.
+  It is real and unblocked — no product decision needed, only translation
+  work, same as this run. The two standing blocked items are unchanged:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (needs a product
+  decision on anonymous-vs-signed-in metering) and analytics's open
+  `clinical-charting` source (needs a decision on what an encounter-only
+  summary should count). `quality-reporting`/`tenancy` (capability map rows
+  19-20) remain the only two unbuilt clinical-suite modules and still carry
+  the no-real-dataset risk multiple prior entries have already described.
 
 - 2026-08-12 — **Queue fully checked; closed the two mobile
   language-toggle gaps flagged by the `records.fault-isolation.test.ts`
