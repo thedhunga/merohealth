@@ -597,6 +597,17 @@ suite grows. A module that "works" but has no outage test is not finished.
       why it was missed by every prior grep-based sweep and why the fix
       reuses the existing `ask` key rather than adding a new one.
 
+- [x] Widened `packages/storage-adapters`'s `google-drive-store.ts`
+      `sanitizeFilename` to preserve non-ASCII characters — a real
+      correctness bug on the Drive adapter's filename handling (every
+      Devanagari filename was silently turned into underscores), picked
+      over the two other named candidates in the `companion`-tab-title
+      run's own log entry (`Testimonials.tsx`/`EditorialImage` dedupe, the
+      `apps/web` root-layout restructure) for being the one that is an
+      actual bug rather than a DRY or architecture item. See the 2026-08-12
+      log entry below (the one added by this run) for the fix and two new
+      tests.
+
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
 unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
@@ -619,6 +630,71 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; widened `packages/storage-adapters`'s
+  `google-drive-store.ts` `sanitizeFilename` to preserve non-ASCII
+  characters.** Grepped for `- [ ]` first — zero hits, same as every prior
+  "queue exhausted" run. Went straight to the highest-priority of the three
+  named candidates the immediately-prior run's own log entry (below) left
+  open: `sanitizeFilename` replaced every character outside
+  `[a-zA-Z0-9._-]` with `_`, so any Devanagari filename — the expected case
+  for a Nepali-first product's own document uploads — was silently turned
+  into a string of underscores before ever reaching Drive. Real correctness
+  bug on a real seam (`docs/architecture/platform-vision.md` §3.1's
+  bring-your-own-storage adapter), even though the only current caller
+  (`apps/mobile/app/capture.tsx`) happens to always synthesize an ASCII
+  filename, so nothing user-visible was broken today — the fix closes the
+  gap before the next upload path (or a future direct-filename-entry flow)
+  hits it live. The other two candidates from the prior entry
+  (`Testimonials.tsx`/`EditorialImage` dedupe, `apps/web` root-layout
+  restructure) stayed real DRY/architecture items but neither is a
+  correctness bug reachable through a real (if currently narrow) path,
+  which is what made this the higher-priority pick.
+
+  **What was built.** `sanitizeFilename` no longer uses a regex character
+  class; it now iterates the filename by Unicode code point (correct for
+  astral characters, and sidesteps ESLint's `no-control-regex` rule from
+  `eslint.configs.recommended`, which a literal control-character range would
+  have tripped) and replaces only control characters (code point `< 0x20`
+  or `0x7f`) and the filesystem-reserved set `/ \ : * ? " < > |` — the
+  characters illegal in a filename on the common desktop OSes a person
+  might see this file in later (Drive's own UI, or a synced folder).
+  Everything else, including Devanagari, spaces and punctuation, now passes
+  through untouched. Two new tests in `google-drive-store.test.ts`: one
+  round-trips a Devanagari filename (`प्रयोगशाला रिपोर्ट.jpg`) through
+  `put()` and asserts the mock Drive server stored it unchanged (reading
+  `mock.files.get(ref.externalId)?.name`, which the existing tests never
+  needed to inspect); the other confirms control/reserved characters still
+  get replaced, so the widening didn't quietly turn into "sanitize
+  nothing."
+
+  **A tooling note for future runs.** Composing the reserved-character test
+  fixture (a string mixing several punctuation characters) via the Edit
+  tool's `old_string`/`new_string` parameters produced a file with a stray
+  U+0007 (BEL) control character silently spliced into the literal — not
+  visible in a normal diff view, only caught because the test then failed
+  with a one-character-longer-than-expected result and `od -c` on the raw
+  line showed the extra byte. Fixed by rewriting the literal in place via a
+  small Python script operating on the file's raw bytes rather than trying
+  to re-type the same string through the same tool path. Worth remembering:
+  a test that fails by exactly one unexpected character when the input
+  contains hand-typed escape sequences is worth an `od -c` before assuming
+  the *logic* is wrong.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73 turbo tasks —
+  `@swasthya/storage-adapters` now 34/34 (was 32/32), `@swasthya/api`
+  unchanged at 583/583. `pnpm build` 39/39.
+
+  **For the next run.** The two remaining named candidates from the prior
+  entry are still open: dedupe `Testimonials.tsx` onto `EditorialImage` (or
+  delete `EditorialImage` if a reviewer would rather not reuse it), and
+  restructuring `apps/web`'s root layout so its default `Stack` title can
+  read `language` (genuinely bigger — scope it properly rather than
+  rushing it into a single-task run). The two standing blocked items
+  (`companion.controller.ts`'s missing `EntitlementsGuard`, `analytics`'s
+  open `clinical-charting` source) and `quality-reporting`/`tenancy`
+  (capability map rows 19-20) are unchanged from every prior entry.
 
 - 2026-08-12 — **Queue fully checked; fixed a hardcoded-English tab title in
   `apps/mobile/app/(tabs)/_layout.tsx`.** Grepped for `- [ ]` first — zero

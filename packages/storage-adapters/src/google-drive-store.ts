@@ -389,9 +389,28 @@ function buildMultipartRelatedBody(
   return Buffer.concat([metadataPart, mediaHeader, Buffer.from(bytes), closing]);
 }
 
-/** Drive allows most characters in a filename, but this keeps the stored name predictable. */
+/**
+ * Drive's API accepts any UTF-8 name — stripping non-ASCII characters here silently
+ * turned every Devanagari filename (the expected case for a Nepali-first product) into
+ * a string of underscores. Only control characters and the handful of characters
+ * illegal in a filename on the common desktop OSes a person might later see this in
+ * (Drive's own UI, or a synced folder) get replaced; everything else, including
+ * Devanagari, spaces and punctuation, passes through untouched. Iterates by code point
+ * rather than a regex character class so this also does the right thing for characters
+ * outside the BMP without reaching for a control-character regex range.
+ */
+const DRIVE_RESERVED_FILENAME_CHARS = new Set(['/', '\\', ':', '*', '?', '"', '<', '>', '|']);
+
 function sanitizeFilename(filename: string): string {
-  return filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+  return Array.from(filename)
+    .map((char) => (isUnsafeFilenameChar(char) ? '_' : char))
+    .join('')
+    .trim();
+}
+
+function isUnsafeFilenameChar(char: string): boolean {
+  const codePoint = char.codePointAt(0) ?? 0;
+  return codePoint < 0x20 || codePoint === 0x7f || DRIVE_RESERVED_FILENAME_CHARS.has(char);
 }
 
 function sha256Hex(bytes: Uint8Array): string {
