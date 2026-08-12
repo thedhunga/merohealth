@@ -7,6 +7,8 @@ import { ClinicalChartingRepository } from '../clinical-charting/clinical-charti
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
 import { EngagementRepository } from '../engagement/engagement.repository.js';
 import { EngagementService } from '../engagement/engagement.service.js';
+import { ImmunizationRepository } from '../immunization/immunization.repository.js';
+import { ImmunizationService } from '../immunization/immunization.service.js';
 import { PatientRegistryRepository } from '../patient-registry/patient-registry.repository.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
 import { RecordsRepository } from '../records/records.repository.js';
@@ -25,8 +27,9 @@ function buildStack() {
   const billing = new BillingService(new BillingRepository(), charting);
   const referrals = new ReferralsService(new ReferralsRepository(), charting);
   const engagement = new EngagementService(new EngagementRepository(), patients, { send: vi.fn().mockResolvedValue(undefined) });
-  const analytics = new AnalyticsService(patients, scheduling, billing, referrals, engagement);
-  return { patients, scheduling, charting, billing, referrals, engagement, analytics };
+  const immunization = new ImmunizationService(new ImmunizationRepository(), charting);
+  const analytics = new AnalyticsService(patients, scheduling, billing, referrals, engagement, immunization);
+  return { patients, scheduling, charting, billing, referrals, engagement, immunization, analytics };
 }
 
 const referralRequestInput = {
@@ -250,6 +253,56 @@ describe('AnalyticsService.engagementSummary', () => {
     await expect(analytics.engagementSummary()).resolves.toEqual({
       totalMessages: 1,
       byStatus: { QUEUED: 0, SENT: 1, FAILED: 0 },
+    });
+  });
+});
+
+describe('AnalyticsService.immunizationSummary', () => {
+  it('counts immunization records, broken down by status', async () => {
+    const { immunization, analytics } = buildStack();
+    immunization.recordPatientReported({
+      patientId: 'patient-1',
+      vaccineName: 'Tetanus toxoid',
+      doseNumber: 1,
+      administeredOn: '2020-01-15',
+    });
+
+    const summary = await analytics.immunizationSummary();
+
+    expect(summary).toEqual({ totalRecords: 1, byStatus: { ACTIVE: 1, VOIDED: 0 } });
+  });
+
+  it('refuses (503) while immunization is down, even though the other five sources are up', async () => {
+    const { immunization, analytics } = buildStack();
+    immunization.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+
+    await expect(analytics.immunizationSummary()).rejects.toThrow(ServiceUnavailableException);
+  });
+
+  it('a down immunization does not block the patient or scheduling summaries, and vice versa', async () => {
+    const { patients, immunization, analytics } = buildStack();
+    patients.register({
+      displayName: 'Sita Rai',
+      dateOfBirth: '1990-04-12',
+      sex: 'FEMALE',
+      phone: '9800000000',
+      preferredLocale: 'ne',
+    });
+    immunization.recordPatientReported({
+      patientId: 'patient-1',
+      vaccineName: 'Tetanus toxoid',
+      doseNumber: 1,
+      administeredOn: '2020-01-15',
+    });
+
+    immunization.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+    await expect(analytics.patientRegistrySummary()).resolves.toMatchObject({ totalPatients: 1 });
+
+    immunization.health = () => Promise.resolve({ status: 'UP' });
+    patients.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+    await expect(analytics.immunizationSummary()).resolves.toEqual({
+      totalRecords: 1,
+      byStatus: { ACTIVE: 1, VOIDED: 0 },
     });
   });
 });

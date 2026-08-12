@@ -1151,6 +1151,18 @@ export interface EngagementSummary {
   byStatus: Record<EngagementMessageStatus, number>;
 }
 
+/**
+ * Defined here rather than beside `ImmunizationRecord` below, for the same
+ * row-of-origin reason as `EngagementSummary` above. Counts by `status`
+ * (`ACTIVE`/`VOIDED`), the field every other summary in this section counts
+ * — not by `provenance`, which is a fact about how the record was entered,
+ * not a lifecycle state.
+ */
+export interface ImmunizationSummary {
+  totalRecords: number;
+  byStatus: Record<ImmunizationStatus, number>;
+}
+
 /* ------------------------------------------------------------------ *
  * Engagement (clinical-suite.md capability map row 15)
  *

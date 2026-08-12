@@ -52,9 +52,9 @@ function buildStack() {
   const referrals = new ReferralsService(new ReferralsRepository(), charting);
   const populationHealth = new PopulationHealthService(summary, scheduling);
   const engagement = new EngagementService(new EngagementRepository(), patients, { send: vi.fn().mockResolvedValue(undefined) });
-  const analytics = new AnalyticsService(patients, scheduling, billing, referrals, engagement);
-  const interop = new InteropService(new InteropRepository(), records);
   const immunization = new ImmunizationService(new ImmunizationRepository(), charting);
+  const analytics = new AnalyticsService(patients, scheduling, billing, referrals, engagement, immunization);
+  const interop = new InteropService(new InteropRepository(), records);
   return {
     records,
     patients,
@@ -171,12 +171,13 @@ describe('ClinicalSuiteService', () => {
     // dependency on clinical-charting at all and must read as fully
     // available — teleconsultation's own dependencies are SCHEDULING,
     // population-health's are CLINICAL_SUMMARY/SCHEDULING, analytics's are
-    // PATIENT_REGISTRY/SCHEDULING/BILLING/REFERRALS/ENGAGEMENT, engagement's
-    // is PATIENT_REGISTRY and interop's is HEALTH_RECORDS, none of them
-    // CLINICAL_CHARTING directly, and neither CLINICAL_SUMMARY nor BILLING
-    // nor REFERRALS being merely degraded (not DOWN) cascades to what
-    // depends on them either (§2's "degradesWith never cascades past one
-    // hop") — BILLING and REFERRALS both stay `available: true` above, so
+    // PATIENT_REGISTRY/SCHEDULING/BILLING/REFERRALS/ENGAGEMENT/IMMUNIZATION,
+    // engagement's is PATIENT_REGISTRY and interop's is HEALTH_RECORDS, none
+    // of them CLINICAL_CHARTING directly, and neither CLINICAL_SUMMARY nor
+    // BILLING nor REFERRALS nor IMMUNIZATION being merely degraded (not
+    // DOWN) cascades to what depends on them either (§2's "degradesWith
+    // never cascades past one hop") — BILLING, REFERRALS and IMMUNIZATION
+    // all stay `available: true` above, so
     // analytics's own edges to them never fire.
     expect(byKey.get('PATIENT_REGISTRY')).toMatchObject({ available: true, degradations: [] });
     expect(byKey.get('SCHEDULING')).toMatchObject({ available: true, degradations: [] });

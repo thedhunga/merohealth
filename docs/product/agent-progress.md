@@ -548,6 +548,12 @@ suite grows. A module that "works" but has no outage test is not finished.
       four subsequent "queue exhausted" runs had each repeated as still
       open. See the 2026-08-11 log entry below (the one added by this run)
       for the design and why it is a plain count, no delivery-rate figure.
+- [x] Extended `analytics` (capability map row 14) with a sixth source,
+      `immunization` (record totals by status) — the same identical,
+      already-repeated pattern as the `billing`/`engagement` extensions,
+      applied to the one remaining built module without an analytics
+      source. See the 2026-08-12 log entry below for why `status`
+      (`ACTIVE`/`VOIDED`), not `provenance`, is the counted field.
 
 Stop after immunization and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -571,6 +577,108 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; extended `analytics` (capability map
+  row 14) with a sixth source, `immunization`.** Grepped for `- [ ]`
+  first — zero hits, same as every prior "queue exhausted" run. Read
+  `platform-vision.md` and re-read `clinical-suite.md`'s capability map
+  before picking. The prior run's own log entry named `quality-reporting`/
+  `tenancy` (rows 19-20) as the two remaining unbuilt modules, but flagged —
+  twice now, across two consecutive entries — that both need either a real
+  Nepal DoHS/HMIS indicator set or a real multi-site model this repo has no
+  honest source for, and explicitly called its own guess about which one to
+  pick "not a decision." Rather than force one of those two open, this run
+  surveyed for a smaller, unblocked improvement to work already done first:
+  the two standing blocked items (`companion.controller.ts`'s missing
+  `EntitlementsGuard`, and analytics's own `clinical-charting` source) are
+  both still genuinely blocked on unmade product decisions (anonymous-vs-
+  signed-in metering; what an encounter-only summary should even count) and
+  stayed untouched. Every clinical-suite module already has its
+  `ModuleDescriptor` + health endpoint + fault-isolation test — the "ships
+  with three things" rule is fully satisfied everywhere, so that avenue is
+  exhausted too. What was left: `immunization` (row 18, the newest built
+  module) had no `analytics` source, even though `ImmunizationRecord.status`
+  is exactly the closed enum every existing `buildXSummary` already counts,
+  and `ImmunizationService.listRecords()` already exists with no argument
+  returning every record — the identical shape `billingSummary`/
+  `referralsSummary`/`engagementSummary` already consume. This followed
+  their precedent exactly rather than inventing a new one, and needed zero
+  new product decisions.
+
+  **What was built.** `packages/shared-types` gained `ImmunizationSummary`
+  (`{ totalRecords, byStatus: Record<ImmunizationStatus, number> }`), placed
+  in the Analytics (row 14) section for the same row-of-origin reason
+  `EngagementSummary` already documents there. Counted by `status`
+  (`ACTIVE`/`VOIDED`) — the field every sibling summary counts — not by
+  `provenance` (`PATIENT_REPORTED`/`CLINICIAN_ADMINISTERED`), which
+  describes how a record was entered, not a lifecycle state; `provenance` is
+  the more editorially interesting axis but would have been the first
+  summary in this section counting something other than the record's own
+  status field, a precedent this run chose not to set unilaterally.
+  `packages/analytics` gained `buildImmunizationSummary`, a `zeroCounts`
+  reduction over the two statuses, identical in shape to
+  `buildReferralsSummary`/`buildEngagementSummary`. `AnalyticsService` took a
+  sixth constructor argument (`ImmunizationService`), gained
+  `immunizationSummary()` and `assertImmunizationAvailable()` mirroring the
+  other five exactly — refuses (503) only on `immunization.health()`
+  reporting `DOWN`.
+
+  **Routes.** `GET /analytics/immunization`, same no-guard shape as every
+  sibling analytics route — `ANALYTICS` is not in `@swasthya/entitlements`'s
+  module catalogue, so no quota gate was invented here either.
+
+  **Wiring.** `AnalyticsModule` now imports `ImmunizationModule` alongside
+  its existing five (which itself imports `ClinicalChartingModule`, the same
+  shape `BillingModule`/`ReferralsModule` already establish, so no new
+  circular-import risk). `createAnalyticsModuleDescriptor`'s `degradesWith`
+  gained a sixth `{ key: 'IMMUNIZATION', mode: 'HIDE' }` edge —
+  `ANALYTICS`'s own `requires` stays empty, unchanged.
+  `clinical-suite.service.test.ts`'s `buildStack()` now threads
+  `immunization` into `AnalyticsService`'s constructor (it already built the
+  service for row 18's own registration; it just wasn't passed in) — no
+  assertion values changed except two explanatory comments naming
+  `ANALYTICS`'s full dependency set and `IMMUNIZATION`'s degraded-not-down
+  status, since neither of that file's tests drives `ImmunizationService`
+  itself `DOWN`.
+
+  **Tests.** `packages/analytics/src/index.test.ts` gained
+  `buildImmunizationSummary` coverage (empty list, mixed statuses). On the
+  `apps/api` side, `analytics.service.test.ts`, `analytics.controller.test.ts`,
+  `analytics.module-descriptor.test.ts` and `analytics.fault-isolation.test.ts`
+  each gained the same shape the other five sources already have: a
+  happy-path count, a 503-while-down check, and (fault-isolation only) both
+  a `resolveAvailability` degradation assertion and a "down immunization
+  doesn't block the patient summary" behavioural test.
+
+  **What was deliberately left out.** No rate or ratio (e.g. voided-vs-active,
+  patient-reported-vs-clinician-administered) — same "count of an existing
+  field, not a computed statistic" restraint every prior summary in this
+  section states for a different unverifiable claim. `companion.controller.ts`'s
+  missing `EntitlementsGuard` and analytics's own `clinical-charting` source
+  remain open, still blocked on the same product decisions every recent
+  entry has named — this run made no progress on either and does not claim
+  to.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new package). `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test`
+  73/73 turbo tasks — `@swasthya/api` 574/574 (up from 567),
+  `@swasthya/analytics` 24/24 (up from 22, two new tests, one existing file
+  extended). `pnpm build` 39/39.
+
+  **For the next run.** `quality-reporting`/`tenancy` (capability map rows
+  19-20) are still the only two capability-map modules left unbuilt, and
+  still carry the no-real-dataset risk two prior entries already described
+  in detail — re-read `clinical-suite.md`'s capability map directly before
+  starting either, not this paragraph or the prior run's. With `immunization`
+  now wired into `analytics`, every clinical-suite module built so far has an
+  analytics source except `diagnostics-orders` (row 7) and `interop`
+  (row 17) — both were surfaced as weaker candidates during this run's own
+  survey (their record types weren't confirmed to expose a single obvious
+  status enum the way every module built so far did) and are worth a second
+  look before assuming either is as mechanical as this one was.
+  `companion.controller.ts`'s missing `EntitlementsGuard` and analytics's
+  open `clinical-charting` source are still the two standing blocked items;
+  neither has a decision made for it yet.
 
 - 2026-08-11 — **Queue fully checked again; extended `analytics` (capability
   map row 14) with a fifth source, `engagement`.** Grepped for `- [ ]`

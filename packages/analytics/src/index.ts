@@ -5,6 +5,9 @@ import type {
   EngagementMessage,
   EngagementMessageStatus,
   EngagementSummary,
+  ImmunizationRecord,
+  ImmunizationStatus,
+  ImmunizationSummary,
   Invoice,
   InvoiceStatus,
   PatientRecord,
@@ -39,6 +42,7 @@ const APPOINTMENT_STATUSES: readonly AppointmentStatus[] = ['SCHEDULED', 'CANCEL
 const INVOICE_STATUSES: readonly InvoiceStatus[] = ['DRAFT', 'ISSUED', 'PAID', 'VOID'];
 const REFERRAL_STATUSES: readonly ReferralStatus[] = ['REQUESTED', 'ACCEPTED', 'DECLINED', 'CANCELLED', 'COMPLETED'];
 const ENGAGEMENT_MESSAGE_STATUSES: readonly EngagementMessageStatus[] = ['QUEUED', 'SENT', 'FAILED'];
+const IMMUNIZATION_STATUSES: readonly ImmunizationStatus[] = ['ACTIVE', 'VOIDED'];
 
 /** Every key starts at zero so a status with no rows yet still appears in the summary. */
 function zeroCounts<T extends string>(keys: readonly T[]): Record<T, number> {
@@ -73,4 +77,10 @@ export function buildEngagementSummary(messages: readonly EngagementMessage[]): 
   const byStatus = zeroCounts(ENGAGEMENT_MESSAGE_STATUSES);
   for (const message of messages) byStatus[message.status] += 1;
   return { totalMessages: messages.length, byStatus };
+}
+
+export function buildImmunizationSummary(records: readonly ImmunizationRecord[]): ImmunizationSummary {
+  const byStatus = zeroCounts(IMMUNIZATION_STATUSES);
+  for (const record of records) byStatus[record.status] += 1;
+  return { totalRecords: records.length, byStatus };
 }

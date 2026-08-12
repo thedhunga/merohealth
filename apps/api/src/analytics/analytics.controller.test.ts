@@ -7,6 +7,8 @@ import { ClinicalChartingRepository } from '../clinical-charting/clinical-charti
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
 import { EngagementRepository } from '../engagement/engagement.repository.js';
 import { EngagementService } from '../engagement/engagement.service.js';
+import { ImmunizationRepository } from '../immunization/immunization.repository.js';
+import { ImmunizationService } from '../immunization/immunization.service.js';
 import { PatientRegistryRepository } from '../patient-registry/patient-registry.repository.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
 import { RecordsRepository } from '../records/records.repository.js';
@@ -26,9 +28,10 @@ function buildController() {
   const billing = new BillingService(new BillingRepository(), charting);
   const referrals = new ReferralsService(new ReferralsRepository(), charting);
   const engagement = new EngagementService(new EngagementRepository(), patients, { send: vi.fn().mockResolvedValue(undefined) });
-  const analytics = new AnalyticsService(patients, scheduling, billing, referrals, engagement);
+  const immunization = new ImmunizationService(new ImmunizationRepository(), charting);
+  const analytics = new AnalyticsService(patients, scheduling, billing, referrals, engagement, immunization);
   const controller = new AnalyticsController(analytics);
-  return { controller, patients, scheduling, charting, billing, referrals, engagement };
+  return { controller, patients, scheduling, charting, billing, referrals, engagement, immunization };
 }
 
 const referralRequestInput = {
@@ -156,6 +159,30 @@ describe('AnalyticsController.engagement', () => {
     engagement.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
 
     await expect(controller.engagement()).rejects.toThrow(ServiceUnavailableException);
+  });
+});
+
+describe('AnalyticsController.immunization', () => {
+  it('returns the immunization summary', async () => {
+    const { controller, immunization } = buildController();
+    immunization.recordPatientReported({
+      patientId: 'patient-1',
+      vaccineName: 'Tetanus toxoid',
+      doseNumber: 1,
+      administeredOn: '2020-01-15',
+    });
+
+    await expect(controller.immunization()).resolves.toEqual({
+      totalRecords: 1,
+      byStatus: { ACTIVE: 1, VOIDED: 0 },
+    });
+  });
+
+  it('rejects (503) while immunization is down', async () => {
+    const { controller, immunization } = buildController();
+    immunization.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
+
+    await expect(controller.immunization()).rejects.toThrow(ServiceUnavailableException);
   });
 });
 

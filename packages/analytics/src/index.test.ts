@@ -1,8 +1,16 @@
-import type { Appointment, EngagementMessage, Invoice, PatientRecord, Referral } from '@swasthya/shared-types';
+import type {
+  Appointment,
+  EngagementMessage,
+  ImmunizationRecord,
+  Invoice,
+  PatientRecord,
+  Referral,
+} from '@swasthya/shared-types';
 import { describe, expect, it } from 'vitest';
 import {
   buildBillingSummary,
   buildEngagementSummary,
+  buildImmunizationSummary,
   buildPatientRegistrySummary,
   buildReferralsSummary,
   buildSchedulingSummary,
@@ -92,6 +100,26 @@ function engagementMessage(
     failedAt: null,
     failureReason: null,
     createdAt: now,
+    updatedAt: now,
+    version: 1,
+    ...overrides,
+  };
+}
+
+function immunizationRecord(
+  overrides: Partial<ImmunizationRecord> & Pick<ImmunizationRecord, 'id' | 'patientId'>,
+): ImmunizationRecord {
+  return {
+    vaccineName: 'Tetanus toxoid',
+    doseNumber: 1,
+    administeredOn: '2020-01-15',
+    provenance: 'PATIENT_REPORTED',
+    verification: 'UNVERIFIED',
+    administeredByEncounterId: null,
+    administeredByClinicianId: null,
+    status: 'ACTIVE',
+    voidReason: null,
+    recordedAt: now,
     updatedAt: now,
     version: 1,
     ...overrides,
@@ -211,6 +239,28 @@ describe('buildEngagementSummary', () => {
     expect(buildEngagementSummary(messages)).toEqual({
       totalMessages: 4,
       byStatus: { QUEUED: 1, SENT: 2, FAILED: 1 },
+    });
+  });
+});
+
+describe('buildImmunizationSummary', () => {
+  it('reports zero for every status when there are no records', () => {
+    expect(buildImmunizationSummary([])).toEqual({
+      totalRecords: 0,
+      byStatus: { ACTIVE: 0, VOIDED: 0 },
+    });
+  });
+
+  it('counts total records and breaks the count down by status', () => {
+    const records = [
+      immunizationRecord({ id: 'imm-1', patientId: 'patient-1', status: 'ACTIVE' }),
+      immunizationRecord({ id: 'imm-2', patientId: 'patient-1', status: 'ACTIVE' }),
+      immunizationRecord({ id: 'imm-3', patientId: 'patient-2', status: 'VOIDED', voidReason: 'Wrong patient' }),
+    ];
+
+    expect(buildImmunizationSummary(records)).toEqual({
+      totalRecords: 3,
+      byStatus: { ACTIVE: 2, VOIDED: 1 },
     });
   });
 });

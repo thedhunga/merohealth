@@ -2,6 +2,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import {
   buildBillingSummary,
   buildEngagementSummary,
+  buildImmunizationSummary,
   buildPatientRegistrySummary,
   buildReferralsSummary,
   buildSchedulingSummary,
@@ -10,12 +11,14 @@ import type {
   BillingSummary,
   ClinicalModuleHealth,
   EngagementSummary,
+  ImmunizationSummary,
   PatientRegistrySummary,
   ReferralsSummary,
   SchedulingSummary,
 } from '@swasthya/shared-types';
 import { BillingService } from '../billing/billing.service.js';
 import { EngagementService } from '../engagement/engagement.service.js';
+import { ImmunizationService } from '../immunization/immunization.service.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
 import { ReferralsService } from '../referrals/referrals.service.js';
 import { SchedulingService } from '../scheduling/scheduling.service.js';
@@ -38,6 +41,7 @@ export class AnalyticsService {
     private readonly billing: BillingService,
     private readonly referrals: ReferralsService,
     private readonly engagement: EngagementService,
+    private readonly immunization: ImmunizationService,
   ) {}
 
   async patientRegistrySummary(): Promise<PatientRegistrySummary> {
@@ -63,6 +67,11 @@ export class AnalyticsService {
   async engagementSummary(): Promise<EngagementSummary> {
     await this.assertEngagementAvailable();
     return buildEngagementSummary(this.engagement.listMessages());
+  }
+
+  async immunizationSummary(): Promise<ImmunizationSummary> {
+    await this.assertImmunizationAvailable();
+    return buildImmunizationSummary(this.immunization.listRecords());
   }
 
   private async assertPatientRegistryAvailable(): Promise<void> {
@@ -106,6 +115,15 @@ export class AnalyticsService {
     if (health.status === 'DOWN') {
       throw new ServiceUnavailableException(
         'Analytics unavailable: engagement is down (clinical-suite.md capability map row 14)',
+      );
+    }
+  }
+
+  private async assertImmunizationAvailable(): Promise<void> {
+    const health = await this.immunization.health();
+    if (health.status === 'DOWN') {
+      throw new ServiceUnavailableException(
+        'Analytics unavailable: immunization is down (clinical-suite.md capability map row 14)',
       );
     }
   }

@@ -58,4 +58,12 @@ export class AnalyticsController {
   engagement() {
     return this.analytics.engagementSummary();
   }
+
+  @Get('immunization')
+  @ApiOperation({
+    summary: 'Immunization record totals, broken down by status. Refused (503) while immunization is unavailable.',
+  })
+  immunization() {
+    return this.analytics.immunizationSummary();
+  }
 }
