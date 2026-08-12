@@ -656,6 +656,12 @@ suite grows. A module that "works" but has no outage test is not finished.
       unblocked candidate the `assertNonNegative` run's own log entry left
       open. See the 2026-08-12 log entry below (the one added by this run)
       for why an empty result was reachable and what the fallback is.
+- [x] New `packages/text-normalization` package holding `normalizeLabel`,
+      replacing the verbatim copy-pasted definition in
+      `packages/medication-safety` and `packages/population-health` — the
+      DRY-drift risk two consecutive prior log entries had each named and
+      left open. See the 2026-08-12 log entry below (the one added by this
+      run) for why a new package rather than a cross-import between the two.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -679,6 +685,83 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; extracted the duplicated
+  `normalizeLabel` into a new `packages/text-normalization` package.**
+  Grepped for `- [ ]` first — zero hits, same as every prior "queue
+  exhausted" run. The two most recent log entries (the `sanitizeFilename`
+  fallback run and the `assertNonNegative` run before it) had each already
+  named the same concrete, unblocked candidate and each deferred it as
+  "not a reachable bug the way the empty-filename case was" — `normalizeLabel`
+  (NFKC + trim + lowercase) copy-pasted verbatim into
+  `packages/medication-safety/src/index.ts:27-29` and
+  `packages/population-health/src/index.ts:27-29`, each file's own comment
+  pointing at the other as "the original." Confirmed with `grep -n
+  "normalizeLabel" -r packages/medication-safety/src
+  packages/population-health/src` that both copies were still byte-identical
+  before touching anything. This is the same duplication class already paid
+  down once this repo (`hosted-store.ts`/`google-drive-store.ts`'s filename
+  sanitization, deduped into a shared `filename.ts` earlier the same day) —
+  taken now because two consecutive runs had already flagged it and moved on
+  without fixing it, and every day it stays duplicated is another day the two
+  copies can silently diverge the way the filename sanitizers once did.
+
+  **What was built and why a new package.** `medication-safety` and
+  `population-health` are siblings with no dependency between them and no
+  existing shared runtime-logic package to hold this (`shared-types` is
+  types only — grepped for `^export function` there and found none; adding a
+  function would break that package's own contract). Cross-importing one
+  package from the other was rejected too: `population-health` depending on
+  `medication-safety` (or vice versa) purely for an unrelated string helper
+  would be an invented coupling between two bounded contexts that otherwise
+  don't know about each other, worse than the duplication it would remove.
+  So this run added `packages/text-normalization`, following this repo's own
+  "extraction-ready domain packages" pattern (`platform-vision.md` §3) and
+  matching `shared-types`'s precedent of a small package existing purely to
+  be depended on by others — package.json/tsconfig copied from
+  `packages/configuration` (the closest existing example of a dependency-free
+  leaf package), one exported `normalizeLabel`, and a colocated
+  `index.test.ts` with five cases: case-fold, whitespace trim, an NFKC
+  compatibility-ligature case (`ﬁ` → `fi`), a precomposed-vs-decomposed
+  accent case (verified via raw UTF-8 bytes that the two literal test inputs
+  are genuinely different codepoint sequences before asserting
+  `normalizeLabel` treats them the same), and a negative case confirming
+  distinct labels stay distinct. Both call sites now `import {
+  normalizeLabel } from '@swasthya/text-normalization'` instead of defining
+  it locally; `pnpm install` (not frozen) regenerated `pnpm-lock.yaml` with
+  the new workspace importer before verifying `--frozen-lockfile` passed
+  clean afterward.
+
+  **What was deliberately not touched.** `packages/clinical-safety`'s own
+  `message.normalize('NFKC').trim()` (no case-fold, matched instead via
+  case-insensitive regex flags) was left alone — it is a different
+  normalisation for a different purpose in the one package the standing
+  constraints single out as never-to-be-routed-around, and neither
+  `medication-safety`'s nor `population-health`'s original comment claiming
+  it as "the same normalisation `packages/clinical-safety` uses" was ever
+  quite accurate (it doesn't lowercase). Reconciling that comment's accuracy
+  or unifying the two normalisations was out of scope for a one-task run
+  touching a safety-critical package.
+
+  **Verify.** `pnpm install` (non-frozen, to add the new workspace importer)
+  then `pnpm install --frozen-lockfile` clean. `pnpm lint` 40/40 (was 39/39
+  — the new package). `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  new `@swasthya/text-normalization` 1 file / 5 tests, `@swasthya/api`
+  unchanged at 583/583 (99 files). `pnpm build` 40/40 (35 cached); mobile's
+  16 static routes unchanged in count and size, since nothing in
+  `apps/mobile`/`apps/web` imports either changed package.
+
+  **For the next run.** No new candidate was surfaced beyond what earlier
+  entries already named. The two standing blocked items are unchanged:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (needs a product
+  decision on anonymous-vs-signed-in metering) and `analytics`'s open
+  `clinical-charting` source (needs a decision on what an encounter-only
+  summary should count). `quality-reporting`/`tenancy` (capability map rows
+  19-20) remain the only two unbuilt clinical-suite modules and still carry
+  the no-real-dataset risk multiple prior entries have already described. A
+  fresh, independent survey is likely overdue — the last several runs have
+  been closing out a fixed list of candidates two survey agents found days
+  ago rather than looking again.
 
 - 2026-08-12 — **Queue fully checked; `packages/storage-adapters`'s
   `sanitizeFilename` no longer returns an empty string.** Grepped for

@@ -5,6 +5,7 @@ import type {
   PopulationHealthRecallEntry,
   PopulationHealthRegistryEntry,
 } from '@swasthya/shared-types';
+import { normalizeLabel } from '@swasthya/text-normalization';
 
 /* ------------------------------------------------------------------ *
  * Population health
@@ -18,16 +19,6 @@ import type {
  * own parameters describe, and owns no repository because it has nothing to
  * persist.
  * ------------------------------------------------------------------ */
-
-/**
- * NFKC + case-fold, the same normalisation `medication-safety`'s own
- * `normalizeLabel` uses — two labels for the same condition should match
- * regardless of capitalisation or Unicode composition, without this package
- * asserting which distinct labels mean the same thing clinically.
- */
-function normalizeLabel(label: string): string {
-  return label.normalize('NFKC').trim().toLowerCase();
-}
 
 /**
  * A registry of every patient with an ACTIVE `ClinicalSummaryItem` of the
