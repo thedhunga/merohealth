@@ -583,6 +583,12 @@ suite grows. A module that "works" but has no outage test is not finished.
       "larger than before" and left deliberately untouched to keep that run
       to one task. See the 2026-08-12 log entry below (the one added by this
       run) for the full before/after and why `twin.tsx` is still open.
+- [x] Fully localized `app/(tabs)/twin.tsx` — the last of the named
+      mobile language-toggle gaps, almost entirely hardcoded Nepali with
+      only the prompt content branching on `language`, the item the
+      `index.tsx` run's own log entry named as "still open." See the
+      2026-08-12 log entry below (the one added by this run) for the full
+      before/after.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -606,6 +612,57 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-12 — **Queue fully checked; fully localized `app/(tabs)/twin.tsx`.**
+  Grepped for `- [ ]` first — zero hits, same as every prior "queue exhausted"
+  run. The immediately-prior run's own log entry (below) had already surveyed
+  every `apps/mobile` screen and named this file specifically as the one
+  remaining gap: almost entirely hardcoded Nepali (progress copy, the "why is
+  this asked?" label, the input placeholder, both button labels, the consent
+  line, the confirmed-facts heading, the empty state, and the per-fact
+  provenance caption), with only the prompt content itself
+  (`prompt.questionEn`/`whyEn` vs `questionNe`/`whyNe`) already branching on
+  the `language` state already in scope in the file — the mirror-image of the
+  bug the `index.tsx` and `care.tsx` runs already fixed on other screens.
+
+  **What was built.** Eleven strings converted to
+  `language === 'en' ? … : …` ternaries, following `care.tsx`'s established
+  precedent exactly: the `SectionTitle` title/body, the progress card's title
+  and hint, the "why is this asked?" label, the answer input's placeholder,
+  the save and skip button labels, the consent line under the input, the
+  "facts you've confirmed" heading, the empty-state copy, and the per-fact
+  "you reported · confirmed" caption. English copy is original translation
+  (no existing English source to reuse) — plain, literal sentences matching
+  the Nepali original's meaning, no new claims.
+
+  **What was deliberately left alone, and why.** The `eyebrow="PATIENT-
+  CONTROLLED"` badge on `SectionTitle` stays fixed English, matching the
+  all-caps-eyebrow-stays-English convention every prior i18n run in this
+  section has already established (`care.tsx`, `index.web.tsx`, the
+  teleconsultation screens). The `prompt.question*`/`why*` ternaries were
+  already correct before this run and were not touched.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new package). `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73
+  turbo tasks, `@swasthya/api` unchanged at 583/583 — the file has no test,
+  matching every other `apps/mobile/app` screen in this repo. `pnpm build`
+  39/39, `@swasthya/mobile:build` bundling `/twin` and `/(tabs)/twin` (54KB
+  each) cleanly.
+
+  **For the next run.** The mobile language-toggle vein named across the last
+  several runs (`care.tsx`, `consultation.tsx`, `accessibilityLabel` props,
+  `companion.tsx`, `learn.tsx`, `index.tsx`, now `twin.tsx`) is, as far as
+  this run's own reading of every `apps/mobile/app/**/*.tsx` screen can tell,
+  actually exhausted this time — no further screen was found mixing hardcoded
+  copy with an unused `language` ternary. The two standing blocked items are
+  unchanged: `companion.controller.ts`'s missing `EntitlementsGuard` (needs a
+  product decision on anonymous-vs-signed-in metering) and analytics's open
+  `clinical-charting` source (needs a decision on what an encounter-only
+  summary should count). `quality-reporting`/`tenancy` (capability map rows
+  19-20) remain the only two unbuilt clinical-suite modules and still carry
+  the no-real-dataset risk multiple prior entries have already described —
+  whoever picks either up next should re-read `clinical-suite.md`'s
+  capability map rather than trust this paragraph's framing.
 
 - 2026-08-12 — **Queue fully checked; fully localized `app/(tabs)/index.tsx`,
   the home tab.** Grepped for `- [ ]` first — zero hits, same as every prior
