@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import type { DelegationGrant, DelegationScope } from '@swasthya/family';
 
 import { Button } from '@/components/ui/Button';
+import { earliestSelectableExpiryDate } from '@/lib/delegation-expiry';
 import { createDelegation, FamilyApiError } from '@/lib/family-api';
 
 const SCOPES: readonly DelegationScope[] = ['VIEW_RECORD', 'ASK_ASSISTANT', 'MANAGE_APPOINTMENTS', 'UPLOAD_DOCUMENTS'];
@@ -66,9 +67,11 @@ export function DelegationForm({ onCreated }: { onCreated: () => void }) {
     setSubmitting(true);
     try {
       // `<input type="date">` yields a bare `YYYY-MM-DD`; parsed as UTC
-      // midnight of that day, which is always after `grantedAt` (the
-      // server sets that to its own request time) for any date the `min`
-      // attribute below allows the person to pick.
+      // midnight of that day. `earliestSelectableExpiryDate` below keeps the
+      // `min` attribute one day ahead of `now`, which is what actually keeps
+      // this after `grantedAt` (the server sets that to its own request
+      // time) — plain `min={today}` let a person pick a date that always
+      // failed server-side validation.
       const grant = await createDelegation({ delegatePhone: phone, scopes, expiresAt: new Date(expiresAt).toISOString() });
       setCreated(grant);
       setPhone('');
@@ -126,7 +129,7 @@ export function DelegationForm({ onCreated }: { onCreated: () => void }) {
           <input
             className="rounded-xl border border-line bg-white px-4 py-3 text-ink"
             id={`${baseId}-expires`}
-            min={new Date().toISOString().slice(0, 10)}
+            min={earliestSelectableExpiryDate(new Date())}
             onChange={(event) => {
               setCreated(null);
               setExpiresAt(event.target.value);

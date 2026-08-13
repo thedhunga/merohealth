@@ -764,6 +764,15 @@ suite grows. A module that "works" but has no outage test is not finished.
       exact gap that run's own log entry named and every run since left
       untouched. See the 2026-08-13 log entry below (the one added by this
       run) for the trace, the fix, and what the mobile client cost.
+- [x] Fixed an off-by-one date bug in `apps/web`'s `DelegationForm.tsx`:
+      the `<input type="date">`'s `min` allowed picking today, but a bare
+      `YYYY-MM-DD` parses as UTC midnight of that day, which
+      `packages/family`'s `grantDelegation` always rejects as
+      `expiresAt <= grantedAt` (the server's request instant is always later
+      in the same UTC day). Picking the earliest date the form allowed made
+      the only live caller of `POST /family/grants/delegations` fail 100% of
+      the time. See the 2026-08-13 log entry below (the one added by this
+      run) for the trace and the new `earliestSelectableExpiryDate` helper.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -787,6 +796,88 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; fixed an off-by-one date bug in
+  `DelegationForm.tsx` that made the delegation form's earliest allowed
+  expiry date always fail server-side validation.** Grepped for `- [ ]`
+  first — zero hits, same as every recent run. Before guessing at a new
+  candidate, spent this run's own investigation on the specific lead the
+  same-day `RecordsController` run's log entry left open — whether
+  `teleconsultation`'s `listSessions`/`getSession`/`start`/`complete`/
+  `cancel`/`noShow` have the same missing-identity shape `RecordsController`
+  did. They do not: `patientId` in the whole clinical-suite family
+  (`patient-registry`, `scheduling`, `teleconsultation`, and siblings) has
+  zero connection anywhere in the repo to auth's `subjectId` concept (a
+  grep across both module trees returns nothing). Bolting
+  `SessionAuthGuard` onto those routes would only require "any signed-in
+  consumer," not verify session ownership, because no clinician-identity
+  model exists yet to make that check meaningful — a real architecture gap,
+  not the mechanical fix `RecordsController` got. Correctly set aside
+  rather than guessing, and delegated a fresh independent survey instead
+  (instructed to avoid every already-mined vein this log lists and both
+  standing product-decision items — the health-records status-guard
+  question and this run's own teleconsultation finding).
+
+  **What was found.** `apps/web/src/components/account/DelegationForm.tsx`
+  (the one and only live caller of `POST /family/grants/delegations` —
+  `apps/mobile` has no equivalent call anywhere) set the expiry
+  `<input type="date">`'s `min` to `new Date().toISOString().slice(0, 10)`
+  — today, in the caller's UTC date. A bare `YYYY-MM-DD` from that input
+  parses as UTC midnight of that day. `apps/api/src/family/
+  family-grants.service.ts` sets `grantedAt` to the real request instant,
+  and `packages/family/src/index.ts`'s `buildDelegationGrant` rejects the
+  grant with `InvalidDelegationExpiryError` whenever
+  `expiresAt <= grantedAt`. Since UTC midnight on "today" is by definition
+  no later than a request made any time that same UTC day, picking the
+  earliest date the form allowed — the date most date pickers default to
+  or highlight — made the submission fail every time, in every timezone,
+  with no client-side warning before the round trip; the `disabled` check
+  on the submit button only verified a date was present, not that it would
+  pass server-side validation. The code's own comment asserted the
+  opposite: that the resulting `expiresAt` is "always after `grantedAt`
+  ... for any date the `min` attribute below allows" — false for the
+  boundary value `min` itself permitted. A prior run (2026-08-12, the
+  `family-grants.controller.ts` `isoInstant` fix) had read this exact file
+  and called it "fully localized," but that pass only checked i18n
+  wiring, never the date-boundary math, so this was a genuinely
+  un-mined finding.
+
+  **What was built.** A new `apps/web/src/lib/delegation-expiry.ts` with a
+  single pure helper, `earliestSelectableExpiryDate(now: Date): string`,
+  returning `now + 24h`'s date rather than `now`'s own date — a flat +24h
+  is safe here since every value in this calculation is UTC, with no DST
+  to account for. `DelegationForm.tsx`'s `min` now calls it instead of
+  computing today's date inline, and the misleading inline comment was
+  corrected to describe what the helper actually guarantees. New
+  `apps/web/src/lib/delegation-expiry.test.ts` (4 cases): the basic
+  next-day case, the UTC-midnight boundary that broke the old code, the
+  just-before-midnight boundary, and a sweep across every 3-hour mark of a
+  day asserting the returned date always parses back to an instant later
+  than the injected `now` — matching this repo's established
+  testable-pure-helper convention (`acting-subjects.ts`, `local-id.ts`),
+  since `apps/web` has no component-render test harness to exercise the
+  `<input>` itself.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks
+  — `@swasthya/web` 60/60 (net +4, the new file), every other package's
+  count unchanged, `@swasthya/api` still 599/599. `pnpm build` 40/40
+  (35 cached).
+
+  **For the next run.** The two standing product-decision items are
+  unchanged and still not this run's to resolve: `packages/health-records`'s
+  `confirmObservation`/`correctObservation`/`rejectObservation` applying
+  unconditionally regardless of status (REJECTED terminal vs. reversible),
+  and the clinical-suite's missing clinician-identity model this run's own
+  investigation reconfirmed (needed before any of `patient-registry`/
+  `scheduling`/`teleconsultation`/siblings can be meaningfully gated by
+  identity, not just by a bare login requirement). Also worth a look:
+  `teleconsultation.controller.test.ts`'s own comment still cites the
+  now-fixed `RecordsController` gap as precedent for leaving its own
+  routes ungated — that reasoning was already re-examined once this run
+  and found to rest on a real, unresolved identity-model gap rather than
+  an oversight, so a future run picking this up should start from this
+  entry rather than re-deriving the same investigation.
 
 - 2026-08-13 — **Queue fully checked; `RecordsController` closed a real
   cross-owner authentication gap on six of its seven routes.** Grepped for
