@@ -744,6 +744,15 @@ suite grows. A module that "works" but has no outage test is not finished.
       `TeleconsultationSessionAlreadyBookedError`, why a cancelled/completed/
       no-show session frees the appointment for rebooking, and why
       `referrals` was checked and found to have no analogous invariant.
+- [x] Wired `InteropController.issueShareLink` behind `EntitlementsGuard` /
+      `@RequireModule('RECORD_SHARING')` / `@RequireQuota('ACTIVE_SHARE_LINKS')`
+      — an unenforced paywall, not the double-booking shape the
+      teleconsultation run's own log entry asked the next run to sweep
+      `diagnostics-orders`/`billing`/`immunization` for (checked and
+      confirmed none of the three have a shared-resource conflict to guard).
+      See the 2026-08-13 log entry below (the one added by this run) for the
+      new `InteropUsageReader` and why the route was open to every tier
+      until now.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -767,6 +776,123 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; `InteropController.issueShareLink` now
+  gated behind `EntitlementsGuard`.** Grepped for `- [ ]` first — zero hits,
+  same as every recent "queue exhausted" run. Followed the specific lead the
+  same-day teleconsultation run's own log entry left open — whether
+  `diagnostics-orders`, `billing` or `immunization` have the same missing
+  shared-resource-conflict shape just fixed in `scheduling`/
+  `teleconsultation` — and ruled it out myself by reading all three: none of
+  them has a shared resource (a calendar slot, a seat) that two records could
+  double-book. `orderDiagnostic`/`openInvoice`/`recordPatientReportedImmunization`
+  each create an independent row with no cross-record invariant to check, so
+  that specific vein is genuinely closed. Delegated a fresh independent
+  survey agent instead, instructed to avoid every already-mined vein listed
+  in this log (isoInstant validation, ne-Latn collapse, mobile i18n gaps,
+  filename sanitization, `normalizeLabel` dedup, `classifyIntent`/
+  `termAppears`, analytics sources, the two named-blocked items, and the
+  now-closed diagnostics-orders/billing/immunization conflict check) and to
+  check every `apps/api` controller for a missing entitlement guard, the same
+  gap class `companion.controller.ts` was flagged for once already.
+
+  **What was found.** `apps/api/src/interop/interop.controller.ts`'s
+  `POST /interop/share-links` (`issueShareLink`) carried only
+  `@UseGuards(SessionAuthGuard)` — no `EntitlementsGuard`, no
+  `@RequireModule`, no `@RequireQuota` — and `interop.module.ts` never
+  imported any entitlements pieces at all. But unlike `companion.controller.ts`
+  (genuinely blocked on an unresolved anonymous-vs-signed-in metering
+  question), this is not a product-decision gap: `packages/entitlements`'s
+  plan catalogue (`packages/entitlements/src/index.ts`, one commit, three
+  days before `interop` was even built) already prices this exact capability
+  — `RECORD_SHARING` is a real `ModuleKey`, absent from FREE, present on
+  PLUS/PRO; `ACTIVE_SHARE_LINKS` is a real `QuotaDimension` with concrete
+  ceilings (FREE 1 — moot, since FREE has no `RECORD_SHARING` module at all —
+  PLUS 5, PRO 25). The controller's own doc comment claimed "`INTEROP` is not
+  in the module catalogue" and used that to justify no gate — true only
+  because it was checking for a key literally named `INTEROP`, when every
+  other module is named by capability instead (`HEALTH_RECORD`, not
+  `RECORDS`; `TELECONSULTATION`, not `TELECONSULT`). The comment was simply
+  wrong; `RECORD_SHARING`/`ACTIVE_SHARE_LINKS` were sitting in the same file
+  the whole time. Net effect: any signed-in caller on any tier, including
+  FREE, could mint unlimited active, unrevoked, up-to-30-day share links to
+  their own documents with zero paywall enforcement — confirmed with a
+  `git log --follow` on the entitlements file and a grep across
+  `interop.controller.test.ts`/`interop.service.test.ts`/
+  `interop.fault-isolation.test.ts` turning up no mention of
+  `EntitlementsGuard`, `RequireModule`, `RequireQuota`, `ForbiddenException`
+  or any plan tier anywhere in the package's own tests.
+
+  **What was built.** Followed `RecordsModule`'s wiring exactly (the same
+  "import the module, get the guard" pattern `TeleconsultationModule` also
+  uses). New `apps/api/src/interop/interop-usage.reader.ts`:
+  `InteropUsageReader implements UsageReader`, meters only
+  `ACTIVE_SHARE_LINKS` by counting `InteropRepository.listForOwner(ownerId)`
+  filtered through `@swasthya/interop`'s own `isShareLinkActive(link, now)` —
+  a revoked or expired link frees its slot, the same "terminal states release
+  the resource" reasoning `scheduling`'s conflict check applies to a
+  cancelled appointment — and throws for any other dimension, matching
+  `RecordsUsageReader`'s "fail loudly, never report zero" convention.
+  `interop.module.ts` now binds `EntitlementsGuard`,
+  `{ provide: SUBSCRIPTION_RESOLVER, useClass: FreeTierSubscriptionResolver }`
+  and `{ provide: USAGE_READER, useClass: InteropUsageReader }`.
+  `interop.controller.ts`'s `issueShareLink` now carries
+  `@UseGuards(SessionAuthGuard, EntitlementsGuard)`,
+  `@RequireModule('RECORD_SHARING')` and `@RequireQuota('ACTIVE_SHARE_LINKS')`
+  — `listShareLinks`/`revokeShareLink` keep their pre-existing
+  `SessionAuthGuard` alone (reading/revoking creates no new usage, the same
+  "gate only the action that creates usage" precedent `RecordsController`
+  sets), `resolveSharedBundle`/`health` stay fully open. Also corrected the
+  controller's stale doc comment. New tests: `interop-usage.reader.test.ts`
+  (owner-scoped counting, a revoked link excluded, an expired link excluded,
+  the no-meter-for-this-dimension throw) and an `InteropController
+  entitlement wiring` describe block in `interop.controller.test.ts` mirroring
+  `teleconsultation.controller.test.ts`'s own `Reflect`-metadata guard
+  assertions (`issueShareLink` gated on both guards plus both decorators;
+  every other route checked individually — `listShareLinks`/`revokeShareLink`
+  keep `SessionAuthGuard` only, `health`/`resolveSharedBundle` stay
+  guard-free). The existing `interop.controller.test.ts` behavioural tests
+  needed no change — they call controller methods directly as plain
+  functions, bypassing Nest's guard pipeline entirely, the same reason
+  `records.controller.test.ts`'s equivalent tests never needed touching when
+  `RecordsController.capture` was gated.
+
+  **What was deliberately not touched.** No change to
+  `FreeTierSubscriptionResolver` (still resolves every caller to FREE — no
+  real Subscription persistence exists yet) or to the entitlements catalogue
+  itself. Under the current placeholder resolver this means share-link
+  issuance now 403s for every caller until real subscription persistence
+  lands, but that is the same already-accepted state
+  `TeleconsultationModule`'s `@RequireModule('TELECONSULTATION')` has been in
+  since that module was wired — `TELECONSULTATION` isn't in FREE either —
+  not a new regression this run introduces.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 598/598 total (+6: 4 new in `interop-usage.reader.test.ts`,
+  2 new in the `interop.controller.test.ts` wiring block), all other package
+  counts unchanged. `pnpm build` 40/40 (35 cached); mobile's 16 static routes
+  unchanged in count and size.
+
+  **For the next run.** The survey agent's report (not otherwise acted on
+  this run, since this candidate was found independently first) named two
+  runners-up worth a look: `packages/health-records`'s
+  `confirmObservation`/`correctObservation`/`rejectObservation` apply
+  unconditionally regardless of an observation's current status — no
+  `canTransition`-style guard the way `transitionDocument` enforces for
+  documents, so a REJECTED observation can be silently re-confirmed with no
+  invariant check — though it may be intentional "owner can always correct
+  their own record" design rather than a bug, worth deciding rather than
+  assuming. `packages/credentialing`'s badge issuance and
+  `packages/identity`'s verification-request state machine remain fully
+  unwired to any `apps/api` route — dead code, no live failure, same
+  "unreachable" dead end prior surveys have already ruled out for other
+  candidates. The two long-standing blocked items are unchanged:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (genuinely a
+  product decision — no catalogue entry exists for it, unlike interop's) and
+  analytics' open `clinical-charting` source. `quality-reporting`/`tenancy`
+  (capability map rows 19-20) remain the only two unbuilt clinical-suite
+  modules.
 
 - 2026-08-13 — **Queue fully checked; `packages/teleconsultation` now
   rejects a second session for an appointment that already has one.**

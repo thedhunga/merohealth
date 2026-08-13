@@ -1,7 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
 import type { CurrentUserResult } from '../auth/auth.service.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
+import { EntitlementsGuard } from '../entitlements/entitlements.guard.js';
+import { REQUIRED_MODULE_KEY, REQUIRED_QUOTA_KEY } from '../entitlements/require-entitlement.decorator.js';
 import { RecordsRepository } from '../records/records.repository.js';
 import type { CaptureDocumentInput } from '../records/records.service.js';
 import { RecordsService } from '../records/records.service.js';
@@ -45,6 +49,47 @@ describe('InteropController health', () => {
   it('reports UP', async () => {
     const { controller } = buildController();
     await expect(controller.health()).resolves.toEqual({ status: 'UP' });
+  });
+});
+
+// Nest's own `@UseGuards` metadata key. Not part of `@nestjs/common`'s
+// public exports (only `constants.ts` internally, which NodeNext module
+// resolution can't reach as a subpath import here), the same reasoning
+// `teleconsultation.controller.test.ts` documents for its own copy.
+const GUARDS_METADATA = '__guards__';
+
+// Cast away the class-method typing so `@typescript-eslint/unbound-method`
+// doesn't flag these as unsafe `this`-losing references — every use below
+// only reads Reflect-metadata off the function object, never calls it.
+const controllerProto = InteropController.prototype as unknown as Record<string, () => unknown>;
+
+function guardsFor(method: string): unknown {
+  return Reflect.getMetadata(GUARDS_METADATA, controllerProto[method]!);
+}
+
+describe('InteropController entitlement wiring', () => {
+  const reflector = new Reflector();
+
+  it('gates issueShareLink behind SessionAuthGuard, EntitlementsGuard, RECORD_SHARING and ACTIVE_SHARE_LINKS', () => {
+    expect(guardsFor('issueShareLink')).toEqual([SessionAuthGuard, EntitlementsGuard]);
+    expect(reflector.get<string | undefined>(REQUIRED_MODULE_KEY, controllerProto['issueShareLink']!)).toBe(
+      'RECORD_SHARING',
+    );
+    expect(reflector.get<string | undefined>(REQUIRED_QUOTA_KEY, controllerProto['issueShareLink']!)).toBe(
+      'ACTIVE_SHARE_LINKS',
+    );
+  });
+
+  // Reading/revoking a link the caller already holds keeps its pre-existing
+  // `SessionAuthGuard` only — no `EntitlementsGuard` — since only the action
+  // that creates new usage is metered, matching `RecordsController`'s own
+  // precedent. `health` and `resolveSharedBundle` (the no-session bearer-token
+  // route) carry no guard at all.
+  it('leaves every other route un-metered', () => {
+    expect(guardsFor('health')).toBeUndefined();
+    expect(guardsFor('resolveSharedBundle')).toBeUndefined();
+    expect(guardsFor('listShareLinks')).toEqual([SessionAuthGuard]);
+    expect(guardsFor('revokeShareLink')).toEqual([SessionAuthGuard]);
   });
 });
 

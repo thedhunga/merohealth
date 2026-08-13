@@ -5,6 +5,8 @@ import { z } from 'zod';
 import type { CurrentUserResult } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { SessionAuthGuard } from '../auth/session-auth.guard.js';
+import { EntitlementsGuard } from '../entitlements/entitlements.guard.js';
+import { RequireModule, RequireQuota } from '../entitlements/require-entitlement.decorator.js';
 import { InteropService } from './interop.service.js';
 
 const issueShareLinkSchema = z.object({
@@ -30,13 +32,17 @@ function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
  * Row 17 of clinical-suite.md's capability map: FHIR export bundles and
  * revocable, time-limited share links, per `platform-vision.md` §3.3's v1
  * scope ("a time-limited, revocable share link scoped to selected records").
- * `share-links/*` routes are owner-scoped and sit behind `SessionAuthGuard`,
- * the same pattern `FamilyGrantsController` uses for a module with no
- * `EntitlementsGuard` wiring yet — `INTEROP` is not in
- * `@swasthya/entitlements`' module catalogue, so this controller invents no
- * quota gate the catalogue does not already define. `share/:token` carries
- * no guard at all: it is the one route meant to be opened by someone with no
- * Mero Health account, the bearer token itself is the credential.
+ * `share-links/*` routes are owner-scoped and sit behind `SessionAuthGuard`.
+ * `issueShareLink` additionally gates on `EntitlementsGuard` — the catalogue
+ * already prices this module as `RECORD_SHARING`/`ACTIVE_SHARE_LINKS` (not
+ * an `INTEROP` key, which does not exist), the same "module + metered quota"
+ * shape `RecordsController.capture` and `TeleconsultationController.schedule`
+ * already enforce. Listing/revoking a link a caller already holds and
+ * resolving a bearer token both stay ungated, matching `RecordsController`'s
+ * own precedent of gating only the action that creates new usage.
+ * `share/:token` carries no guard at all: it is the one route meant to be
+ * opened by someone with no Mero Health account, the bearer token itself is
+ * the credential.
  */
 @ApiTags('interop')
 @Controller('interop')
@@ -50,7 +56,9 @@ export class InteropController {
   }
 
   @Post('share-links')
-  @UseGuards(SessionAuthGuard)
+  @UseGuards(SessionAuthGuard, EntitlementsGuard)
+  @RequireModule('RECORD_SHARING')
+  @RequireQuota('ACTIVE_SHARE_LINKS')
   @ApiOperation({
     summary:
       'Issue a revocable, time-limited share link scoped to the caller’s own documents. ' +
