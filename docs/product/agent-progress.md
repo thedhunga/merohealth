@@ -889,6 +889,15 @@ suite grows. A module that "works" but has no outage test is not finished.
       log entry left open ("uncaught ... a bare 500 for it"). See the
       2026-08-13 log entry below (the one added by this run) for the trace
       and the new `ApplicationTransitionError` locale strings.
+- [x] Fixed the `next=` redirect-preservation gap on `/clinicians/register`:
+      `useSession` now redirects an unauthenticated visitor to
+      `/signin?next=<their original path>` instead of a bare `/signin`, and
+      `PhoneOtpFlow` reads that `next` back after a successful verify instead
+      of hardcoding `/account` — the item two consecutive prior "queue
+      exhausted" runs had each named as the clearest small, unblocked
+      candidate. See the 2026-08-13 log entry below (the one added by this
+      run) for the new `sanitizeNextPath` guard and why `useSearchParams()`
+      was deliberately avoided.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -912,6 +921,74 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; fixed the `next=` redirect-preservation
+  gap on `/clinicians/register`.** Grepped for `- [ ]` first — zero hits,
+  same as every recent run. Two consecutive prior log entries had each named
+  this specific gap as the clearest remaining candidate rather than
+  commissioning another fresh survey, so went straight to it instead of
+  re-deriving the same list of exhausted veins a third time.
+
+  **What was found.** `useSession` (`apps/web/src/hooks/useSession.ts`)
+  redirects any signed-out visitor on a protected page to a bare `/signin`
+  with no memory of where they came from. `PhoneOtpFlow.tsx`'s success step
+  then always sends a verified visitor to `/account`. The two compose badly:
+  someone who lands on `/clinicians/register` signed out — the one other
+  page `useSession` protects — gets bounced to `/signin`, signs in
+  correctly, and lands on `/account` instead of back on the registration
+  form they actually wanted, with no error and no indication anything went
+  wrong. They then have to find and re-click through to
+  `/clinicians/register` a second time. `AccountView.tsx`'s own use of
+  `useSession` masked this because `/account` already *is* its fallback
+  destination, so the bug was invisible on the one page most manual testing
+  would have hit first.
+
+  **What was built.** `useSession` now redirects through
+  `{ pathname: '/signin', query: { next: pathname } }` (`usePathname()` from
+  `@/i18n/navigation`, so the value is already locale-agnostic — confirmed
+  by reading `createNavigation`'s runtime source, since router hrefs with no
+  `pathnames` config pass an object's `query` straight through
+  `serializeSearchParams`, no `pathnames` registry entry needed). New
+  `apps/web/src/lib/safe-redirect.ts` exports `sanitizeNextPath`, rejecting
+  anything that isn't a same-origin absolute path — `next` reaches
+  `PhoneOtpFlow` with zero server-side validation anywhere in the chain, so
+  an unguarded `next=https://evil.example` or the protocol-relative
+  `next=//evil.example` would otherwise turn a routine sign-in bounce into
+  an open redirect. `PhoneOtpFlow.handleCodeSubmit` reads `next` from
+  `window.location.search` (not next/navigation's `useSearchParams()` —
+  that hook requires a Suspense boundary on a statically-prerendered page
+  like `/signin`/`/register`, which neither page has, and this only ever
+  needs the value once, at the moment of a real submit, not on every
+  render), sanitizes it, and falls back to `/account` exactly as before when
+  absent or rejected.
+
+  **Deliberately left out.** The sign-in ↔ register switch links inside
+  `PhoneOtpFlow` (`switchPrompt`) don't carry `next` across themselves — a
+  visitor bounced to `/signin?next=/clinicians/register` who doesn't
+  actually have an account yet and clicks through to `/register` loses the
+  `next` value on that hop. Preserving it there means computing a
+  hydration-safe href (the query would differ between the server-rendered
+  and post-mount client render, since it depends on
+  `window.location.search`), which felt like more design surface than this
+  scoped fix should carry — a real, small, unblocked follow-up if anyone
+  wants the whole switcher round-trip covered, not just the primary
+  bounce-and-return path this run fixed.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (21.9s). `pnpm lint`
+  40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/web` 69/69 (net +9: the new `safe-redirect.test.ts`),
+  `@swasthya/api` 603/603 unchanged. `pnpm build` 40/40 (35 cached,
+  `apps/web` rebuilt clean including `/ne/signin`, `/en/signin`,
+  `/ne/register`, `/en/register`, `/ne/clinicians/register` and
+  `/en/clinicians/register`, confirming the static prerender still succeeds
+  with no `useSearchParams()` added to either auth page).
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. The sign-in/register switch-link `next`
+  round-trip named above is the clearest small, unblocked candidate if
+  nothing better turns up on a fresh survey.
 
 - 2026-08-13 — **Queue fully checked; mapped `CredentialingService.submit`'s
   uncaught `ApplicationTransitionError` to a proper `BadRequestException`.**

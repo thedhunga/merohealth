@@ -10,6 +10,7 @@ import { Link, useRouter } from '@/i18n/navigation';
 import { PageTemplate } from '@/components/ui/PageTemplate';
 import { Section } from '@/components/ui/Section';
 import { AuthApiError, requestOtp, verifyOtp, type AuthIntent } from '@/lib/auth-api';
+import { sanitizeNextPath } from '@/lib/safe-redirect';
 
 type Step = 'phone' | 'code';
 
@@ -38,9 +39,17 @@ const KNOWN_ERROR_CODES = [
  * distinguish them as separate mechanisms, just separate outcomes for an
  * existing vs. new phone number). A successful verify leaves a live
  * `mero_session` cookie (`AuthController.verifyOtp` sets it), so this
- * redirects straight into `/account` — the protected landing page Round two
- * §D2 built — instead of the static confirmation panel this used to end on
- * back when `apps/web` had nowhere authenticated to send anyone.
+ * redirects into `/account` — the protected landing page Round two §D2
+ * built — instead of the static confirmation panel this used to end on back
+ * when `apps/web` had nowhere authenticated to send anyone. Unless a
+ * `?next=` param is present: `useSession` attaches one whenever it bounces a
+ * signed-out visitor off *another* protected page (e.g.
+ * `/clinicians/register`) through here first, and without reading it back
+ * every such visitor would land on `/account` instead of the page they were
+ * actually trying to reach. Read from `window.location.search` rather than
+ * `useSearchParams()` — that hook forces a Suspense boundary on a
+ * statically-prerendered page, and this only ever needs the value once, at
+ * the moment of a real submit.
  */
 export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
   const t = useTranslations(intent === 'REGISTER' ? 'auth.register' : 'auth.signIn');
@@ -107,7 +116,8 @@ export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
       // Leaves `submitting` true rather than resetting it — the form is
       // about to unmount as the router navigates away, and re-enabling the
       // button for the instant before that happens would just flash.
-      router.push('/account');
+      const next = sanitizeNextPath(new URLSearchParams(window.location.search).get('next'));
+      router.push(next ?? '/account');
     } catch (err) {
       setError(localizedError(err));
       setSubmitting(false);

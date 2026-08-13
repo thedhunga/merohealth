@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { useRouter } from '@/i18n/navigation';
+import { usePathname, useRouter } from '@/i18n/navigation';
 import { getCurrentUser, type CurrentUserResponse } from '@/lib/auth-api';
 
 export type SessionState =
@@ -49,14 +49,21 @@ function useSessionQuery(): OptionalSessionState {
  * works regardless of why `/auth/me` failed. Use this only on a page that is
  * itself protected content; a public page has nothing to redirect an
  * anonymous visitor away from and should use `useOptionalSession` instead.
+ *
+ * Carries the page the visitor was actually trying to reach as `?next=` —
+ * without it every bounce through `/signin` lands everyone back on
+ * `/account` regardless of where they started, which is wrong for any
+ * protected page other than `/account` itself (e.g. `/clinicians/register`).
+ * `PhoneOtpFlow` reads it back once the session is live.
  */
 export function useSession(): SessionState {
   const router = useRouter();
+  const pathname = usePathname();
   const query = useSessionQuery();
 
   useEffect(() => {
-    if (query.status === 'anonymous') router.replace('/signin');
-  }, [query.status, router]);
+    if (query.status === 'anonymous') router.replace({ pathname: '/signin', query: { next: pathname } });
+  }, [query.status, router, pathname]);
 
   // Still redirecting: report `loading` rather than `anonymous` so a caller
   // of this hook never has to handle a third state it has no content for.
