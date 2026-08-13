@@ -1,5 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
-import { ApplicationTransitionError } from '@swasthya/credentialing';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { CredentialingRepository } from './credentialing.repository.js';
 import { CredentialingService } from './credentialing.service.js';
@@ -25,13 +24,29 @@ describe('CredentialingService submission', () => {
     expect(application.registrationNumber).toBe('NMC-12345');
   });
 
-  it('refuses a second submission from the same applicant while the first is still pending, rather than forking a duplicate', () => {
+  it('refuses a second submission from the same applicant while the first is still pending, rather than forking a duplicate — as a 400 with a code, not an uncaught 500', () => {
     const service = buildService();
     service.submit(validSubmission);
 
     expect(() => service.submit({ ...validSubmission, registrationNumber: 'NMC-99999' })).toThrow(
-      ApplicationTransitionError,
+      BadRequestException,
     );
+    try {
+      service.submit({ ...validSubmission, registrationNumber: 'NMC-99999' });
+      expect.unreachable('expected submit to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'ApplicationTransitionError' });
+    }
+  });
+
+  it('refuses a resubmission once the application is already APPROVED, the terminal state `submitApplication` can never leave', () => {
+    const service = buildService();
+    const application = service.submit(validSubmission);
+    service.beginReview(application.id, 'reviewer-1');
+    service.approve(application.id, 'reviewer-1');
+
+    expect(() => service.submit(validSubmission)).toThrow(BadRequestException);
   });
 });
 

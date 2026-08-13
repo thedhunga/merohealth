@@ -740,6 +740,7 @@
       "loading": "Loading…",
       "errors": {
         "VALIDATION_ERROR": "Check the form and try again.",
+        "ApplicationTransitionError": "You already have an application that's under review or approved — it can't be submitted again.",
         "GENERIC": "Something went wrong — please try again."
       }
     },

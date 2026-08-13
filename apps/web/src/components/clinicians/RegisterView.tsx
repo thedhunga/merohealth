@@ -20,12 +20,14 @@ const STEP_ORDER = ['details', 'evidence', 'review', 'status'] as const;
 type Step = (typeof STEP_ORDER)[number];
 const STEP_HEADING_ID = 'register-step-heading';
 
-// The exact set `CredentialingController.submit` can return for this route —
-// every other `CredentialingApiError.code` (including an uncaught
-// `ApplicationTransitionError`, which reaches the client with no code at
-// all) falls back to `errors.GENERIC`, the same convention
-// `DelegationForm`'s `KNOWN_ERROR_CODES` established.
-const KNOWN_ERROR_CODES = ['VALIDATION_ERROR'] as const;
+// The exact set `CredentialingController.submit` can return for this route.
+// `ApplicationTransitionError` used to reach the client as a bare 500 with no
+// `code` at all — `CredentialingService.submit` now maps it to a
+// `BadRequestException` (see that method's own doc comment) so it belongs
+// here like any other named error. Every other code falls back to
+// `errors.GENERIC`, the same convention `DelegationForm`'s
+// `KNOWN_ERROR_CODES` established.
+const KNOWN_ERROR_CODES = ['VALIDATION_ERROR', 'ApplicationTransitionError'] as const;
 
 interface CapturedFile {
   file: File;

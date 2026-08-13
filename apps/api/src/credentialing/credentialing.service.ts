@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
+  ApplicationTransitionError,
   approveApplication,
   beginReview,
   rejectApplication,
@@ -28,20 +29,37 @@ export class CredentialingService {
    * and resubmits against the same application rather than forking a
    * duplicate, which is also what makes `reviewQueue`'s no-double-entry
    * property hold.
+   *
+   * `submitApplication` only reaches `EVIDENCE_SUBMITTED` from `NOT_STARTED`
+   * or `REJECTED` (`canTransitionApplication`), so an applicant who already
+   * has one `EVIDENCE_SUBMITTED`, `UNDER_REVIEW` or `APPROVED` throws
+   * `ApplicationTransitionError` here. Previously uncaught, that reached the
+   * client as a bare 500 with no `code` — mapped to `BadRequestException`
+   * now, the same domain-error-to-`{code, message}` convention
+   * `FamilyGrantsService.createDelegation` uses for `SelfDelegationError` and
+   * friends, so a double-submit is a normal, explainable 400 instead.
    */
   submit(input: SubmitApplicationInput): CredentialingApplication {
     const existing =
       this.repository.findByApplicant(input.applicantId) ??
       emptyApplication(randomUUID(), input.applicantId, input.council);
 
-    const submitted = submitApplication(
-      existing,
-      input.council,
-      input.registrationNumber,
-      input.certificateImageRef,
-      input.identityImageRef,
-      new Date().toISOString(),
-    );
+    let submitted: CredentialingApplication;
+    try {
+      submitted = submitApplication(
+        existing,
+        input.council,
+        input.registrationNumber,
+        input.certificateImageRef,
+        input.identityImageRef,
+        new Date().toISOString(),
+      );
+    } catch (error) {
+      if (error instanceof ApplicationTransitionError) {
+        throw new BadRequestException({ code: error.name, message: error.message });
+      }
+      throw error;
+    }
     return this.repository.save(submitted);
   }
 

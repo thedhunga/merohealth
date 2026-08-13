@@ -882,6 +882,13 @@ suite grows. A module that "works" but has no outage test is not finished.
       longer held. See the 2026-08-13 log entry below (the one added by this
       run) for the new `credentialing-api.ts` client, the session gate, and
       what stayed deliberately out of scope.
+- [x] `CredentialingService.submit` now catches `ApplicationTransitionError`
+      and maps it to a `BadRequestException`, matching
+      `FamilyGrantsService.createDelegation`'s domain-error convention —
+      the concrete, named candidate the `RegisterView.tsx` wiring run's own
+      log entry left open ("uncaught ... a bare 500 for it"). See the
+      2026-08-13 log entry below (the one added by this run) for the trace
+      and the new `ApplicationTransitionError` locale strings.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -905,6 +912,77 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; mapped `CredentialingService.submit`'s
+  uncaught `ApplicationTransitionError` to a proper `BadRequestException`.**
+  Grepped for `- [ ]` first — zero hits, same as every recent run. Rather
+  than trust the prior run's own guesses again, went straight to its named
+  "for the next run" candidates instead of commissioning a fresh survey: the
+  `next=` redirect-preservation gap on `/clinicians/register`, and the
+  uncaught `ApplicationTransitionError` 500. Picked the latter — a real
+  correctness/UX bug in a live code path with a well-established fix
+  pattern already in the codebase — over the redirect gap, which the prior
+  run had already flagged as needing a general redirect-preserving
+  mechanism, more design surface than a "queue exhausted" pick should carry
+  on its own.
+
+  **What was found.** `CredentialingService.submit` calls
+  `packages/credentialing`'s `submitApplication`, which can only reach
+  `EVIDENCE_SUBMITTED` from `NOT_STARTED` or `REJECTED`
+  (`canTransitionApplication`). An applicant who already has an application
+  `EVIDENCE_SUBMITTED`, `UNDER_REVIEW` or `APPROVED` and calls submit again
+  hits `transitionApplication`'s `throw new ApplicationTransitionError(...)`
+  uncaught — Nest's default filter turns that into a bare, unstructured 500,
+  the one route on this controller with no domain-error-to-`{code,
+  message}` mapping, unlike `FamilyGrantsService.createDelegation`'s
+  `SelfDelegationError`/`EmptyDelegationScopeError`/
+  `InvalidDelegationExpiryError` handling. `apps/web`'s
+  `RegisterView.tsx`/`credentialing-api.ts` (wired up in the immediately
+  prior run) already has a generic `errors.GENERIC` fallback for any
+  uncoded error, so nothing was visibly broken end to end — but a real
+  clinician who double-taps submit, or resubmits after already being
+  approved, got an unexplained generic failure instead of a clear "you
+  already have one under review" message.
+
+  **What was built.** `CredentialingService.submit` now wraps the
+  `submitApplication` call in try/catch, catching `ApplicationTransitionError`
+  specifically and throwing `new BadRequestException({ code: error.name,
+  message: error.message })` — the exact `error.name`-as-`code` convention
+  `FamilyGrantsService` established, so no new naming scheme was invented.
+  Any other thrown error still propagates unchanged. `RegisterView.tsx`'s
+  `KNOWN_ERROR_CODES` gained `'ApplicationTransitionError'` alongside
+  `'VALIDATION_ERROR'`, with a new `clinicians.register.errors.
+  ApplicationTransitionError` string in both `ne.json`/`en.json` — worded to
+  cover all three blocking states (already submitted, under review, or
+  approved) without claiming which one applies, since the API's message
+  carries the enum values but the UI has no reason to expose them raw.
+  Updated `credentialing.service.test.ts`: the existing "refuses a second
+  submission" test now asserts `BadRequestException` with `code:
+  'ApplicationTransitionError'` instead of the raw domain error leaking
+  through, plus a new test covering the `APPROVED` case specifically (the
+  scenario named above) since the existing test only exercised
+  `EVIDENCE_SUBMITTED`.
+
+  **Deliberately left out.** The `next=` redirect-preservation gap on
+  `/clinicians/register` is untouched — still real, still needs a
+  general mechanism `PhoneOtpFlow.tsx`'s hardcoded `/account` redirect
+  doesn't have, worth its own scoped run. `apps/web` has no test file for
+  `RegisterView.tsx` at all (none existed before this run either — testing
+  a multi-step file-capture flow would be a larger, separate undertaking),
+  so the new error code has API-level coverage only, not a component test.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (27.6s). `pnpm lint`
+  40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 603/603 (net +1: the new `APPROVED`-resubmission test).
+  `pnpm build` 40/40 (35 cached, `apps/web` rebuilt clean including both
+  `/ne/clinicians/register` and `/en/clinicians/register`).
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. The `next=` redirect-preservation gap
+  above is still the clearest small, unblocked candidate if nothing better
+  turns up on a fresh survey.
 
 - 2026-08-13 — **Queue fully checked; wired `apps/web`'s clinician
   registration flow to the real, now-guarded `POST
