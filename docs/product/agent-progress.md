@@ -898,6 +898,16 @@ suite grows. A module that "works" but has no outage test is not finished.
       candidate. See the 2026-08-13 log entry below (the one added by this
       run) for the new `sanitizeNextPath` guard and why `useSearchParams()`
       was deliberately avoided.
+- [x] Fixed `packages/clinical-safety`'s `emergency-breathing-001` rule: its
+      `can'?t breathe` phrase only made the *straight* apostrophe (U+0027)
+      optional, so it silently missed "can’t breathe" typed with the
+      *typographic* apostrophe (U+2019) that iOS/most mobile keyboards
+      substitute by default via smart punctuation — a real, live gap in the
+      highest-consequence rule in the file, found by a fresh independent
+      survey after the queue's own checklist stayed fully checked. See the
+      2026-08-13 log entry below (the one added by this run) for the trace
+      and why the fix normalizes typographic quotes for every rule, not just
+      this one phrase.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -921,6 +931,76 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; fixed a live gap in
+  `packages/clinical-safety`'s `emergency-breathing-001` rule.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. Delegated a fresh
+  independent general-purpose survey agent, briefed in full on every vein
+  already exhausted (cross-owner/unguarded-`ownerId` access control across
+  every controller, ISO-instant validation, `ne-Latn` collapse, share-link
+  TTL/entitlements gating, double-booking, `EntitlementsGuard`/identity
+  assurance-level enforcement, negative-reading validation, filename
+  sanitization, `normalizeLabel` dedup, mobile i18n, `classifyIntent`/
+  `termAppears` retrieval bugs, the analytics-source extensions, the
+  `emergency-chest-001`/`pregnancy-warning-001`/`pediatric-warning-001`
+  word-order fixes, the `next=` redirect chain, and the `ApplicationTransitionError`
+  mapping) and explicitly told not to re-propose the two standing
+  product-decision items (`packages/health-records`'s observation
+  status-guard question and the clinical-suite's missing clinician-identity
+  model, which blocks gating `teleconsultation`'s remaining routes).
+
+  **What was found.** `emergency-breathing-001`'s first phrase,
+  `/can'?t breathe/i`, only makes the *straight* apostrophe (U+0027)
+  optional. It does not match "can’t breathe" typed with the *typographic*
+  apostrophe (U+2019) — confirmed directly:
+  `/can'?t breathe/i.test("I can’t breathe")` is `false`, and stays `false`
+  even after `.normalize('NFKC')`, since straight and curly apostrophes are
+  not canonically equivalent under NFKC. iOS and most Android keyboards
+  rewrite a typed straight apostrophe to the curly form by default via smart
+  punctuation, and `apps/mobile/app/(tabs)/companion.tsx`'s message input
+  sets no `autoCorrect={false}` to suppress that. `assessSafety` is the same
+  function called both client-side in `companion.tsx` and server-side in
+  `apps/api/src/companion.controller.ts`'s `/companion/assess` and
+  `/companion/research` routes, so the gap is not a client-only cosmetic
+  issue — a message reading "I can’t breathe," arguably the single most
+  natural English phrasing of this exact emergency, silently resolved to
+  `CLINICIAN_RECOMMENDED`/`interruptConversation: false` instead of
+  `EMERGENCY_NOW`, on the rule the standing constraints call out as the one
+  that must never be routed around. The rule's other two English phrases
+  (`cannot breathe`, `difficulty breathing`) still catch some phrasings, so
+  this was a silent narrowing of coverage, not a total bypass.
+
+  **What was built.** `assessSafety` (`packages/clinical-safety/src/index.ts`)
+  now folds typographic single quotes (`‘`/`’`) to the ASCII apostrophe as
+  part of the same normalization step that already runs `.normalize('NFKC')`,
+  before any rule's `phrases` are tested — protecting every current and
+  future phrase in `safetyRules`, not a one-off regex patch to the single
+  rule found. Two new cases in the existing `it.each` table in
+  `packages/clinical-safety/src/index.test.ts`: the straight-apostrophe
+  phrasing (`"I can't breathe"`, previously untested despite being the
+  literal example the regex names) and the curly-apostrophe phrasing
+  (`"I can’t breathe"`, the actual gap), both asserting `EMERGENCY_NOW` and
+  `interruptConversation: true`.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (17.5s). `pnpm lint`
+  40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/clinical-safety` 20/20 (net +2, the new apostrophe cases), every
+  other package's count unchanged. `pnpm build` 40/40 (35 cached).
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve: `packages/health-records`'s
+  status-guard question and the clinical-suite's missing clinician-identity
+  model. The survey's runners-up were both checked and ruled out as real
+  findings: `packages/interop`'s `resolveSharedBundle` looks like it could
+  leak observations outside a share link's document scope but
+  `buildFhirExportBundle` re-derives its filter from the already-scoped
+  `documents` array, so the final bundle is correct; `packages/devices`'s
+  `assertNonNegative` deliberately excludes `BODY_TEMPERATURE` (no natural
+  zero floor), a documented prior decision, not an oversight. No further gap
+  is known in `clinical-safety`'s other rules (`self-harm-001` was checked
+  after the chest/pregnancy/pediatric word-order fixes and confirmed clean);
+  the next run should commission a fresh survey rather than assume one is
+  waiting.
 
 - 2026-08-13 — **Queue fully checked; carried `next` across the sign-in ↔
   register switch link, the follow-up the redirect-preservation run's own

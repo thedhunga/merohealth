@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { approvedSafetyTemplates, assessSafety, getSafetyTemplate } from './index';
 describe('clinical safety routing', () => {
   it.each([
-    ['I cannot breathe', 'EMERGENCY_NOW'], ['मलाई सास फेर्न गाह्रो छ', 'EMERGENCY_NOW'],
+    ['I cannot breathe', 'EMERGENCY_NOW'], ["I can't breathe", 'EMERGENCY_NOW'],
+    ['I can’t breathe', 'EMERGENCY_NOW'], ['मलाई सास फेर्न गाह्रो छ', 'EMERGENCY_NOW'],
     ['ma saas ferna sakdina', 'EMERGENCY_NOW'], ['I have severe chest pain and I am sweating', 'EMERGENCY_NOW'],
     ['I have severe chest pain', 'EMERGENCY_NOW'],
     ['छाती दुखाइ र पसिना आइरहेको छ', 'EMERGENCY_NOW'], ['I want to kill myself', 'MENTAL_HEALTH_CONCERN'],

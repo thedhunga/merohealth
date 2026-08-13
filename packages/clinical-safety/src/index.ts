@@ -41,7 +41,13 @@ export const approvedSafetyTemplates = {
 } as const;
 type SafetyTemplateId = keyof typeof approvedSafetyTemplates;
 export function assessSafety(message: string): SafetyAssessment {
-  const normalized = message.normalize('NFKC').trim();
+  // NFKC does not fold typographic quotes to their ASCII equivalents — they
+  // aren't canonically equivalent — so a phrase like `can'?t breathe` misses
+  // "can’t breathe" once a phone's smart-punctuation autocorrect (the
+  // default on iOS and most Android keyboards) rewrites the apostrophe.
+  // Folding here protects every current and future rule's phrase, not just
+  // the ones already written defensively.
+  const normalized = message.normalize('NFKC').replace(/[‘’]/g, "'").trim();
   const matches = safetyRules.filter((rule) => rule.phrases.some((phrase) => phrase.test(normalized)));
   const first = matches[0];
   if (!first) return { riskLevel: 'CLINICIAN_RECOMMENDED', matchedRuleIds: [], interruptConversation: false };
