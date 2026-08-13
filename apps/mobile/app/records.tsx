@@ -34,8 +34,8 @@ export default function RecordsScreen() {
     setLoadError(null);
     try {
       const [pendingResult, timelineResult] = await Promise.all([
-        listPendingConfirmations(activeSubject.id),
-        listTimeline(activeSubject.id),
+        listPendingConfirmations(),
+        listTimeline(),
       ]);
       setPending(pendingResult);
       setTimeline(timelineResult);
@@ -48,7 +48,7 @@ export default function RecordsScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [activeSubject.id, language]);
+  }, [language]);
 
   useEffect(() => {
     void load();
@@ -82,7 +82,7 @@ export default function RecordsScreen() {
   const submitCorrection = (observation: HealthObservation) => {
     if (!draftValue.trim()) return;
     void runAction(observation.id, () =>
-      correctObservation(observation.id, activeSubject.id, draftValue.trim(), draftUnit.trim() || null),
+      correctObservation(observation.id, draftValue.trim(), draftUnit.trim() || null),
     );
   };
 
@@ -187,7 +187,7 @@ export default function RecordsScreen() {
                     <Pressable
                       disabled={busyId === observation.id}
                       onPress={() =>
-                        void runAction(observation.id, () => confirmObservation(observation.id, activeSubject.id))
+                        void runAction(observation.id, () => confirmObservation(observation.id))
                       }
                       style={[styles.actionButton, styles.confirmButton]}
                     >
@@ -209,7 +209,7 @@ export default function RecordsScreen() {
                     <Pressable
                       disabled={busyId === observation.id}
                       onPress={() =>
-                        void runAction(observation.id, () => rejectObservation(observation.id, activeSubject.id))
+                        void runAction(observation.id, () => rejectObservation(observation.id))
                       }
                       style={[styles.actionButton, styles.rejectButton]}
                     >

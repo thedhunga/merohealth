@@ -753,6 +753,17 @@ suite grows. A module that "works" but has no outage test is not finished.
       See the 2026-08-13 log entry below (the one added by this run) for the
       new `InteropUsageReader` and why the route was open to every tier
       until now.
+- [x] Closed a real cross-owner authentication gap on
+      `RecordsController`: six of its seven routes
+      (`list`/`observationsForDocument`/`timeline`/`confirm`/`correct`/
+      `reject`) carried no `SessionAuthGuard` at all and trusted a bare,
+      client-supplied `ownerId` string — anyone who knew or guessed another
+      person's owner id could read their DRAFT observations and confirm,
+      correct or reject their record with no session, cookie or token. Only
+      `capture()` had been fixed, in Round two A4; the other six were the
+      exact gap that run's own log entry named and every run since left
+      untouched. See the 2026-08-13 log entry below (the one added by this
+      run) for the trace, the fix, and what the mobile client cost.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -776,6 +787,122 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; `RecordsController` closed a real
+  cross-owner authentication gap on six of its seven routes.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. Rather than guess at a
+  new candidate, delegated a fresh independent survey (instructed to avoid
+  every already-mined vein this log lists, and specifically not to re-propose
+  the `confirmObservation`/`correctObservation`/`rejectObservation`
+  status-guard question the same-day `InteropController` run's own log entry
+  had flagged but explicitly left as "may be intentional… worth deciding
+  rather than assuming"). The survey traced that exact candidate through the
+  real `apps/mobile` UI and confirmed it is not reachable there (no screen
+  ever calls `confirm` on an observation the UI itself has already filtered
+  out of the pending queue) and would require inventing a transition-table
+  policy this repo states nowhere — correctly set it aside rather than
+  guessing, and returned a different, unambiguous finding instead.
+
+  **What was found.** `apps/api/src/records/records.controller.ts`: only
+  `capture()` (`POST /records/documents`) carried
+  `@UseGuards(SessionAuthGuard, EntitlementsGuard)` and derived its owner from
+  `@CurrentUser()`. The other six routes on the same controller —
+  `list`/`observationsForDocument`/`timeline` (`GET`) and
+  `confirm`/`correct`/`reject` (`POST`) — carried no guard at all and took
+  `ownerId` as a bare, unauthenticated query or body string, checked only by
+  `requireOwnerId` (non-empty, nothing else). `RecordsService`'s
+  `#requireObservation`/`listDocumentObservations` then compare that string
+  against the stored document/observation's `ownerId` — a self-consistency
+  check, not an identity check. Net effect: any unauthenticated caller who
+  knew or guessed another person's `ownerId` (not a secret — a plain string)
+  could list their documents, read every observation on a document *draft
+  included* (the route's own doc comment said so), read their timeline, and
+  **confirm, correct or reject** their observations, all with zero
+  authentication. This was not a fresh gap: `captureSchema`'s own doc comment
+  and Round two A4's log entry both named it explicitly ("the records
+  module's other five routes… still trust a client-supplied ownerId… same bug
+  class, smaller blast radius") and it sat untouched through roughly 250
+  subsequent log entries. It had also propagated into two other controllers'
+  own reasoning: `family-grants.controller.ts`'s doc comment cites "the
+  records module's `ownerId` check" as the precedent for 404ing a mismatch —
+  true of the check, false of the missing guard in front of it — and
+  `teleconsultation.controller.test.ts`'s own comment justifies leaving most
+  of its routes ungated by citing "`RecordsController`'s precedent." Neither
+  of those is fixed by this run; both are worth a read by whoever picks up
+  the survey's other named runner-up (the observation-status-guard question)
+  or does a wiring sweep of `teleconsultation`.
+
+  **What was built.** Added `@UseGuards(SessionAuthGuard)` to all six routes,
+  mirroring `capture()`'s and `FamilyGrantsController`'s already-established
+  pattern exactly (confirmed by reading `family-grants.controller.ts`, which
+  independently arrived at the identical shape: guard the route, take the
+  subject id from `@CurrentUser()`, never a client-supplied field). Dropped
+  `ownerId` from `correctSchema` and deleted `ownerActionSchema`/
+  `requireOwnerId` entirely — nothing left to validate once the client can no
+  longer assert who it is. `list`/`timeline`/`observationsForDocument` now
+  take `@CurrentUser()` instead of a query param; `confirm`/`correct`/
+  `reject` take it instead of a body field. `RecordsService`'s methods are
+  unchanged — they already took an explicit `ownerId`; only what fills that
+  parameter changed, from a forgeable string to a verified `subjectId`. No
+  change was needed to how a document/observation belonging to someone else
+  404s — that check was already correct, it was simply guarding the wrong
+  identity. Checked whether this would break any *currently working*
+  delegation flow first: it would not, because no `apps/api` HTTP route
+  anywhere resolves cross-subject access via `GuardianshipGrant`/
+  `DelegationGrant` today (that only happens inside `packages/intent-router`'s
+  in-process evaluation harness) — `family-grants.controller.ts` is the CRUD
+  for grants themselves, not a consumer of them, so `user.subjectId ===
+  ownerId` is exactly as permissive as every other guarded route in this repo
+  already is, not a new restriction on a working feature.
+
+  **What this costs `apps/mobile`.** `apps/mobile` has no identity/auth layer
+  at all yet (`local-id.ts`'s and `acting-subjects.ts`'s own doc comments say
+  so directly), so `records-api.ts`'s `requestJson` sends no session token or
+  cookie. Every one of these six routes will now 401 against a real deployed
+  server from the mobile app, exactly like `capture()` already has since A4.
+  Updated `records-api.ts` to match the new contract anyway (dropped the now
+  meaningless `ownerId` parameter from every exported function and the
+  matching query strings/body fields) and updated `records.tsx`'s three call
+  sites and both test files to match — a client that still sent a
+  server-ignored `ownerId` would misrepresent this as a smaller gap than it
+  is. This is the same accepted trade-off `capture()`'s own doc comment
+  already made, extended to the rest of the module rather than a new one.
+
+  New tests: a `RecordsController auth wiring` describe block in
+  `records.controller.test.ts` (Reflect-metadata assertions mirroring
+  `teleconsultation.controller.test.ts`'s pattern — `capture` gated on both
+  guards, the six routes above gated on `SessionAuthGuard` alone, `health`
+  ungated) plus a same-file behavioural test proving a forged
+  `CurrentUserResult.subjectId` still 404s on someone else's document. The
+  four pre-existing "requires ownerId" tests were deleted — there is no
+  longer a client-suppliable `ownerId` for them to exercise — and replaced
+  with the wiring tests above, which assert the guard exists rather than a
+  weaker runtime symptom of its absence.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 599/599 (net +1: 4 deleted, 5 added), `@swasthya/mobile`
+  20/20 (`records-api.test.ts` unchanged in count, updated in shape), every
+  other package's count unchanged. `pnpm build` 40/40 (35 cached); mobile's 16
+  static routes unchanged in count and size.
+
+  **For the next run.** The survey's own runner-up, restated precisely so a
+  future run does not have to re-derive it: `packages/health-records`'s
+  `confirmObservation`/`correctObservation`/`rejectObservation` apply
+  unconditionally regardless of an observation's current status, unlike
+  `transitionDocument`'s explicit `canTransition` guard for documents — not
+  reachable through the current `apps/mobile` UI, and resolving it requires
+  deciding whether `REJECTED` should be a terminal state or a reversible one
+  (the identity-and-credentialing precedent — "rejection is reversible and
+  explained" — argues for reversible; the fact that `confirm()` would
+  silently re-trust the exact same value the person already flagged wrong,
+  with no new input, argues for restricting it). A genuine product decision,
+  not a bug fix; flag for the owner rather than guessing. Also worth a look:
+  `teleconsultation.controller.test.ts`'s own comment cites the now-fixed gap
+  as its reason for leaving `listSessions`/`getSession`/`start`/`complete`/
+  `cancel`/`noShow` ungated — worth checking whether those routes have the
+  same missing-identity shape or a different, already-adequate one before
+  assuming the precedent still holds now that its premise changed.
 
 - 2026-08-13 — **Queue fully checked; `InteropController.issueShareLink` now
   gated behind `EntitlementsGuard`.** Grepped for `- [ ]` first — zero hits,

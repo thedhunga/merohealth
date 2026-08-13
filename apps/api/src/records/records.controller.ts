@@ -1,5 +1,5 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import type { CurrentUserResult } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -37,15 +37,12 @@ const captureSchema = z.object({
   pageCount: z.number().int().positive().default(1),
 });
 
+// No `ownerId` field, same reason `captureSchema` above has none: the owner
+// is always the session identity, never a client-supplied value.
 const correctSchema = z.object({
-  ownerId: z.string().trim().min(1),
   value: z.string().trim().min(1),
   // Omitted keeps the observation's existing unit; explicit null clears it.
   unit: z.string().trim().min(1).nullable().optional(),
-});
-
-const ownerActionSchema = z.object({
-  ownerId: z.string().trim().min(1),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
@@ -56,14 +53,6 @@ function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
       message: 'Invalid request',
       details: parsed.error.flatten(),
     });
-  }
-  return parsed.data;
-}
-
-function requireOwnerId(ownerId: string | undefined): string {
-  const parsed = z.string().trim().min(1).safeParse(ownerId);
-  if (!parsed.success) {
-    throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'ownerId is required' });
   }
   return parsed.data;
 }
@@ -111,67 +100,69 @@ export class RecordsController {
   }
 
   @Get('documents')
-  @ApiOperation({ summary: "List an owner's captured documents" })
-  @ApiQuery({ name: 'ownerId', required: true })
-  list(@Query('ownerId') ownerId?: string) {
-    const items = this.records.listDocuments(requireOwnerId(ownerId));
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: "List the signed-in caller's own captured documents" })
+  list(@CurrentUser() user: CurrentUserResult) {
+    const items = this.records.listDocuments(user.subjectId);
     return { items, total: items.length };
   }
 
   @Get('documents/:documentId/observations')
-  @ApiOperation({ summary: 'List every observation extracted from one document, draft included' })
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: 'List every observation extracted from one of the caller\'s own documents, draft included' })
   @ApiParam({ name: 'documentId' })
-  @ApiQuery({ name: 'ownerId', required: true })
   observationsForDocument(
+    @CurrentUser() user: CurrentUserResult,
     @Param('documentId') documentId: string,
-    @Query('ownerId') ownerId?: string,
   ) {
-    const items = this.records.listDocumentObservations(documentId, requireOwnerId(ownerId));
+    const items = this.records.listDocumentObservations(documentId, user.subjectId);
     return { items, total: items.length };
   }
 
   @Get('timeline')
-  @ApiOperation({ summary: 'Reverse-chronological record view for one owner' })
-  @ApiQuery({ name: 'ownerId', required: true })
-  timeline(@Query('ownerId') ownerId?: string) {
-    const items = this.records.timeline(requireOwnerId(ownerId));
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: "Reverse-chronological record view for the signed-in caller" })
+  timeline(@CurrentUser() user: CurrentUserResult) {
+    const items = this.records.timeline(user.subjectId);
     return { items, total: items.length };
   }
 
   @Post('observations/:observationId/confirm')
-  @ApiOperation({ summary: 'Confirm an observation as-extracted' })
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: "Confirm one of the caller's own observations as-extracted" })
   @ApiParam({ name: 'observationId' })
-  @ApiBody({ schema: { type: 'object', required: ['ownerId'], properties: { ownerId: { type: 'string' } } } })
-  confirm(@Param('observationId') observationId: string, @Body() body: unknown) {
-    const input = parseOrThrow(ownerActionSchema, body);
-    return this.records.confirm(observationId, input.ownerId);
+  confirm(@CurrentUser() user: CurrentUserResult, @Param('observationId') observationId: string) {
+    return this.records.confirm(observationId, user.subjectId);
   }
 
   @Post('observations/:observationId/correct')
-  @ApiOperation({ summary: "Replace an observation's value with the person's own" })
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: "Replace one of the caller's own observations with the person's own value" })
   @ApiParam({ name: 'observationId' })
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['ownerId', 'value'],
+      required: ['value'],
       properties: {
-        ownerId: { type: 'string' },
         value: { type: 'string' },
         unit: { type: 'string', nullable: true },
       },
     },
   })
-  correct(@Param('observationId') observationId: string, @Body() body: unknown) {
+  correct(
+    @CurrentUser() user: CurrentUserResult,
+    @Param('observationId') observationId: string,
+    @Body() body: unknown,
+  ) {
     const input = parseOrThrow(correctSchema, body);
-    return this.records.correct(observationId, input.ownerId, input.value, input.unit);
+    return this.records.correct(observationId, user.subjectId, input.value, input.unit);
   }
 
   @Post('observations/:observationId/reject')
-  @ApiOperation({ summary: 'Reject an observation extracted in error' })
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: "Reject one of the caller's own observations, extracted in error" })
   @ApiParam({ name: 'observationId' })
-  @ApiBody({ schema: { type: 'object', required: ['ownerId'], properties: { ownerId: { type: 'string' } } } })
-  reject(@Param('observationId') observationId: string, @Body() body: unknown) {
-    const input = parseOrThrow(ownerActionSchema, body);
-    return this.records.reject(observationId, input.ownerId);
+  reject(@CurrentUser() user: CurrentUserResult, @Param('observationId') observationId: string) {
+    return this.records.reject(observationId, user.subjectId);
   }
 }
