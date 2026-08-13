@@ -773,6 +773,16 @@ suite grows. A module that "works" but has no outage test is not finished.
       the only live caller of `POST /family/grants/delegations` fail 100% of
       the time. See the 2026-08-13 log entry below (the one added by this
       run) for the trace and the new `earliestSelectableExpiryDate` helper.
+- [x] `EntitlementsGuard` now enforces `packages/identity`'s
+      `minimumAssuranceLevel` ahead of plan-tier checks, closing a real
+      authorization gap: `RECORD_SHARING` and `TELECONSULTATION` are
+      documented in `identity-and-credentialing.md` §2 as requiring
+      `IDENTITY_VERIFIED`, but nothing in `apps/api` ever read that table, so
+      any merely phone-verified (`REGISTERED`) caller on the right plan could
+      issue a share link or book a teleconsultation with no identity check at
+      all. See the 2026-08-13 log entry below (the one added by this run) for
+      the trace and why this was the deferred half of the 2026-08-09
+      `packages/identity` run rather than a new candidate.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -796,6 +806,95 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; `EntitlementsGuard` now enforces
+  `packages/identity`'s assurance-level policy, closing a real authorization
+  gap on `RECORD_SHARING`/`TELECONSULTATION`.** Grepped for `- [ ]` first —
+  zero hits, same as every recent run. Delegated a fresh independent survey
+  (an `Explore` subagent, read-only) instructed to avoid every already-mined
+  vein this log lists and both standing product-decision items (the
+  `health-records` status-guard question and the clinical-suite
+  clinician-identity gap the same-day `DelegationForm.tsx` run's own entry
+  re-confirmed as a real architecture gap, not a small fix). It returned one
+  strong, traced candidate; this run independently re-verified every claim in
+  the candidate's report by reading the actual source files before touching
+  anything, per this ledger's "trust but verify" habit for delegated work.
+
+  **What was found.** `docs/architecture/identity-and-credentialing.md` §2's
+  table is explicit: sharing records with a named clinician and
+  teleconsultation both require `IDENTITY_VERIFIED` (national ID + liveness),
+  not merely `REGISTERED` (phone + OTP). `packages/identity/src/index.ts`
+  transcribes that table exactly as `minimumAssuranceLevel` — exhaustive over
+  `ModuleKey`, plus a ready-made `meetsAssuranceForModule` helper — and has
+  since the 2026-08-09 run that built the package. But
+  `apps/api/src/entitlements/entitlements.guard.ts`'s `EntitlementsGuard`,
+  the only place `@RequireModule` is actually enforced, never imported
+  `@swasthya/identity` at all (confirmed by grep: zero references anywhere in
+  `apps/api` before this run). It read `request.subjectId` (set by
+  `SessionAuthGuard`) to resolve a plan tier and called `checkModule`, but
+  checked nothing about the caller's identity-assurance level. `@RequireModule`
+  is used on exactly three routes; two of the three declare a module requiring
+  `IDENTITY_VERIFIED`: `InteropController.issueShareLink`
+  (`RECORD_SHARING`, `interop.controller.ts:60`) and
+  `TeleconsultationController.schedule` (`TELECONSULTATION`,
+  `teleconsultation.controller.ts:49`). `RecordsController.capture` requires
+  only `HEALTH_RECORD` → `REGISTERED`, already satisfied by
+  `SessionAuthGuard` alone, so it had no gap. Since `AuthService.verifyOtp`
+  only ever produces `assuranceLevel: 'REGISTERED'` (no verification flow in
+  `apps/api` reaches `IDENTITY_VERIFIED` yet), any phone-verified caller on a
+  plan that includes the module — PLUS for `RECORD_SHARING`, PRO for
+  `TELECONSULTATION`, confirmed against `packages/entitlements`'s catalogue —
+  could today issue a share link handing their documents to a named external
+  clinician, or book a video consultation, with zero identity check. This was
+  not a fresh gap: the 2026-08-09 `packages/identity` run's own log entry
+  named it explicitly as deferred, because `SessionAuthGuard` didn't exist
+  yet to supply a real `assuranceLevel`. That blocker has been gone since
+  `SessionAuthGuard`/`AuthService` shipped; nobody had revisited the
+  follow-up since.
+
+  **What was built.** `EntitlementsGuard.canActivate` now calls a new
+  `extractAssuranceLevel` helper (reads `request.authUser.assuranceLevel`,
+  defaulting to `ANONYMOUS` if absent — fail-closed, matching
+  `extractOwnerId`'s existing stance) and checks
+  `meetsAssuranceForModule` from `@swasthya/identity` before `checkModule`,
+  since a plan upgrade cannot substitute for identity verification the way it
+  can for a quota limit. A failure throws `ForbiddenException` with a new
+  `IDENTITY_VERIFICATION_REQUIRED` code carrying the module, the required
+  level and the caller's current level — the same "verdict in the body, not a
+  bare 403" shape `MODULE_NOT_INCLUDED`/`QUOTA_EXCEEDED` already use. No
+  change to `InteropController`/`TeleconsultationController` themselves: both
+  already ran `EntitlementsGuard` after `SessionAuthGuard` per Round two A4's
+  established order, so the fix is entirely inside the guard. Updated
+  `entitlements.guard.test.ts`: added an `authUser` field to the test request
+  shape (real requests always carry it alongside `subjectId`, set together by
+  `SessionAuthGuard` — the old tests only set `subjectId`, which happened to
+  still pass for the tier-only assertions but would have masked the new
+  assurance check by always defaulting to `ANONYMOUS`), and five new cases
+  covering: denial at `REGISTERED` against an `IDENTITY_VERIFIED`-gated
+  module even on a plan that includes it, success once verified, the full
+  exception-body shape, that the identity check reports first when both tier
+  and identity would fail, and the fail-closed default with no `authUser` at
+  all.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 604/604 (net +5, all in `entitlements.guard.test.ts`, now
+  13/13), every other package's count unchanged. `pnpm build` 40/40 (39
+  cached).
+
+  **For the next run.** The same two standing product-decision items remain
+  open and untouched by this run: `packages/health-records`'s
+  `confirmObservation`/`correctObservation`/`rejectObservation` status-guard
+  question, and the clinical-suite's missing clinician-identity model. Also
+  worth noting: this fix only closes the enforcement gap for the two routes
+  that already carry `@RequireModule`. No `apps/api` flow yet actually raises
+  anyone from `REGISTERED` to `IDENTITY_VERIFIED` — `packages/identity`'s
+  verification state machine and `packages/credentialing`'s reviewer queue
+  exist, but no controller wires a person through `submitEvidence` →
+  `approveVerification` today, so both newly-enforced routes are, honestly,
+  unreachable for every real user until that flow is built. That flow is a
+  real, larger candidate for a future run, not something to bolt on here
+  without its own scoped pass.
 
 - 2026-08-13 — **Queue fully checked; fixed an off-by-one date bug in
   `DelegationForm.tsx` that made the delegation form's earliest allowed

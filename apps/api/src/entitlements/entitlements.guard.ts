@@ -8,7 +8,8 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { checkModule, checkQuota } from '@swasthya/entitlements';
-import type { ModuleKey, QuotaDimension } from '@swasthya/shared-types';
+import { meetsAssuranceForModule, minimumAssuranceLevel } from '@swasthya/identity';
+import type { AssuranceLevel, ModuleKey, QuotaDimension } from '@swasthya/shared-types';
 import { REQUIRED_MODULE_KEY, REQUIRED_QUOTA_KEY } from './require-entitlement.decorator.js';
 import { SUBSCRIPTION_RESOLVER, type SubscriptionResolver } from './subscription-resolver.js';
 import { USAGE_READER, type UsageReader } from './usage-reader.js';
@@ -32,6 +33,18 @@ import { USAGE_READER, type UsageReader } from './usage-reader.js';
  * `@UseGuards(SessionAuthGuard, EntitlementsGuard)` — guard order matters,
  * `SessionAuthGuard` first — or this guard has nothing trustworthy to read
  * and fails closed rather than silently resolving a tier for nobody.
+ *
+ * A paid plan is not the only gate a module can carry. `packages/identity`'s
+ * `minimumAssuranceLevel` — transcribed from
+ * `identity-and-credentialing.md` §2's table — names `RECORD_SHARING`,
+ * `PROVIDER_EXPORT` and `TELECONSULTATION` as requiring `IDENTITY_VERIFIED`,
+ * not merely `REGISTERED` (phone + OTP). That table existed since the
+ * 2026-08-09 run that built `packages/identity`, deferred wiring it here
+ * because `SessionAuthGuard` didn't exist yet to supply a real
+ * `assuranceLevel`; it does now, on the same `request.authUser` a `@RequireModule`
+ * route already runs behind. Checked here, ahead of `checkModule`, since a
+ * plan upgrade cannot substitute for identity verification the way it can
+ * for a quota limit.
  */
 @Injectable()
 export class EntitlementsGuard implements CanActivate {
@@ -53,6 +66,16 @@ export class EntitlementsGuard implements CanActivate {
     const tier = this.subscriptions.resolveTier(ownerId);
 
     if (requiredModule) {
+      const assuranceLevel = extractAssuranceLevel(context);
+      if (!meetsAssuranceForModule(assuranceLevel, requiredModule)) {
+        throw new ForbiddenException({
+          code: 'IDENTITY_VERIFICATION_REQUIRED',
+          module: requiredModule,
+          required: minimumAssuranceLevel[requiredModule],
+          current: assuranceLevel,
+        });
+      }
+
       const verdict = checkModule(tier, requiredModule);
       if (!verdict.allowed) {
         throw new ForbiddenException({ code: 'MODULE_NOT_INCLUDED', ...verdict });
@@ -84,4 +107,16 @@ function extractOwnerId(context: ExecutionContext): string {
     throw new UnauthorizedException({ code: 'UNAUTHENTICATED', message: 'Sign in required' });
   }
   return request.subjectId;
+}
+
+/**
+ * `SessionAuthGuard` sets `request.authUser` in the same step it sets
+ * `request.subjectId`, so a request that reached here (past `extractOwnerId`)
+ * always carries one — but this reads independently and defaults to the
+ * floor of the ladder rather than assuming, matching `extractOwnerId`'s own
+ * fail-closed stance rather than trusting a field a wiring bug could omit.
+ */
+function extractAssuranceLevel(context: ExecutionContext): AssuranceLevel {
+  const request = context.switchToHttp().getRequest<{ authUser?: { assuranceLevel?: AssuranceLevel } }>();
+  return request.authUser?.assuranceLevel ?? 'ANONYMOUS';
 }
