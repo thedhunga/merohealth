@@ -17,9 +17,12 @@ const localeSchema = z.enum(['ne', 'en', 'ne-Latn']);
 // that isn't a real zero-padded ISO instant.
 const isoInstant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 
+// No `ownerId` field: the owner is always the session identity, never a
+// client-supplied value — the same fix `RecordsController.capture`'s own
+// `captureSchema` comment describes, applied here now that `ingest` carries
+// a `SessionAuthGuard` too.
 const ingestSchema = z.object({
   id: z.string().trim().min(1),
-  ownerId: z.string().trim().min(1),
   kind: utteranceKindSchema,
   text: z.string().trim().min(1),
   locale: localeSchema,
@@ -47,14 +50,14 @@ export class LanguageCorpusController {
   constructor(private readonly corpus: LanguageCorpusService) {}
 
   @Post('utterances')
+  @UseGuards(SessionAuthGuard)
   @ApiOperation({ summary: 'Store an utterance already retained (consent-gated, de-identified) at capture time' })
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['id', 'ownerId', 'kind', 'text', 'locale', 'capturedAt', 'redactionCount', 'awaitingHumanReview'],
+      required: ['id', 'kind', 'text', 'locale', 'capturedAt', 'redactionCount', 'awaitingHumanReview'],
       properties: {
         id: { type: 'string' },
-        ownerId: { type: 'string' },
         kind: { enum: utteranceKindSchema.options },
         text: { type: 'string' },
         locale: { enum: localeSchema.options },
@@ -65,8 +68,9 @@ export class LanguageCorpusController {
       },
     },
   })
-  ingest(@Body() body: unknown) {
-    return this.corpus.ingest(parseOrThrow(ingestSchema, body));
+  ingest(@CurrentUser() user: CurrentUserResult, @Body() body: unknown) {
+    const input = parseOrThrow(ingestSchema, body);
+    return this.corpus.ingest({ ...input, ownerId: user.subjectId });
   }
 
   @Get('review-queue')

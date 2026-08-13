@@ -85,11 +85,9 @@ export class LanguageCorpusService {
    * The controller now gates this behind `SessionAuthGuard` and checks the
    * path `ownerId` against the caller's verified `subjectId` before this is
    * ever called — the same shape `RecordsController`'s cross-owner fix
-   * required. `ingest` remains unguarded; unlike this route it has no live
-   * caller anywhere in the repo yet (mobile's companion only calls the pure
-   * `retainUtterance` from `@swasthya/language-corpus`, never this HTTP
-   * endpoint), so it is a real, separate, unblocked follow-up rather than
-   * part of this fix.
+   * required. `ingest` carries the same `SessionAuthGuard` now too, sourcing
+   * `ownerId` from the session rather than the request body, the same shape
+   * `RecordsController.capture`'s `captureSchema` uses.
    */
   erase(ownerId: string): { erasedUtteranceIds: readonly string[] } {
     const ids = utteranceIdsForOwner(this.repository.list(), ownerId);

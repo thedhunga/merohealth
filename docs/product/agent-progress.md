@@ -827,6 +827,17 @@ suite grows. A module that "works" but has no outage test is not finished.
       directly (`erase`'s own doc comment had flagged the gap explicitly).
       See the 2026-08-13 log entry below (the one added by this run) for the
       fix and what was deliberately left open.
+- [x] Closed the sibling unguarded-`ownerId` gap on `apps/api`'s
+      `language-corpus` ingest route: `POST /language-corpus/utterances` had
+      no `SessionAuthGuard` and took `ownerId` straight from the request
+      body, so any caller could store an utterance — including one flagged
+      `awaitingHumanReview: false`, skipping the review queue entirely — under
+      an arbitrary person's owner id with no session, cookie or token. This
+      was the exact follow-up the `erase` cross-owner fix's own log entry
+      named explicitly ("a real, scoped, unblocked candidate ... whenever
+      someone picks it up"). See the 2026-08-13 log entry below (the one
+      added by this run) for the fix and why it follows
+      `RecordsController.capture`'s pattern rather than `erase`'s.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -850,6 +861,72 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; closed the sibling unguarded-`ownerId`
+  gap on `apps/api`'s `language-corpus` ingest route, the concrete follow-up
+  the prior run's own log entry left open.** Grepped for `- [ ]` first — zero
+  hits, same as every recent run. The prior (same-day) log entry, on closing
+  the cross-owner gap in `erase`, named this exact route —
+  `LanguageCorpusController.ingest` (`POST /language-corpus/utterances`) — as
+  "a real, scoped, unblocked candidate," since it carried the identical
+  unguarded-`ownerId` shape but had no live caller in the repo, so this run
+  picked it up directly rather than re-running a fresh survey. Re-read
+  `language-corpus.controller.ts`, `language-corpus.service.ts` and
+  `records.controller.ts`'s `capture()`/`captureSchema` (the precedent this
+  run followed, not `erase`'s fetch-then-check-then-404 shape) before
+  touching anything.
+
+  **What was found.** `POST /language-corpus/utterances` took `id`,
+  `ownerId`, `kind`, `text`, `locale`, `capturedAt`,
+  `precedingAssistantText`, `redactionCount` and `awaitingHumanReview`
+  straight from the request body with no `SessionAuthGuard` at all. Unlike
+  `erase` (delete-only, so the worst case was denial of service), `ingest`
+  is a write that can *create* attributed content: an unauthenticated caller
+  could store an utterance under any `ownerId` they chose, including one
+  with `awaitingHumanReview: false`, which `corpusReviewQueue` filters on —
+  such an utterance would never surface for the human review
+  `language-corpus.md` §5 requires before any derived snapshot can include
+  it, and would sit under a stranger's identity in the corpus indefinitely.
+  Confirmed no live caller exists anywhere in the repo (`apps/mobile`'s
+  companion only calls the pure `retainUtterance` from
+  `@swasthya/language-corpus`, never this HTTP endpoint) — same as `erase`
+  before its fix, so no request shape broke.
+
+  **What was built.** Unlike `erase`, which 404s on a path-vs-session
+  mismatch because the caller must specify *whose* record to erase,
+  `ingest` never had a legitimate reason for the caller to specify anyone's
+  id but their own — the same reasoning `RecordsController.capture`'s
+  `captureSchema` comment already gives for having no `ownerId` field at
+  all. So this run followed that precedent instead of `erase`'s: dropped
+  `ownerId` from `ingestSchema` and its Swagger `ApiBody` schema entirely,
+  added `@UseGuards(SessionAuthGuard)` and `@CurrentUser() user:
+  CurrentUserResult` to `ingest()`, and the controller now always passes
+  `ownerId: user.subjectId` to `LanguageCorpusService.ingest` — a
+  client-supplied `ownerId` in the body is silently ignored rather than
+  rejected, matching how `captureSchema` handles it. Updated
+  `LanguageCorpusService.erase`'s doc comment, which had explicitly named
+  `ingest` as the deferred gap, to describe the fix instead of asking for
+  it. Updated every `controller.ingest(...)` call in
+  `language-corpus.controller.test.ts` to pass a `CurrentUserResult` as the
+  first argument (nine call sites), added a new test asserting a
+  client-supplied `ownerId: 'owner-2'` in the body is ignored and the
+  utterance is stored under the actual caller's `subjectId`, and removed
+  `ownerId` from the shared `validIngest` fixture.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 602/602 (net +1, the new ignored-ownerId test). `pnpm
+  build` 40/40 (35 cached).
+
+  **For the next run.** The two standing product-decision items are
+  unchanged and still not this run's to resolve: `packages/health-records`'s
+  status-guard question and the clinical-suite's missing clinician-identity
+  model. With both `language-corpus` HTTP routes' unguarded-`ownerId` shape
+  now closed, that specific vein is exhausted; the next run should treat
+  this as fully closed rather than re-surveying `language-corpus` again, and
+  either re-read the "Stop after diagnostics-orders" note above for
+  `quality-reporting`/`tenancy`, or run a fresh independent survey rather
+  than trusting this paragraph's guess.
 
 - 2026-08-13 — **Queue fully checked; closed a cross-owner access-control gap
   on `apps/api`'s `language-corpus` right-to-erasure route.** Grepped for
