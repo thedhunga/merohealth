@@ -1,5 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
+import type { CurrentUserResult } from '../auth/auth.service.js';
 import { CredentialingController } from './credentialing.controller.js';
 import { CredentialingRepository } from './credentialing.repository.js';
 import { CredentialingService } from './credentialing.service.js';
@@ -7,6 +8,13 @@ import { CredentialingService } from './credentialing.service.js';
 function buildController() {
   return new CredentialingController(new CredentialingService(new CredentialingRepository()));
 }
+
+const reviewer: CurrentUserResult = {
+  subjectId: 'reviewer-1',
+  user: { id: 'reviewer-1', phone: '9812345678', role: 'CLINICAL_REVIEWER', locale: 'ne' },
+  patientProfileId: null,
+  assuranceLevel: 'REGISTERED',
+};
 
 const validSubmission = {
   applicantId: 'applicant-1',
@@ -38,26 +46,16 @@ describe('CredentialingController submit', () => {
 });
 
 describe('CredentialingController reviewer routes', () => {
-  it('requires x-reviewer-id even though ReviewerGuard normally screens it out first', () => {
-    const controller = buildController();
-    const application = controller.submit(validSubmission);
-
-    expect(() => controller.read(application.id, undefined)).toThrow(BadRequestException);
-    expect(() => controller.beginReview(application.id, undefined)).toThrow(BadRequestException);
-    expect(() => controller.approve(application.id, undefined)).toThrow(BadRequestException);
-    expect(() => controller.reject(application.id, { reason: 'x' }, undefined)).toThrow(BadRequestException);
-  });
-
   it('walks an application from submission through approval, attributed to the reviewer', () => {
     const controller = buildController();
     const application = controller.submit(validSubmission);
 
-    controller.read(application.id, 'reviewer-1');
-    controller.beginReview(application.id, 'reviewer-1');
-    const approved = controller.approve(application.id, 'reviewer-1');
+    controller.read(reviewer, application.id);
+    controller.beginReview(reviewer, application.id);
+    const approved = controller.approve(reviewer, application.id);
 
     expect(approved.status).toBe('APPROVED');
-    expect(approved.reviewerId).toBe('reviewer-1');
+    expect(approved.reviewerId).toBe(reviewer.subjectId);
 
     const log = controller.auditLog(application.id);
     expect(log.items.map((entry) => entry.action)).toEqual([
@@ -70,9 +68,9 @@ describe('CredentialingController reviewer routes', () => {
   it('rejects with a reason', () => {
     const controller = buildController();
     const application = controller.submit(validSubmission);
-    controller.beginReview(application.id, 'reviewer-1');
+    controller.beginReview(reviewer, application.id);
 
-    const rejected = controller.reject(application.id, { reason: 'Blurred certificate' }, 'reviewer-1');
+    const rejected = controller.reject(reviewer, application.id, { reason: 'Blurred certificate' });
     expect(rejected.status).toBe('REJECTED');
     expect(rejected.rejectionReason).toBe('Blurred certificate');
   });
@@ -80,14 +78,14 @@ describe('CredentialingController reviewer routes', () => {
   it('rejects a reject body with no reason', () => {
     const controller = buildController();
     const application = controller.submit(validSubmission);
-    controller.beginReview(application.id, 'reviewer-1');
+    controller.beginReview(reviewer, application.id);
 
-    expect(() => controller.reject(application.id, {}, 'reviewer-1')).toThrow(BadRequestException);
+    expect(() => controller.reject(reviewer, application.id, {})).toThrow(BadRequestException);
   });
 
   it('404s reviewer routes for an unknown application', () => {
     const controller = buildController();
-    expect(() => controller.read('missing', 'reviewer-1')).toThrow(NotFoundException);
+    expect(() => controller.read(reviewer, 'missing')).toThrow(NotFoundException);
     expect(() => controller.auditLog('missing')).toThrow(NotFoundException);
   });
 

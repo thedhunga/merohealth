@@ -791,6 +791,19 @@ suite grows. A module that "works" but has no outage test is not finished.
       vein came back exhausted. See the 2026-08-13 log entry below (the one
       added by this run) for the trace and why the eyebrow badges stayed
       untouched.
+- [x] Closed a real unauthenticated-access gap on
+      `apps/api`'s credentialing review routes: `ReviewerGuard` authorized
+      purely off two client-supplied headers (`x-reviewer-role`,
+      `x-reviewer-id`) with no session check at all, so anyone could declare
+      `x-reviewer-role: CLINICAL_REVIEWER` and approve a council application
+      (granting a public "verified" badge to an unlicensed applicant), read
+      an applicant's certificate/government-ID photographs, or write a
+      falsifiable entry to the audit log. Found by a fresh independent
+      survey after the mobile-i18n vein was declared exhausted. See the
+      2026-08-13 log entry below (the one added by this run) for the trace,
+      the fix (`SessionAuthGuard` ahead of `ReviewerGuard`, role read from
+      the verified session), and the sibling instance in
+      `packages/language-corpus`'s reviewer guard left open.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -814,6 +827,81 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; closed an unauthenticated-access gap on
+  `apps/api`'s credentialing review routes — `ReviewerGuard` authorized off
+  two forgeable client headers instead of a verified session.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. Delegated a fresh
+  independent survey (an `Explore` subagent, read-only) instructed to avoid
+  every already-mined vein this log lists and both standing
+  product-decision items (the `health-records` status-guard question and
+  the clinical-suite clinician-identity gap). It returned one strong, traced
+  candidate; this run independently re-verified it by reading
+  `reviewer.guard.ts`, `credentialing.controller.ts`, `session-auth.guard.ts`
+  and `entitlements.guard.ts` before touching anything, per this ledger's
+  "trust but verify" habit for delegated work.
+
+  **What was found.** `apps/api/src/credentialing/reviewer.guard.ts`, which
+  gates the entire clinician-credentialing review workflow
+  (`GET /credentialing/queue`, the evidence-read route, `begin-review`,
+  `approve`, `reject`, `audit-log`), authorized purely by string-comparing
+  two client-supplied headers, `x-reviewer-role` and `x-reviewer-id` — no
+  session verification at all. Its own doc comment justified this by saying
+  "there is still no identity/auth layer anywhere in this repo." That has
+  been false since `SessionAuthGuard`/`AuthService` shipped (Round two A3)
+  and `UserRole.CLINICAL_REVIEWER` has existed in the Prisma enum the whole
+  time; nobody had revisited this guard since. Concretely: an
+  unauthenticated caller sending `x-reviewer-role: CLINICAL_REVIEWER` with
+  any `x-reviewer-id` could `POST .../approve` to grant a publicly-displayed
+  "verified NMC/NNC/..." badge to an unlicensed applicant
+  (`credentialing.service.ts` → `packages/credentialing`'s
+  `approveApplication`), `GET` an applicant's certificate and
+  government-ID photographs, and have every action attributed in the audit
+  log to whatever `reviewerId` string they typed — the audit trail itself
+  was falsifiable. `packages/language-corpus`'s
+  `corpus-reviewer.guard.ts` is a structural copy of the same pattern
+  guarding human review of de-identified conversational text, but
+  `CORPUS_REVIEWER` isn't yet in the `UserRole` enum, so fixing it needs a
+  migration first — left open below rather than folded into this run.
+
+  **What was built.** `ReviewerGuard.canActivate` now reads
+  `request.authUser` (only `SessionAuthGuard` populates it, from a verified
+  session token) and checks `user.role === CLINICAL_REVIEWER_ROLE`, dropping
+  the two header constants and the header-parsing helper entirely. Every
+  reviewer route in `credentialing.controller.ts` now carries
+  `@UseGuards(SessionAuthGuard, ReviewerGuard)` — the same guard-order
+  convention `EntitlementsGuard`'s own doc comment established — and the
+  five routes that previously read `@Headers(REVIEWER_ID_HEADER)` now take
+  `@CurrentUser() user: CurrentUserResult` and use `user.subjectId` as the
+  reviewer id attributed on every audit entry, matching
+  `RecordsController`'s existing `@CurrentUser()` pattern exactly.
+  `CredentialingModule` now imports `AuthModule` for the guard, the same
+  "import the module, get the guard" wiring `RecordsModule` already uses.
+  Updated `reviewer.guard.test.ts` (now exercises a fake `CurrentUserResult`
+  instead of raw headers, plus a new "rejects a patient session" case for
+  the actual attacker-shaped input) and `credentialing.controller.test.ts`
+  (calls now pass a fake reviewer `CurrentUserResult` instead of a bare
+  string; dropped the one test that asserted the old
+  header-required-even-though-guard-screens-it-first behavior, since that
+  behavior no longer exists — the guard alone now enforces authentication,
+  nothing left for the controller to re-check).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 602/602 (net −2 from the two removed header-only test
+  cases described above, no test weakened, both replaced by session-based
+  equivalents covering the same guard boundary). `pnpm build` 40/40 (35
+  cached).
+
+  **For the next run.** The two standing product-decision items are
+  unchanged and still not this run's to resolve: `packages/health-records`'s
+  status-guard question and the clinical-suite's missing
+  clinician-identity model. New, concrete follow-up this run leaves open:
+  `packages/language-corpus`'s `corpus-reviewer.guard.ts` has the identical
+  forgeable-header pattern this run just fixed, but needs a `UserRole`
+  migration (`CORPUS_REVIEWER` is not yet in the Prisma enum) before it can
+  get the same treatment — a real, scoped, unblocked candidate for whoever
+  picks it up next.
 
 - 2026-08-13 — **Queue fully checked; `apps/mobile/app/(tabs)/learn.tsx`'s
   interactive walkthrough now follows the `language` toggle instead of

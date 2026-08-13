@@ -1,49 +1,49 @@
-import { BadRequestException, ForbiddenException, type ExecutionContext } from '@nestjs/common';
+import { ForbiddenException, type ExecutionContext } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { REVIEWER_ID_HEADER, REVIEWER_ROLE_HEADER, ReviewerGuard } from './reviewer.guard.js';
+import type { CurrentUserResult } from '../auth/auth.service.js';
+import { CLINICAL_REVIEWER_ROLE, ReviewerGuard } from './reviewer.guard.js';
 
-function makeContext(headers: Record<string, string | string[] | undefined>): ExecutionContext {
+function makeContext(authUser: CurrentUserResult | undefined): ExecutionContext {
   return {
-    switchToHttp: () => ({ getRequest: () => ({ headers }), getResponse: () => ({}), getNext: () => undefined }),
+    switchToHttp: () => ({ getRequest: () => ({ headers: {}, authUser }), getResponse: () => ({}), getNext: () => undefined }),
   } as unknown as ExecutionContext;
 }
 
+function buildUser(role: CurrentUserResult['user']['role']): CurrentUserResult {
+  return {
+    subjectId: 'reviewer-1',
+    user: { id: 'reviewer-1', phone: '9812345678', role, locale: 'ne' },
+    patientProfileId: null,
+    assuranceLevel: 'REGISTERED',
+  };
+}
+
 describe('ReviewerGuard', () => {
-  it('allows a request declaring the CLINICAL_REVIEWER role with a reviewer id', () => {
+  it('allows a verified session whose role is CLINICAL_REVIEWER', () => {
     const guard = new ReviewerGuard();
-    const context = makeContext({ [REVIEWER_ROLE_HEADER]: 'CLINICAL_REVIEWER', [REVIEWER_ID_HEADER]: 'reviewer-1' });
+    const context = makeContext(buildUser(CLINICAL_REVIEWER_ROLE));
 
     expect(guard.canActivate(context)).toBe(true);
   });
 
-  it('rejects a request with no declared role', () => {
+  it('rejects a request with no session at all', () => {
     const guard = new ReviewerGuard();
-    const context = makeContext({ [REVIEWER_ID_HEADER]: 'reviewer-1' });
+    const context = makeContext(undefined);
 
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
   });
 
-  it('rejects a role other than CLINICAL_REVIEWER — no general admin power', () => {
+  it('rejects a verified session whose role is not CLINICAL_REVIEWER — no general admin power', () => {
     const guard = new ReviewerGuard();
-    const context = makeContext({ [REVIEWER_ROLE_HEADER]: 'SUPER_ADMIN', [REVIEWER_ID_HEADER]: 'reviewer-1' });
+    const context = makeContext(buildUser('SUPER_ADMIN'));
 
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
   });
 
-  it('rejects a declared reviewer role with no reviewer id to attribute actions to', () => {
+  it('rejects a patient session, the common case an attacker actually has', () => {
     const guard = new ReviewerGuard();
-    const context = makeContext({ [REVIEWER_ROLE_HEADER]: 'CLINICAL_REVIEWER' });
+    const context = makeContext(buildUser('PATIENT'));
 
-    expect(() => guard.canActivate(context)).toThrow(BadRequestException);
-  });
-
-  it('reads the first value when a header repeats, the same array shape Node HTTP headers can produce', () => {
-    const guard = new ReviewerGuard();
-    const context = makeContext({
-      [REVIEWER_ROLE_HEADER]: ['CLINICAL_REVIEWER', 'SUPER_ADMIN'],
-      [REVIEWER_ID_HEADER]: ['reviewer-1'],
-    });
-
-    expect(guard.canActivate(context)).toBe(true);
+    expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
   });
 });
