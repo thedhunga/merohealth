@@ -850,6 +850,18 @@ suite grows. A module that "works" but has no outage test is not finished.
       independent survey found it, why the 2026-08-12 test-coverage run for
       this same rule missed it, and the fix.
 
+- [x] Fixed the same word-order gap the 2026-08-13 `emergency-chest-001` fix
+      found, present in `pregnancy-warning-001` and `pediatric-warning-001`:
+      both rules' English and Nepali phrases required the person/context word
+      (`pregnant`/`pregnancy`, `गर्भवती`; `baby`/`infant`, `बच्चा`) to appear
+      *before* the symptom word, so a message that led with the symptom (e.g.
+      "I have a severe headache, I am pregnant") fell through to
+      `CLINICIAN_RECOMMENDED` instead of triggering the maternal/pediatric
+      concern level. `self-harm-001` was checked and confirmed clean — its
+      phrases are single fixed strings with no ordering component. See the
+      2026-08-13 log entry below (the one added by this run) for the fix and
+      the new order-reversed test cases in both languages.
+
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
 unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
@@ -872,6 +884,74 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; fixed the sibling word-order bug in
+  `packages/clinical-safety`'s `pregnancy-warning-001` and
+  `pediatric-warning-001` rules, the exact follow-up the prior run's own log
+  entry left open.** Grepped for `- [ ]` first — zero hits, same as every
+  recent run. The prior (same-day) log entry, on fixing
+  `emergency-chest-001`'s trailing-severity-word ordering bug, named this
+  directly as unfinished: "No other rule in `safetyRules` showed the same
+  order-dependency on a quick re-check of `self-harm-001`,
+  `pregnancy-warning-001` and `pediatric-warning-001`, but that was not a
+  full independent survey ... worth a dedicated look before assuming they're
+  clean." Rather than trust that quick re-check, tested each rule's regexes
+  directly against reversed-order input in Node before touching any code.
+
+  **What was found.** `self-harm-001` is clean — its phrases (`kill myself`,
+  `suicide`, `end my life`, `आत्महत्या`, `मर्न मन लाग`, `aatmahatya`) are
+  single fixed strings with no two-part ordering to get wrong.
+  `pregnancy-warning-001` and `pediatric-warning-001` both had the identical
+  bug class the chest-pain fix addressed, in **both** their English and
+  Nepali phrases:
+  `/(pregnant|pregnancy).*(heavy bleeding|seizure|severe headache)/i` matched
+  `'I am pregnant and have a severe headache'` but not
+  `'I have a severe headache, I am pregnant'`
+  (`preg.test(...)` confirmed `true` then `false`); the Nepali
+  `/गर्भवती.*(धेरै रगत|दौरा|कडा टाउको)/u` showed the same gap
+  (`'धेरै रगत बगिरहेको छ, गर्भवती छु'` failed to match). Symmetrically,
+  `/(baby|infant).*(blue|not breathing|unresponsive|seizure)/i` matched
+  `'my baby is not breathing'` but not `'not breathing, my baby is'`, and
+  Nepali `/बच्चा.*(नीलो|सास.*छैन|बेहोस|दौरा)/u` failed on
+  `'दौरा आयो, बच्चालाई'`. Both routes sit in the same live
+  `assessSafety` path as the chest-pain rule, so a pregnant or infant
+  emergency reported symptom-first — a phrasing at least as natural as
+  leading with the person, especially for someone typing under stress —
+  would have silently downgraded to `CLINICIAN_RECOMMENDED` with
+  `interruptConversation: false`.
+
+  **What was built.** Applied the identical fix as the chest-pain rule: each
+  ordered `.*` pattern became two independent lookaheads
+  (`/(?=.*(pregnant|pregnancy))(?=.*(heavy bleeding|seizure|severe
+  headache))/i` and its Nepali/pediatric siblings), so the two required
+  clauses can appear in either order without inventing new trigger words.
+  Left the pediatric Nepali alternation's internal `सास.*छैन` ("no breath")
+  untouched — that is a fixed-order compound phrase for "not breathing," not
+  the person-vs-symptom ordering this run targeted, and changing it would be
+  scope creep on a different question. Added four new
+  `it.each` cases to `index.test.ts` covering the reversed order in both
+  languages for both rules.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (17.6s, no lockfile
+  change — dependencies were not yet installed in this sandbox, so this was
+  a real fresh install, not a no-op). `pnpm lint` 40/40. `pnpm typecheck`
+  40/40. `pnpm test` 75/75 turbo tasks — `@swasthya/clinical-safety` 18/18
+  (net +4, confirmed directly with `pnpm --filter @swasthya/clinical-safety
+  test`), `@swasthya/api` 602/602 unchanged. `pnpm build` 40/40 (35 cached).
+
+  **For the next run.** All three non-chest-pain rules named in the prior
+  entry are now confirmed either clean (`self-harm-001`) or fixed
+  (`pregnancy-warning-001`, `pediatric-warning-001`) — this specific
+  order-dependency vein in `packages/clinical-safety` is exhausted; don't
+  re-survey it without a new reason to suspect it. `emergency-breathing-001`
+  was not checked by this run (its phrases are also single fixed strings
+  like `self-harm-001`'s, so it is unlikely to share the bug, but that is an
+  inference, not a verified check). The two standing product-decision items
+  are unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model (blocking `teleconsultation`'s remaining
+  ungated routes and the same shape across `patient-registry`, `billing`,
+  `prescribing`, etc.).
 
 - 2026-08-13 — **Queue fully checked; fixed a live word-order bug in
   `packages/clinical-safety`'s `emergency-chest-001` rule.** Grepped for
