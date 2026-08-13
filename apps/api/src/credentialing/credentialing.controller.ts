@@ -10,7 +10,6 @@ import { ReviewerGuard } from './reviewer.guard.js';
 const councilKeySchema = z.enum(['NMC', 'NNC', 'NHPC', 'PHARMACY_COUNCIL', 'AYURVEDIC_COUNCIL']);
 
 const submitSchema = z.object({
-  applicantId: z.string().trim().min(1),
   council: councilKeySchema,
   registrationNumber: z.string().trim().min(1),
   certificateImageRef: z.string().trim().min(1),
@@ -38,14 +37,22 @@ function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
 export class CredentialingController {
   constructor(private readonly credentialing: CredentialingService) {}
 
+  // Every other route on this controller runs behind `SessionAuthGuard`
+  // (see `ReviewerGuard`'s own doc comment for that history) but this one
+  // never did, and `applicantId` was an ordinary body field — an
+  // unauthenticated caller could submit or resubmit an application under any
+  // known/guessed subject id, clobbering that person's pending submission
+  // with forged evidence for a reviewer to later approve. The applicant id
+  // now comes from the verified session, matching `FamilyGrantsController`'s
+  // `createDelegation` convention, not the request body.
   @Post('applications')
+  @UseGuards(SessionAuthGuard)
   @ApiOperation({ summary: 'Submit, or resubmit after rejection, a council application' })
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['applicantId', 'council', 'registrationNumber', 'certificateImageRef', 'identityImageRef'],
+      required: ['council', 'registrationNumber', 'certificateImageRef', 'identityImageRef'],
       properties: {
-        applicantId: { type: 'string' },
         council: { enum: councilKeySchema.options },
         registrationNumber: { type: 'string' },
         certificateImageRef: { type: 'string' },
@@ -53,8 +60,9 @@ export class CredentialingController {
       },
     },
   })
-  submit(@Body() body: unknown) {
-    return this.credentialing.submit(parseOrThrow(submitSchema, body));
+  submit(@CurrentUser() user: CurrentUserResult, @Body() body: unknown) {
+    const input = parseOrThrow(submitSchema, body);
+    return this.credentialing.submit({ ...input, applicantId: user.subjectId });
   }
 
   @Get('queue')

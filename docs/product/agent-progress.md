@@ -862,6 +862,15 @@ suite grows. A module that "works" but has no outage test is not finished.
       2026-08-13 log entry below (the one added by this run) for the fix and
       the new order-reversed test cases in both languages.
 
+- [x] Closed an unauthenticated write gap on `apps/api`'s
+      `CredentialingController.submit` (`POST /credentialing/applications`):
+      it was the one route on the controller with no `SessionAuthGuard`,
+      taking `applicantId` straight from the request body — the same
+      unguarded-owner-id shape the records/language-corpus fixes closed,
+      found by a fresh independent survey after the clinical-safety
+      word-order vein was declared exhausted. See the 2026-08-13 log entry
+      below (the one added by this run) for the trace and the fix.
+
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
 unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
@@ -884,6 +893,75 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; closed an unauthenticated write gap on
+  `apps/api`'s `CredentialingController.submit` route.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. Rather than trust
+  the prior entry's "for the next run" guesses, delegated a fresh
+  independent survey (a general-purpose agent, briefed on every vein
+  already exhausted: cross-owner/unguarded-ownerId access control on
+  records/language-corpus/credentialing-review routes, ISO-instant
+  validation, ne-Latn fallbacks, share-link TTL, double-booking,
+  EntitlementsGuard/RequireModule wiring, identity assurance-level
+  enforcement, negative-reading validation, filename sanitization, DRY
+  dedup, mobile i18n, classifyIntent/termAppears retrieval bugs, the
+  analytics-source extensions, and the clinical-safety word-order rules) to
+  independently re-read the code rather than the ledger's own prose.
+
+  **What was found.** `credentialing.controller.ts`'s `submit()`
+  (`POST /credentialing/applications`) was the one route on that controller
+  with no `@UseGuards(SessionAuthGuard, ...)` — every reviewer route
+  (`queue`, `read`, `beginReview`, `approve`, `reject`, `auditLog`) was
+  already upgraded to `SessionAuthGuard`/`ReviewerGuard` when that guard's
+  own forgeable-header gap was closed, but the applicant-facing submission
+  route was never given the same treatment. `submitSchema` took
+  `applicantId` as an ordinary body field, and `CredentialingService.submit`
+  finds-or-creates an application keyed purely on that id
+  (`findByApplicant(input.applicantId)`). An unauthenticated caller who
+  knew or guessed a real subject id could submit or resubmit an application
+  under it — `submitApplication`'s resubmission path clears any prior
+  `rejectionReason` and overwrites `registrationNumber`/
+  `certificateImageRef`/`identityImageRef` with attacker-supplied values —
+  and a reviewer working the queue later would see a plausible-looking
+  submission and could approve it, rendering a `VERIFIED` badge against a
+  forged registration number attributed to a real person's subject id. No
+  live caller of the API route exists yet (`apps/web`'s
+  `clinician-application.ts` calls `@swasthya/credentialing`'s
+  `submitApplication` directly, client-side, with nowhere to send it — a
+  separate, already-documented gap), so this was an open door with no
+  current traffic through it rather than an active exploit, but the same
+  was true of the `language-corpus` ingest gap this run's survey was
+  briefed on as already closed.
+
+  **What was built.** Added `@UseGuards(SessionAuthGuard)` to `submit()`,
+  removed `applicantId` from `submitSchema` and the Swagger `@ApiBody`
+  schema, and now derive it from `@CurrentUser().subjectId` — the same
+  convention `FamilyGrantsController.createDelegation` already uses and
+  documents (a forged owner id must never come from something the client
+  typed). Updated `credentialing.controller.test.ts` to pass a
+  `CurrentUserResult` and assert that an `applicantId` smuggled into the
+  body is ignored in favour of the session subject, plus
+  `patient-registry.fault-isolation.test.ts`, the one other test file
+  calling `CredentialingController.submit` directly, to match the new
+  signature.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (18.7s). `pnpm lint`
+  40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 602/602 (net unchanged test count: two existing tests
+  were adapted, one new assertion added inside an existing test rather than
+  as a new `it`). `pnpm build` 40/40 (35 cached).
+
+  **For the next run.** The two standing product-decision items are
+  unchanged and still not this run's to resolve: `packages/health-records`'s
+  status-guard question and the clinical-suite's missing clinician-identity
+  model. `apps/web`'s `clinician-application.ts` still has no live backend
+  call (it builds and returns a `CredentialingApplication` purely
+  client-side with a comment explaining `apps/web` has no backend caller
+  yet) — wiring it to the now-guarded `POST /credentialing/applications`
+  would need a signed-in web session flow to attach the auth cookie/token
+  to, which does not obviously exist yet on `apps/web`'s clinician
+  registration page; worth checking before assuming it is a one-line fetch
+  call.
 
 - 2026-08-13 — **Queue fully checked; fixed the sibling word-order bug in
   `packages/clinical-safety`'s `pregnancy-warning-001` and

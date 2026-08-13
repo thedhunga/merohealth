@@ -16,8 +16,21 @@ const reviewer: CurrentUserResult = {
   assuranceLevel: 'REGISTERED',
 };
 
+const applicant: CurrentUserResult = {
+  subjectId: 'applicant-1',
+  user: { id: 'applicant-1', phone: '9811111111', role: 'PATIENT', locale: 'ne' },
+  patientProfileId: null,
+  assuranceLevel: 'REGISTERED',
+};
+
+const otherApplicant: CurrentUserResult = {
+  subjectId: 'applicant-2',
+  user: { id: 'applicant-2', phone: '9822222222', role: 'PATIENT', locale: 'ne' },
+  patientProfileId: null,
+  assuranceLevel: 'REGISTERED',
+};
+
 const validSubmission = {
-  applicantId: 'applicant-1',
   council: 'NMC',
   registrationNumber: 'NMC-12345',
   certificateImageRef: 'ref:certificate',
@@ -25,21 +38,24 @@ const validSubmission = {
 };
 
 describe('CredentialingController submit', () => {
-  it('submits a valid application', () => {
+  it('submits a valid application under the signed-in caller, ignoring any applicantId in the body', () => {
     const controller = buildController();
-    const application = controller.submit(validSubmission);
+    const application = controller.submit(applicant, { ...validSubmission, applicantId: 'someone-else' });
 
     expect(application.status).toBe('EVIDENCE_SUBMITTED');
+    expect(application.applicantId).toBe(applicant.subjectId);
   });
 
   it('rejects a request missing a required field', () => {
     const controller = buildController();
-    expect(() => controller.submit({ ...validSubmission, applicantId: undefined })).toThrow(BadRequestException);
+    expect(() => controller.submit(applicant, { ...validSubmission, council: undefined })).toThrow(
+      BadRequestException,
+    );
   });
 
   it('rejects an unknown council rather than silently accepting it', () => {
     const controller = buildController();
-    expect(() => controller.submit({ ...validSubmission, council: 'NOT_A_REAL_COUNCIL' })).toThrow(
+    expect(() => controller.submit(applicant, { ...validSubmission, council: 'NOT_A_REAL_COUNCIL' })).toThrow(
       BadRequestException,
     );
   });
@@ -48,7 +64,7 @@ describe('CredentialingController submit', () => {
 describe('CredentialingController reviewer routes', () => {
   it('walks an application from submission through approval, attributed to the reviewer', () => {
     const controller = buildController();
-    const application = controller.submit(validSubmission);
+    const application = controller.submit(applicant, validSubmission);
 
     controller.read(reviewer, application.id);
     controller.beginReview(reviewer, application.id);
@@ -67,7 +83,7 @@ describe('CredentialingController reviewer routes', () => {
 
   it('rejects with a reason', () => {
     const controller = buildController();
-    const application = controller.submit(validSubmission);
+    const application = controller.submit(applicant, validSubmission);
     controller.beginReview(reviewer, application.id);
 
     const rejected = controller.reject(reviewer, application.id, { reason: 'Blurred certificate' });
@@ -77,7 +93,7 @@ describe('CredentialingController reviewer routes', () => {
 
   it('rejects a reject body with no reason', () => {
     const controller = buildController();
-    const application = controller.submit(validSubmission);
+    const application = controller.submit(applicant, validSubmission);
     controller.beginReview(reviewer, application.id);
 
     expect(() => controller.reject(reviewer, application.id, {})).toThrow(BadRequestException);
@@ -91,8 +107,8 @@ describe('CredentialingController reviewer routes', () => {
 
   it('lists the queue', () => {
     const controller = buildController();
-    controller.submit(validSubmission);
-    controller.submit({ ...validSubmission, applicantId: 'applicant-2' });
+    controller.submit(applicant, validSubmission);
+    controller.submit(otherApplicant, validSubmission);
 
     expect(controller.queue().total).toBe(2);
   });
