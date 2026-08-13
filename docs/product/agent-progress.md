@@ -987,11 +987,83 @@ re-read the table itself rather than trust this paragraph.
       below (the one added by this run) for the full design and why
       `findMine` returns `null` rather than `IdentityService.findMine`'s
       unpersisted shell.
+- [x] Gated `RegisterView.tsx`'s "start a new application" button to
+      `application.status === 'REJECTED'` only, instead of rendering it for
+      every reachable status. See the 2026-08-13 log entry below (the one
+      added by this run) for why the unconditional button was a real,
+      reachable dead end.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; gated `RegisterView.tsx`'s "start a new
+  application" button to the one status it can actually succeed from.**
+  Grepped for `- [ ]` first — zero hits, same as every recent run.
+  Commissioned a fresh independent general-purpose survey agent, briefed on
+  every vein already exhausted (cross-owner/unguarded-`ownerId` access
+  control, ISO-instant/date validation, `ne-Latn` collapse, share-link
+  TTL/entitlements gating, double-booking, negative-reading validation,
+  filename sanitization, `normalizeLabel` dedup, mobile i18n,
+  `classifyIntent`/`termAppears` retrieval bugs, the analytics-source
+  extensions, the emergency-rule word-order/apostrophe fixes, the `next=`
+  redirect chain, and `ApplicationTransitionError` mapping) and told not to
+  re-propose either standing product-decision item (`packages/health-records`'s
+  status-guard question; the clinical-suite's missing clinician-identity
+  model, which is why `diagnostics-orders`/`prescribing`/`referrals`/
+  `billing`/`engagement`/`analytics`/`clinical-charting`/`medication-safety`/
+  `population-health`/`directory`/`scheduling`/`teleconsultation`/
+  `patient-registry` all have zero `SessionAuthGuard` — confirmed again this
+  run, still not a fresh finding).
+
+  **What was found.** `RegisterView.tsx`'s `status` step (built two runs ago
+  to show `EVIDENCE_SUBMITTED`/`UNDER_REVIEW`/`APPROVED`/`REJECTED`) rendered
+  an unconditional "start a new application" button (`resetFlow`, wired to
+  `status.startOverCta`) beneath every one of those four statuses.
+  `packages/credentialing`'s `transitions` table
+  (`canTransitionApplication`) only permits re-entering `EVIDENCE_SUBMITTED`
+  from `NOT_STARTED` or `REJECTED` — `EVIDENCE_SUBMITTED`, `UNDER_REVIEW` and
+  `APPROVED` all map to either no further transition or one that excludes
+  re-submission. Concretely reachable, not hypothetical: an applicant who
+  was `UNDER_REVIEW` or already `APPROVED` and clicked the button would
+  refill the entire three-step form (council, two photo captures, review),
+  then have the real submit throw `ApplicationTransitionError` back at her —
+  and because `resetFlow` also clears local `application` state to `null`
+  with no re-fetch trigger (the existing-application effect is keyed on
+  `session.status`, which does not change), she would lose on-screen
+  visibility into her real, already-good status until a page reload. The
+  sibling component this one was explicitly built to mirror,
+  `IdentityVerification.tsx`, already gates its equivalent action
+  (`canSubmit`) on `status === 'NOT_STARTED' || status === 'REJECTED'` — this
+  was a real, traceable inconsistency between two near-identical, recently
+  built components, not a speculative gap.
+
+  **The fix.** Wrapped the existing button in
+  `application.status === 'REJECTED' ? … : null`. `NOT_STARTED` never
+  reaches this branch (`application` is only ever set from a persisted
+  record — `getMyCredentialingApplication` returns `null`, not a shell, for
+  a first-time applicant), so `REJECTED` is the only condition needed. No
+  message-file changes: `startOverCta`'s copy was already correct for the
+  one case where it will now actually show. No test file touched or added —
+  confirmed (again) that zero `.test.tsx` files exist anywhere in
+  `apps/web/src`; this multi-step capture flow has never had one, matching
+  the same convention `identity-api.test.ts`/`credentialing-api.test.ts`
+  note for their own sibling components.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean. `pnpm lint` 40/40.
+  `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks, 643/643 `@swasthya/api`
+  tests unchanged (this fix touched no test-covered surface). `pnpm build`
+  40/40.
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve. The survey's runner-up
+  candidate — a real `apps/mobile` equivalent of `IdentityVerification.tsx`
+  — is real but explicitly scoped larger than a single run (a full mobile
+  capture screen, not a small fix) by the run that originally built the web
+  version; still open for whoever wants to take it on deliberately. A fresh
+  independent survey is still the right way to pick whatever comes after
+  that.
 
 - 2026-08-13 — **Queue fully checked; closed a reachability gap on
   `CredentialingController`: applicants had no way to read their own

@@ -435,11 +435,22 @@ export function RegisterView() {
               <p className="rounded-2xl bg-sand/70 p-4 text-sm leading-relaxed text-ink-soft ring-1 ring-line">
                 {t('status.demoNotice')}
               </p>
-              <div>
-                <Button onClick={resetFlow} variant="secondary">
-                  {t('status.startOverCta')}
-                </Button>
-              </div>
+              {/* `canTransitionApplication` (`packages/credentialing`) only permits
+                  re-entering `EVIDENCE_SUBMITTED` from `REJECTED` (or `NOT_STARTED`,
+                  which never reaches this branch — `application` is only ever a
+                  persisted record). Showing this for `EVIDENCE_SUBMITTED`/
+                  `UNDER_REVIEW`/`APPROVED` would let a clinician refill the whole
+                  form only to have the real submit throw `ApplicationTransitionError`,
+                  and `resetFlow` clears `application` to `null` with nothing left to
+                  re-fetch it, losing her real status until a reload. Same gate
+                  `IdentityVerification.tsx`'s `canSubmit` already applies. */}
+              {application.status === 'REJECTED' ? (
+                <div>
+                  <Button onClick={resetFlow} variant="secondary">
+                    {t('status.startOverCta')}
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
