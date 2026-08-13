@@ -54,7 +54,7 @@ describe('RecordsController auth wiring', () => {
 // plain method call bypasses Nest's guard/decorator pipeline entirely.
 const currentUser: CurrentUserResult = {
   subjectId: 'owner-1',
-  user: { id: 'owner-1', phone: '9812345678', role: 'PATIENT', locale: 'ne' },
+  user: { id: 'owner-1', phone: '9812345678', role: 'PATIENT', locale: 'ne', assuranceLevel: 'REGISTERED' },
   patientProfileId: null,
   assuranceLevel: 'REGISTERED',
 };

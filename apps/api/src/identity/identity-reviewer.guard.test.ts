@@ -1,7 +1,7 @@
 import { ForbiddenException, type ExecutionContext } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import type { CurrentUserResult } from '../auth/auth.service.js';
-import { CORPUS_REVIEWER_ROLE, CorpusReviewerGuard } from './corpus-reviewer.guard.js';
+import { IDENTITY_REVIEWER_ROLE, IdentityReviewerGuard } from './identity-reviewer.guard.js';
 
 function makeContext(authUser: CurrentUserResult | undefined): ExecutionContext {
   return {
@@ -18,37 +18,37 @@ function buildUser(role: CurrentUserResult['user']['role']): CurrentUserResult {
   };
 }
 
-describe('CorpusReviewerGuard', () => {
-  it('allows a verified session whose role is CORPUS_REVIEWER', () => {
-    const guard = new CorpusReviewerGuard();
-    const context = makeContext(buildUser(CORPUS_REVIEWER_ROLE));
+describe('IdentityReviewerGuard', () => {
+  it('allows a verified session whose role is IDENTITY_REVIEWER', () => {
+    const guard = new IdentityReviewerGuard();
+    const context = makeContext(buildUser(IDENTITY_REVIEWER_ROLE));
 
     expect(guard.canActivate(context)).toBe(true);
   });
 
   it('rejects a request with no session at all', () => {
-    const guard = new CorpusReviewerGuard();
+    const guard = new IdentityReviewerGuard();
     const context = makeContext(undefined);
 
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
   });
 
-  it('rejects the credentialing role — a distinct queue needs its own declared role, not a borrowed one', () => {
-    const guard = new CorpusReviewerGuard();
-    const context = makeContext(buildUser('CLINICAL_REVIEWER'));
-
-    expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
-  });
-
-  it('rejects a role other than CORPUS_REVIEWER — no general admin power', () => {
-    const guard = new CorpusReviewerGuard();
+  it('rejects a verified session whose role is not IDENTITY_REVIEWER — no general admin power', () => {
+    const guard = new IdentityReviewerGuard();
     const context = makeContext(buildUser('SUPER_ADMIN'));
 
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
   });
 
+  it('rejects a CLINICAL_REVIEWER session — a distinct trust boundary, not a shared reviewer power', () => {
+    const guard = new IdentityReviewerGuard();
+    const context = makeContext(buildUser('CLINICAL_REVIEWER'));
+
+    expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+  });
+
   it('rejects a patient session, the common case an attacker actually has', () => {
-    const guard = new CorpusReviewerGuard();
+    const guard = new IdentityReviewerGuard();
     const context = makeContext(buildUser('PATIENT'));
 
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);

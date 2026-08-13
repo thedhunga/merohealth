@@ -19,8 +19,18 @@ enum UserRole {
   ORG_ADMIN
   CLINICAL_REVIEWER
   CORPUS_REVIEWER
+  IDENTITY_REVIEWER
   SUPPORT
   SUPER_ADMIN
+}
+
+// `packages/identity`'s `AssuranceLevel` ladder, minus `ANONYMOUS` — a `User`
+// row only ever exists once someone has reached `REGISTERED` (phone + OTP),
+// so that rung has no representation here. `raiseAssurance` in
+// `packages/identity` still models all three; this is the persisted subset.
+enum AssuranceLevel {
+  REGISTERED
+  IDENTITY_VERIFIED
 }
 
 enum VerificationStatus {
@@ -142,15 +152,20 @@ enum ConsentMethod {
 }
 
 model User {
-  id         String    @id @default(uuid()) @db.Uuid
-  email      String?   @unique
-  phone      String?   @unique
-  role       UserRole
-  locale     String    @default("ne")
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  disabledAt DateTime?
-  version    Int       @default(1)
+  id             String         @id @default(uuid()) @db.Uuid
+  email          String?        @unique
+  phone          String?        @unique
+  role           UserRole
+  locale         String         @default("ne")
+  // Round two D9 — reachable only via `IdentityController.approve`'s call
+  // into `AuthStore.markIdentityVerified`, never written directly, so a jump
+  // straight to `IDENTITY_VERIFIED` without a decided `VerificationRequest`
+  // stays impossible by construction rather than by convention.
+  assuranceLevel AssuranceLevel @default(REGISTERED)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  disabledAt     DateTime?
+  version        Int            @default(1)
 }
 
 // Round two A3 (phone + OTP). One row per code sent; `codeHash` is an HMAC,

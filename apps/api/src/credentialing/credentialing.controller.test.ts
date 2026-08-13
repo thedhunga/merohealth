@@ -11,21 +11,21 @@ function buildController() {
 
 const reviewer: CurrentUserResult = {
   subjectId: 'reviewer-1',
-  user: { id: 'reviewer-1', phone: '9812345678', role: 'CLINICAL_REVIEWER', locale: 'ne' },
+  user: { id: 'reviewer-1', phone: '9812345678', role: 'CLINICAL_REVIEWER', locale: 'ne', assuranceLevel: 'REGISTERED' },
   patientProfileId: null,
   assuranceLevel: 'REGISTERED',
 };
 
 const applicant: CurrentUserResult = {
   subjectId: 'applicant-1',
-  user: { id: 'applicant-1', phone: '9811111111', role: 'PATIENT', locale: 'ne' },
+  user: { id: 'applicant-1', phone: '9811111111', role: 'PATIENT', locale: 'ne', assuranceLevel: 'REGISTERED' },
   patientProfileId: null,
   assuranceLevel: 'REGISTERED',
 };
 
 const otherApplicant: CurrentUserResult = {
   subjectId: 'applicant-2',
-  user: { id: 'applicant-2', phone: '9822222222', role: 'PATIENT', locale: 'ne' },
+  user: { id: 'applicant-2', phone: '9822222222', role: 'PATIENT', locale: 'ne', assuranceLevel: 'REGISTERED' },
   patientProfileId: null,
   assuranceLevel: 'REGISTERED',
 };

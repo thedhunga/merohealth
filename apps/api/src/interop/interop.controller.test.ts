@@ -40,7 +40,7 @@ function buildController() {
 // `records.controller.test.ts`'s own `currentUser` const documents.
 const currentUser: CurrentUserResult = {
   subjectId: 'owner-1',
-  user: { id: 'owner-1', phone: '9812345678', role: 'PATIENT', locale: 'ne' },
+  user: { id: 'owner-1', phone: '9812345678', role: 'PATIENT', locale: 'ne', assuranceLevel: 'REGISTERED' },
   patientProfileId: null,
   assuranceLevel: 'REGISTERED',
 };

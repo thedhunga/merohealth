@@ -12,7 +12,7 @@ function makeContext(authUser: CurrentUserResult | undefined): ExecutionContext 
 function buildUser(role: CurrentUserResult['user']['role']): CurrentUserResult {
   return {
     subjectId: 'reviewer-1',
-    user: { id: 'reviewer-1', phone: '9812345678', role, locale: 'ne' },
+    user: { id: 'reviewer-1', phone: '9812345678', role, locale: 'ne', assuranceLevel: 'REGISTERED' },
     patientProfileId: null,
     assuranceLevel: 'REGISTERED',
   };

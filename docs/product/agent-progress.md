@@ -933,6 +933,19 @@ suite grows. A module that "works" but has no outage test is not finished.
       `format: 'date'` annotation on both routes already agree it is a bare
       date. See the 2026-08-13 log entry below for the trace and the two new
       controller tests.
+- [x] Built `apps/api/src/identity/`, the missing `IdentityController`/
+      `IdentityService` that lets a real session actually reach
+      `IDENTITY_VERIFIED` — until this, `AuthService.currentUser` hardcoded
+      `assuranceLevel: 'REGISTERED'` with no route anywhere that could ever
+      change it, so `RECORD_SHARING` and `TELECONSULTATION` (both gated at
+      `IDENTITY_VERIFIED` since the `EntitlementsGuard` assurance-enforcement
+      run) were permanently unreachable for every real user. Found by a fresh
+      independent survey after the `administeredOn` run's own log entry
+      reported the ISO-date-validation vein closed. See the 2026-08-13 log
+      entry below (the one added by this run) for the full design — a new
+      `User.assuranceLevel` column, `AuthStore.markIdentityVerified`, the
+      `IDENTITY_REVIEWER` role, and why the elevation is written through
+      `AuthStore` rather than a circular module import.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -956,6 +969,137 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; built `apps/api/src/identity/`, closing
+  the reachability gap that permanently locked `RECORD_SHARING` and
+  `TELECONSULTATION`.** Grepped for `- [ ]` first — zero hits, same as every
+  recent run. Delegated a fresh independent general-purpose survey agent,
+  briefed on every vein already exhausted (cross-owner/unguarded-`ownerId`
+  access control, ISO-instant/date validation, `ne-Latn` collapse, share-link
+  TTL/entitlements gating, double-booking, negative-reading validation,
+  filename sanitization, `normalizeLabel` dedup, mobile i18n,
+  `classifyIntent`/`termAppears` retrieval bugs, the analytics-source
+  extensions, the emergency-rule word-order/apostrophe fixes, the `next=`
+  redirect chain, and the `ApplicationTransitionError` mapping) and told not
+  to re-propose the two standing product-decision items
+  (`packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model).
+
+  **What was found.** `packages/identity`'s assurance ladder
+  (`ANONYMOUS → REGISTERED → IDENTITY_VERIFIED`) and
+  `minimumAssuranceLevel` (`RECORD_SHARING`/`PROVIDER_EXPORT`/
+  `TELECONSULTATION` all require `IDENTITY_VERIFIED`) have existed since
+  Round two, and `EntitlementsGuard` has enforced `minimumAssuranceLevel`
+  since the 2026-08-13 assurance-enforcement run. But nothing in `apps/api`
+  ever called `raiseAssurance(..., 'IDENTITY_VERIFIED')` or persisted the
+  result: `AuthService.currentUser` hardcoded
+  `assuranceLevel: 'REGISTERED'`, and `grep` confirmed no
+  `identity.controller.ts` existed anywhere and `submitEvidence`/
+  `beginReview`/`approveVerification`/`rejectVerification` were imported
+  nowhere outside `packages/identity`'s own tests. Concretely reachable, not
+  hypothetical: `InteropController.issueShareLink` and
+  `TeleconsultationController.schedule` were both 100%-unreachable for every
+  real session, forever — a shipped, tested, entitlements-priced feature with
+  no path to satisfy its own guard. Named by the assurance-enforcement run's
+  own log entry as "a real, larger candidate for a future run," left open by
+  every run since.
+
+  **Why not a circular module dependency.** The obvious shape —
+  `AuthService.currentUser` asking an injected `IdentityService` for the
+  owner's verification status — would make `AuthModule` depend on
+  `IdentityModule` while `IdentityModule` needs `AuthModule` for
+  `SessionAuthGuard`, the same "import the module, get the guard" wiring
+  every other feature module already uses. Inverted the dependency instead:
+  `User` gets a real, persisted `assuranceLevel` column
+  (`AssuranceLevel { REGISTERED, IDENTITY_VERIFIED }`, migration
+  `20260813020000_add_user_assurance_level`), `AuthStore` gains
+  `markIdentityVerified(userId)`, and `IdentityService.approve` — which
+  already needs `AUTH_STORE` for nothing else — writes through it, the exact
+  same "reach into `AUTH_STORE` directly" pattern `FamilyGrantsService`
+  already established for its own phone lookup. `AuthModule` now knows
+  nothing about `IdentityModule`; only `IdentityModule` imports `AuthModule`,
+  same one-directional shape as `CredentialingModule`/`FamilyModule`.
+  `AuthService.currentUser`/`verifyOtp` both now read `user.assuranceLevel`
+  off the store instead of a hardcoded literal — which also fixed a second,
+  smaller latent bug in the same line: `verifyOtp`'s `SIGN_IN` branch
+  previously always returned `raiseAssurance('ANONYMOUS', 'REGISTERED')`
+  regardless of the signing-in user's real level, so an already-verified
+  person signing back in was silently reported as merely `REGISTERED` until
+  their next `/auth/me` call.
+
+  **What was built.** `apps/api/src/identity/` mirrors
+  `apps/api/src/credentialing/` file-for-file: `IdentityRepository`
+  (in-memory, same "not seeded, not Prisma-backed yet" precedent
+  `CredentialingRepository` already set), `IdentityService` (submit/queue/
+  read/beginReview/reject synchronous, `approve` async only because it now
+  awaits `authStore.markIdentityVerified`), `IdentityReviewerGuard` gating on
+  a new, distinct `IDENTITY_REVIEWER` role (migration
+  `20260813010000_add_identity_reviewer_role` — deliberately not reusing
+  `CLINICAL_REVIEWER`/`CORPUS_REVIEWER`: checking a national ID photograph
+  against a stated name is a different competency and trust boundary from
+  either, and identity-and-credentialing.md never names either as a
+  prerequisite), and `IdentityController` exposing `POST
+  verification/evidence` (self-submit, `ownerId` from the session, not the
+  body — closing the same unguarded-owner-id shape already fixed elsewhere)
+  plus the five reviewer routes (`queue`, `read`, `begin-review`, `approve`,
+  `reject`, `audit-log`), registered in `AppModule`. Added
+  `verificationQueue` to `packages/identity` itself (oldest-submission-first,
+  mirroring `packages/credentialing`'s `reviewQueue` exactly) since the
+  domain package had the state machine but no queue-ordering helper. Not
+  wired into `clinical-suite`'s module registry — confirmed
+  `CredentialingModule` isn't either; both predate and sit outside that
+  registry's scope per `identity-and-credentialing.md` §5.
+
+  **Test-suite blast radius.** `AuthUserRecord` gaining a required
+  `assuranceLevel` field meant every hand-rolled `CurrentUserResult`/
+  `AuthUserRecord` object literal across the test suite needed the new field
+  too — 13 occurrences across 9 existing test files
+  (`interop`/`records`/`auth`/`patient-registry`/`language-corpus` ×3/
+  `family-grants`/`credentialing` ×3), each given
+  `assuranceLevel: 'REGISTERED'` to match its sibling top-level
+  `CurrentUserResult.assuranceLevel` (the two are always the same value in
+  real usage now, since the latter is read straight off the former). New
+  tests: `identity.repository.test.ts`, `identity.service.test.ts`
+  (including the full submit → review → approve path asserting the owner's
+  `AuthStore` record actually reaches `IDENTITY_VERIFIED`, and that a
+  rejection leaves it untouched), `identity-reviewer.guard.test.ts`,
+  `identity.controller.test.ts`, plus two new `auth.service.test.ts` cases
+  proving the actual bug fix (`currentUser` reflecting a real elevation;
+  `SIGN_IN` reporting an already-verified user's true level) and one new
+  `packages/identity` test for `verificationQueue`.
+
+  **Deliberately left out.** No `apps/web`/`apps/mobile` UI for submitting
+  identity evidence or reviewing the queue — this run is the API-reachability
+  fix only, the same scope boundary the credentialing API/UI split already
+  drew (API landed first, `RegisterView.tsx` wiring came in a later, separate
+  run). No liveness check — identity-and-credentialing.md §2's table lists
+  "national ID document + liveness check" but no liveness-detection
+  capability exists anywhere in this repo, and `packages/credentialing`'s own
+  "no automatic approval, ever" precedent already established that a human
+  review queue, not an automated check, is this repo's honest v1. Seed data
+  left untouched: `SeedUser` has no `assuranceLevel` field and needs none —
+  the new column defaults to `REGISTERED`, matching every existing seeded
+  user.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean. `pnpm lint` 40/40.
+  `pnpm typecheck` 40/40 (validated the new migration against
+  `prisma validate`/`prisma generate`, no live Postgres in this sandbox —
+  same constraint prior migration-adding runs noted). `pnpm test` 75/75 turbo
+  tasks — `@swasthya/api` 636/636 (net +27: 25 new identity-module tests + 2
+  new `auth.service.test.ts` cases), `@swasthya/identity` net +1
+  (`verificationQueue`), every other package's count unchanged. `pnpm build`
+  40/40.
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. The real next step in this same vein is
+  the `apps/web`/`apps/mobile` UI to actually submit identity evidence —
+  without it, `IDENTITY_VERIFIED` is reachable only by a reviewer approving a
+  request submitted directly against the API, which is correct plumbing but
+  not yet a real user-facing path. A fresh independent survey is still the
+  right way to pick whatever comes after that; no other candidate was found
+  waiting.
 
 - 2026-08-13 — **Queue fully checked; validated `administeredOn` on
   `immunization.controller.ts`'s two record routes as a well-formed

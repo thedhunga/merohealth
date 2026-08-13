@@ -175,3 +175,18 @@ export function rejectVerification(
     decidedAt,
   };
 }
+
+/**
+ * Requests actually awaiting a reviewer, oldest submission first — mirrors
+ * `packages/credentialing`'s `reviewQueue` exactly. `NOT_STARTED` (never
+ * submitted) and decided requests (`APPROVED`/`REJECTED`) are excluded; a
+ * `REJECTED` request only reappears once `submitEvidence` has moved it back
+ * to `EVIDENCE_SUBMITTED`.
+ */
+export function verificationQueue(
+  requests: readonly VerificationRequest[],
+): readonly VerificationRequest[] {
+  return requests
+    .filter((request) => request.status === 'EVIDENCE_SUBMITTED' || request.status === 'UNDER_REVIEW')
+    .toSorted((a, b) => (a.submittedAt ?? '').localeCompare(b.submittedAt ?? ''));
+}

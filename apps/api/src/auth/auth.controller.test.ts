@@ -62,7 +62,7 @@ describe('AuthController', () => {
   it('me returns the profile derived from @CurrentUser()', () => {
     const current = {
       subjectId: 'user-1',
-      user: { id: 'user-1', phone: '9812345678', role: 'PATIENT' as const, locale: 'ne' },
+      user: { id: 'user-1', phone: '9812345678', role: 'PATIENT' as const, locale: 'ne', assuranceLevel: 'REGISTERED' as const },
       patientProfileId: 'profile-1',
       assuranceLevel: 'REGISTERED' as const,
     };

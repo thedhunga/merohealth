@@ -176,5 +176,42 @@ describe('AuthService', () => {
       await service.logout(token);
       expect(await service.currentUser(token)).toBeNull();
     });
+
+    // Previously `currentUser` hardcoded `assuranceLevel: 'REGISTERED'`
+    // regardless of what the store actually held — permanently locking every
+    // `IDENTITY_VERIFIED`-gated route (`RECORD_SHARING`, `TELECONSULTATION`)
+    // for every real session, since nothing could ever prove otherwise.
+    it('reflects a real IDENTITY_VERIFIED elevation instead of always reporting REGISTERED', async () => {
+      const registerChallenge = await requestAndReadCode();
+      const { token, user } = await service.verifyOtp({
+        ...registerChallenge,
+        phone: PHONE,
+        intent: 'REGISTER',
+        displayName: 'Sita Rai',
+      });
+      expect((await service.currentUser(token))?.assuranceLevel).toBe('REGISTERED');
+
+      await store.markIdentityVerified(user.id);
+
+      expect((await service.currentUser(token))?.assuranceLevel).toBe('IDENTITY_VERIFIED');
+    });
+
+    // Same fix, the sign-in path: a returning already-verified user must not
+    // be silently reported back at REGISTERED.
+    it('reports IDENTITY_VERIFIED on sign-in for a user already verified from a prior session', async () => {
+      const registerChallenge = await requestAndReadCode();
+      const { user } = await service.verifyOtp({
+        ...registerChallenge,
+        phone: PHONE,
+        intent: 'REGISTER',
+        displayName: 'Sita Rai',
+      });
+      await store.markIdentityVerified(user.id);
+
+      const signInChallenge = await requestAndReadCode();
+      const result = await service.verifyOtp({ ...signInChallenge, phone: PHONE, intent: 'SIGN_IN' });
+
+      expect(result.assuranceLevel).toBe('IDENTITY_VERIFIED');
+    });
   });
 });

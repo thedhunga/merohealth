@@ -52,7 +52,7 @@ const validCredentialingSubmission = {
 
 const credentialingApplicant: CurrentUserResult = {
   subjectId: 'applicant-1',
-  user: { id: 'applicant-1', phone: '9811111111', role: 'PATIENT', locale: 'ne' },
+  user: { id: 'applicant-1', phone: '9811111111', role: 'PATIENT', locale: 'ne', assuranceLevel: 'REGISTERED' },
   patientProfileId: null,
   assuranceLevel: 'REGISTERED',
 };

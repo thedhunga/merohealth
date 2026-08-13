@@ -10,7 +10,7 @@ import { InMemoryFamilyGrantsStore } from './in-memory-family-grants.store.js';
 function currentUser(subjectId: string): CurrentUserResult {
   return {
     subjectId,
-    user: { id: subjectId, phone: null, role: 'PATIENT', locale: 'ne' },
+    user: { id: subjectId, phone: null, role: 'PATIENT', locale: 'ne', assuranceLevel: 'REGISTERED' },
     patientProfileId: null,
     assuranceLevel: 'REGISTERED',
   };

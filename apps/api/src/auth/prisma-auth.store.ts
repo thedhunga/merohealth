@@ -93,4 +93,8 @@ export class PrismaAuthStore implements AuthStore {
   async revokeSession(id: string, revokedAt: Date): Promise<void> {
     await this.prisma.client.session.update({ where: { id }, data: { revokedAt } });
   }
+
+  async markIdentityVerified(userId: string): Promise<void> {
+    await this.prisma.client.user.update({ where: { id: userId }, data: { assuranceLevel: 'IDENTITY_VERIFIED' } });
+  }
 }

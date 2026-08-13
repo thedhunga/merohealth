@@ -1,4 +1,5 @@
 import type { UserRole } from '@swasthya/database';
+import type { AssuranceLevel } from '@swasthya/shared-types';
 
 /**
  * Everything `AuthService` needs to persist, behind one port — same
@@ -39,6 +40,12 @@ export interface AuthUserRecord {
   phone: string | null;
   role: UserRole;
   locale: string;
+  // Never `ANONYMOUS` here — a `User` row only exists once phone + OTP has
+  // already reached `REGISTERED` (see `packages/identity`'s own comment on
+  // why that rung has no persisted representation). Typed against the wider
+  // `AssuranceLevel` from `@swasthya/shared-types` rather than a narrower
+  // local union so `AuthService.currentUser` can hand it straight through.
+  assuranceLevel: AssuranceLevel;
 }
 
 export interface AuthStore {
@@ -69,4 +76,14 @@ export interface AuthStore {
   }): Promise<SessionRecord>;
   findSessionByTokenHash(tokenHash: string): Promise<SessionRecord | null>;
   revokeSession(id: string, revokedAt: Date): Promise<void>;
+
+  /**
+   * Raises `userId` to `IDENTITY_VERIFIED`. The one caller is
+   * `IdentityService.approve`, itself only reachable once per owner —
+   * `packages/identity`'s `verificationTransitions` has no edge back into
+   * `APPROVED`, so a second approval throws before this is ever called
+   * twice for the same person. Idempotent regardless, since re-setting an
+   * already-`IDENTITY_VERIFIED` user to the same value is harmless.
+   */
+  markIdentityVerified(userId: string): Promise<void>;
 }
