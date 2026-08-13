@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CredentialingApiError, submitCredentialingApplication } from '@/lib/credentialing-api';
+import { CredentialingApiError, getMyCredentialingApplication, submitCredentialingApplication } from '@/lib/credentialing-api';
 
 function mockFetchOnce(status: number, body: unknown) {
   const fetchMock = vi.fn().mockResolvedValue({
@@ -70,5 +70,49 @@ describe('submitCredentialingApplication', () => {
     mockFetchOnce(500, {});
 
     await expect(submitCredentialingApplication(input)).rejects.toMatchObject({ code: null, message: 'Request failed (500)' });
+  });
+});
+
+describe('getMyCredentialingApplication', () => {
+  it('gets /v1/credentialing/applications/me with credentials included', async () => {
+    const fetchMock = mockFetchOnce(200, null);
+
+    await getMyCredentialingApplication();
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://localhost:4000/v1/credentialing/applications/me');
+    expect(init.method).toBe('GET');
+    expect(init.credentials).toBe('include');
+  });
+
+  it('returns null for an applicant who has never submitted', async () => {
+    mockFetchOnce(200, null);
+
+    await expect(getMyCredentialingApplication()).resolves.toBeNull();
+  });
+
+  it('returns the real application when one exists', async () => {
+    const application = {
+      id: 'app-1',
+      applicantId: 'subject-1',
+      council: 'NMC',
+      registrationNumber: '12345',
+      status: 'UNDER_REVIEW',
+      certificateImageRef: null,
+      identityImageRef: null,
+      submittedAt: '2026-08-13T00:00:00.000Z',
+      rejectionReason: null,
+      reviewerId: null,
+      decidedAt: null,
+    };
+    mockFetchOnce(200, application);
+
+    await expect(getMyCredentialingApplication()).resolves.toEqual(application);
+  });
+
+  it('surfaces the server-provided machine-readable code on failure', async () => {
+    mockFetchOnce(500, { code: null, message: null });
+
+    await expect(getMyCredentialingApplication()).rejects.toBeInstanceOf(CredentialingApiError);
   });
 });

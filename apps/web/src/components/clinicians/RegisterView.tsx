@@ -14,7 +14,7 @@ import { Section } from '@/components/ui/Section';
 import { useSession } from '@/hooks/useSession';
 import { cn } from '@/lib/cn';
 import { councilName } from '@/lib/council-name';
-import { CredentialingApiError, submitCredentialingApplication } from '@/lib/credentialing-api';
+import { CredentialingApiError, getMyCredentialingApplication, submitCredentialingApplication } from '@/lib/credentialing-api';
 
 const COUNCIL_KEYS = Object.keys(councilRegistry) as CouncilKey[];
 const STEP_ORDER = ['details', 'evidence', 'review', 'status'] as const;
@@ -46,8 +46,15 @@ const KNOWN_ERROR_CODES = ['VALIDATION_ERROR', 'ApplicationTransitionError'] as 
  * enters the same reviewer queue `ReviewerGuard`-protected routes read from,
  * so the status screen can finally say so truthfully. §3's "no automatic
  * approval, ever" still holds client-side: this never calls
- * `beginReview`/`approveApplication` itself, so the only reachable status
- * here is `EVIDENCE_SUBMITTED`.
+ * `beginReview`/`approveApplication` itself.
+ *
+ * Also fetches the caller's own application on mount and, if one already
+ * exists, jumps straight to `status` showing its real state — including
+ * `UNDER_REVIEW`, `APPROVED` and `REJECTED`, not only the just-submitted
+ * `EVIDENCE_SUBMITTED` case. Without this, a returning applicant (a reload, a
+ * closed tab, or a reviewer decision landing while she was away) had no way
+ * to learn her real status short of restarting the form, since `application`
+ * previously lived only in this component's own local state.
  */
 export function RegisterView() {
   const t = useTranslations('clinicians.register');
@@ -65,11 +72,39 @@ export function RegisterView() {
   const [application, setApplication] = useState<CredentialingApplication | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [checkingExisting, setCheckingExisting] = useState(true);
 
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     headingRef.current?.focus();
   }, [step]);
+
+  // Runs once the session is live. `getMyCredentialingApplication` returns
+  // `null` for an applicant who has never submitted — a real, honest outcome
+  // (see `CredentialingService.findMine`'s own doc comment), not an error, so
+  // only a genuinely existing application jumps the step forward. A failed
+  // fetch degrades to the ordinary apply flow rather than blocking the page,
+  // the same "never blocks" convention `useFamilyGrants` documents for its
+  // own error state.
+  useEffect(() => {
+    if (session.status !== 'authenticated') return;
+    let cancelled = false;
+    getMyCredentialingApplication()
+      .then((existing) => {
+        if (cancelled) return;
+        if (existing) {
+          setApplication(existing);
+          setStep('status');
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setCheckingExisting(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [session.status]);
 
   // Revokes the *previous* object URL whenever a field is replaced or the
   // component unmounts — not on every render, since the cleanup closure
@@ -143,8 +178,10 @@ export function RegisterView() {
   // `useSession` redirects to `/signin` on anything other than a live
   // session (see its own doc comment), so this is the only other state ever
   // visible here — the same pattern `AccountView.tsx` uses for its one other
-  // protected page.
-  if (session.status !== 'authenticated') {
+  // protected page. Also holds on `checkingExisting` so the `details` step
+  // never flashes before the existing-application fetch above has a chance
+  // to redirect a returning applicant to `status`.
+  if (session.status !== 'authenticated' || checkingExisting) {
     return (
       <PageTemplate hero={hero}>
         <Section labelledBy={STEP_HEADING_ID}>
@@ -370,9 +407,25 @@ export function RegisterView() {
               <h2 className="text-2xl font-bold text-ink md:text-3xl" id={STEP_HEADING_ID} ref={headingRef} tabIndex={-1}>
                 {t('status.heading')}
               </h2>
-              <p className="text-lg text-ink-soft">
-                {t('status.body', { council: councilName(application.council, locale) })}
-              </p>
+
+              {application.status === 'EVIDENCE_SUBMITTED' || application.status === 'UNDER_REVIEW' ? (
+                <p className="text-lg text-ink-soft">
+                  {t('status.body', { council: councilName(application.council, locale) })}
+                </p>
+              ) : null}
+
+              {application.status === 'APPROVED' ? (
+                <p className="rounded-xl bg-jade-50 p-4 text-sm font-semibold text-forest-700" role="status">
+                  {t('status.approved')}
+                </p>
+              ) : null}
+
+              {application.status === 'REJECTED' ? (
+                <p className="rounded-xl bg-red-50 p-4 text-sm text-red-700" role="alert">
+                  {t('status.rejected', { reason: application.rejectionReason ?? '' })}
+                </p>
+              ) : null}
+
               <div className="rounded-2xl bg-sand/70 p-4 ring-1 ring-line">
                 <p className="text-sm font-semibold tracking-wide text-ink-soft uppercase">
                   {t('status.referenceLabel')}

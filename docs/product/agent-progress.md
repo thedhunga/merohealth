@@ -977,10 +977,114 @@ deliberately left out" before assuming the module can be built the same way
 next candidate is this run's own guess, not a decision; the next run should
 re-read the table itself rather than trust this paragraph.
 
+- [x] `apps/api`'s `CredentialingController`: new `GET applications/me` route
+      (`CredentialingService.findMine`) so a returning applicant can read her
+      own real status — `UNDER_REVIEW`, `APPROVED`, `REJECTED` — instead of
+      only ever seeing the just-submitted `EVIDENCE_SUBMITTED` case her own
+      browser tab happened to hold. Wired into `apps/web`'s
+      `RegisterView.tsx`, which now fetches on mount and jumps a returning
+      applicant straight to the `status` step. See the 2026-08-13 log entry
+      below (the one added by this run) for the full design and why
+      `findMine` returns `null` rather than `IdentityService.findMine`'s
+      unpersisted shell.
+
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; closed a reachability gap on
+  `CredentialingController`: applicants had no way to read their own
+  application status back.** Grepped for `- [ ]` first — zero hits, same as
+  every recent run. Commissioned a fresh independent general-purpose survey
+  agent, briefed on every vein already exhausted (cross-owner/unguarded-
+  `ownerId` access control, ISO-instant/date validation, `ne-Latn` collapse,
+  share-link TTL/entitlements gating, double-booking, negative-reading
+  validation, filename sanitization, `normalizeLabel` dedup, mobile i18n,
+  `classifyIntent`/`termAppears` retrieval bugs, the analytics-source
+  extensions, the emergency-rule word-order/apostrophe fixes, the `next=`
+  redirect chain, and `ApplicationTransitionError` mapping), the two standing
+  product-decision items, and the named-but-larger evidence-storage-adapter
+  candidate the identity-verification-UI run's own log entry had left open.
+
+  **What was found.** `CredentialingController` had `POST applications`
+  (self-submit) and five reviewer-only routes, but nothing analogous to the
+  `GET verification/me` route the identity module gained two runs ago —
+  `CredentialingRepository.findByApplicant` existed and `submit()` already
+  called it internally, but nothing exposed it as a read for the applicant
+  herself. Concretely reachable, not hypothetical: `RegisterView.tsx` held
+  the just-submitted `CredentialingApplication` only in local `useState`, so
+  a reload, a closed tab, or simply returning after a reviewer's decision
+  left the applicant with no way to learn her real status short of walking
+  the multi-step form again — and `submitApplication` only transitions from
+  `NOT_STARTED`/`REJECTED`, so a genuine re-submission attempt while
+  `EVIDENCE_SUBMITTED`/`UNDER_REVIEW`/`APPROVED` would have just thrown
+  `ApplicationTransitionError` back at her with no visibility into why.
+
+  **Why `findMine` returns `null`, not a shell.** `IdentityService.findMine`
+  (the sibling this run mirrors) fabricates an unpersisted `NOT_STARTED`
+  shell for a first-time caller, which works because
+  `VerificationRequest.documentType` is nullable. `CredentialingApplication
+  .council` is a required `CouncilKey` with no honest placeholder — every
+  value in `CouncilKey` is a real statutory register, so defaulting to any
+  of them would misrepresent which council the applicant chose before she's
+  chosen one. `findByApplicant` only ever finds a row once
+  `submitApplication` has actually transitioned it past `NOT_STARTED` (the
+  repository never persists the shell `submit()` builds in memory), so
+  `null` is already a truthful "nothing submitted yet" — no shell needed.
+
+  **What was built.** `CredentialingService.findMine(applicantId)` — a
+  2-line wrapper around `repository.findByApplicant`. `CredentialingController
+  .mine()`, `GET applications/me` under `SessionAuthGuard` only, registered
+  ahead of `GET applications/:applicationId` (same ordering
+  `verification/me` already established, since a dynamic param would
+  otherwise swallow the literal path `me`). `apps/web/src/lib/
+  credentialing-api.ts` gained `getMyCredentialingApplication()`.
+  `RegisterView.tsx` now fetches on mount once the session is live; a
+  `null` result leaves the ordinary apply flow untouched, a real one jumps
+  straight to `status`. The `status` step itself now branches on the real
+  `application.status` — `EVIDENCE_SUBMITTED`/`UNDER_REVIEW` keep the
+  existing "waiting for review" copy, `APPROVED` shows a new confirmation
+  message, `REJECTED` shows the real `rejectionReason` — where previously
+  the step assumed the only reachable status was `EVIDENCE_SUBMITTED`,
+  since nothing before this run could ever hand it anything else. New
+  `status.approved`/`status.rejected` keys added to both `en.json` and
+  `ne.json`; every other string already existed. A failed fetch degrades to
+  the ordinary apply flow rather than blocking the page, the same "never
+  blocks" convention `useFamilyGrants` documents for its own error state.
+
+  **What stayed out.** No `AccountView.tsx` card — unlike identity
+  verification, which has no other page to live on, credentialing already
+  has `/clinicians/register` as its natural, single home, and duplicating
+  the same status readout onto `/account` would be a second surface for one
+  fact with no product reason named anywhere in `identity-and-
+  credentialing.md`. No pre-filling of council/registration number on a
+  post-rejection resubmit — `rejectApplication` nulls the evidence refs the
+  same way `approveApplication` does (checked directly), so a resubmission
+  needs fresh certificate/ID photos regardless; the existing `resetFlow`
+  (full reset) stayed untouched rather than building a partial-prefill path
+  nothing asked for.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean. `pnpm lint` 40/40.
+  `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks — `@swasthya/api`
+  643/643 (net +7: `findMine`/`mine()` cases), `@swasthya/web` 81/81 (net
+  +4, `getMyCredentialingApplication` cases), every other package's count
+  unchanged. `pnpm build` 40/40.
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. The survey that found this run's task
+  also confirmed every `clinical-suite`-family controller
+  (`diagnostics-orders`, `prescribing`, `referrals`, `billing`, `engagement`,
+  `analytics`, `clinical-charting`, `medication-safety`, `population-health`,
+  `directory`) has zero `SessionAuthGuard`/role guards anywhere — but that
+  traces directly to the clinician-identity-model product-decision gap
+  (there's no clinician login/session concept for that whole suite, unlike
+  `AuthStore`'s patient-facing sessions), so it is not a same-shape
+  candidate and should not be picked up without that decision first. A
+  fresh independent survey is still the right way to pick whatever comes
+  after that; no other unblocked candidate was found waiting.
 
 - 2026-08-13 — **Queue fully checked; built the `apps/web` UI for submitting
   identity verification evidence, the concrete next step the

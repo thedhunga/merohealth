@@ -1,13 +1,14 @@
 /**
- * Web client for `apps/api`'s `POST /credentialing/applications` — replaces
- * `clinician-application.ts`'s purely client-side `submitApplication` call,
- * which had nowhere to send the result because the route had no
- * `SessionAuthGuard` yet and `apps/web` had no session mechanism to attach to
- * one. Both are true now (see `credentialing.controller.ts`'s own history
- * note on `submit()` and `auth-api.ts`), so a submission here is a real row a
- * reviewer's queue will actually see. Shaped after `family-api.ts`: same
- * `credentials: 'include'` so the `mero_session` cookie rides along, same
- * typed error carrying the machine-readable `code` back to the caller.
+ * Web client for `apps/api`'s `/credentialing/applications` self-service
+ * routes — replaces `clinician-application.ts`'s purely client-side
+ * `submitApplication` call, which had nowhere to send the result because the
+ * route had no `SessionAuthGuard` yet and `apps/web` had no session mechanism
+ * to attach to one. Both are true now (see `credentialing.controller.ts`'s
+ * own history note on `submit()` and `auth-api.ts`), so a submission here is
+ * a real row a reviewer's queue will actually see. Shaped after
+ * `family-api.ts`: same `credentials: 'include'` so the `mero_session` cookie
+ * rides along, same typed error carrying the machine-readable `code` back to
+ * the caller.
  */
 
 import type { CouncilKey, CredentialingApplication } from '@swasthya/shared-types';
@@ -59,4 +60,23 @@ export async function submitCredentialingApplication(
     throw new CredentialingApiError(error.message ?? `Request failed (${response.status})`, error.code ?? null);
   }
   return parsed as CredentialingApplication;
+}
+
+/**
+ * The signed-in visitor's own application, or `null` if she has never
+ * submitted one — what `RegisterView.tsx` fetches on mount so a returning
+ * visitor (a reload, a closed tab, or a decision landing while she was away)
+ * sees her real status instead of restarting the form blind. Mirrors
+ * `getMyVerification` (`identity-api.ts`), except `null` is a real, honest
+ * outcome here rather than an unpersisted shell — see
+ * `CredentialingService.findMine`'s own doc comment for why.
+ */
+export async function getMyCredentialingApplication(): Promise<CredentialingApplication | null> {
+  const response = await fetch(credentialingUrl('/applications/me'), { method: 'GET', credentials: 'include' });
+  const parsed = (await response.json().catch(() => null)) as unknown;
+  if (!response.ok) {
+    const error = (parsed as CredentialingApiErrorBody | null) ?? {};
+    throw new CredentialingApiError(error.message ?? `Request failed (${response.status})`, error.code ?? null);
+  }
+  return parsed as CredentialingApplication | null;
 }

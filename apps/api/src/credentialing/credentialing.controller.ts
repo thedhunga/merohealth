@@ -73,6 +73,17 @@ export class CredentialingController {
     return { items, total: items.length };
   }
 
+  // Registered ahead of `applications/:applicationId` below — same ordering
+  // `identity.controller.ts`'s `verification/me` uses, since Nest/Express
+  // resolves GET routes for one controller in declaration order and a
+  // dynamic param would otherwise swallow the literal path `me`.
+  @Get('applications/me')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: "The signed-in caller's own credentialing application, or null if she has never submitted one" })
+  mine(@CurrentUser() user: CurrentUserResult) {
+    return this.credentialing.findMine(user.subjectId);
+  }
+
   @Get('applications/:applicationId')
   @UseGuards(SessionAuthGuard, ReviewerGuard)
   @ApiParam({ name: 'applicationId' })

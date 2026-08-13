@@ -733,6 +733,8 @@
       "status": {
         "heading": "Application submitted",
         "body": "Your application is waiting for a trained reviewer to check your registration number against {council}'s public register. Nobody has reviewed it yet, and no badge is issued until they do.",
+        "approved": "Your application has been approved and your verified badge is live.",
+        "rejected": "Not approved: {reason}",
         "referenceLabel": "Application reference",
         "demoNotice": "This demonstration build genuinely registers your application for review, but certificate and ID photos aren't uploaded to any real storage yet — only their file names are recorded.",
         "startOverCta": "Start a new application"

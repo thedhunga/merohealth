@@ -50,6 +50,29 @@ describe('CredentialingService submission', () => {
   });
 });
 
+describe('CredentialingService findMine', () => {
+  it('returns null for an applicant who has never submitted', () => {
+    const service = buildService();
+    expect(service.findMine('applicant-1')).toBeNull();
+  });
+
+  it("returns the applicant's own application, whatever its status", () => {
+    const service = buildService();
+    const application = service.submit(validSubmission);
+    service.beginReview(application.id, 'reviewer-1');
+    const approved = service.approve(application.id, 'reviewer-1');
+
+    expect(service.findMine('applicant-1')).toEqual(approved);
+  });
+
+  it("never returns another applicant's application", () => {
+    const service = buildService();
+    service.submit(validSubmission);
+
+    expect(service.findMine('applicant-2')).toBeNull();
+  });
+});
+
 describe('CredentialingService reviewer actions', () => {
   it('lists only submitted/under-review applications on the queue, oldest first', () => {
     const service = buildService();

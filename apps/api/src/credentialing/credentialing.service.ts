@@ -68,6 +68,22 @@ export class CredentialingService {
   }
 
   /**
+   * The signed-in applicant's own application, or `null` if she has never
+   * submitted one — what `apps/web`'s `/clinicians/register` fetches on
+   * mount so a returning visitor with a submission already in flight sees
+   * its real status (including `APPROVED`/`REJECTED`) instead of restarting
+   * the form blind. Unlike `IdentityService.findMine`, this never fabricates
+   * an unpersisted `NOT_STARTED` shell: `CredentialingApplication.council`
+   * is a required `CouncilKey` with no honest placeholder value, and
+   * `findByApplicant` only ever finds a row once `submitApplication` has
+   * actually transitioned it past `NOT_STARTED`, so `null` is already a
+   * truthful "nothing submitted yet."
+   */
+  findMine(applicantId: string): CredentialingApplication | null {
+    return this.repository.findByApplicant(applicantId);
+  }
+
+  /**
    * A reviewer opens one application to read its submitted evidence.
    * identity-and-credentialing.md §4: "every read of an evidence image is
    * logged" — this is the one place in this module that hands

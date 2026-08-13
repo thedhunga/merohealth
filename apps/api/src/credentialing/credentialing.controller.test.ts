@@ -61,6 +61,16 @@ describe('CredentialingController submit', () => {
   });
 });
 
+describe('CredentialingController mine', () => {
+  it("reports the signed-in caller's own application, never someone else's", () => {
+    const controller = buildController();
+    controller.submit(applicant, validSubmission);
+
+    expect(controller.mine(applicant)?.status).toBe('EVIDENCE_SUBMITTED');
+    expect(controller.mine(otherApplicant)).toBeNull();
+  });
+});
+
 describe('CredentialingController reviewer routes', () => {
   it('walks an application from submission through approval, attributed to the reviewer', () => {
     const controller = buildController();
