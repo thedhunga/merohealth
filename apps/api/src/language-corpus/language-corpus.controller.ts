@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import type { CurrentUserResult } from '../auth/auth.service.js';
@@ -102,17 +102,27 @@ export class LanguageCorpusController {
   }
 
   @Delete('owners/:ownerId')
+  @UseGuards(SessionAuthGuard)
   @ApiParam({ name: 'ownerId' })
   @ApiOperation({
     summary:
-      'A right-to-erasure request: removes every utterance belonging to this owner from the corpus and the review queue',
+      "A right-to-erasure request: removes every utterance belonging to the signed-in caller's own record from the corpus and the review queue",
   })
-  erase(@Param('ownerId') ownerId: string) {
+  erase(@CurrentUser() user: CurrentUserResult, @Param('ownerId') ownerId: string) {
     const parsed = z.string().trim().min(1).safeParse(ownerId);
     if (!parsed.success) {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'ownerId is required' });
     }
-    const { erasedUtteranceIds } = this.corpus.erase(parsed.data);
+    // Right-to-erasure is data-subject-only — no delegation or guardianship
+    // scope in packages/family grants "erase someone else's record" — so a
+    // path ownerId that isn't the caller's own 404s exactly like
+    // RecordsService's #requireObservation does for an opaque id belonging
+    // to someone else: never confirm whose data exists to a caller who
+    // isn't its owner.
+    if (parsed.data !== user.subjectId) {
+      throw new NotFoundException({ code: 'OWNER_NOT_FOUND', message: `No corpus data for owner ${parsed.data}` });
+    }
+    const { erasedUtteranceIds } = this.corpus.erase(user.subjectId);
     return { erasedUtteranceIds, erasedCount: erasedUtteranceIds.length };
   }
 

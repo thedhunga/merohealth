@@ -816,6 +816,18 @@ suite grows. A module that "works" but has no outage test is not finished.
       verified against a real local Postgres 16 this sandbox does not have
       running by default.
 
+- [x] Closed a cross-owner access-control gap on `apps/api`'s
+      `language-corpus` right-to-erasure route: `DELETE
+      /language-corpus/owners/:ownerId` had no `SessionAuthGuard` at all and
+      trusted the bare path `ownerId`, so anyone who knew or guessed another
+      person's owner id could permanently delete their corpus utterances and
+      pull them out of the review queue with no session, cookie or token —
+      the same shape `RecordsController`'s cross-owner fix closed, and the
+      concrete, unblocked follow-up the prior run's own log entry named
+      directly (`erase`'s own doc comment had flagged the gap explicitly).
+      See the 2026-08-13 log entry below (the one added by this run) for the
+      fix and what was deliberately left open.
+
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
 unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
@@ -838,6 +850,75 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; closed a cross-owner access-control gap
+  on `apps/api`'s `language-corpus` right-to-erasure route.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. The prior (same-day)
+  log entry, on closing the forgeable-header gap in
+  `corpus-reviewer.guard.ts`, named this exact function —
+  `language-corpus.service.ts`'s `erase` — as "a real, smaller, unblocked
+  follow-up," and `erase`'s own doc comment already spelled out the fix
+  needed ("this route additionally needs the caller's verified `ownerId`
+  checked against the `ownerId` in the path, the same shape
+  `RecordsController`'s cross-owner fix required"), so this run picked it up
+  directly rather than spending a survey re-finding what was already found.
+  Re-read `language-corpus.controller.ts`, `language-corpus.service.ts`,
+  `records.controller.ts`/`records.service.ts` (the `#requireObservation`
+  precedent) and `family-grants.service.ts`'s `revokeDelegation` (the same
+  fetch-then-check-then-404 shape) before touching anything.
+
+  **What was found.** `DELETE /language-corpus/owners/:ownerId` — a
+  right-to-erasure request that permanently deletes every corpus utterance
+  belonging to an owner, from both the corpus and the review queue — carried
+  no `SessionAuthGuard` and no ownership check of any kind. It took the
+  `ownerId` to erase straight from the URL path. Concretely: an
+  unauthenticated caller who knew or guessed another person's owner id could
+  send `DELETE /language-corpus/owners/<their-id>` and permanently erase
+  someone else's retained utterances with no session, cookie or token —
+  itself a denial-of-service against `language-corpus.md`'s consent-driven
+  retention (data the owner explicitly chose to keep would vanish without
+  their action), and, because deletion is not reversible, worse than the
+  read-only cross-owner gaps this ledger has fixed on other modules. Grepped
+  for a live caller first: none exists anywhere in the repo (`apps/web`,
+  `apps/mobile`) — same as `ingest`, this route has no client wired to it
+  yet — so the fix carried no risk of breaking a real request shape.
+
+  **What was built.** `LanguageCorpusController.erase` now carries
+  `@UseGuards(SessionAuthGuard)` and takes `@CurrentUser() user:
+  CurrentUserResult` alongside the existing `@Param('ownerId')`. After the
+  existing blank-string validation, it compares the path `ownerId` against
+  `user.subjectId` and throws `NotFoundException({ code: 'OWNER_NOT_FOUND'
+  })` on any mismatch — 404, not 403, matching this ledger's repeated
+  "never confirm whose data exists to a caller who isn't its owner"
+  convention (`RecordsService.#requireObservation`,
+  `FamilyGrantsService.revokeDelegation`). The service call itself now
+  always passes `user.subjectId`, never the raw path value, so a caller
+  cannot erase anyone but themselves regardless of what the guard did.
+  `language-corpus.service.ts`'s `erase` doc comment updated to describe the
+  fix instead of asking for it, and to note `ingest` is a separate,
+  deliberately-untouched gap (same unguarded shape, but zero live callers
+  anywhere, unlike `erase`). New controller test: a signed-in caller cannot
+  erase another owner's utterances (asserts both the thrown `NotFoundException`
+  and that the target owner's data survives), alongside two existing tests
+  updated to pass a `CurrentUserResult`.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 601/601 (net +1, the new mismatch test; confirmed against
+  a stashed pre-change run at 600/600). `pnpm build` 40/40 (35 cached).
+
+  **For the next run.** The two standing product-decision items are
+  unchanged and still not this run's to resolve: `packages/health-records`'s
+  status-guard question and the clinical-suite's missing clinician-identity
+  model. A real, smaller, unblocked follow-up this run leaves open, named
+  explicitly rather than left implicit: `language-corpus.controller.ts`'s
+  `ingest` (`POST /language-corpus/utterances`) has the identical
+  unguarded-`ownerId`-in-body shape `erase` just had, but was deliberately
+  left alone here because it has no live caller anywhere in the repo today
+  (`apps/mobile`'s companion only calls the pure `retainUtterance` from
+  `@swasthya/language-corpus`, never this HTTP endpoint) — fixing it is a
+  real, scoped, unblocked candidate, not a hypothetical one, whenever
+  someone picks it up.
 
 - 2026-08-13 — **Queue fully checked; closed the sibling forgeable-header gap
   on `packages/language-corpus`'s reviewer routes, the concrete follow-up the

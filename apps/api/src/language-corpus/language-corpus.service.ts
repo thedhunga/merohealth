@@ -82,13 +82,14 @@ export class LanguageCorpusService {
    * moment a snapshot store exists, its owner must call
    * `eraseFromSnapshot` here too, per that function's own doc comment.
    *
-   * Unguarded, like `ingest`: this is the data subject acting on their own
-   * `ownerId`, not a reviewer acting on someone else's, so `SessionAuthGuard`
-   * alone would not be enough here even though it now gates every reviewer
-   * route below — this route additionally needs the caller's verified
-   * `ownerId` checked against the `ownerId` in the path, the same shape
-   * `RecordsController`'s cross-owner fix required. Replace with a real
-   * ownership check the moment this route is wired behind a session.
+   * The controller now gates this behind `SessionAuthGuard` and checks the
+   * path `ownerId` against the caller's verified `subjectId` before this is
+   * ever called — the same shape `RecordsController`'s cross-owner fix
+   * required. `ingest` remains unguarded; unlike this route it has no live
+   * caller anywhere in the repo yet (mobile's companion only calls the pure
+   * `retainUtterance` from `@swasthya/language-corpus`, never this HTTP
+   * endpoint), so it is a real, separate, unblocked follow-up rather than
+   * part of this fix.
    */
   erase(ownerId: string): { erasedUtteranceIds: readonly string[] } {
     const ids = utteranceIdsForOwner(this.repository.list(), ownerId);

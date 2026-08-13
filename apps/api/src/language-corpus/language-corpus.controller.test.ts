@@ -16,6 +16,20 @@ const reviewer: CurrentUserResult = {
   assuranceLevel: 'REGISTERED',
 };
 
+const owner1: CurrentUserResult = {
+  subjectId: 'owner-1',
+  user: { id: 'owner-1', phone: '9811111111', role: 'PATIENT', locale: 'ne' },
+  patientProfileId: null,
+  assuranceLevel: 'REGISTERED',
+};
+
+const owner2: CurrentUserResult = {
+  subjectId: 'owner-2',
+  user: { id: 'owner-2', phone: '9822222222', role: 'PATIENT', locale: 'ne' },
+  patientProfileId: null,
+  assuranceLevel: 'REGISTERED',
+};
+
 const validIngest = {
   id: 'utterance-1',
   ownerId: 'owner-1',
@@ -93,12 +107,12 @@ describe('LanguageCorpusController reviewer routes', () => {
 });
 
 describe('LanguageCorpusController erase', () => {
-  it('erases every utterance for the owner and reports how many', () => {
+  it("erases every utterance for the signed-in caller's own record and reports how many", () => {
     const controller = buildController();
     controller.ingest(validIngest);
     controller.ingest({ ...validIngest, id: 'utterance-2', ownerId: 'owner-2' });
 
-    const result = controller.erase('owner-1');
+    const result = controller.erase(owner1, 'owner-1');
 
     expect(result).toEqual({ erasedUtteranceIds: ['utterance-1'], erasedCount: 1 });
     expect(() => controller.read(reviewer, 'utterance-1')).toThrow(NotFoundException);
@@ -106,6 +120,15 @@ describe('LanguageCorpusController erase', () => {
 
   it('rejects a blank ownerId rather than silently erasing nothing', () => {
     const controller = buildController();
-    expect(() => controller.erase('   ')).toThrow(BadRequestException);
+    expect(() => controller.erase(owner1, '   ')).toThrow(BadRequestException);
+  });
+
+  it("404s rather than erasing another owner's record, even for a signed-in caller", () => {
+    const controller = buildController();
+    controller.ingest(validIngest);
+
+    expect(() => controller.erase(owner2, 'owner-1')).toThrow(NotFoundException);
+    // Confirms the attacker-shaped call above actually erased nothing.
+    expect(() => controller.read(reviewer, 'utterance-1')).not.toThrow();
   });
 });
