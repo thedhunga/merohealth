@@ -8,6 +8,7 @@ import type { CouncilKey, CredentialingApplication } from '@swasthya/shared-type
 
 import { RecordTransform } from '@/components/art/RecordTransform';
 import { Button } from '@/components/ui/Button';
+import { type CapturedFile, EvidenceCapture } from '@/components/ui/EvidenceCapture';
 import { PageTemplate } from '@/components/ui/PageTemplate';
 import { Section } from '@/components/ui/Section';
 import { useSession } from '@/hooks/useSession';
@@ -28,67 +29,6 @@ const STEP_HEADING_ID = 'register-step-heading';
 // `errors.GENERIC`, the same convention `DelegationForm`'s
 // `KNOWN_ERROR_CODES` established.
 const KNOWN_ERROR_CODES = ['VALIDATION_ERROR', 'ApplicationTransitionError'] as const;
-
-interface CapturedFile {
-  file: File;
-  previewUrl: string;
-}
-
-/**
- * A hidden file input triggered by its own visible `<label>` — the standard
- * accessible pattern for styling a file picker without JS click-forwarding.
- * `capture="environment"` opens the device camera directly on a phone
- * browser while still falling back to a plain file picker on desktop; there
- * is no live-preview camera flow on the web the way `apps/mobile`'s
- * `expo-camera` capture screen has one.
- */
-function EvidenceCapture({
-  captured,
-  chooseLabel,
-  changeLabel,
-  hint,
-  id,
-  label,
-  onCapture,
-}: {
-  captured: CapturedFile | null;
-  chooseLabel: string;
-  changeLabel: string;
-  hint: string;
-  id: string;
-  label: string;
-  onCapture: (event: ChangeEvent<HTMLInputElement>) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-4">
-      <div>
-        <p className="font-semibold text-ink">{label}</p>
-        <p className="text-sm text-ink-soft">{hint}</p>
-      </div>
-      {captured ? (
-        <img
-          alt={label}
-          className="aspect-[3/2] w-full rounded-xl object-cover"
-          src={captured.previewUrl}
-        />
-      ) : null}
-      <label
-        className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-pill bg-jade-50 px-4 py-2 text-sm font-semibold text-forest-700 hover:bg-jade-100"
-        htmlFor={id}
-      >
-        {captured ? changeLabel : chooseLabel}
-      </label>
-      <input
-        accept="image/*"
-        capture="environment"
-        className="sr-only"
-        id={id}
-        onChange={onCapture}
-        type="file"
-      />
-    </div>
-  );
-}
 
 /**
  * `/clinicians/register` — council selection, registration number,

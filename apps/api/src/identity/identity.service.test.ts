@@ -42,6 +42,34 @@ describe('IdentityService submission', () => {
   });
 });
 
+describe('IdentityService findMine', () => {
+  it('reports NOT_STARTED for an owner who has never submitted, without persisting anything', async () => {
+    const { service } = await buildService();
+
+    const first = service.findMine('owner-1');
+    const second = service.findMine('owner-1');
+
+    expect(first.status).toBe('NOT_STARTED');
+    expect(first.id).not.toBe(second.id); // a fresh, unsaved shell each call — proof neither call wrote a row
+    expect(service.queue()).toHaveLength(0);
+  });
+
+  it('reflects the real request once one exists, including after a rejection', async () => {
+    const { service } = await buildService();
+    const submitted = service.submit(validSubmission);
+
+    expect(service.findMine(validSubmission.ownerId)).toMatchObject({ id: submitted.id, status: 'EVIDENCE_SUBMITTED' });
+
+    service.beginReview(submitted.id, 'reviewer-1');
+    service.reject(submitted.id, 'reviewer-1', 'Photograph is blurred');
+
+    expect(service.findMine(validSubmission.ownerId)).toMatchObject({
+      status: 'REJECTED',
+      rejectionReason: 'Photograph is blurred',
+    });
+  });
+});
+
 describe('IdentityService reviewer actions', () => {
   it('lists only submitted/under-review requests on the queue', async () => {
     const { service } = await buildService();

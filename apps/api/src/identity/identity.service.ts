@@ -56,6 +56,17 @@ export class IdentityService {
     return verificationQueue(this.repository.list());
   }
 
+  /**
+   * The signed-in owner's own verification status — what `apps/web`'s
+   * account page polls to know whether to show a submission form, a pending
+   * banner, or a rejection reason, without needing `IdentityReviewerGuard`.
+   * Read-only: unlike `submit`, the `NOT_STARTED` shell for a first-time
+   * caller is never persisted, since nothing has actually happened yet.
+   */
+  findMine(ownerId: string): VerificationRequest {
+    return this.repository.findByOwner(ownerId) ?? emptyVerificationRequest(randomUUID(), ownerId);
+  }
+
   /** A reviewer opens one request to read its submitted evidence — identity-and-credentialing.md §4: "every read of an evidence image is logged." */
   read(verificationId: string, reviewerId: string): VerificationRequest {
     const request = this.#require(verificationId);

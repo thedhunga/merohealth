@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { RecordTransform } from '@/components/art/RecordTransform';
 import { DelegationForm } from '@/components/account/DelegationForm';
 import { DelegationsGrantedList } from '@/components/account/DelegationsGrantedList';
+import { IdentityVerification } from '@/components/account/IdentityVerification';
 import { ProfileSwitcher } from '@/components/account/ProfileSwitcher';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { PageTemplate } from '@/components/ui/PageTemplate';
@@ -108,6 +109,8 @@ export function AccountView() {
               {t(`identity.assurance.${user.assuranceLevel}`)}
             </p>
           </div>
+
+          {user.assuranceLevel === 'IDENTITY_VERIFIED' ? null : <IdentityVerification />}
 
           <DelegationForm onCreated={refreshFamilyGrants} />
 

@@ -946,6 +946,18 @@ suite grows. A module that "works" but has no outage test is not finished.
       `User.assuranceLevel` column, `AuthStore.markIdentityVerified`, the
       `IDENTITY_REVIEWER` role, and why the elevation is written through
       `AuthStore` rather than a circular module import.
+- [x] Built the `apps/web` UI for `POST /identity/verification/evidence`,
+      the concrete next step that run's own log entry named directly:
+      "without it, `IDENTITY_VERIFIED` is reachable only by a reviewer
+      approving a request submitted directly against the API ... not yet a
+      real user-facing path." New `GET verification/me` route (registered
+      ahead of the existing `verification/:verificationId` reviewer route,
+      same ordering `verification/queue` already relies on) plus
+      `IdentityService.findMine`, and a new `IdentityVerification.tsx` card
+      on `/account`, mounted only while `assuranceLevel !== 'IDENTITY_VERIFIED'`.
+      See the 2026-08-13 log entry below (the one added by this run) for the
+      full design and the `RegisterView.tsx` → shared `EvidenceCapture.tsx`
+      extraction it needed.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -969,6 +981,88 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; built the `apps/web` UI for submitting
+  identity verification evidence, the concrete next step the
+  `apps/api/src/identity/` run's own log entry named.** Grepped for `- [ ]`
+  first — zero hits. That entry ("For the next run") said the real next step
+  in this vein was the missing `apps/web`/`apps/mobile` UI, since
+  `IDENTITY_VERIFIED` was reachable only by a reviewer approving a request
+  submitted directly against the API — correct plumbing, not yet a real
+  user-facing path. Went straight to it rather than commissioning a fresh
+  survey, since the candidate was already concrete and unblocked.
+
+  **What was missing.** `IdentityController` had `POST verification/evidence`
+  (self-submit) and five reviewer routes, but nothing for the submitting
+  person herself to read back *her own* status after the fact — no way to
+  tell `NOT_STARTED` from `EVIDENCE_SUBMITTED`/`UNDER_REVIEW` from `REJECTED`
+  (with a reason to act on) without re-submitting blind. `apps/web` had no
+  caller for the submit route at all.
+
+  **What was built.** `IdentityService.findMine(ownerId)` — read-only,
+  returns the owner's real `VerificationRequest` or an unpersisted
+  `NOT_STARTED` shell, the same shell `submit()` already builds for a
+  first-time caller. New `IdentityController` route
+  `GET verification/me`, `SessionAuthGuard`-only (no reviewer role needed —
+  it only ever reads the caller's own row), registered *ahead of*
+  `verification/:verificationId` so the literal path `me` isn't swallowed by
+  the dynamic reviewer route, the same ordering `verification/queue` already
+  relies on. `apps/web/src/lib/identity-api.ts` (`getMyVerification`/
+  `submitIdentityEvidence`, shaped after `credentialing-api.ts`) and a new
+  `IdentityVerification.tsx` card, mounted on `/account` — via
+  `AccountView.tsx`, right after the existing "Your identity" panel that
+  already prints `assuranceLevel` — only while that level is not yet
+  `IDENTITY_VERIFIED`. It fetches status on mount; degrades to rendering
+  nothing on a failed fetch or while loading, the same "never blocks the
+  rest of the page" convention `useFamilyGrants` documents for its own error
+  state (this is an upsell card, not core account data). Shows a document
+  type picker + one photo capture and a submit button when `NOT_STARTED` or
+  `REJECTED` (with the rejection reason surfaced), a pending banner for
+  `EVIDENCE_SUBMITTED`/`UNDER_REVIEW`, and a confirmation for `APPROVED` (the
+  one state that should be unreachable in practice, since `AccountView`
+  itself stops mounting the card once the session reflects
+  `IDENTITY_VERIFIED` — kept as a real branch rather than assumed unreachable,
+  since a reviewer could approve between this component's mount and the
+  session's next refresh).
+
+  **DRY note.** `RegisterView.tsx` already had the exact single-photo capture
+  control this needed (`EvidenceCapture`, a hidden file input behind a
+  styled `<label>`, `capture="environment"` for the phone camera) — defined
+  locally, not exported. Extracted it to
+  `apps/web/src/components/ui/EvidenceCapture.tsx` (same file also now
+  exports `CapturedFile`) and updated `RegisterView.tsx` to import it rather
+  than carrying its own copy, the same call the `Testimonials.tsx` →
+  `EditorialImage` dedupe and the `hosted-store.ts`/`google-drive-store.ts`
+  → shared `filename.ts` dedupe already made once each had a second real
+  caller.
+
+  **What stayed out.** No `apps/mobile` equivalent — `identity-and-
+  credentialing.md` doesn't name a mobile-specific requirement here and
+  `apps/web`'s account page is where every other self-service identity/
+  family action (`DelegationForm`, the assurance-level readout itself)
+  already lives; a mobile capture flow is a real, separate follow-up, not
+  folded in here to keep this run to one surface. No component test —
+  confirmed by `find` that zero `.test.tsx` files exist anywhere in
+  `apps/web/src`; every existing form component (`DelegationForm.tsx`,
+  `RegisterView.tsx`, `ProfileSwitcher.tsx`) is covered only via its `lib/*`
+  API client's test, so `identity-api.test.ts` matches that convention
+  rather than introducing a new one unilaterally.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean. `pnpm lint` 40/40.
+  `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks — `@swasthya/api`
+  639/639 (net +11: `findMine`/`mine()` cases), `@swasthya/web` 77/77 (net
+  +7, `identity-api.test.ts`), every other package's count unchanged.
+  `pnpm build` 40/40.
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. A real evidence-storage adapter for
+  `packages/identity` (today's `evidenceImageRef` is a `local-file:` marker,
+  same as `credentialing`'s own still-open gap) is a real, larger follow-up
+  if anyone wants this path to survive past the browser tab it was submitted
+  from. A fresh independent survey is still the right way to pick whatever
+  comes after that; no other candidate was found waiting.
 
 - 2026-08-13 — **Queue fully checked; built `apps/api/src/identity/`, closing
   the reachability gap that permanently locked `RECORD_SHARING` and

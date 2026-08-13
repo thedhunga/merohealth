@@ -61,6 +61,17 @@ describe('IdentityController submit', () => {
   });
 });
 
+describe('IdentityController mine', () => {
+  it("reports the signed-in caller's own status, never someone else's", async () => {
+    const { controller, owner } = await buildController();
+    const applicant = applicantFor(owner);
+    controller.submit(applicant, validSubmission);
+
+    expect(controller.mine(applicant).status).toBe('EVIDENCE_SUBMITTED');
+    expect(controller.mine(reviewer).status).toBe('NOT_STARTED');
+  });
+});
+
 describe('IdentityController reviewer routes', () => {
   it('walks a request from submission through approval, raising the owner to IDENTITY_VERIFIED', async () => {
     const { controller, authStore, owner } = await buildController();

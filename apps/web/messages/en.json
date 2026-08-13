@@ -1257,6 +1257,35 @@
         "IDENTITY_VERIFIED": "Identity verified"
       }
     },
+    "identityVerification": {
+      "heading": "Verify your identity",
+      "body": "Sharing your record with a provider and video consultations both require your identity to be checked once — separate from the phone verification you already have, and only asked for when a feature actually needs it.",
+      "documentTypeLabel": "Document type",
+      "documentTypes": {
+        "NATIONAL_ID": "National ID",
+        "CITIZENSHIP": "Citizenship certificate",
+        "PASSPORT": "Passport",
+        "DRIVING_LICENCE": "Driving licence"
+      },
+      "evidence": {
+        "label": "Photo of your document",
+        "hint": "A clear photo of the front of your document.",
+        "chooseFile": "Choose photo",
+        "changeFile": "Change photo"
+      },
+      "submitCta": "Submit for review",
+      "resubmitCta": "Resubmit",
+      "status": {
+        "pending": "Submitted — a reviewer will check this soon.",
+        "approved": "Your identity is verified.",
+        "rejected": "Not approved: {reason}"
+      },
+      "errors": {
+        "VALIDATION_ERROR": "Check your document type and photo, then try again.",
+        "VerificationTransitionError": "You already have a submission being reviewed.",
+        "GENERIC": "Something went wrong — please try again."
+      }
+    },
     "delegation": {
       "heading": "Give someone access",
       "body": "Share scoped, revocable access to your record with someone you trust — a spouse, an adult child, a caregiver. They will see only what you check below.",

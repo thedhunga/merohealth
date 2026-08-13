@@ -57,6 +57,17 @@ export class IdentityController {
     return this.identity.submit({ ...input, ownerId: user.subjectId });
   }
 
+  // Registered ahead of `verification/:verificationId` below — same ordering
+  // `verification/queue` already relies on, since Nest/Express resolves GET
+  // routes for one controller in declaration order and a dynamic param would
+  // otherwise swallow the literal path `me`.
+  @Get('verification/me')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: "The signed-in caller's own verification status" })
+  mine(@CurrentUser() user: CurrentUserResult) {
+    return this.identity.findMine(user.subjectId);
+  }
+
   @Get('verification/queue')
   @UseGuards(SessionAuthGuard, IdentityReviewerGuard)
   @ApiOperation({ summary: 'Verification requests awaiting review, oldest submission first' })
