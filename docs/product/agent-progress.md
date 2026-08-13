@@ -735,6 +735,15 @@ suite grows. A module that "works" but has no outage test is not finished.
       added by this run) for the new `AppointmentConflictError`, the
       half-open-interval overlap check, and why cancelled appointments and
       different clinicians are exempt.
+- [x] `packages/teleconsultation`'s `scheduleTeleconsultation` now rejects a
+      second session for an appointment that already has a `SCHEDULED` or
+      `ACTIVE` one — the analogous unchecked-conflict gap the scheduling
+      double-booking run's own log entry named as unswept ("worth a look
+      before assuming this was the only instance"). See the 2026-08-13 log
+      entry below (the one added by this run) for the new
+      `TeleconsultationSessionAlreadyBookedError`, why a cancelled/completed/
+      no-show session frees the appointment for rebooking, and why
+      `referrals` was checked and found to have no analogous invariant.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -758,6 +767,81 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; `packages/teleconsultation` now
+  rejects a second session for an appointment that already has one.**
+  Grepped for `- [ ]` first — zero hits, same as every recent "queue
+  exhausted" run. Delegated a survey agent with the specific lead the
+  previous (2026-08-12 scheduling) log entry left open: whether
+  `teleconsultation` or `referrals` have an analogous missing-cross-record-
+  check gap to the double-booked-clinician bug just fixed in `scheduling`.
+
+  **What was found.** `apps/api/src/teleconsultation/teleconsultation.service.ts`'s
+  `scheduleSession(appointmentId)` resolved the appointment via
+  `scheduling.get()` and called `repository.save(scheduleTeleconsultation(...))`
+  unconditionally — it never checked whether a non-terminal session already
+  existed for that `appointmentId`. `TeleconsultationRepository` did not even
+  expose a way to ask: only `save`/`find(id)`/`list(patientId?)`, no lookup
+  by appointment. `POST /teleconsultation/appointments/:appointmentId/sessions`
+  is real and wired (`SessionAuthGuard` + `EntitlementsGuard`/
+  `RequireModule('TELECONSULTATION')`, neither of which prevents calling it
+  twice), so a double-click or a client retry created two independent
+  `TeleconsultationSession` rows sharing one `appointmentId`, each separately
+  startable/completable/cancellable — the same shape of bug as the
+  double-booked clinician, one module over. No test in the package or the
+  API service/controller test files ever called `scheduleSession` twice
+  against the same appointment. The survey also checked `packages/referrals`
+  for the sibling case and found no analogous invariant: nothing in
+  `docs/architecture` or the domain model supports "at most one referral per
+  encounter" as a real rule — a clinic can legitimately re-refer after a
+  decline or refer to two specialists from one encounter, so adding a
+  uniqueness check there would invent a business rule rather than fix a bug.
+
+  **What was built.** A new `TeleconsultationSessionAlreadyBookedError` in
+  `packages/teleconsultation/src/index.ts`, matching
+  `AppointmentConflictError`'s precedent in `packages/scheduling`.
+  `scheduleTeleconsultation` now takes a sixth parameter,
+  `existingSessions: readonly TeleconsultationSession[]`, and calls a new
+  `assertNoExistingSession` first. Only `SCHEDULED`/`ACTIVE` sessions block a
+  rebooking — `CANCELLED`/`COMPLETED`/`NO_SHOW` have all released the
+  appointment, the same "terminal/settled states free the slot" reasoning
+  `scheduling`'s own conflict check applies to a cancelled appointment.
+  `apps/api/src/teleconsultation/teleconsultation.service.ts`'s
+  `scheduleSession` now passes `this.repository.list()` as that sixth
+  argument, mirroring exactly how `SchedulingService.schedule()` passes its
+  own `repository.list()` into `scheduleAppointment`. Added four cases to
+  `packages/teleconsultation/src/index.test.ts` (second SCHEDULED session
+  throws; second session against an ACTIVE one throws; rebooking after
+  cancelled/completed/no-show succeeds; a different appointment's SCHEDULED
+  session does not conflict) and two to
+  `apps/api/src/teleconsultation/teleconsultation.service.test.ts` (calling
+  `scheduleSession` twice on the same appointment throws on the second call;
+  rebooking after a cancel succeeds). No other call site of
+  `scheduleTeleconsultation` exists anywhere in the repo (confirmed by grep).
+
+  **What was deliberately not touched.** No API-boundary (zod) validation
+  and no controller-level error mapping — the conflict is a domain
+  impossibility, not a request-shape problem, so it follows
+  `AppointmentConflictError`'s own precedent of propagating unwrapped (this
+  repo has no global exception filter mapping domain error names to HTTP
+  status codes; scheduling's conflict error does not get one either).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/teleconsultation` 18/18 (was 14/14, +4), `@swasthya/api` 592/592
+  total (+2 new), all other package counts unchanged. `pnpm build` 40/40 (35
+  cached); mobile's 16 static routes unchanged in count and size.
+
+  **For the next run.** The survey did not sweep every remaining module for
+  this same missing-invariant shape beyond scheduling/teleconsultation/
+  referrals — `diagnostics-orders`, `billing`, and `immunization` were not
+  checked and are worth a look before assuming the vein is closed. The two
+  long-standing blocked items are unchanged: `companion.controller.ts`'s
+  missing `EntitlementsGuard` and analytics' open `clinical-charting`
+  source, both needing a product decision, not code. `quality-reporting`/
+  `tenancy` (capability map rows 19-20) remain the only two unbuilt
+  clinical-suite modules and still carry the no-real-dataset risk prior
+  entries describe.
 
 - 2026-08-12 — **Queue fully checked; `packages/scheduling` now rejects a
   double-booked clinician.** Grepped for `- [ ]` first — zero hits, same as

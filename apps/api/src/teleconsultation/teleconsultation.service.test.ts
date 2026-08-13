@@ -1,5 +1,5 @@
 import { ServiceUnavailableException } from '@nestjs/common';
-import { TeleconsultationSessionNotActiveError } from '@swasthya/teleconsultation';
+import { TeleconsultationSessionAlreadyBookedError, TeleconsultationSessionNotActiveError } from '@swasthya/teleconsultation';
 import { describe, expect, it } from 'vitest';
 import { PatientRegistryRepository } from '../patient-registry/patient-registry.repository.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
@@ -52,6 +52,28 @@ describe('TeleconsultationService.scheduleSession', () => {
     scheduling.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
 
     await expect(teleconsultation.scheduleSession('appt-1')).rejects.toThrow(ServiceUnavailableException);
+  });
+
+  it('refuses a second session for an appointment that already has one SCHEDULED', async () => {
+    const { patients, scheduling, teleconsultation } = buildStack();
+    const patient = patients.register(validDemographics);
+    const appointment = await bookAppointment(scheduling, patient.id);
+    await teleconsultation.scheduleSession(appointment.id);
+
+    await expect(teleconsultation.scheduleSession(appointment.id)).rejects.toThrow(
+      TeleconsultationSessionAlreadyBookedError,
+    );
+  });
+
+  it('allows rebooking an appointment whose only prior session was cancelled', async () => {
+    const { patients, scheduling, teleconsultation } = buildStack();
+    const patient = patients.register(validDemographics);
+    const appointment = await bookAppointment(scheduling, patient.id);
+    const first = await teleconsultation.scheduleSession(appointment.id);
+    teleconsultation.cancelSession(first.id, 'Patient rescheduled');
+
+    const second = await teleconsultation.scheduleSession(appointment.id);
+    expect(second.status).toBe('SCHEDULED');
   });
 });
 

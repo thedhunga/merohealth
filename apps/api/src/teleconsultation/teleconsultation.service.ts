@@ -45,6 +45,7 @@ export class TeleconsultationService {
         appointment.clinicianId,
         appointmentId,
         new Date().toISOString(),
+        this.repository.list(),
       ),
     );
   }

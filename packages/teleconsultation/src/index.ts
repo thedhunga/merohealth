@@ -52,13 +52,44 @@ export class TeleconsultationSessionAlreadyCancelledError extends Error {
   }
 }
 
+/**
+ * A second session for an appointment already covered by a live one is a
+ * real impossibility, the same class of bug `scheduling`'s
+ * `AppointmentConflictError` guards against — nothing checked for one before
+ * this, so a double-click or a client retry on
+ * `POST /teleconsultation/appointments/:appointmentId/sessions` created two
+ * independently startable/cancellable sessions for one appointment.
+ */
+export class TeleconsultationSessionAlreadyBookedError extends Error {
+  constructor(appointmentId: string) {
+    super(`Appointment ${appointmentId} already has a scheduled or active teleconsultation session`);
+    this.name = 'TeleconsultationSessionAlreadyBookedError';
+  }
+}
+
+/**
+ * Only SCHEDULED and ACTIVE sessions block a rebooking — CANCELLED,
+ * COMPLETED and NO_SHOW have all released the appointment, the same
+ * "terminal/settled states free the slot" reasoning `scheduling`'s own
+ * conflict check applies to a cancelled appointment.
+ */
+function assertNoExistingSession(appointmentId: string, existingSessions: readonly TeleconsultationSession[]): void {
+  const alreadyBooked = existingSessions.some(
+    (session) =>
+      session.appointmentId === appointmentId && (session.status === 'SCHEDULED' || session.status === 'ACTIVE'),
+  );
+  if (alreadyBooked) throw new TeleconsultationSessionAlreadyBookedError(appointmentId);
+}
+
 export function scheduleTeleconsultation(
   id: string,
   patientId: string,
   clinicianId: string,
   appointmentId: string,
   now: string,
+  existingSessions: readonly TeleconsultationSession[],
 ): TeleconsultationSession {
+  assertNoExistingSession(appointmentId, existingSessions);
   return {
     id,
     patientId,

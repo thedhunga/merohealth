@@ -6,13 +6,14 @@ import {
   markTeleconsultationNoShow,
   scheduleTeleconsultation,
   startTeleconsultation,
+  TeleconsultationSessionAlreadyBookedError,
   TeleconsultationSessionAlreadyCancelledError,
   TeleconsultationSessionNotActiveError,
   TeleconsultationSessionNotScheduledError,
 } from './index.js';
 
 function makeSession(): TeleconsultationSession {
-  return scheduleTeleconsultation('session-1', 'patient-1', 'clinician-1', 'appt-1', '2026-08-10T00:00:00.000Z');
+  return scheduleTeleconsultation('session-1', 'patient-1', 'clinician-1', 'appt-1', '2026-08-10T00:00:00.000Z', []);
 }
 
 describe('scheduleTeleconsultation', () => {
@@ -35,6 +36,60 @@ describe('scheduleTeleconsultation', () => {
       updatedAt: '2026-08-10T00:00:00.000Z',
       version: 1,
     });
+  });
+
+  it('refuses a second session for an appointment that already has a SCHEDULED one', () => {
+    const existing = makeSession();
+
+    expect(() =>
+      scheduleTeleconsultation('session-2', 'patient-1', 'clinician-1', 'appt-1', '2026-08-10T00:05:00.000Z', [
+        existing,
+      ]),
+    ).toThrow(TeleconsultationSessionAlreadyBookedError);
+  });
+
+  it('refuses a second session for an appointment that already has an ACTIVE one', () => {
+    const active = startTeleconsultation(makeSession(), '2026-08-10T09:00:00.000Z');
+
+    expect(() =>
+      scheduleTeleconsultation('session-2', 'patient-1', 'clinician-1', 'appt-1', '2026-08-10T09:01:00.000Z', [
+        active,
+      ]),
+    ).toThrow(TeleconsultationSessionAlreadyBookedError);
+  });
+
+  it('allows rebooking an appointment whose only prior session was cancelled, completed or a no-show', () => {
+    const cancelled = cancelTeleconsultation(makeSession(), 'Patient rescheduled', '2026-08-10T00:05:00.000Z');
+    const completed = completeTeleconsultation(
+      startTeleconsultation(makeSession(), '2026-08-10T09:00:00.000Z'),
+      '2026-08-10T09:20:00.000Z',
+    );
+    const noShow = markTeleconsultationNoShow(makeSession(), '2026-08-10T09:10:00.000Z');
+
+    expect(() =>
+      scheduleTeleconsultation('session-2', 'patient-1', 'clinician-1', 'appt-1', '2026-08-10T10:00:00.000Z', [
+        cancelled,
+        completed,
+        noShow,
+      ]),
+    ).not.toThrow();
+  });
+
+  it('does not conflict with a SCHEDULED session for a different appointment', () => {
+    const other = scheduleTeleconsultation(
+      'session-other',
+      'patient-1',
+      'clinician-1',
+      'appt-2',
+      '2026-08-10T00:00:00.000Z',
+      [],
+    );
+
+    expect(() =>
+      scheduleTeleconsultation('session-2', 'patient-1', 'clinician-1', 'appt-1', '2026-08-10T00:05:00.000Z', [
+        other,
+      ]),
+    ).not.toThrow();
   });
 });
 
