@@ -4,6 +4,7 @@ describe('clinical safety routing', () => {
   it.each([
     ['I cannot breathe', 'EMERGENCY_NOW'], ['मलाई सास फेर्न गाह्रो छ', 'EMERGENCY_NOW'],
     ['ma saas ferna sakdina', 'EMERGENCY_NOW'], ['I have severe chest pain and I am sweating', 'EMERGENCY_NOW'],
+    ['I have severe chest pain', 'EMERGENCY_NOW'],
     ['छाती दुखाइ र पसिना आइरहेको छ', 'EMERGENCY_NOW'], ['I want to kill myself', 'MENTAL_HEALTH_CONCERN'],
     ['मलाई आत्महत्या गर्न मन लाग्छ', 'MENTAL_HEALTH_CONCERN'],
     ['I am pregnant and have heavy bleeding', 'MATERNAL_CONCERN'],

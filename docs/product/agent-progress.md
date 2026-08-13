@@ -839,6 +839,17 @@ suite grows. A module that "works" but has no outage test is not finished.
       added by this run) for the fix and why it follows
       `RecordsController.capture`'s pattern rather than `erase`'s.
 
+- [x] Fixed a live gap in `packages/clinical-safety`'s `emergency-chest-001`
+      rule: the English regex required a severity word (`severe|sweat|faint|
+      arm|jaw`) to appear *after* the phrase "chest pain"/"chest pressure",
+      but "severe" is the one word in that list that normally comes *before*
+      it in natural phrasing — so the single most direct report, "I have
+      severe chest pain" with no other qualifier, fell through to
+      `CLINICIAN_RECOMMENDED` instead of triggering `EMERGENCY_NOW`. See the
+      2026-08-13 log entry below (the one added by this run) for how an
+      independent survey found it, why the 2026-08-12 test-coverage run for
+      this same rule missed it, and the fix.
+
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
 unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
@@ -861,6 +872,70 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; fixed a live word-order bug in
+  `packages/clinical-safety`'s `emergency-chest-001` rule.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. Rather than trust the
+  most recent log entries' own "for the next run" guesses at face value,
+  delegated a fresh independent survey (a general-purpose agent, explicitly
+  briefed on every vein already exhausted: cross-owner/unguarded-ownerId
+  access control, ISO-instant validation, ne-Latn locale fallbacks,
+  share-link TTL ceilings, double-booking, EntitlementsGuard wiring,
+  negative-reading validation, filename sanitization, DRY dedup, mobile
+  i18n, classifyIntent/termAppears retrieval bugs, and the analytics-source
+  extensions) to independently re-read the code rather than the ledger's own
+  prose, prioritizing correctness/security bugs in production safety paths
+  over cosmetic cleanups.
+
+  **What was found.** `emergency-chest-001`'s English phrase was
+  `/chest (pain|pressure).*(severe|sweat|faint|arm|jaw)/i` — it requires one
+  of the trailing words to appear *after* "chest pain"/"chest pressure" in
+  the message. But "severe" is the one word in that list that, in ordinary
+  English, is said *before* the symptom ("severe chest pain"), not after.
+  Confirmed directly: `/chest (pain|pressure).*(severe|sweat|faint|arm|jaw)/i
+  .test('I have severe chest pain')` is `false`. So the single most direct,
+  minimal report of this symptom — "I have severe chest pain," nothing
+  else — fell through `assessSafety` to `CLINICIAN_RECOMMENDED` with
+  `interruptConversation: false`, instead of the `EMERGENCY_NOW` /
+  `interrupt: true` result this rule exists to guarantee.
+  `assessSafety` sits in the live companion-chat path on both
+  `apps/api/src/companion.controller.ts` and
+  `apps/mobile/app/(tabs)/companion.tsx`, so this was not a theoretical gap.
+  A 2026-08-12 log entry had already added test coverage for this exact rule
+  and declared every regex "already correct" — but its added case was
+  `'I have severe chest pain and I am sweating'`, which passes only because
+  "sweating" (not "severe") satisfies the trailing group; the isolated
+  "severe chest pain, nothing else" phrasing was never exercised. The
+  Nepali phrase (`/छाती.*(कडा|दुखाइ|पसिना|बेहोस)/u`) has no equivalent
+  order-dependency, so this was English-specific.
+
+  **What was built.** Replaced the single ordered regex with two independent
+  lookaheads — `/(?=.*chest (pain|pressure))(?=.*(severe|sweat|faint|arm|
+  jaw))/i` — so the symptom phrase and the severity word can appear in
+  either order while still requiring both, matching the rule's intent
+  without inventing new wording. Added `['I have severe chest pain',
+  'EMERGENCY_NOW']` to `index.test.ts`'s existing `it.each` table, alongside
+  the pre-existing two-symptom case, so both orderings are now covered by a
+  distinct assertion.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (17.4s, no lockfile
+  change). `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo
+  tasks — `@swasthya/clinical-safety` 14/14 (net +1, confirmed directly with
+  `pnpm --filter @swasthya/clinical-safety test`), `@swasthya/api` 602/602
+  unchanged. `pnpm build` 40/40 (35 cached).
+
+  **For the next run.** The two standing product-decision items are
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model (which blocks gating
+  `teleconsultation`'s remaining ungated routes —
+  `listSessions`/`getSession`/`start`/`complete`/`cancel`/`noShow` — and the
+  same shape across `patient-registry`, `billing`, `prescribing`, etc.). No
+  other rule in `safetyRules` showed the same order-dependency on a quick
+  re-check of `self-harm-001`, `pregnancy-warning-001` and
+  `pediatric-warning-001`, but that was not a full independent survey of
+  those three the way this run's survey was for `emergency-chest-001` —
+  worth a dedicated look before assuming they're clean.
 
 - 2026-08-13 — **Queue fully checked; closed the sibling unguarded-`ownerId`
   gap on `apps/api`'s `language-corpus` ingest route, the concrete follow-up
