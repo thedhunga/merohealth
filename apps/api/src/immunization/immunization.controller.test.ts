@@ -41,6 +41,13 @@ describe('ImmunizationController.recordPatientReported', () => {
       BadRequestException,
     );
   });
+
+  it('rejects an administeredOn that is not YYYY-MM-DD', () => {
+    const { controller } = buildController();
+    expect(() =>
+      controller.recordPatientReported({ ...validPatientReportedBody, administeredOn: '15-01-2020' }),
+    ).toThrow(BadRequestException);
+  });
 });
 
 describe('ImmunizationController.recordClinicianAdministered', () => {
@@ -57,6 +64,16 @@ describe('ImmunizationController.recordClinicianAdministered', () => {
     await expect(controller.recordClinicianAdministered('missing', validClinicianBody)).rejects.toThrow(
       NotFoundException,
     );
+  });
+
+  it('rejects an administeredOn that is not YYYY-MM-DD', () => {
+    const { controller, charting } = buildController();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    // parseOrThrow runs as an argument to the async service call, so a validation failure throws
+    // synchronously rather than rejecting the returned promise — same shape as recordPatientReported.
+    expect(() =>
+      controller.recordClinicianAdministered(encounter.id, { ...validClinicianBody, administeredOn: '2026/08/11' }),
+    ).toThrow(BadRequestException);
   });
 });
 

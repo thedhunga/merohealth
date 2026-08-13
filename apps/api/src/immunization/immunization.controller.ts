@@ -4,7 +4,10 @@ import { z } from 'zod';
 import { ImmunizationService } from './immunization.service.js';
 
 const doseNumberSchema = z.number().int().min(1);
-const administeredOnSchema = z.string().trim().min(1);
+// Matches patient-registry's dateOfBirth convention, not the isoInstant one records/scheduling/
+// family-grants/language-corpus use: every administeredOn example and seed row here is a bare
+// YYYY-MM-DD, and the ApiBody schemas below already document it as `format: 'date'`.
+const administeredOnSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'administeredOn must be YYYY-MM-DD');
 
 const recordPatientReportedSchema = z.object({
   patientId: z.string().trim().min(1),

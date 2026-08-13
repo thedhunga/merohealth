@@ -922,6 +922,17 @@ suite grows. A module that "works" but has no outage test is not finished.
       fix matches the `isoInstant` convention (`scheduling`/`family-grants`/
       `language-corpus`), not `patient-registry`'s bare-date one, and for the
       sibling gap left open.
+- [x] `apps/api`'s `immunization.controller.ts`: `administeredOn` now
+      requires a well-formed `YYYY-MM-DD` date instead of accepting any
+      non-empty string — the concrete, unblocked candidate the
+      `RecordsController.capture` `documentDate` run's own log entry named
+      directly ("`administeredOn` has the identical shape gap ... same
+      one-line regex fix, same test shape"). Unlike `documentDate`, this
+      matches `patient-registry`'s bare-date `dateOfBirth` convention, not
+      the `isoInstant` one — every example, seed row and the Swagger
+      `format: 'date'` annotation on both routes already agree it is a bare
+      date. See the 2026-08-13 log entry below for the trace and the two new
+      controller tests.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -945,6 +956,76 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; validated `administeredOn` on
+  `immunization.controller.ts`'s two record routes as a well-formed
+  `YYYY-MM-DD` date.** Grepped for `- [ ]` first — zero hits, same as every
+  recent run. The `documentDate` run's own log entry named this exact field
+  as the clearest small, unblocked candidate ("the identical shape gap ...
+  same one-line `isoInstant` regex fix, same test shape"), so this run
+  verified that claim against the code rather than taking it on faith.
+
+  **What was found.** `administeredOnSchema`
+  (`apps/api/src/immunization/immunization.controller.ts`) was
+  `z.string().trim().min(1)` on both `recordPatientReportedSchema` and
+  `recordClinicianAdministeredSchema` — any non-empty string passed,
+  including `"not-a-date"`.
+
+  **Which format — checked before assuming the log entry's suggested
+  template was right.** The named precedent (`documentDate`) used the
+  `isoInstant` regex (`scheduling`/`family-grants`/`language-corpus`'s
+  convention for a full UTC timestamp), but `administeredOn` is not that
+  shape: every example in this file's own `@ApiBody` Swagger schemas is
+  `format: 'date'` (not `'date-time'`), every seed/test value
+  (`packages/immunization/src/index.test.ts`,
+  `apps/api/src/immunization/immunization.*.test.ts`) is a bare
+  `'2020-01-15'`-style string, and `shared-types`' own doc comment calls it
+  "the date the dose was actually given" — a calendar date, not an instant.
+  That is exactly `patient-registry`'s `dateOfBirth` shape, not
+  `documentDate`'s, so the fix reuses `dateOfBirth`'s existing
+  `/^\d{4}-\d{2}-\d{2}$/` regex convention instead of `isoInstant`. Applying
+  `isoInstant` here would have rejected every existing example, seed row and
+  test fixture in the repo — a sign the template was wrong, not that the
+  data needed to change.
+
+  **What was built.** `administeredOnSchema` now regex-validates
+  `YYYY-MM-DD` with a `'administeredOn must be YYYY-MM-DD'` message, applied
+  to both `recordPatientReportedSchema` and
+  `recordClinicianAdministeredSchema` (they shared one schema constant
+  already, so one change covers both routes). Two new cases in
+  `immunization.controller.test.ts`: `recordPatientReported` rejects
+  `'15-01-2020'`, `recordClinicianAdministered` rejects `'2026/08/11'`. The
+  second test needed `expect(() => ...).toThrow(...)`, not
+  `await expect(...).rejects.toThrow(...)` — unlike the encounter-lookup
+  404, which throws asynchronously from inside the awaited service call,
+  `parseOrThrow` runs synchronously as an *argument* to
+  `recordClinicianAdministered`'s call to the (non-`async`) controller
+  method, so a validation failure throws before any promise is returned. Got
+  this wrong on the first pass (wrote it as `rejects.toThrow` by analogy with
+  the neighbouring 404 test) and `pnpm test` caught it immediately — worth
+  noting for whoever next writes a validation test against an
+  argument-position `parseOrThrow` call in this file.
+
+  **Deliberately left open.** Confirmed by grep that nothing downstream
+  reads `administeredOn` for sorting or export the way `buildTimeline`/
+  `toFhirDocumentReference` read `documentDate` — same as the prior run's own
+  finding. This is still a real fix (format validation belongs at the
+  request boundary regardless of whether a consumer exists yet, and every
+  sibling date/instant field in the repo already gets it), but it closes a
+  latent gap, not a live incident.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean. `pnpm lint` 40/40.
+  `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks — `@swasthya/api`
+  609/609 (net +2, the new `administeredOn` cases), every other package's
+  count unchanged. `pnpm build` 40/40.
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. No further same-shape unvalidated
+  date/instant field turned up in this pass — whoever picks the next task up
+  should commission a fresh independent survey rather than assume one is
+  waiting, per the working agreement.
 
 - 2026-08-13 — **Queue fully checked; validated `documentDate` on
   `RecordsController.capture` as an ISO 8601 UTC instant.** Grepped for
