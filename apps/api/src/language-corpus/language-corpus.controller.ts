@@ -1,7 +1,10 @@
-import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, Post, UseGuards } from '@nestjs/common';
-import { ApiBody, ApiHeader, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
-import { CorpusReviewerGuard, REVIEWER_ID_HEADER } from './corpus-reviewer.guard.js';
+import type { CurrentUserResult } from '../auth/auth.service.js';
+import { CurrentUser } from '../auth/current-user.decorator.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
+import { CorpusReviewerGuard } from './corpus-reviewer.guard.js';
 import { LanguageCorpusService } from './language-corpus.service.js';
 
 const utteranceKindSchema = z.enum(['USER_MESSAGE', 'CORRECTION', 'VOICE_TRANSCRIPT']);
@@ -38,20 +41,6 @@ function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
   return parsed.data;
 }
 
-/**
- * `CorpusReviewerGuard` already rejects any request missing this header
- * before a handler runs; re-checked here only so a route that ever loses
- * its `@UseGuards(CorpusReviewerGuard)` fails loudly instead of passing
- * `undefined` through to an audit log entry.
- */
-function requireReviewerId(reviewerId: string | undefined): string {
-  const parsed = z.string().trim().min(1).safeParse(reviewerId);
-  if (!parsed.success) {
-    throw new BadRequestException({ code: 'VALIDATION_ERROR', message: `${REVIEWER_ID_HEADER} is required` });
-  }
-  return parsed.data;
-}
-
 @ApiTags('language-corpus')
 @Controller('language-corpus')
 export class LanguageCorpusController {
@@ -81,8 +70,7 @@ export class LanguageCorpusController {
   }
 
   @Get('review-queue')
-  @UseGuards(CorpusReviewerGuard)
-  @ApiHeader({ name: REVIEWER_ID_HEADER, required: true })
+  @UseGuards(SessionAuthGuard, CorpusReviewerGuard)
   @ApiOperation({ summary: 'Utterances awaiting human review, oldest capture first' })
   queue() {
     const items = this.corpus.queue();
@@ -90,30 +78,27 @@ export class LanguageCorpusController {
   }
 
   @Get('utterances/:utteranceId')
-  @UseGuards(CorpusReviewerGuard)
-  @ApiHeader({ name: REVIEWER_ID_HEADER, required: true })
+  @UseGuards(SessionAuthGuard, CorpusReviewerGuard)
   @ApiParam({ name: 'utteranceId' })
   @ApiOperation({ summary: "Open one utterance to read its de-identified text — logged per language-corpus.md §5" })
-  read(@Param('utteranceId') utteranceId: string, @Headers(REVIEWER_ID_HEADER) reviewerId?: string) {
-    return this.corpus.read(utteranceId, requireReviewerId(reviewerId));
+  read(@CurrentUser() user: CurrentUserResult, @Param('utteranceId') utteranceId: string) {
+    return this.corpus.read(utteranceId, user.subjectId);
   }
 
   @Post('utterances/:utteranceId/clear')
-  @UseGuards(CorpusReviewerGuard)
-  @ApiHeader({ name: REVIEWER_ID_HEADER, required: true })
+  @UseGuards(SessionAuthGuard, CorpusReviewerGuard)
   @ApiParam({ name: 'utteranceId' })
   @ApiOperation({ summary: 'Record that no residual identifier was found — eligible for a future snapshot' })
-  clear(@Param('utteranceId') utteranceId: string, @Headers(REVIEWER_ID_HEADER) reviewerId?: string) {
-    return this.corpus.clear(utteranceId, requireReviewerId(reviewerId));
+  clear(@CurrentUser() user: CurrentUserResult, @Param('utteranceId') utteranceId: string) {
+    return this.corpus.clear(utteranceId, user.subjectId);
   }
 
   @Post('utterances/:utteranceId/discard')
-  @UseGuards(CorpusReviewerGuard)
-  @ApiHeader({ name: REVIEWER_ID_HEADER, required: true })
+  @UseGuards(SessionAuthGuard, CorpusReviewerGuard)
   @ApiParam({ name: 'utteranceId' })
   @ApiOperation({ summary: 'Record that a residual identifier was found — this utterance must never train a model' })
-  discard(@Param('utteranceId') utteranceId: string, @Headers(REVIEWER_ID_HEADER) reviewerId?: string) {
-    return this.corpus.discard(utteranceId, requireReviewerId(reviewerId));
+  discard(@CurrentUser() user: CurrentUserResult, @Param('utteranceId') utteranceId: string) {
+    return this.corpus.discard(utteranceId, user.subjectId);
   }
 
   @Delete('owners/:ownerId')
@@ -132,8 +117,7 @@ export class LanguageCorpusController {
   }
 
   @Get('utterances/:utteranceId/audit-log')
-  @UseGuards(CorpusReviewerGuard)
-  @ApiHeader({ name: REVIEWER_ID_HEADER, required: true })
+  @UseGuards(SessionAuthGuard, CorpusReviewerGuard)
   @ApiParam({ name: 'utteranceId' })
   @ApiOperation({ summary: "Who read this utterance and who decided it, oldest first" })
   auditLog(@Param('utteranceId') utteranceId: string) {

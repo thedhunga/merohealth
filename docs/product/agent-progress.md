@@ -804,6 +804,17 @@ suite grows. A module that "works" but has no outage test is not finished.
       the fix (`SessionAuthGuard` ahead of `ReviewerGuard`, role read from
       the verified session), and the sibling instance in
       `packages/language-corpus`'s reviewer guard left open.
+- [x] Closed the sibling forgeable-header gap on `apps/api`'s
+      `language-corpus` reviewer routes: `CorpusReviewerGuard` authorized
+      purely off `x-reviewer-role`/`x-reviewer-id` headers, the exact gap the
+      credentialing `ReviewerGuard` fix left open pending a `UserRole`
+      migration for `CORPUS_REVIEWER`, which this run adds. See the
+      2026-08-13 log entry below (the one added by this run) for the
+      migration, the guard/controller/module fix mirroring
+      `credentialing/reviewer.guard.ts` exactly, and how `pnpm
+      install --frozen-lockfile`/`lint`/`typecheck`/`test`/`build` were
+      verified against a real local Postgres 16 this sandbox does not have
+      running by default.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -827,6 +838,92 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; closed the sibling forgeable-header gap
+  on `packages/language-corpus`'s reviewer routes, the concrete follow-up the
+  prior run's own log entry left open.** Grepped for `- [ ]` first — zero
+  hits, same as every recent run. The prior (same-day) log entry, on closing
+  the identical gap in `credentialing/reviewer.guard.ts`, named this exact
+  file — `apps/api/src/language-corpus/corpus-reviewer.guard.ts` — as "a real,
+  scoped, unblocked candidate," so this run picked it up directly rather than
+  spending an independent survey re-finding what was already found. Re-read
+  `corpus-reviewer.guard.ts`, `language-corpus.controller.ts`,
+  `language-corpus.module.ts`, `credentialing/reviewer.guard.ts` (the fixed
+  sibling) and `session-auth.guard.ts` before touching anything, to confirm
+  the pattern actually matched before copying the fix.
+
+  **What was found.** `CorpusReviewerGuard.canActivate` authorized purely by
+  string-comparing two client-supplied headers, `x-reviewer-role` and
+  `x-reviewer-id` — no session verification at all, the identical shape
+  `credentialing/reviewer.guard.ts` had until earlier today. Its own doc
+  comment explained why it hadn't been fixed alongside that one:
+  `CORPUS_REVIEWER` was not yet in `packages/database`'s `UserRole` Prisma
+  enum, and the comment further claimed `@swasthya/database` was "not wired
+  into `apps/api` by anything today" — also stale, since `AuthService`
+  already depends on it via `auth-store.ts`. Concretely: an unauthenticated
+  caller sending `x-reviewer-role: CORPUS_REVIEWER` with any
+  `x-reviewer-id` could list the review queue, read any utterance's
+  de-identified conversational text, and clear/discard utterances (the
+  discard decision that permanently excludes text from ever training a
+  model) — all attributed in the audit log to whatever `reviewerId` string
+  the caller typed, an falsifiable trail identical to the credentialing bug.
+
+  **What was built.** Two-part fix, matching the credentialing precedent
+  exactly rather than inventing a new shape. (1) `packages/database`: new
+  migration `20260813000000_add_corpus_reviewer_role` adds `CORPUS_REVIEWER`
+  to the `UserRole` enum (`ALTER TYPE "UserRole" ADD VALUE
+  'CORPUS_REVIEWER'`) — this sandbox has no Postgres running by default
+  (`compose.yaml`'s service isn't up and `docker` has no daemon here), but a
+  real `postgresql-16` server and client were already installed as native
+  packages; started the `main` cluster with `pg_ctlcluster`, created the
+  `swasthya` role/database matching `.env.example`'s `DATABASE_URL`, and
+  actually ran `prisma migrate deploy` from empty — all five migrations,
+  including the new one, applied cleanly, `prisma migrate diff
+  --from-config-datasource --to-schema prisma/schema.prisma --exit-code`
+  reported zero drift, and `tsx prisma/seed.ts` still seeds cleanly against
+  the new schema. (2) `apps/api`: `CorpusReviewerGuard.canActivate` now reads
+  `request.authUser` (only `SessionAuthGuard` populates it) and checks
+  `user.role === CORPUS_REVIEWER_ROLE`, dropping the header constants and
+  parsing helper entirely. Every reviewer route in
+  `language-corpus.controller.ts` (`review-queue`, `utterances/:id`,
+  `.../clear`, `.../discard`, `.../audit-log`) now carries
+  `@UseGuards(SessionAuthGuard, CorpusReviewerGuard)`, and the four routes
+  that previously read `@Headers(REVIEWER_ID_HEADER)` plus a local
+  `requireReviewerId` re-check now take `@CurrentUser() user:
+  CurrentUserResult` and use `user.subjectId` as the reviewer id attributed
+  on every audit entry — the same `@CurrentUser()` pattern
+  `CredentialingController` already uses. `LanguageCorpusModule` now imports
+  `AuthModule` for the guard, the same "import the module, get the guard"
+  wiring `CredentialingModule` already established. `ingest` and `erase`
+  were left exactly as they were — both are the data subject acting on their
+  own record, not a reviewer, so this fix doesn't touch them; updated
+  `erase`'s doc comment, which had cited the now-fixed `CorpusReviewerGuard`
+  excuse as its own justification, to describe its actual remaining gap
+  instead (no verified `ownerId` binding) rather than leave a stale
+  cross-reference. Updated `corpus-reviewer.guard.test.ts` (now exercises a
+  fake `CurrentUserResult` instead of raw headers, plus a "rejects a patient
+  session" case) and `language-corpus.controller.test.ts` (reviewer calls now
+  pass a fake `CurrentUserResult`; dropped the one test asserting the old
+  header-required-even-though-guard-screens-it-first behavior, since that
+  behavior no longer exists).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 600/600 (net −2 from the two removed header-only test
+  cases described above, no test weakened — both replaced by session-based
+  equivalents covering the same guard boundary, the identical net-2 shape
+  the credentialing fix produced for the same reason). `pnpm build` 40/40.
+
+  **For the next run.** No sibling forgeable-header guard remains — this was
+  the last one named. The two standing product-decision items are unchanged
+  and still not this run's to resolve: `packages/health-records`'s
+  status-guard question and the clinical-suite's missing clinician-identity
+  model. A real, smaller, unblocked follow-up this run leaves open:
+  `language-corpus.service.ts`'s `erase` (a data-subject-initiated
+  right-to-erasure request, not a reviewer route) still trusts a bare
+  client-supplied `ownerId` with no session or ownership check at all — the
+  same cross-owner shape `RecordsController` had before its own fix, just
+  not yet found by a survey naming it directly.
 
 - 2026-08-13 — **Queue fully checked; closed an unauthenticated-access gap on
   `apps/api`'s credentialing review routes — `ReviewerGuard` authorized off

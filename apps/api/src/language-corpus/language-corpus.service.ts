@@ -83,10 +83,12 @@ export class LanguageCorpusService {
    * `eraseFromSnapshot` here too, per that function's own doc comment.
    *
    * Unguarded, like `ingest`: this is the data subject acting on their own
-   * `ownerId`, not a reviewer acting on someone else's, and this repo has
-   * no identity layer yet to bind a caller to the `ownerId` they claim —
-   * same limitation `CorpusReviewerGuard`'s own doc comment names. Replace
-   * with a real identity check the moment one exists.
+   * `ownerId`, not a reviewer acting on someone else's, so `SessionAuthGuard`
+   * alone would not be enough here even though it now gates every reviewer
+   * route below — this route additionally needs the caller's verified
+   * `ownerId` checked against the `ownerId` in the path, the same shape
+   * `RecordsController`'s cross-owner fix required. Replace with a real
+   * ownership check the moment this route is wired behind a session.
    */
   erase(ownerId: string): { erasedUtteranceIds: readonly string[] } {
     const ids = utteranceIdsForOwner(this.repository.list(), ownerId);
