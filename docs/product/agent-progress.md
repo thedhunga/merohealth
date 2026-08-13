@@ -783,6 +783,14 @@ suite grows. A module that "works" but has no outage test is not finished.
       all. See the 2026-08-13 log entry below (the one added by this run) for
       the trace and why this was the deferred half of the 2026-08-09
       `packages/identity` run rather than a new candidate.
+- [x] Fixed `apps/mobile/app/(tabs)/learn.tsx`'s `walkthroughSteps` so the
+      interactive walkthrough's title/body sentences and their
+      text-to-speech reading follow the `language` toggle instead of always
+      showing and speaking Nepali — the last hardcoded-language gap found by
+      a fresh independent survey after every previously-mined mobile i18n
+      vein came back exhausted. See the 2026-08-13 log entry below (the one
+      added by this run) for the trace and why the eyebrow badges stayed
+      untouched.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -806,6 +814,71 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; `apps/mobile/app/(tabs)/learn.tsx`'s
+  interactive walkthrough now follows the `language` toggle instead of
+  always showing and speaking Nepali.** Grepped for `- [ ]` first — zero
+  hits, same as every recent run. Delegated a fresh independent survey (an
+  `Explore` subagent, read-only) instructed to avoid every already-mined
+  vein this log lists and both standing product-decision items (the
+  `health-records` status-guard question and the clinical-suite
+  clinician-identity gap). It returned one strong, traced candidate; this
+  run independently re-verified it by reading the actual file before
+  touching anything, and by grepping the log for every prior `learn.tsx`
+  mention to confirm the specific fields were never touched, per this
+  ledger's "trust but verify" habit for delegated work.
+
+  **What was found.** `walkthroughSteps` (`learn.tsx:21-40`) is the data
+  behind the Learn tab's "how to use the app" walkthrough player. Its three
+  steps each held a `title`/`body` pair with Nepali-only sentences and no
+  English counterpart at all — unlike every other sentence-level string in
+  this same file and every sibling screen, which all follow the
+  `language === 'en' ? … : …` ternary convention this repo has used
+  consistently since the 2026-08-11 `care.tsx`/`consultation.tsx` run.
+  `currentStep.title`/`currentStep.body` were rendered unconditionally
+  (`:110-111` before this fix), and `speakCurrentStep` fed the same
+  Nepali-only text into `Speech.speak` with `language: 'en-US'` whenever
+  the app's toggle was set to English — so an English-toggled user not
+  only saw Nepali sentences on screen, tapping "Listen to this step" read
+  Nepali text aloud through an English voice profile. This was genuinely
+  unmined: two 2026-08-12 entries (grepped and read in full before
+  starting) explicitly discuss `learn.tsx` and ruled that its all-caps
+  `walkthroughSteps[].eyebrow` badges (`STEP 1 · ASK` etc.) stay English
+  chrome by design, matching the `index.web.tsx`/teleconsultation eyebrow
+  precedent — but neither entry, nor any other `learn.tsx` mention in the
+  log, discusses `.title`/`.body`, which are sentence-case body copy the
+  same precedent says should translate, not chrome.
+
+  **What was built.** `walkthroughSteps[].title`/`.body` split into
+  `.titleNe`/`.titleEn`/`.bodyNe`/`.bodyEn`, matching the `questionEn`/
+  `questionNe`/`whyEn`/`whyNe` naming `twin.tsx` already established for
+  the same shape of bilingual content object. Each English string is a
+  plain literal translation of the existing Nepali sentence — no new
+  claims. The two render call sites (`stepTitle`/`stepBody`) now branch on
+  `language` like every other visible string in the file, and
+  `speakCurrentStep` now speaks the language-appropriate variant with a
+  language-appropriate sentence separator (`। ` for Nepali, `. ` for
+  English — the old code always used the Devanagari danda regardless of
+  language). The eyebrow badges and "INTERACTIVE WALKTHROUGH"/"READABLE
+  TRANSCRIPT" chrome were left untouched, matching the precedent above.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` unchanged at 604/604 — this file has no colocated test,
+  matching every other `app/*.tsx` screen in this repo (no rendering
+  harness exists for them, per the 2026-08-11 accessibility-label run's own
+  note). `pnpm build` 40/40 (35 cached); `apps/mobile`'s Expo web bundle
+  still exports `/learn` cleanly at 66KB.
+
+  **For the next run.** The two standing product-decision items are
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. A fresh survey reported no other
+  hardcoded-language gap left in `apps/mobile` — the mobile i18n vein this
+  log has repeatedly mined (`care.tsx`, `consultation.tsx`, `index.tsx`,
+  `twin.tsx`, `companion.tsx`, `_layout.tsx`, now `learn.tsx`) appears
+  genuinely exhausted; a future "queue exhausted" run should treat a repeat
+  of that specific sweep as low-probability and look elsewhere first.
 
 - 2026-08-13 — **Queue fully checked; `EntitlementsGuard` now enforces
   `packages/identity`'s assurance-level policy, closing a real authorization

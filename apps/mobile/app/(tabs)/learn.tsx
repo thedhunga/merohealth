@@ -21,20 +21,26 @@ import { useAppState } from '@/state/app-state';
 const walkthroughSteps = [
   {
     eyebrow: 'STEP 1 · ASK',
-    title: 'आफ्नो कुरा आवाज वा शब्दमा भन्नुहोस्',
-    body: 'मुख्य कुरा मात्र सुरुमा भन्नुहोस्। साथीले आवश्यक परे एक–एक छोटो प्रश्न सोध्छ।',
+    titleNe: 'आफ्नो कुरा आवाज वा शब्दमा भन्नुहोस्',
+    titleEn: "Say what's on your mind, by voice or in words",
+    bodyNe: 'मुख्य कुरा मात्र सुरुमा भन्नुहोस्। साथीले आवश्यक परे एक–एक छोटो प्रश्न सोध्छ।',
+    bodyEn: 'Start with just the main thing. Sathi will ask one short question at a time if needed.',
     accent: colors.jadeBright,
   },
   {
     eyebrow: 'STEP 2 · UNDERSTAND',
-    title: 'सुरक्षा संकेत पहिले हेरिन्छ',
-    body: 'गम्भीर संकेत भेटिए सामान्य कुराकानी रोकिन्छ र तुरुन्त सहायता खोज्ने बाटो देखाइन्छ।',
+    titleNe: 'सुरक्षा संकेत पहिले हेरिन्छ',
+    titleEn: 'Safety signals are checked first',
+    bodyNe: 'गम्भीर संकेत भेटिए सामान्य कुराकानी रोकिन्छ र तुरुन्त सहायता खोज्ने बाटो देखाइन्छ।',
+    bodyEn: "If a serious signal is found, the normal conversation stops and you're shown how to get help right away.",
     accent: colors.saffron,
   },
   {
     eyebrow: 'STEP 3 · CONNECT',
-    title: 'उपयुक्त सेवा रोज्नुहोस्',
-    body: 'डाक्टर, अस्पताल, ल्याब वा घरमै सेवा—स्रोत र ताजापन देखिने गरी खोज्नुहोस्।',
+    titleNe: 'उपयुक्त सेवा रोज्नुहोस्',
+    titleEn: 'Choose the right service',
+    bodyNe: 'डाक्टर, अस्पताल, ल्याब वा घरमै सेवा—स्रोत र ताजापन देखिने गरी खोज्नुहोस्।',
+    bodyEn: 'Doctor, hospital, lab or at-home service — search with the source and freshness visible.',
     accent: colors.mintStrong,
   },
 ];
@@ -64,7 +70,10 @@ export default function LearnScreen() {
 
   const speakCurrentStep = () => {
     void Speech.stop();
-    Speech.speak(`${currentStep.title}। ${currentStep.body}`, {
+    const title = language === 'en' ? currentStep.titleEn : currentStep.titleNe;
+    const body = language === 'en' ? currentStep.bodyEn : currentStep.bodyNe;
+    const separator = language === 'en' ? '. ' : '। ';
+    Speech.speak(`${title}${separator}${body}`, {
       language: language === 'en' ? 'en-US' : 'ne-NP',
       rate: 0.88,
     });
@@ -107,8 +116,12 @@ export default function LearnScreen() {
           <Text style={[styles.stepEyebrow, { color: currentStep.accent }]}>
             {currentStep.eyebrow}
           </Text>
-          <Text style={styles.stepTitle}>{currentStep.title}</Text>
-          <Text style={styles.stepBody}>{currentStep.body}</Text>
+          <Text style={styles.stepTitle}>
+            {language === 'en' ? currentStep.titleEn : currentStep.titleNe}
+          </Text>
+          <Text style={styles.stepBody}>
+            {language === 'en' ? currentStep.bodyEn : currentStep.bodyNe}
+          </Text>
         </View>
 
         <View style={styles.progressTrack}>
