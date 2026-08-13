@@ -734,8 +734,13 @@
         "heading": "Application submitted",
         "body": "Your application is waiting for a trained reviewer to check your registration number against {council}'s public register. Nobody has reviewed it yet, and no badge is issued until they do.",
         "referenceLabel": "Application reference",
-        "demoNotice": "This demonstration build isn't connected to a live review team yet, so this application only exists in this browser tab — reloading the page will clear it.",
+        "demoNotice": "This demonstration build genuinely registers your application for review, but certificate and ID photos aren't uploaded to any real storage yet — only their file names are recorded.",
         "startOverCta": "Start a new application"
+      },
+      "loading": "Loading…",
+      "errors": {
+        "VALIDATION_ERROR": "Check the form and try again.",
+        "GENERIC": "Something went wrong — please try again."
       }
     },
     "ourProviders": {

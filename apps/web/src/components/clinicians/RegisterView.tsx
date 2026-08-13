@@ -10,14 +10,22 @@ import { RecordTransform } from '@/components/art/RecordTransform';
 import { Button } from '@/components/ui/Button';
 import { PageTemplate } from '@/components/ui/PageTemplate';
 import { Section } from '@/components/ui/Section';
+import { useSession } from '@/hooks/useSession';
 import { cn } from '@/lib/cn';
-import { submitNewClinicianApplication } from '@/lib/clinician-application';
 import { councilName } from '@/lib/council-name';
+import { CredentialingApiError, submitCredentialingApplication } from '@/lib/credentialing-api';
 
 const COUNCIL_KEYS = Object.keys(councilRegistry) as CouncilKey[];
 const STEP_ORDER = ['details', 'evidence', 'review', 'status'] as const;
 type Step = (typeof STEP_ORDER)[number];
 const STEP_HEADING_ID = 'register-step-heading';
+
+// The exact set `CredentialingController.submit` can return for this route —
+// every other `CredentialingApiError.code` (including an uncaught
+// `ApplicationTransitionError`, which reaches the client with no code at
+// all) falls back to `errors.GENERIC`, the same convention
+// `DelegationForm`'s `KNOWN_ERROR_CODES` established.
+const KNOWN_ERROR_CODES = ['VALIDATION_ERROR'] as const;
 
 interface CapturedFile {
   file: File;
@@ -85,20 +93,27 @@ function EvidenceCapture({
  * certificate/ID capture, then a status screen (identity-and-credentialing.md
  * §3's flow, steps 1-2 plus the submitted state of step 3).
  *
- * Entirely client-side state: `apps/web` has no backend route and
- * `packages/credentialing` has no evidence-storage adapter yet (both named
- * as open gaps in `agent-progress.md`), so this can build and submit a real
- * `CredentialingApplication` through the domain package but has nowhere to
- * persist it — the status screen says so plainly rather than implying a
- * review team is already looking at it. §3's "no automatic approval, ever"
- * is followed literally: this never calls `beginReview`/`approveApplication`
- * itself, so the only reachable status here is `EVIDENCE_SUBMITTED`.
+ * Gated behind `useSession()`: `CredentialingController.submit` derives the
+ * applicant from the verified session rather than a client-supplied id (see
+ * that route's own history note), so there is no honest way to submit
+ * without one. This is the phone-verified `REGISTERED` bar every other
+ * signed-in page on `apps/web` already sits behind, not the national-ID
+ * `IDENTITY_VERIFIED` check identity-and-credentialing.md §1 says must never
+ * gate signup — that check happens later, when a reviewer works the queue.
+ * Submission now reaches the real `POST /credentialing/applications` and
+ * enters the same reviewer queue `ReviewerGuard`-protected routes read from,
+ * so the status screen can finally say so truthfully. §3's "no automatic
+ * approval, ever" still holds client-side: this never calls
+ * `beginReview`/`approveApplication` itself, so the only reachable status
+ * here is `EVIDENCE_SUBMITTED`.
  */
 export function RegisterView() {
   const t = useTranslations('clinicians.register');
+  const errorsT = useTranslations('clinicians.register.errors');
   const nav = useTranslations('nav');
   const locale = useLocale();
   const baseId = useId();
+  const session = useSession();
 
   const [step, setStep] = useState<Step>('details');
   const [selectedCouncil, setSelectedCouncil] = useState<CouncilKey | null>(null);
@@ -106,6 +121,8 @@ export function RegisterView() {
   const [certificate, setCertificate] = useState<CapturedFile | null>(null);
   const [identity, setIdentity] = useState<CapturedFile | null>(null);
   const [application, setApplication] = useState<CredentialingApplication | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -130,17 +147,35 @@ export function RegisterView() {
     setFile({ file, previewUrl: URL.createObjectURL(file) });
   }
 
-  function handleSubmit() {
+  function localizedError(err: unknown): string {
+    const code = err instanceof CredentialingApiError ? err.code : null;
+    const known = KNOWN_ERROR_CODES.find((candidate) => candidate === code);
+    return errorsT(known ?? 'GENERIC');
+  }
+
+  async function handleSubmit() {
     if (!selectedCouncil || !certificate || !identity) return;
-    const submitted = submitNewClinicianApplication({
-      council: selectedCouncil,
-      registrationNumber,
-      certificateFileName: certificate.file.name,
-      identityFileName: identity.file.name,
-      submittedAt: new Date().toISOString(),
-    });
-    setApplication(submitted);
-    setStep('status');
+    setSubmitError(null);
+    setSubmitting(true);
+    try {
+      const submitted = await submitCredentialingApplication({
+        council: selectedCouncil,
+        registrationNumber,
+        // `local-file:` marks this as a reference to a file that only ever
+        // lived in this browser tab, not a real uploaded object —
+        // `packages/credentialing` has no evidence-storage adapter yet (a
+        // separate, still-open gap), so nothing downstream mistakes it for
+        // one.
+        certificateImageRef: `local-file:${certificate.file.name}`,
+        identityImageRef: `local-file:${identity.file.name}`,
+      });
+      setApplication(submitted);
+      setStep('status');
+    } catch (err) {
+      setSubmitError(localizedError(err));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function resetFlow() {
@@ -162,6 +197,22 @@ export function RegisterView() {
     Art: RecordTransform,
     artPosition: 'end' as const,
   };
+
+  // `useSession` redirects to `/signin` on anything other than a live
+  // session (see its own doc comment), so this is the only other state ever
+  // visible here — the same pattern `AccountView.tsx` uses for its one other
+  // protected page.
+  if (session.status !== 'authenticated') {
+    return (
+      <PageTemplate hero={hero}>
+        <Section labelledBy={STEP_HEADING_ID}>
+          <p id={STEP_HEADING_ID} role="status">
+            {t('loading')}
+          </p>
+        </Section>
+      </PageTemplate>
+    );
+  }
 
   return (
     <PageTemplate hero={hero}>
@@ -353,13 +404,19 @@ export function RegisterView() {
                 </div>
               </div>
 
+              {submitError ? (
+                <p className="text-sm font-semibold text-red-700" role="alert">
+                  {submitError}
+                </p>
+              ) : null}
+
               <div className="flex gap-3">
-                <Button onClick={() => setStep('evidence')} variant="secondary">
+                <Button disabled={submitting} onClick={() => setStep('evidence')} variant="secondary">
                   {t('review.backCta')}
                 </Button>
                 {/* The single marigold action across this whole flow — the
                     actual moment of commitment, not every "continue" click. */}
-                <Button onClick={handleSubmit} variant="accent">
+                <Button disabled={submitting} onClick={() => void handleSubmit()} variant="accent">
                   {t('review.submitCta')}
                 </Button>
               </div>

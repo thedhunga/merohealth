@@ -871,6 +871,18 @@ suite grows. A module that "works" but has no outage test is not finished.
       word-order vein was declared exhausted. See the 2026-08-13 log entry
       below (the one added by this run) for the trace and the fix.
 
+- [x] Wired `apps/web`'s clinician registration flow (`RegisterView.tsx`) to
+      the now-guarded `POST /credentialing/applications` instead of building
+      and "submitting" a `CredentialingApplication` purely client-side with
+      nowhere to send it — the item the `CredentialingController.submit`
+      guard fix's own log entry flagged as needing re-investigation rather
+      than being assumed still blocked. Confirmed `apps/web` already has a
+      working cookie session (`useSession`/`auth-api.ts`, proven by
+      `AccountView.tsx`), so the premise for the old client-only stand-in no
+      longer held. See the 2026-08-13 log entry below (the one added by this
+      run) for the new `credentialing-api.ts` client, the session gate, and
+      what stayed deliberately out of scope.
+
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
 unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
@@ -893,6 +905,83 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; wired `apps/web`'s clinician
+  registration flow to the real, now-guarded `POST
+  /credentialing/applications` backend route.** Grepped for `- [ ]` first —
+  zero hits, same as every recent run. Rather than trust the prior run's own
+  "worth checking before assuming it is a one-line fetch call" note,
+  delegated a fresh independent survey briefed on every vein already
+  exhausted (listed in full in the survey prompt — cross-owner access
+  control, ISO-instant validation, ne-Latn fallbacks, share-link TTL,
+  double-booking, EntitlementsGuard wiring, identity assurance-level
+  enforcement, negative-reading validation, filename sanitization, DRY
+  dedup, mobile i18n, retrieval bugs, analytics-source extensions, and the
+  clinical-safety word-order rules), asking it to specifically re-check
+  whether the clinician-registration gap was really still blocked.
+
+  **What was found.** `apps/web/src/lib/clinician-application.ts` and
+  `RegisterView.tsx` built a `CredentialingApplication` entirely in-browser
+  via `@swasthya/credentialing`'s pure `submitApplication` function and
+  never issued a `fetch` — both files' doc comments justified this by
+  claiming `apps/web` "has no backend route" for it. That was true when
+  written but stale: `CredentialingController.submit` has had
+  `SessionAuthGuard` since the immediately-prior run in this same log, and
+  `apps/web` has had a working cookie-based session since Round two D2
+  (`useSession`/`auth-api.ts`, already proven by `AccountView.tsx` and
+  `DelegationForm.tsx`'s calls to `family-api.ts`). So the entire clinician
+  registration funnel on web was a no-op that only *looked* successful — a
+  submitted application never reached `CredentialingRepository`, never
+  appeared in the reviewer queue, and could never be approved.
+
+  **What was built.** New `apps/web/src/lib/credentialing-api.ts`
+  (`submitCredentialingApplication`), shaped after `family-api.ts`: `POST
+  /v1/credentialing/applications` with `credentials: 'include'`, a typed
+  `CredentialingApiError` carrying the server's machine-readable `code`.
+  `RegisterView.tsx` now gates on `useSession()` (the same pattern
+  `AccountView.tsx` uses for its one other protected page — a signed-out
+  visitor is redirected to `/signin` before seeing the form at all) and
+  calls the new client instead of the old local-only function, with a
+  `submitting`/`submitError` state and a `KNOWN_ERROR_CODES` +
+  `errorsT`/`GENERIC` fallback matching `DelegationForm.tsx`'s convention.
+  Deleted `clinician-application.ts`/`.test.ts` (the local-only stand-in,
+  now fully superseded) and added `credentialing-api.test.ts`. Updated both
+  `status.demoNotice` strings (`ne.json`/`en.json`) to state the true
+  current behaviour — the application really enters the review queue now,
+  but certificate/ID photos still aren't uploaded anywhere real, only their
+  file names are recorded as `local-file:` refs — plus new
+  `clinicians.register.loading`/`errors.{VALIDATION_ERROR,GENERIC}` keys in
+  both locales.
+
+  **Deliberately left out.** Real evidence-image upload — there is still no
+  storage adapter for credentialing evidence, a separate, already-documented
+  gap; `local-file:` refs are the honest placeholder both before and after
+  this change, and the schema only requires a non-empty string. No `next=`
+  redirect-back parameter: `PhoneOtpFlow.tsx`'s success step hardcodes a
+  redirect to `/account`, so a visitor who lands on `/clinicians/register`
+  signed out is bounced to `/signin` and then lands on `/account`, not back
+  on the registration form — building a general redirect-preserving
+  mechanism for one page felt like more invented scope than this task
+  warranted; whoever wants that fixed should treat it as its own item.
+  `CredentialingController.submit` can still throw an uncaught
+  `ApplicationTransitionError` with no `code` (e.g. resubmitting an already
+  `APPROVED` application) — the client's `GENERIC` fallback handles this
+  gracefully but the API itself still returns a bare 500 for it, a
+  pre-existing gap this run did not introduce and did not fix.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (16.2s). `pnpm lint`
+  40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/web` 60/60 (net +1 test: `clinician-application.test.ts`'s 4
+  replaced by `credentialing-api.test.ts`'s 5), `@swasthya/api` 602/602
+  unchanged. `pnpm build` 40/40 (35 cached, `apps/web` rebuilt clean
+  including both `/ne/clinicians/register` and `/en/clinicians/register`).
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. The `next=` redirect gap and the
+  uncaught `ApplicationTransitionError` 500 above are both real, small,
+  unblocked candidates if nothing better turns up on the next fresh survey.
 
 - 2026-08-13 — **Queue fully checked; closed an unauthenticated write gap on
   `apps/api`'s `CredentialingController.submit` route.** Grepped for
