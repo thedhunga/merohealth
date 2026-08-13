@@ -18,3 +18,19 @@ export function sanitizeNextPath(raw: string | null): string | null {
   if (raw.includes('://')) return null;
   return raw;
 }
+
+/**
+ * Href for `PhoneOtpFlow`'s sign-in ↔ register switch link. A visitor
+ * bounced onto `/signin?next=/clinicians/register` who doesn't actually
+ * have an account yet clicks through to `/register` — without carrying
+ * `next` across that hop, they land on `/account` after registering
+ * instead of back on the page they were trying to reach, same bug the
+ * primary bounce-and-return path had before `sanitizeNextPath` existed.
+ * Returns the bare path when there is nothing to carry, which is also the
+ * correct href before hydration completes (`next` is read from
+ * `window.location.search`, unavailable during SSR, so the caller passes
+ * `null` on the first render either way).
+ */
+export function switchLinkHref(basePath: string, next: string | null): string | { pathname: string; query: { next: string } } {
+  return next ? { pathname: basePath, query: { next } } : basePath;
+}

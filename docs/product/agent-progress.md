@@ -922,6 +922,52 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-13 — **Queue fully checked; carried `next` across the sign-in ↔
+  register switch link, the follow-up the redirect-preservation run's own
+  log entry left open.** Grepped for `- [ ]` first — zero hits, same as
+  every recent run. That prior entry named this exact gap as "the clearest
+  small, unblocked candidate if nothing better turns up," so went straight
+  to it rather than commissioning another fresh survey.
+
+  **What was found.** The primary bounce (`useSession` → `/signin?next=…` →
+  `PhoneOtpFlow` reads it back on submit) was already fixed, but
+  `PhoneOtpFlow`'s own sign-in ↔ register switch link (`switchPrompt`) still
+  pointed at a bare `/signin` or `/register` regardless of `next`. A visitor
+  bounced onto `/signin?next=/clinicians/register` who doesn't actually have
+  an account yet and clicks through to `/register` lost the destination on
+  that hop and landed on `/account` after registering instead of back on the
+  page they were trying to reach — the same failure mode the primary fix
+  addressed, one click further along.
+
+  **What was built.** New `switchLinkHref(basePath, next)` in
+  `apps/web/src/lib/safe-redirect.ts`, alongside `sanitizeNextPath`: returns
+  the bare path when there's nothing to carry, or a `{ pathname, query:
+  { next } }` object otherwise — the same href shape `useSession`'s
+  `router.replace` already uses, so no new href convention was invented.
+  `PhoneOtpFlow` now holds `next` in state (`useState<string | null>(null)`,
+  populated from `sanitizeNextPath(window.location.search)` inside a
+  `useEffect` that runs once on mount) rather than recomputing it only at
+  submit time — first render matches SSR (no `window` there, so `null` is
+  correct either way), and the value is then reused for both the post-verify
+  `router.push` (replacing the old submit-time-only computation, now dead
+  code) and the switch link's `href={switchLinkHref(...)}`. This is the
+  hydration-safe pattern the prior entry's "Deliberately left out" section
+  said this would need.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (18.2s). `pnpm lint`
+  40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/web` 72/72 (net +3: `switchLinkHref`'s three cases in
+  `safe-redirect.test.ts`), `@swasthya/api` 603/603 unchanged. `pnpm build`
+  40/40 (35 cached, `apps/web` rebuilt clean including `/ne/signin`,
+  `/en/signin`, `/ne/register`, `/en/register`).
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. No further gap in the sign-in/register
+  redirect chain is known; the next run should commission a fresh survey
+  rather than assume one is waiting.
+
 - 2026-08-13 — **Queue fully checked; fixed the `next=` redirect-preservation
   gap on `/clinicians/register`.** Grepped for `- [ ]` first — zero hits,
   same as every recent run. Two consecutive prior log entries had each named

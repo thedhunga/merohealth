@@ -10,7 +10,7 @@ import { Link, useRouter } from '@/i18n/navigation';
 import { PageTemplate } from '@/components/ui/PageTemplate';
 import { Section } from '@/components/ui/Section';
 import { AuthApiError, requestOtp, verifyOtp, type AuthIntent } from '@/lib/auth-api';
-import { sanitizeNextPath } from '@/lib/safe-redirect';
+import { sanitizeNextPath, switchLinkHref } from '@/lib/safe-redirect';
 
 type Step = 'phone' | 'code';
 
@@ -48,8 +48,10 @@ const KNOWN_ERROR_CODES = [
  * every such visitor would land on `/account` instead of the page they were
  * actually trying to reach. Read from `window.location.search` rather than
  * `useSearchParams()` — that hook forces a Suspense boundary on a
- * statically-prerendered page, and this only ever needs the value once, at
- * the moment of a real submit.
+ * statically-prerendered page. `next` is also threaded onto the sign-in ↔
+ * register switch link below, so a visitor who doesn't have an account yet
+ * and clicks through from `/signin?next=…` to `/register` still lands on
+ * their original destination afterwards instead of `/account`.
  */
 export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
   const t = useTranslations(intent === 'REGISTER' ? 'auth.register' : 'auth.signIn');
@@ -67,11 +69,18 @@ export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
   const [debugCode, setDebugCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // `null` on the first render (matching SSR, which has no
+  // `window.location.search` to read) and populated post-mount — see the
+  // component doc comment above.
+  const [next, setNext] = useState<string | null>(null);
 
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     headingRef.current?.focus();
   }, [step]);
+  useEffect(() => {
+    setNext(sanitizeNextPath(new URLSearchParams(window.location.search).get('next')));
+  }, []);
 
   function localizedError(err: unknown): string {
     const code = err instanceof AuthApiError ? err.code : null;
@@ -116,7 +125,6 @@ export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
       // Leaves `submitting` true rather than resetting it — the form is
       // about to unmount as the router navigates away, and re-enabling the
       // button for the instant before that happens would just flash.
-      const next = sanitizeNextPath(new URLSearchParams(window.location.search).get('next'));
       router.push(next ?? '/account');
     } catch (err) {
       setError(localizedError(err));
@@ -196,14 +204,14 @@ export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
                 {intent === 'REGISTER' ? (
                   <>
                     {t('phone.switchPrompt')}{' '}
-                    <Link className="font-semibold text-forest-700 underline" href="/signin">
+                    <Link className="font-semibold text-forest-700 underline" href={switchLinkHref('/signin', next)}>
                       {nav('actions.signIn')}
                     </Link>
                   </>
                 ) : (
                   <>
                     {t('phone.switchPrompt')}{' '}
-                    <Link className="font-semibold text-forest-700 underline" href="/register">
+                    <Link className="font-semibold text-forest-700 underline" href={switchLinkHref('/register', next)}>
                       {nav('actions.register')}
                     </Link>
                   </>
