@@ -908,6 +908,20 @@ suite grows. A module that "works" but has no outage test is not finished.
       2026-08-13 log entry below (the one added by this run) for the trace
       and why the fix normalizes typographic quotes for every rule, not just
       this one phrase.
+- [x] `apps/api`'s `RecordsController.capture`: `documentDate` now requires
+      an ISO 8601 UTC instant instead of accepting any non-empty string —
+      `buildTimeline` (`packages/health-records`) sorts on
+      `Date.parse(documentDate ?? capturedAt)` and `toFhirDocumentReference`
+      (`packages/interop`) writes the raw value into a FHIR
+      `DocumentReference.date`, so a malformed value silently broke
+      reverse-chronological ordering and could ride into a share-link/
+      provider-export bundle. Found by a fresh independent survey after the
+      `emergency-breathing-001` run's own log entry said the next run should
+      commission one rather than assume a candidate was waiting. See the
+      2026-08-13 log entry below (the one added by this run) for why the
+      fix matches the `isoInstant` convention (`scheduling`/`family-grants`/
+      `language-corpus`), not `patient-registry`'s bare-date one, and for the
+      sibling gap left open.
 
 Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
 capability map are sequenced but must not be started while anything above is
@@ -931,6 +945,89 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-13 — **Queue fully checked; validated `documentDate` on
+  `RecordsController.capture` as an ISO 8601 UTC instant.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. The
+  `emergency-breathing-001` run's own log entry explicitly said not to trust
+  a runner-up guess and to commission a fresh independent survey instead, so
+  that's what this run did.
+
+  **What was found.** `captureSchema.documentDate`
+  (`apps/api/src/records/records.controller.ts`) was
+  `z.string().trim().min(1).nullable().default(null)` — any non-empty string
+  passed, including `"not-a-date"`. Every sibling date/instant field on this
+  repo's other controllers is format-validated at the same boundary
+  (`patient-registry`'s `dateOfBirth` via a bare-date regex; `scheduling`'s
+  `scheduledStart`/`scheduledEnd`, `family-grants`'s `expiresAt`, and
+  `language-corpus`'s `capturedAt`, all via a shared `isoInstant` regex) —
+  `documentDate` was the one date-shaped field with no check at all.
+  Concretely reachable, not just a shape gap: `buildTimeline`
+  (`packages/health-records/src/index.ts`, doc comment "Reverse-chronological
+  record view") does
+  `.toSorted((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt))`
+  over `document.documentDate ?? document.capturedAt`; `Date.parse` on a
+  malformed `documentDate` is `NaN`, and a `toSorted` comparator returning
+  `NaN` is treated as `0`, so that document's position in the timeline
+  silently becomes comparator-dependent noise. `toFhirDocumentReference`
+  (`packages/interop/src/index.ts`) writes the same unvalidated value
+  straight into a FHIR `DocumentReference.date`, so a garbage string could
+  ride into a share-link or provider-export bundle — the exact interop
+  surface `platform-vision.md` §3.3 wants to be "mechanical" for a real
+  hospital-system partner. No client currently sends `documentDate` (grepped
+  `apps/mobile`/`apps/web`; only a test stub sends `null`), so this was a
+  latent gap on an already-shipped field, not yet a live incident.
+
+  **Which format.** `patient-registry`'s `dateOfBirth` regex
+  (`/^\d{4}-\d{2}-\d{2}$/`, bare date) looked like the obvious template at
+  first, since `documentDate`'s own doc comment in
+  `packages/shared-types/src/index.ts` says "Date the care event happened."
+  Checked the seed data before assuming that shape: `documentDate` in
+  `packages/database/src/seed-data.ts` is already written as a full instant
+  (`'2026-05-18T00:00:00Z'`), and `records.service.ts` sets `capturedAt` —
+  the field `documentDate` is compared against and falls back to in both
+  `buildTimeline` and `toFhirDocumentReference` — via
+  `new Date().toISOString()`, also a full instant. Validating against a bare
+  date would have rejected the exact shape the field's own real data and its
+  own fallback sibling already use, so the fix reuses the existing
+  `isoInstant` regex instead
+  (`/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/`, the one
+  `scheduling`/`family-grants`/`language-corpus` each already define locally
+  for their own instant fields).
+
+  **What was built.** `records.controller.ts` now defines its own
+  `isoInstant` constant (matching the other three controllers' inline
+  copies, not a new shared import — consistent with how each of those three
+  already carries its own rather than a cross-import) and applies it to
+  `documentDate` via `.regex(isoInstant, 'documentDate must be an ISO 8601
+  UTC instant')`, keeping `.nullable().default(null)`. Five new cases in
+  `records.controller.test.ts`: rejects a non-date string, rejects a bare
+  `YYYY-MM-DD` (explicitly, since that was the wrong template considered and
+  discarded), accepts a well-formed instant and returns it unchanged, and
+  accepts `null`.
+
+  **Deliberately left open.** `apps/api/src/immunization/
+  immunization.controller.ts`'s `administeredOn` has the identical shape gap
+  (`z.string().trim().min(1)`, no format check, despite `shared-types`
+  documenting it as "ISO date"). Not fixed in this pass: unlike
+  `documentDate`, nothing today reads `administeredOn` downstream (no
+  sort/export consumer exists, confirmed by grep), so there is no
+  demonstrable failure path yet, only a latent one, and folding it in here
+  would have made this entry cover two unrelated controllers for one run.
+  Real, small, unblocked candidate for whoever picks it up next — same
+  one-line `isoInstant` regex fix, same test shape.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (37.6s). `pnpm lint`
+  40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 607/607 (net +4, `documentDate`'s new cases), every other
+  package's count unchanged. `pnpm build` 40/40 (35 cached).
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. `immunization.controller.ts`'s
+  `administeredOn` (named above) is the clearest small, unblocked candidate
+  if nothing better turns up on a fresh survey.
 
 - 2026-08-13 — **Queue fully checked; fixed a live gap in
   `packages/clinical-safety`'s `emergency-breathing-001` rule.** Grepped for

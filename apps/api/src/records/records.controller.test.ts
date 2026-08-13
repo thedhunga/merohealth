@@ -103,6 +103,32 @@ describe('RecordsController capture', () => {
       controller.capture(currentUser, { ...validCapture, kind: 'NOT_A_REAL_KIND' }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it('rejects a documentDate that is not an ISO 8601 UTC instant', async () => {
+    const controller = buildController();
+    await expect(
+      controller.capture(currentUser, { ...validCapture, documentDate: 'not-a-date' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a bare YYYY-MM-DD documentDate — buildTimeline/toFhirDocumentReference expect the same instant shape as capturedAt', async () => {
+    const controller = buildController();
+    await expect(
+      controller.capture(currentUser, { ...validCapture, documentDate: '2026-05-18' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('accepts a well-formed ISO 8601 UTC instant documentDate', async () => {
+    const controller = buildController();
+    const document = await controller.capture(currentUser, { ...validCapture, documentDate: '2026-05-18T00:00:00Z' });
+    expect(document.documentDate).toBe('2026-05-18T00:00:00Z');
+  });
+
+  it('accepts a null documentDate — it is optional', async () => {
+    const controller = buildController();
+    const document = await controller.capture(currentUser, { ...validCapture, documentDate: null });
+    expect(document.documentDate).toBeNull();
+  });
 });
 
 describe('RecordsController reads', () => {

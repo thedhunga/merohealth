@@ -8,6 +8,14 @@ import { EntitlementsGuard } from '../entitlements/entitlements.guard.js';
 import { RequireModule, RequireQuota } from '../entitlements/require-entitlement.decorator.js';
 import { RecordsService } from './records.service.js';
 
+// Same regex `SchedulingController`/`FamilyGrantsController`/
+// `LanguageCorpusController` each define for their own instant fields.
+// `documentDate` is stored and compared against `capturedAt`
+// (`new Date().toISOString()`, records.service.ts) as the same shape — the
+// seed data (`packages/database/src/seed-data.ts`) already writes it as a
+// full instant like `2026-05-18T00:00:00Z`, not a bare date.
+const isoInstant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
+
 const documentKindSchema = z.enum([
   'LAB_REPORT',
   'PRESCRIPTION',
@@ -27,7 +35,11 @@ const captureSchema = z.object({
   filename: z.string().trim().min(1).max(255),
   kind: documentKindSchema,
   title: z.string().trim().min(1).max(200),
-  documentDate: z.string().trim().min(1).nullable().default(null),
+  // `buildTimeline` (packages/health-records) sorts on `Date.parse(documentDate
+  // ?? capturedAt)` and `toFhirDocumentReference` (packages/interop) writes it
+  // straight into a FHIR `DocumentReference.date` — an unvalidated string lets
+  // a malformed value silently break timeline ordering and corrupt an export.
+  documentDate: z.string().regex(isoInstant, 'documentDate must be an ISO 8601 UTC instant').nullable().default(null),
   sensitivity: z.enum(['STANDARD', 'SENSITIVE', 'RESTRICTED']).default('STANDARD'),
   clientEncrypted: z.boolean().default(false),
   contentType: z.string().trim().min(1).nullable().default(null),
