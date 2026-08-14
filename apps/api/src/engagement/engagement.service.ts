@@ -1,6 +1,6 @@
-import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { markFailed, markSent, queueMessage, retryMessage } from '@swasthya/engagement';
+import { EngagementMessageNotFailedError, markFailed, markSent, queueMessage, retryMessage } from '@swasthya/engagement';
 import type { ClinicalModuleHealth, EngagementMessage, QueueEngagementMessageInput } from '@swasthya/shared-types';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
 import { ENGAGEMENT_DELIVERY_PROVIDER, type EngagementDeliveryProvider } from './delivery-provider.js';
@@ -79,10 +79,28 @@ export class EngagementService {
    * the message at queue time (see `packages/engagement`'s header comment
    * on why), so a retry stays available even if patient-registry has gone
    * down since.
+   *
+   * Wraps `retryMessage` through `runTransition`: retrying a message that
+   * is not FAILED previously reached the client as a bare, codeless 500,
+   * the same wrong-state gap `BillingService`/`PrescribingService`/
+   * `ClinicalChartingService`/`DiagnosticsOrdersService`/`ImmunizationService`/
+   * `ReferralsService`/`TeleconsultationService`/`SchedulingService` were
+   * each already fixed for.
    */
   async retryMessage(id: string): Promise<EngagementMessage> {
-    const requeued = this.repository.save(retryMessage(this.getMessage(id), new Date().toISOString()));
-    return this.attemptDelivery(requeued);
+    const requeued = this.runTransition(() => retryMessage(this.getMessage(id), new Date().toISOString()));
+    return this.attemptDelivery(this.repository.save(requeued));
+  }
+
+  private runTransition(transition: () => EngagementMessage): EngagementMessage {
+    try {
+      return transition();
+    } catch (error) {
+      if (error instanceof EngagementMessageNotFailedError) {
+        throw new BadRequestException({ code: error.name, message: error.message });
+      }
+      throw error;
+    }
   }
 
   /**

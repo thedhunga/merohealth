@@ -1,5 +1,4 @@
-import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { EngagementMessageNotFailedError } from '@swasthya/engagement';
+import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { PatientRegistryRepository } from '../patient-registry/patient-registry.repository.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
@@ -106,12 +105,18 @@ describe('EngagementService.retryMessage', () => {
     expect(retried.status).toBe('SENT');
   });
 
-  it('propagates the domain error refusing to retry a message that never failed', async () => {
+  it('rejects retrying a message that never failed, as a 400 with a code', async () => {
     const { patients, engagement } = buildStack(alwaysDelivers());
     const patient = patients.register(demographics);
     const sent = await engagement.queueMessage(patient.id, messageInput);
 
-    await expect(engagement.retryMessage(sent.id)).rejects.toThrow(EngagementMessageNotFailedError);
+    try {
+      await engagement.retryMessage(sent.id);
+      expect.unreachable('expected retryMessage to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'EngagementMessageNotFailedError' });
+    }
   });
 });
 

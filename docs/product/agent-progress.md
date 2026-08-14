@@ -1163,6 +1163,61 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-14 — **Queue fully checked; closed the last named instance of the
+  wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap:
+  `EngagementService.retryMessage`.** Grepped for `- [ ]` first — zero hits,
+  same as every recent run. The `SchedulingService` run's own log entry named
+  this as the one instance still open, having already ruled out
+  `medication-safety`, `patient-registry` and `interop` in its own survey, so
+  took the named next step rather than re-surveying.
+
+  **What was found.** `apps/api/src/engagement/engagement.service.ts`'s
+  `retryMessage` called `@swasthya/engagement`'s `retryMessage` directly, with
+  no `try`/`catch`. Read `packages/engagement/src/index.ts` to confirm: the
+  domain `retryMessage` throws exactly one error,
+  `EngagementMessageNotFailedError`, when called on a message that is not
+  `FAILED`. Its sibling, `EngagementMessageNotQueuedError`, is thrown by
+  `markSent`/`markFailed` and is only ever reached inside `attemptDelivery`'s
+  own `try`/`catch`, which already turns any thrown error into a recorded
+  `FAILED` message rather than letting it escape — so it was never part of
+  this gap and needed no change. The existing test file's `propagates the
+  domain error...` case asserted the raw domain error directly — the same
+  "test itself is wrong" shape every prior module in this series had.
+
+  **The fix.** Added a private `runTransition(transition: () =>
+  EngagementMessage): EngagementMessage` to `EngagementService`, identical in
+  shape to the eight sibling services' own `runTransition`: catches
+  `EngagementMessageNotFailedError` by `instanceof`, re-throws as `new
+  BadRequestException({ code: error.name, message: error.message })`, lets
+  anything else pass through. `retryMessage` now calls the domain function
+  through `runTransition` before saving and attempting delivery, preserving
+  the existing save-then-deliver order.
+
+  **Tests.** `engagement.service.test.ts`: rewrote the one existing raw
+  wrong-state assertion to the try/`expect.unreachable`/catch shape
+  `referrals.service.test.ts` established, asserting `BadRequestException`
+  with `code: 'EngagementMessageNotFailedError'`. No new case needed — the
+  single error this module has was already covered, just asserted wrong.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 666/666 (one test rewritten in place, net count unchanged).
+  `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** This closes the wrong-state-500 series — the
+  `ImmunizationService`-run survey's eight named modules
+  (`billing`, `prescribing`, `clinical-charting`, `diagnostics-orders`,
+  `immunization`, `referrals`, `teleconsultation`, `scheduling`) plus
+  `engagement`'s narrower single-method gap are all fixed now, and
+  `medication-safety`/`patient-registry`/`interop` were already confirmed
+  clean by the `ReferralsService` run's survey. A fresh, independent survey
+  of the whole `apps/api` tree (not just clinical-suite) for the same
+  uncaught-domain-error shape would be a reasonable next pick rather than
+  assuming none remain outside clinical-suite. The two standing
+  product-decision items (`packages/health-records`'s status-guard question;
+  the clinical-suite's missing clinician/patient identity model) are
+  unchanged and still not a single run's to resolve alone.
+
 - 2026-08-14 — **Queue fully checked; `SchedulingService` had the same
   wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the seven
   prior runs fixed for `BillingService`, `PrescribingService`,
