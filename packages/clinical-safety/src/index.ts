@@ -9,7 +9,7 @@ interface SafetyRule {
 export const safetyRules: readonly SafetyRule[] = [
   { id: 'emergency-breathing-001', level: 'EMERGENCY_NOW', interrupt: true, templateId: 'emergency-general-v1', phrases: [/can'?t breathe/i, /cannot breathe/i, /difficulty breathing/i, /सास फेर्न (गाह्रो|सक्दिन)/u, /saas ferna (garo|sakdina)/i] },
   { id: 'emergency-chest-001', level: 'EMERGENCY_NOW', interrupt: true, templateId: 'emergency-general-v1', phrases: [/(?=.*chest (pain|pressure))(?=.*(severe|sweat|faint|arm|jaw))/i, /छाती.*(कडा|दुखाइ|पसिना|बेहोस)/u, /chati.*(kada|dukhai|pasina|behos)/i] },
-  { id: 'self-harm-001', level: 'MENTAL_HEALTH_CONCERN', interrupt: true, templateId: 'mental-health-crisis-v1', phrases: [/kill myself/i, /suicide/i, /end my life/i, /आत्महत्या/u, /मर्न मन लाग/u, /aatmahatya/i] },
+  { id: 'self-harm-001', level: 'MENTAL_HEALTH_CONCERN', interrupt: true, templateId: 'mental-health-crisis-v1', phrases: [/kill myself/i, /suicide/i, /end my life/i, /आत्महत्या/u, /मर्न मन लाग/u, /aatmahatya/i, /marna man lag/i] },
   { id: 'pregnancy-warning-001', level: 'MATERNAL_CONCERN', interrupt: true, templateId: 'maternal-urgent-v1', phrases: [/(?=.*(pregnant|pregnancy))(?=.*(heavy bleeding|seizure|severe headache))/i, /(?=.*गर्भवती)(?=.*(धेरै रगत|दौरा|कडा टाउको))/u, /(?=.*garbhawati)(?=.*(dherai ragat|daura|kada tauko))/i] },
   { id: 'pediatric-warning-001', level: 'PEDIATRIC_CONCERN', interrupt: true, templateId: 'pediatric-urgent-v1', phrases: [/(?=.*(baby|infant))(?=.*(blue|not breathing|unresponsive|seizure))/i, /(?=.*बच्चा)(?=.*(नीलो|सास.*छैन|बेहोस|दौरा))/u, /(?=.*bachcha)(?=.*(nilo|saas.*chaina|behos|daura))/i] },
 ];

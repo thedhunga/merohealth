@@ -10,6 +10,8 @@ describe('clinical safety routing', () => {
     ['chati ma kada dukhai ra pasina aairaheko cha', 'EMERGENCY_NOW'],
     ['I want to kill myself', 'MENTAL_HEALTH_CONCERN'],
     ['मलाई आत्महत्या गर्न मन लाग्छ', 'MENTAL_HEALTH_CONCERN'],
+    ['मलाई मर्न मन लाग्छ', 'MENTAL_HEALTH_CONCERN'],
+    ['malai marna man lagcha', 'MENTAL_HEALTH_CONCERN'],
     ['I am pregnant and have heavy bleeding', 'MATERNAL_CONCERN'],
     ['I have a severe headache, I am pregnant', 'MATERNAL_CONCERN'],
     ['धेरै रगत बगिरहेको छ, गर्भवती छु', 'MATERNAL_CONCERN'],

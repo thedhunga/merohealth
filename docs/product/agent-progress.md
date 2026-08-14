@@ -1057,11 +1057,110 @@ re-read the table itself rather than trust this paragraph.
       be the only two such comparisons in the repo. See the 2026-08-14 log
       entry below (the one added by this run) for the repro and why this one
       is live (both endpoints are client-supplied) rather than dead code.
+- [x] Added a missing romanized-Nepali (`ne-Latn`) phrase to
+      `packages/clinical-safety`'s `self-harm-001` rule for the colloquial
+      "want to die" phrasing (`मर्न मन लाग` in Devanagari) — the rule had a
+      `ne-Latn` match for the formal word "aatmahatya" (suicide) but none for
+      this colloquial phrase, even though every other rule's `ne-Latn` set is
+      a complete transliteration of its `ne` set. See the 2026-08-14 log entry
+      below (the one added by this run) for the repro and why this is a
+      distinct, incomplete-coverage gap from the already-fixed "rule had zero
+      `ne-Latn` phrases" work.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; `packages/clinical-safety`'s
+  `self-harm-001` rule — the single highest-consequence rule in the repo —
+  had incomplete romanized-Nepali (`ne-Latn`) coverage.** Grepped for `- [ ]`
+  first — zero hits, same as every recent run. Commissioned a fresh
+  independent general-purpose survey agent, briefed on the full
+  exhausted-veins list accumulated by prior entries (cross-owner/unguarded-
+  ownerId access control, ISO-instant/date validation, `ne-Latn` collapse,
+  share-link TTL/entitlements gating, double-booking, negative-reading
+  validation, filename sanitization, `normalizeLabel` dedup, mobile i18n,
+  retrieval bugs, the analytics-source extensions, emergency-rule phrase
+  fixes, `normalizeNepaliPhone`'s `977`-prefix bug, `buildAnalyteTrend`/
+  `toFhirObservation`'s numeric coercion, `guardianshipExpiryForMinor`'s
+  leap-day overflow, and the ISO-instant string-comparison fixes in
+  `packages/scheduling`/`packages/population-health`) plus the two standing
+  product-decision items (`packages/health-records`'s status-guard question;
+  the clinical-suite's missing clinician-identity model — still not this
+  run's to resolve), instructed specifically not to re-propose either
+  standing item without a materially different angle.
+
+  **What was found.** `packages/clinical-safety/src/index.ts`'s
+  `self-harm-001` rule carries two Devanagari phrases —
+  `/आत्महत्या/u` (the formal word "suicide") and `/मर्न मन लाग/u` (the
+  colloquial "feel like dying" / "want to die") — but only one `ne-Latn`
+  phrase, `/aatmahatya/i`, a transliteration of the formal word alone. No
+  romanized phrase covers the colloquial one, even though the file's own
+  comment states every `ne-Latn` entry is "a direct Romanized
+  transliteration of the approved `ne` wording" and every other rule's
+  `ne-Latn` set fully mirrors its `ne` set. Read `packages/clinical-safety/
+  src/index.ts` and `index.test.ts` directly before accepting the survey's
+  framing, per the standing instruction to verify rather than trust.
+  Confirmed with `node -e`: `"marna man lagcha"`, `"ma marna man lagyo"` and
+  `"malai marna man lagyo"` all fail to match any of the six existing
+  phrases — a person who chose Romanized Nepali specifically because they
+  don't read Devanagari, and who phrases suicidal ideation the colloquial
+  way (arguably more likely in a crisis than the formal medical/legal term
+  "aatmahatya"), would get `CLINICIAN_RECOMMENDED` and no interrupt instead
+  of the mandatory `MENTAL_HEALTH_CONCERN` crisis template — the single
+  highest-consequence silent miss the safety layer can make. Also confirmed
+  `index.test.ts` had exactly one self-harm-001 case in English and one in
+  Devanagari (which matches via `आत्महत्या`, not `मर्न मन लाग`), so the
+  colloquial phrase had zero test coverage in any language before this run.
+  This is a distinct gap from the already-fixed 2026-08-14 work that added
+  `ne-Latn` phrases to `emergency-chest-001`/`pregnancy-warning-001`/
+  `pediatric-warning-001`, which had *zero* `ne-Latn` phrases each — here the
+  rule already had one, just an incomplete transliteration of its own `ne`
+  set.
+
+  **The fix.** Added `/marna man lag/i` to `self-harm-001`'s `phrases`
+  array, a direct transliteration of `मर्न मन लाग` following the same word
+  order (matches `"marna man lagcha"`, `"marna man lagyo"`, and any sentence
+  containing that stem). Added two regression tests to
+  `packages/clinical-safety/src/index.test.ts`'s existing `it.each` table:
+  the Devanagari colloquial phrase (`'मलाई मर्न मन लाग्छ'`, previously
+  untested) and its romanized equivalent (`'malai marna man lagcha'`), both
+  asserting `MENTAL_HEALTH_CONCERN`.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/clinical-safety` 25/25 (net +2, the two new cases), `@swasthya/api`
+  644/644 unchanged (this fix touched no `apps/api`-owned test file). `pnpm
+  build` 40/40 (35 cached, 5 rebuilt from this change).
+
+  **For the next run.** No further gap in this specific vein — every
+  `self-harm-001` phrase now has a matching or superseding `ne-Latn`
+  counterpart, and all five emergency/concern rules have full `ne-Latn`
+  coverage. The survey's two other candidates, investigated and correctly
+  set aside for now: (1) `ImmunizationController.recordPatientReported` and
+  `ClinicalSummaryController.recordPatientReported`
+  (`apps/api/src/immunization/immunization.controller.ts`,
+  `apps/api/src/clinical-summary/clinical-summary.controller.ts`) accept a
+  client-supplied `patientId` with no `SessionAuthGuard` — the same
+  unguarded-owner-id shape already fixed elsewhere, and arguably in-scope as
+  a genuine gap since both are patient-self-report actions (not
+  clinician-authored), unlike the rest of the clinical-suite's auth-model
+  gap. Worth a close look next: distinguishing this from the deferred
+  clinician-identity item needs care, since nearly every other clinical-suite
+  controller (billing, prescribing, medication-safety, diagnostics-orders,
+  scheduling, referrals, population-health) is *also* unguarded and that
+  looks like the standing deferred design gap, not a bug. (2)
+  `packages/patient-registry`'s `dateOfBirth` validated only by digit-shape
+  regex (`/^\d{4}-\d{2}-\d{2}$/`), accepting calendar-impossible dates like
+  `2026-02-30` which `new Date(...)` silently rolls into `2026-03-02` — real
+  and reachable via `POST /patients`, but `grantGuardianshipForMinor` (the
+  one function that would visibly miscompute from it) has no live caller
+  yet, so the present blast radius is stored bad data rather than an
+  observable wrong computation. The two standing product-decision items
+  (`packages/health-records`'s status-guard question; the clinical-suite's
+  missing clinician-identity model) are still open and still not a scheduled
+  run's to resolve alone.
 
 - 2026-08-14 — **Queue fully checked; `packages/population-health`'s
   `buildRecallList` compared ISO-instant timestamps as raw strings, missing a
