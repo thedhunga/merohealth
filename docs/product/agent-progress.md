@@ -1017,11 +1017,101 @@ re-read the table itself rather than trust this paragraph.
       2026-08-14 log entry below (the one added by this run) for why it was
       judged a genuinely distinct instance rather than scope creep on the
       already-closed vein.
+- [x] Fixed `packages/health-records`'s `buildAnalyteTrend` and
+      `packages/interop`'s `toFhirObservation` silently coercing a
+      leading-numeric-but-not-numeric observation value (e.g. a reference
+      range like `"70-99"`) into a wrong trend point / FHIR `valueQuantity`
+      instead of dropping it as both already claimed to. See the 2026-08-14
+      log entry below (the one added by this run) for the fresh independent
+      survey that found it, the exact repro, and the shared fix.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; `buildAnalyteTrend` and
+  `toFhirObservation` were silently coercing non-numeric observation values
+  into wrong numbers instead of dropping them, contradicting both
+  functions' own documented contract.** Grepped for `- [ ]` first — zero
+  hits, same as every recent run. Commissioned a fresh independent
+  general-purpose survey agent, briefed on every vein exhausted so far
+  (cross-owner/unguarded-`ownerId` access control, ISO-instant/date
+  validation, `ne-Latn` collapse, share-link TTL/entitlements gating,
+  double-booking, negative-reading validation across every `packages/devices`
+  metric including body temperature, filename sanitization, `normalizeLabel`
+  dedup, mobile i18n, `classifyIntent`/`termAppears` retrieval bugs, the
+  analytics-source extensions, the emergency-rule word-order/apostrophe
+  fixes, the `next=` redirect chain, `ApplicationTransitionError` mapping,
+  `parseCookieHeader`, `learn.tsx`'s remaining strings, `RegisterView`'s
+  start-over gating, the credentialing status read-back, and
+  `normalizeNepaliPhone`'s `977`-prefix bug) and the two standing
+  product-decision items (`packages/health-records`'s status-guard question;
+  the clinical-suite's missing clinician-identity model — still not this
+  run's to resolve). Told explicitly to read files directly rather than
+  trust a grep-only sweep.
+
+  **What was found.** `buildAnalyteTrend` (`packages/health-records/src/
+  index.ts:169`, then) and `toFhirObservation`
+  (`packages/interop/src/index.ts:151-152`, then) both decided whether
+  `HealthObservation.value` — a free-text string anyone can write via the
+  "correct my own observation" route (`apps/api/src/records/
+  records.controller.ts`'s `z.string().trim().min(1)`) — was numeric using
+  `Number.parseFloat(value)` plus `Number.isFinite(...)`. `parseFloat` only
+  parses a *leading* numeric prefix, not the full string. `health-records`'s
+  own doc comment on `buildAnalyteTrend` promises "points whose value is not
+  numeric are dropped rather than coerced" — false for any value that
+  *starts* with digits but isn't purely numeric. Verified directly before
+  touching anything: `Number.parseFloat('70-99')` → `70`
+  (`Number.isFinite` → `true`), not `NaN`. `"70-99"` is exactly the shape
+  `HealthObservation.referenceRange` already uses in this repo (see the demo
+  seed data and `packages/health-records/src/index.test.ts`'s own
+  `makeObservation` fixture, `referenceRange: '0.7-1.3'`) — a realistic
+  mistake for a range to end up in `value` instead, whether by manual
+  correction or a bad extraction. The existing non-numeric test only
+  exercised a purely-alphabetic case (`'not detected'`), so the leading-digit
+  gap was real and untested, not already covered. Consequence: a
+  range-shaped or unit-suffixed (`"8.2 mg/dL"`) value doesn't get dropped as
+  promised — it becomes a plausible-looking, wrong point that the assistant
+  reasons over via `buildAnalyteTrend` and that a share link/export ships as
+  a real FHIR `valueQuantity` via `toFhirObservation`. Silent data
+  corruption in a health-tracking pipeline, not a cosmetic bug.
+
+  **The fix.** Added `parseStrictNumber` to `packages/health-records/src/
+  index.ts` (exported, next to `AnalytePoint`) — trims, rejects an empty
+  string, and uses `Number(trimmed)` instead of `Number.parseFloat`, since
+  `Number` returns `NaN` for any string with non-numeric trailing content
+  (`"70-99"` → `NaN`, `"1.2"` → `1.2`, unchanged for every value the existing
+  tests already cover). `buildAnalyteTrend` now calls it directly.
+  `packages/interop` already depends on `@swasthya/health-records` for
+  `isTrusted`/`selectTrusted`, so `toFhirObservation` imports the same
+  helper rather than carrying its own diverging copy — the same
+  shared-helper move the 2026-08-12 filename-sanitization fix made across
+  `packages/storage-adapters`'s two backends. Added one regression test per
+  package: a `'70-99'` observation value alongside a `'1.2'` one, asserting
+  the range-shaped point is dropped (`health-records`) and that
+  `toFhirObservation` falls back to `valueString` rather than emitting a
+  `valueQuantity` for it (`interop`).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40 (confirms `numericValue`'s
+  `number | null` narrows correctly through the `isNumeric` alias in
+  `toFhirObservation`). `pnpm test` 75/75 turbo tasks, including the two new
+  tests confirmed individually. `pnpm build` 40/40, forced with `--force` to
+  rule out a stale cache masking a break.
+
+  **For the next run.** No further gap in this vein — both call sites in the
+  only two packages that ever parse `HealthObservation.value` now use the
+  same strict helper. The two standing product-decision items are still open
+  and still not a scheduled run's to resolve alone. The survey's runner-up —
+  a leap-day bug in `packages/family`'s `guardianshipExpiryForMinor`
+  (`Date.UTC(dob.getUTCFullYear() + 18, 1, 29)` silently rolls to March 1 for
+  any ward born Feb 29, since `year + 18` is never itself a leap year) is
+  real, deterministic and untested, but currently unwired to any API route —
+  no guardianship-creation controller exists yet — so it was left for a
+  future run rather than folded in here to keep this run to one task. A
+  fresh independent survey, briefed on the now-longer exhausted-veins list
+  above, remains the right way to pick whatever comes after that.
 
 - 2026-08-14 — **Queue fully checked; `packages/devices`'s body-temperature
   normalizers were missing the negative-reading guard every sibling metric

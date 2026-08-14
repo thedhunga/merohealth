@@ -1,4 +1,4 @@
-import { isTrusted, selectTrusted } from '@swasthya/health-records';
+import { isTrusted, parseStrictNumber, selectTrusted } from '@swasthya/health-records';
 import type { HealthDocument, HealthObservation } from '@swasthya/shared-types';
 
 /* ------------------------------------------------------------------ *
@@ -148,8 +148,8 @@ export function toFhirObservation(observation: HealthObservation): FhirObservati
     throw new UntrustedObservationError(observation.id, observation.status);
   }
 
-  const numericValue = Number.parseFloat(observation.value);
-  const isNumeric = Number.isFinite(numericValue) && observation.value.trim() !== '';
+  const numericValue = parseStrictNumber(observation.value);
+  const isNumeric = numericValue !== null;
 
   const resource: FhirObservation = {
     resourceType: 'Observation',
