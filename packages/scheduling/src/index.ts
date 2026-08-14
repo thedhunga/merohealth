@@ -41,16 +41,26 @@ export class AppointmentConflictError extends Error {
  * it is an impossible calendar entry — the same "real impossibility, not
  * just a shape check zod already covers" reasoning `patient-registry`'s own
  * `assertPlausibleDateOfBirth` used for a future birth date.
+ *
+ * Compared via `Date.parse`, not string `<=`: the controller's `isoInstant`
+ * regex (`apps/api/src/scheduling/scheduling.controller.ts`) accepts 1, 2 or
+ * 3 fractional-second digits, and a string comparison of two instants with
+ * different fraction lengths does not agree with chronological order —
+ * `"...00.9Z" < "...00.95Z"` is `false` as strings (the terminating `Z`
+ * sorts above any digit) even though 900ms is chronologically before 950ms.
  */
 function assertValidWindow(scheduledStart: string, scheduledEnd: string): void {
-  if (scheduledEnd <= scheduledStart) throw new InvalidAppointmentWindowError(scheduledStart, scheduledEnd);
+  if (Date.parse(scheduledEnd) <= Date.parse(scheduledStart)) {
+    throw new InvalidAppointmentWindowError(scheduledStart, scheduledEnd);
+  }
 }
 
 // Half-open interval comparison: a window that ends exactly when another
 // starts is back-to-back, not overlapping, so touching endpoints must not
-// conflict.
+// conflict. `Date.parse`, not string `<`, for the same variable-fraction-
+// length reason as `assertValidWindow` above.
 function windowsOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
-  return aStart < bEnd && bStart < aEnd;
+  return Date.parse(aStart) < Date.parse(bEnd) && Date.parse(bStart) < Date.parse(aEnd);
 }
 
 /**

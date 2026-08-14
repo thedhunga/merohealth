@@ -1031,11 +1031,113 @@ re-read the table itself rather than trust this paragraph.
       but left open. See the 2026-08-14 log entry below (the one added by
       this run) for the fix and why it clamps to Feb 28 rather than rolling
       forward.
+- [x] Fixed `packages/scheduling`'s `assertValidWindow`/`windowsOverlap`
+      comparing ISO-instant timestamps as raw strings instead of parsed
+      instants, which silently mis-orders any pair of instants with
+      different fractional-second digit counts (both counted as valid by
+      the controller's own `isoInstant` regex) — letting an
+      end-before-start window through and letting a genuinely overlapping
+      appointment double-book a clinician. See the 2026-08-14 log entry
+      below (the one added by this run) for the repro and why a first
+      survey candidate was rejected before this one was found.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; `packages/scheduling`'s
+  `assertValidWindow` and `windowsOverlap` compared ISO-instant timestamps as
+  raw strings, which silently mis-orders instants with different
+  fractional-second digit counts.** Grepped for `- [ ]` first — zero hits,
+  same as every recent run. Commissioned a fresh independent general-purpose
+  survey agent, briefed on the full exhausted-veins list accumulated by prior
+  entries (cross-owner/unguarded-ownerId access control, ISO-instant/date
+  validation, `ne-Latn` collapse, share-link TTL/entitlements gating,
+  double-booking, negative-reading validation across every `packages/devices`
+  metric, filename sanitization, `normalizeLabel` dedup, mobile i18n,
+  `classifyIntent`/`termAppears` retrieval bugs, the analytics-source
+  extensions, the emergency-rule word-order/apostrophe fixes, the `next=`
+  redirect chain, `ApplicationTransitionError` mapping, `parseCookieHeader`,
+  `learn.tsx`'s remaining strings, `RegisterView`'s start-over gating, the
+  credentialing status read-back, `normalizeNepaliPhone`'s `977`-prefix bug,
+  `buildAnalyteTrend`/`toFhirObservation`'s numeric coercion, and
+  `guardianshipExpiryForMinor`'s leap-day overflow) and the two standing
+  product-decision items (`packages/health-records`'s status-guard question;
+  the clinical-suite's missing clinician-identity model — still not this
+  run's to resolve).
+
+  **First candidate, investigated and rejected.** The survey's first report
+  was `ClinicalChartingService.attachDocument`
+  (`apps/api/src/clinical-charting/clinical-charting.service.ts`) never
+  comparing `HealthDocument.ownerId` to `Encounter.patientId` before linking
+  a document to an encounter. Read the code directly before accepting it, per
+  the standing instruction to verify rather than trust a survey's framing —
+  and found `packages/shared-types/src/index.ts:465-470` explicitly documents
+  that these two ids are deliberately unlinked: "This package makes no claim
+  that a `HealthDocument.ownerId` and an `Encounter.patientId` are the same
+  identity ... asserting they line up would be inventing a linkage this
+  codebase has never established." Implementing the suggested check would
+  have fabricated exactly the linkage that comment disclaims, and the
+  underlying gap — `clinical-charting`'s routes carry no auth at all — is the
+  already-known, already-deferred "clinical-suite's missing
+  clinician-identity model" standing item, not a bug a scheduled run can fix
+  alone. Commissioned a second survey, briefed on why the first candidate was
+  rejected, rather than accepting it or silently picking something unrelated.
+
+  **What the second survey found.** `assertValidWindow`
+  (`packages/scheduling/src/index.ts`, then `scheduledEnd <= scheduledStart`)
+  and `windowsOverlap` (`aStart < bEnd && bStart < aEnd`) both compared
+  ISO-8601 instant strings with JavaScript's `<`/`<=`, which only agrees with
+  chronological order when both operands have identical string length. The
+  controller's own validator (`apps/api/src/scheduling/
+  scheduling.controller.ts`'s `isoInstant`,
+  `/^...T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/`) accepts 1, 2 or 3 fractional-
+  second digits, so two legal instants can disagree in digit count. Verified
+  directly with `node -e`: `'2026-08-10T09:00:00.9Z' <
+  '2026-08-10T09:00:00.95Z'` is `false` as strings (the terminating `Z`
+  sorts above any digit, so more fractional digits reads as "smaller") even
+  though 900ms is chronologically *before* 950ms
+  (`Date.parse` agrees: `true`). Two concrete consequences: (1)
+  `scheduledStart: '...00.95Z'`, `scheduledEnd: '...00.9Z'` — end
+  chronologically *before* start — passed `assertValidWindow` uncaught,
+  because the string check evaluated `false`. (2) An existing appointment
+  `09:00:00.9Z`–`09:30:00.000Z` and a new request
+  `08:30:00.000Z`–`09:00:00.95Z` for the same clinician genuinely overlap
+  (the new one ends 50ms after the existing one starts), but
+  `windowsOverlap`'s string comparison returned `false`, so
+  `AppointmentConflictError` never fired — a real double-booking.
+  `packages/scheduling/src/index.test.ts` only ever used uniform `.000Z`
+  timestamps before this run, so the mixed-precision case was genuinely
+  untested. Distinct from the already-fixed "double-booking" item: that item
+  added the conflict-detection logic in the first place; this bug is in the
+  comparison primitive that logic depends on, and defeats it through a
+  different mechanism.
+
+  **The fix.** Both functions now compare `Date.parse(...)` numeric values
+  instead of the raw strings — no change to the half-open-interval or
+  window-validity logic itself, only to how two instants are ordered. Added
+  two regression tests in `packages/scheduling/src/index.test.ts`: an
+  end-before-start window using `.95Z`/`.9Z` fractions, and a double-booking
+  that only overlaps once mixed-precision fractions are compared
+  chronologically.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/scheduling` 10/10 (net +2, the two new tests), `@swasthya/api`
+  644/644 unchanged (this fix touched no `apps/api`-owned test file). `pnpm
+  build` 40/40 (35 cached, 5 rebuilt from this change).
+
+  **For the next run.** No further gap in this vein — `assertValidWindow` and
+  `windowsOverlap` are the only two places in the repo that order two
+  ISO-instant strings directly rather than through `Date.parse`
+  (`buildTimeline`'s `Date.parse(documentDate ?? capturedAt)` and the
+  `documentDate`/`administeredOn` validators added earlier already parse
+  before comparing). The two standing product-decision items are still open
+  and still not a scheduled run's to resolve alone. A fresh independent
+  survey, briefed on the now-longer exhausted-veins list above — and on why
+  the `attachDocument` candidate above is a dead end — remains the right way
+  to pick the next task.
 
 - 2026-08-14 — **Queue fully checked; `packages/family`'s
   `guardianshipExpiryForMinor` silently overflowed a Feb 29 date of birth
