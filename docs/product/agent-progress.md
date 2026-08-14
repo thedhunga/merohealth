@@ -1093,11 +1093,91 @@ re-read the table itself rather than trust this paragraph.
       `ApplicationTransitionError`. See the 2026-08-14 log entry below (the
       one added by this run) for why billing specifically, and which four
       sibling clinical-suite services still have the identical gap.
+- [x] Mapped `PrescribingService`'s five wrong-state domain errors
+      (`PrescriptionNotDraftError`, `EmptyPrescriptionError`,
+      `ControlledSubstanceDisabledError`, `PrescriptionAlreadyVoidedError`,
+      `PrescriptionNotSignedError`) to `BadRequestException({ code, message
+      })`, the next module in the priority order the `BillingService` run's
+      own log entry named — `prescribing` first because its own test at
+      `prescribing.service.test.ts:114` literally asserted
+      `rejects.toThrow(EmptyPrescriptionError)`, encoding the bug into the
+      suite. See the 2026-08-14 log entry below (the one added by this run)
+      for the fix and which three sibling clinical-suite services
+      (`clinical-charting`, `diagnostics-orders`, `immunization`) still have
+      the identical gap.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; `PrescribingService` had the same
+  wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the prior
+  run fixed for `BillingService`, and its own test encoded the bug.**
+  Grepped for `- [ ]` first — zero hits, same as every recent run. The
+  prior run's own log entry named the priority order for the four
+  remaining sibling gaps it found but did not fix — `prescribing` first,
+  because `prescribing.service.test.ts:114` asserted
+  `rejects.toThrow(EmptyPrescriptionError)`, meaning the suite actively
+  encoded the bug rather than merely missing coverage for it. Took that
+  named next step rather than re-surveying.
+
+  **What was found.** `apps/api/src/prescribing/prescribing.service.ts`'s
+  `addLine`, `signPrescription` and `voidPrescription` called
+  `@swasthya/prescribing`'s `addPrescriptionLine`/`signPrescription`/
+  `voidPrescription` directly, with no `try`/`catch` and no
+  `BadRequestException` import. Any wrong-state call — a line added to a
+  signed prescription, a controlled-substance line, signing an empty or
+  already-signed prescription, voiding a draft or an already-voided one —
+  reached the client as an unstructured 500. Confirmed by reading
+  `packages/prescribing/src/index.ts` directly rather than trusting the
+  prior run's error-name list: it named four of this module's five errors
+  and omitted `PrescriptionNotSignedError` (thrown by `voidPrescription`
+  when called on a draft), so the full set actually mapped is five, not
+  four.
+
+  **The fix.** Added a private `runTransition(transition: () =>
+  Prescription): Prescription` to `PrescribingService`, identical in shape
+  to `BillingService.runTransition`: runs the domain call, catches any of
+  the five domain errors by `instanceof`, re-throws as `new
+  BadRequestException({ code: error.name, message: error.message })`, lets
+  anything else (e.g. `NotFoundException` from `getPrescription`) pass
+  through. `addLine` and `voidPrescription` route their existing domain
+  call through it directly; `signPrescription` still runs
+  `runSafetyChecks` first (unrelated to this bug — a `MedicationSafetyService`
+  call, never throws) and only wraps the final `signPrescription` domain
+  call. No change to `@swasthya/prescribing`'s pure domain layer.
+
+  **Tests.** `prescribing.service.test.ts`: rewrote the one existing
+  wrong-state assertion (`propagates the domain error… toThrow
+  (EmptyPrescriptionError)`) to assert `BadRequestException` with `{ code:
+  'EmptyPrescriptionError' }` — asserting the raw domain error type was
+  itself testing the bug, the same fix the billing run made to its sibling
+  test. Added five new cases: signing an already-signed prescription,
+  a controlled-substance line, a line on an already-signed prescription,
+  voiding a draft, and voiding an already-voided prescription — none of
+  these five transitions had a test before this run.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 653/653 (was 648 — the five new cases). `pnpm build`
+  40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** The identical fix on `clinical-charting.service.ts`
+  (`EncounterAlreadyClosedError`/`EncounterNotOpenError`) next — the
+  billing run's own log entry noted it sits upstream of billing/
+  prescribing/diagnostics-orders in the call graph, so its 500 is
+  reachable through the most paths — then `diagnostics-orders.service.ts`
+  (`DiagnosticOrderNotOpenError`/`DiagnosticOrderAlreadyCancelledError`/
+  `DiagnosticResultNotHeldError`) and `immunization.service.ts`
+  (`ImmunizationRecordAlreadyVoidedError`). When reading each domain
+  package's error exports to confirm the full set, read the source
+  directly rather than trusting a prior log entry's list — this run found
+  the billing-run's list of prescribing's errors was one short
+  (`PrescriptionNotSignedError`). The two standing product-decision items
+  (`packages/health-records`'s status-guard question; the clinical-suite's
+  missing clinician/patient identity model) are unchanged and still not a
+  single run's to resolve alone.
 
 - 2026-08-14 — **Queue fully checked; `BillingService` let five wrong-state
   domain errors reach the client as bare, codeless 500s instead of a 400 a

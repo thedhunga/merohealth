@@ -1,6 +1,11 @@
-import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
+  ControlledSubstanceDisabledError,
+  EmptyPrescriptionError,
+  PrescriptionAlreadyVoidedError,
+  PrescriptionNotDraftError,
+  PrescriptionNotSignedError,
   addPrescriptionLine,
   openPrescription,
   signPrescription,
@@ -77,10 +82,18 @@ export class PrescribingService {
    * Adding a line never touches clinical-charting or medication-safety —
    * only signing does — so composing a draft keeps working even if either
    * dependency is unavailable.
+   *
+   * Wraps its `@swasthya/prescribing` call through `runTransition`: a
+   * wrong-state transition (adding to a signed prescription, a controlled
+   * substance) previously reached the client as a bare, codeless 500 —
+   * the same gap `BillingService.runTransition` fixed for
+   * `@swasthya/billing`'s domain errors, applied here to this module's own.
    */
   addLine(id: string, input: PrescriptionLineInput): Prescription {
     return this.repository.save(
-      addPrescriptionLine(this.getPrescription(id), randomUUID(), input, new Date().toISOString()),
+      this.runTransition(() =>
+        addPrescriptionLine(this.getPrescription(id), randomUUID(), input, new Date().toISOString()),
+      ),
     );
   }
 
@@ -97,7 +110,9 @@ export class PrescribingService {
     const prescription = this.getPrescription(id);
     const { status, findings } = await this.runSafetyChecks(prescription);
     return this.repository.save(
-      signPrescription(prescription, attestation, status, findings, new Date().toISOString()),
+      this.runTransition(() =>
+        signPrescription(prescription, attestation, status, findings, new Date().toISOString()),
+      ),
     );
   }
 
@@ -118,7 +133,26 @@ export class PrescribingService {
   }
 
   voidPrescription(id: string, reason: string): Prescription {
-    return this.repository.save(voidPrescription(this.getPrescription(id), reason, new Date().toISOString()));
+    return this.repository.save(
+      this.runTransition(() => voidPrescription(this.getPrescription(id), reason, new Date().toISOString())),
+    );
+  }
+
+  private runTransition(transition: () => Prescription): Prescription {
+    try {
+      return transition();
+    } catch (error) {
+      if (
+        error instanceof PrescriptionNotDraftError ||
+        error instanceof EmptyPrescriptionError ||
+        error instanceof ControlledSubstanceDisabledError ||
+        error instanceof PrescriptionAlreadyVoidedError ||
+        error instanceof PrescriptionNotSignedError
+      ) {
+        throw new BadRequestException({ code: error.name, message: error.message });
+      }
+      throw error;
+    }
   }
 
   /**
