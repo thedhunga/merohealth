@@ -1075,11 +1075,90 @@ re-read the table itself rather than trust this paragraph.
       one added by this run) for the full list of thirteen strings fixed and
       why the emergency panel is the highest-consequence instance of this bug
       class.
+- [x] Fixed `apps/mobile/app/index.tsx` (the welcome / language-picker
+      screen): every visible string was hardcoded Devanagari even though the
+      screen reads `language` and lets the person tap `en` on step 1 —
+      picking English on this exact screen was a visible no-op for its own
+      copy. The concrete follow-up the `companion.tsx` run's own log entry
+      asked for: a fresh sweep of `app/(tabs)/*.tsx` and `app/*.tsx` for the
+      same visible-`<Text>`-vs-`accessibilityLabel` split. See the 2026-08-14
+      log entry below (the one added by this run) for the survey, the fix,
+      and why the vein is now exhausted.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; `apps/mobile/app/index.tsx` — the
+  app's welcome / language-picker screen — never branched its own visible
+  copy on `language`.** Grepped for `- [ ]` first — zero hits, same as every
+  recent run. The prior `companion.tsx` entry (immediately below) had named
+  a concrete, unblocked follow-up: "worth a fresh sweep of the other
+  `app/(tabs)/*.tsx` and `app/*.tsx` screens for the same
+  visible-`<Text>`-vs-`accessibilityLabel` split this run found." Commissioned
+  an Explore agent to do exactly that sweep, briefed on the bug class (a
+  screen wires `language` for some strings — e.g. an `accessibilityLabel` or
+  an orb prop — but visible `<Text>` copy still lags one language behind) and
+  the list of files already fully swept (`care.tsx`, `consultation.tsx`,
+  `companion.tsx`, `learn.tsx`, `twin.tsx`, `(tabs)/index.tsx`,
+  `index.web.tsx`, `_layout.tsx`).
+
+  **What was found.** `apps/mobile/app/index.tsx` (`WelcomeScreen`, the very
+  first screen rendered on launch, before `router.replace('/(tabs)')`)
+  destructures `language`/`setLanguage` from `useAppState()` and uses
+  `language` correctly for two things — `<SathiOrb language={language} />`
+  and `selected={language === choice.code}` on the language-choice `Pill`s —
+  but every visible `<Text>` string in the file was a Devanagari literal with
+  no ternary at all: the step-0/step-1 headline and body, the "Sathi keeps
+  you in control" promise card's title and body, the emergency-services
+  safety line, and the primary button's step-0/step-1 label. Verified this is
+  live and reachable, not dead code, by reading the file directly: step 1 is
+  reached by tapping "सुरु गर्नुहोस्" once, at which point the three `Pill`
+  choices (`ne`, `ne-Latn`, `en`) are rendered and tapping the `en` one calls
+  `setLanguage('en')`, which re-renders this same still-mounted screen —
+  making it the one screen in the app where choosing English is a **visible
+  no-op for the screen's own copy**, including the step-1 prompt itself
+  ("कुन भाषामा सहज हुन्छ?", "which language is easiest for you") staying in
+  Devanagari after the person has already tapped English. This is the same
+  bug class as the `companion.tsx` fix — a screen where `language` is real,
+  live state, wired correctly for *some* props, but visible copy was never
+  connected to it — just never previously swept because `index.tsx` sits
+  outside `app/(tabs)/` and had no `accessibilityLabel`-sweep entry that
+  might have caught it first.
+
+  **The fix.** Wrapped each of the nine hardcoded strings in
+  `language === 'en' ? english : nepali`, matching the exact convention used
+  everywhere else in `apps/mobile` (a bare two-way ternary — `ne-Latn`, like
+  every other screen, falls through to the Devanagari branch). Reused the
+  existing English pairing for "सुरु गर्नुहोस्" → "Get started" already
+  established in `index.web.tsx`, and translated the remaining eight fresh
+  (plain literal translations of the existing Nepali, no new claims). Left
+  the brand lockup (`स्वास्थ्य साथी`) and the `DEMO` badge untouched, matching
+  the established "brand chrome stays as-is" convention documented across
+  prior entries. `apps/mobile/app/` has no colocated-test convention
+  (confirmed empty by `find … -name "*.test.ts*"`, matching every prior
+  `app/`-screen i18n fix in this ledger), so no new test file was added.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 644/644 unchanged (this fix touched no test-covered
+  package). `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** The survey agent read every file under
+  `apps/mobile/app/**/*.tsx`, including `records.tsx`, `capture.tsx`,
+  `consent.tsx` and the shared `ProfileSwitcher.tsx`/`document-kinds.ts`
+  helpers, none of which were in the ledger's prior sweep list, and reported
+  all of them clean — every remaining Devanagari string resolved to either a
+  correct sibling ternary, a paired `xNe`/`xEn` data object, or an
+  already-documented brand/eyebrow exception. With `index.tsx` now fixed, the
+  visible-text mobile-i18n vein is exhausted across the whole `app/` tree,
+  not just `app/(tabs)/`. The two standing product-decision items
+  (`packages/health-records`'s status-guard question; the clinical-suite's
+  missing clinician/patient identity model, now confirmed to also block
+  `ImmunizationController`/`ClinicalSummaryController`'s
+  `recordPatientReported` routes) remain open and still not a single
+  scheduled run's to resolve alone.
 
 - 2026-08-14 — **Queue fully checked; `apps/mobile/app/(tabs)/companion.tsx`
   never branched roughly a dozen visible strings on `language`, including the
