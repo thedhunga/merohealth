@@ -1114,11 +1114,84 @@ re-read the table itself rather than trust this paragraph.
       the most paths." See the 2026-08-14 log entry below (the one added by
       this run) for the fix and which two sibling clinical-suite services
       (`diagnostics-orders`, `immunization`) still have the identical gap.
+- [x] Mapped `DiagnosticsOrdersService`'s three wrong-state domain errors
+      (`DiagnosticOrderNotOpenError`, `DiagnosticOrderAlreadyCancelledError`,
+      `DiagnosticResultNotHeldError`) to `BadRequestException({ code, message
+      })` — the next module in the priority order the `ClinicalChartingService`
+      run's own log entry named. See the 2026-08-14 log entry below (the one
+      added by this run) for the fix and why `immunization.service.ts`
+      (`ImmunizationRecordAlreadyVoidedError`) is the one sibling module still
+      left with the identical gap.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; `DiagnosticsOrdersService` had the same
+  wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the three
+  prior runs fixed for `BillingService`, `PrescribingService` and
+  `ClinicalChartingService`.** Grepped for `- [ ]` first — zero hits, same as
+  every recent run. The `ClinicalChartingService` run's own log entry named
+  `diagnostics-orders.service.ts` as the next fix in the priority order, then
+  `immunization.service.ts`. Took that named next step rather than
+  re-surveying.
+
+  **What was found.** `apps/api/src/diagnostics-orders/diagnostics-orders.service.ts`'s
+  `recordResult`, `releaseResult` and `cancelOrder` all called
+  `@swasthya/diagnostics-orders`'s `recordDiagnosticResult`/
+  `releaseDiagnosticResult`/`cancelDiagnosticOrder` directly, with no
+  `try`/`catch` and no `BadRequestException` import. A second result on an
+  already-RESULTED order, releasing a result that was never recorded or was
+  already released, and cancelling an order that already has a result or was
+  already cancelled, each reached the client as an unstructured 500. Read
+  `packages/diagnostics-orders/src/index.ts` directly to confirm the full
+  error set rather than trusting a prior log entry's list: exactly three,
+  `DiagnosticOrderNotOpenError` (reused by both `recordDiagnosticResult` and
+  `cancelDiagnosticOrder` for "not currently ORDERED"),
+  `DiagnosticOrderAlreadyCancelledError` (cancelling twice, checked before
+  the not-open case so the two are distinguishable), and
+  `DiagnosticResultNotHeldError` (releasing with no HELD result). The
+  existing test suite's `recordResult` describe block also actively encoded
+  the bug, asserting `.toThrow(DiagnosticOrderNotOpenError)` directly against
+  the raw domain error — the same "test itself is wrong" shape the
+  `prescribing.service.test.ts` gap had.
+
+  **The fix.** Added a private `runTransition(transition: () =>
+  DiagnosticOrder): DiagnosticOrder` to `DiagnosticsOrdersService`, identical
+  in shape to `BillingService.runTransition`/`PrescribingService.runTransition`:
+  catches any of the three domain errors by `instanceof`, re-throws as `new
+  BadRequestException({ code: error.name, message: error.message })`, lets
+  anything else (e.g. `NotFoundException` from `getOrder`) pass through. All
+  three mutating methods route through it. `orderDiagnostic` was left
+  untouched — the domain `orderDiagnostic` constructor never throws a
+  wrong-state error, so there is nothing for `runTransition` to guard there.
+  No change to `@swasthya/diagnostics-orders`'s pure domain layer.
+
+  **Tests.** `diagnostics-orders.service.test.ts`: rewrote the one existing
+  wrong-state assertion (`propagates the domain error… toThrow
+  (DiagnosticOrderNotOpenError)`) to assert `BadRequestException` with
+  `{ code: 'DiagnosticOrderNotOpenError' }`, matching the try/catch +
+  `expect.unreachable` shape `billing.service.test.ts` established. Added
+  four new cases with no prior coverage: releasing an already-released
+  result, releasing a result that was never recorded, cancelling an order
+  that already has a result, and cancelling an already-cancelled order —
+  none of these four wrong-state paths had a test before this run.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 658/658 (was 653 — the four new cases plus the one
+  rewritten one). `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** The identical fix on `immunization.service.ts`
+  (`ImmunizationRecordAlreadyVoidedError`) next — the last sibling module the
+  `BillingService` survey named with this exact gap. Read
+  `packages/immunization/src/index.ts` directly to confirm its full error set
+  rather than trusting this entry's list, the same discipline that caught the
+  `PrescribingService` run's list being one error short. The two standing
+  product-decision items (`packages/health-records`'s status-guard question;
+  the clinical-suite's missing clinician/patient identity model) are
+  unchanged and still not a single run's to resolve alone.
 
 - 2026-08-14 — **Queue fully checked; `ClinicalChartingService` had the same
   wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the two prior

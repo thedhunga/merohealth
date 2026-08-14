@@ -1,6 +1,9 @@
-import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
+  DiagnosticOrderAlreadyCancelledError,
+  DiagnosticOrderNotOpenError,
+  DiagnosticResultNotHeldError,
   cancelDiagnosticOrder,
   orderDiagnostic,
   recordDiagnosticResult,
@@ -72,15 +75,45 @@ export class DiagnosticsOrdersService {
    * goes down after the fact.
    */
   recordResult(id: string, input: RecordDiagnosticResultInput): DiagnosticOrder {
-    return this.repository.save(recordDiagnosticResult(this.getOrder(id), input, new Date().toISOString()));
+    return this.repository.save(
+      this.runTransition(() => recordDiagnosticResult(this.getOrder(id), input, new Date().toISOString())),
+    );
   }
 
   releaseResult(id: string, releasedBy: string): DiagnosticOrder {
-    return this.repository.save(releaseDiagnosticResult(this.getOrder(id), releasedBy, new Date().toISOString()));
+    return this.repository.save(
+      this.runTransition(() => releaseDiagnosticResult(this.getOrder(id), releasedBy, new Date().toISOString())),
+    );
   }
 
   cancelOrder(id: string, reason: string): DiagnosticOrder {
-    return this.repository.save(cancelDiagnosticOrder(this.getOrder(id), reason, new Date().toISOString()));
+    return this.repository.save(
+      this.runTransition(() => cancelDiagnosticOrder(this.getOrder(id), reason, new Date().toISOString())),
+    );
+  }
+
+  /**
+   * Wraps every `@swasthya/diagnostics-orders` transition: a wrong-state call
+   * (a second result on an already-RESULTED order, releasing a result that
+   * isn't HELD, cancelling an order that's already RESULTED or CANCELLED)
+   * previously reached the client as a bare, codeless 500. Mapped to
+   * `BadRequestException({ code, message })`, the same convention
+   * `BillingService.runTransition`/`PrescribingService.runTransition`/
+   * `ClinicalChartingService.runTransition` already established.
+   */
+  private runTransition(transition: () => DiagnosticOrder): DiagnosticOrder {
+    try {
+      return transition();
+    } catch (error) {
+      if (
+        error instanceof DiagnosticOrderNotOpenError ||
+        error instanceof DiagnosticOrderAlreadyCancelledError ||
+        error instanceof DiagnosticResultNotHeldError
+      ) {
+        throw new BadRequestException({ code: error.name, message: error.message });
+      }
+      throw error;
+    }
   }
 
   /**

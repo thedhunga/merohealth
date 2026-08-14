@@ -1,5 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
-import { DiagnosticOrderNotOpenError } from '@swasthya/diagnostics-orders';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
@@ -63,13 +62,49 @@ describe('DiagnosticsOrdersService.recordResult, releaseResult and getOrder', ()
     expect(resulted.status).toBe('RESULTED');
   });
 
-  it('propagates the domain error refusing a second result on an already-RESULTED order', async () => {
+  it('rejects a second result on an already-RESULTED order with a BadRequestException', async () => {
     const { charting, diagnosticsOrders } = buildStack();
     const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
     const order = await diagnosticsOrders.orderDiagnostic(encounter.id, orderInput);
     diagnosticsOrders.recordResult(order.id, resultInput);
 
-    expect(() => diagnosticsOrders.recordResult(order.id, resultInput)).toThrow(DiagnosticOrderNotOpenError);
+    try {
+      diagnosticsOrders.recordResult(order.id, resultInput);
+      expect.unreachable('expected recordResult to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'DiagnosticOrderNotOpenError' });
+    }
+  });
+
+  it('rejects releasing a result that has already been released with a BadRequestException', async () => {
+    const { charting, diagnosticsOrders } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const order = await diagnosticsOrders.orderDiagnostic(encounter.id, orderInput);
+    diagnosticsOrders.recordResult(order.id, resultInput);
+    diagnosticsOrders.releaseResult(order.id, 'clinician-2');
+
+    try {
+      diagnosticsOrders.releaseResult(order.id, 'clinician-2');
+      expect.unreachable('expected releaseResult to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'DiagnosticResultNotHeldError' });
+    }
+  });
+
+  it('rejects releasing a result that was never recorded with a BadRequestException', async () => {
+    const { charting, diagnosticsOrders } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const order = await diagnosticsOrders.orderDiagnostic(encounter.id, orderInput);
+
+    try {
+      diagnosticsOrders.releaseResult(order.id, 'clinician-2');
+      expect.unreachable('expected releaseResult to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'DiagnosticResultNotHeldError' });
+    }
   });
 });
 
@@ -83,6 +118,36 @@ describe('DiagnosticsOrdersService.cancelOrder', () => {
 
     expect(cancelled.status).toBe('CANCELLED');
     expect(cancelled.cancelReason).toBe('Ordered in error');
+  });
+
+  it('rejects cancelling an order that already has a result with a BadRequestException', async () => {
+    const { charting, diagnosticsOrders } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const order = await diagnosticsOrders.orderDiagnostic(encounter.id, orderInput);
+    diagnosticsOrders.recordResult(order.id, resultInput);
+
+    try {
+      diagnosticsOrders.cancelOrder(order.id, 'Ordered in error');
+      expect.unreachable('expected cancelOrder to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'DiagnosticOrderNotOpenError' });
+    }
+  });
+
+  it('rejects cancelling an already-cancelled order with a BadRequestException', async () => {
+    const { charting, diagnosticsOrders } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const order = await diagnosticsOrders.orderDiagnostic(encounter.id, orderInput);
+    diagnosticsOrders.cancelOrder(order.id, 'Ordered in error');
+
+    try {
+      diagnosticsOrders.cancelOrder(order.id, 'Ordered in error');
+      expect.unreachable('expected cancelOrder to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'DiagnosticOrderAlreadyCancelledError' });
+    }
   });
 });
 
