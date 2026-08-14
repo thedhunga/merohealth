@@ -1000,11 +1000,77 @@ re-read the table itself rather than trust this paragraph.
       header value was turning a clean 401 into an unhandled 500 for the
       whole authenticated surface. See the 2026-08-14 log entry below (the
       one added by this run) for the trace and the new tests.
+- [x] Closed the remaining hardcoded-Nepali gaps in
+      `apps/mobile/app/(tabs)/learn.tsx`: the `SectionTitle` title/body, the
+      low-data-mode toggle's title/subtitle, the "Accessible by design"
+      notice body, the "Lessons you can read" heading, the lesson-duration
+      unit, and the transcript "Listen" label none branched on `language`
+      despite every sibling string in the same file doing so. See the
+      2026-08-14 log entry below (the one added by this run) for the
+      resolution of the two disagreeing prior claims about this file.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; closed the six remaining
+  hardcoded-Nepali strings in `apps/mobile/app/(tabs)/learn.tsx`.** Grepped
+  for `- [ ]` first — zero hits. The prior run's own log entry (the
+  `parseCookieHeader` fix, immediately below) named exactly this as "the
+  concrete lead worth checking first," flagging that its own claim
+  (`noticeText`, `lessonHeading`, `SectionTitle` copy, the low-bandwidth
+  toggle's title/subtitle don't branch on `language`) directly contradicted
+  an earlier 2026-08-13 entry's claim that a fresh survey "reported no other
+  hardcoded-language gap left in `apps/mobile`." Read `learn.tsx` in full
+  before touching anything, per that instruction, rather than trusting
+  either prior claim.
+
+  **What was found.** The 2026-08-14 flag was correct and the 2026-08-13
+  "nothing left" claim was not. Six sentence-level strings in
+  `learn.tsx` were still fixed Nepali with no `language === 'en' ? … : …`
+  branch, despite every other sentence in the same file — including the
+  `walkthroughSteps[].title`/`.body` a 2026-08-13 run had already fixed and
+  the notice *title*/`lessonHint` a 2026-08-12 run had already fixed —
+  following that exact convention: the `SectionTitle` `title`/`body`
+  (`:90-98`, never touched by either prior `learn.tsx` fix), the low-data
+  toggle's `bandwidthTitle`/`meta` (`:188-197`, likewise never named in any
+  prior entry), the "Accessible by design" notice's *body* text (`:209-213`
+  — only its title was fixed in 2026-08-12), the `lessonHeading` "पढेर सिक्ने
+  पाठ" (`:217-220` — its sibling `lessonHint` was fixed in 2026-08-12, this
+  one was not), the lesson-duration "सेकेन्ड" unit word (`:250-257` — kept
+  separate from `reviewStatus`, which the 2026-08-12 entry explicitly and
+  correctly left alone as a raw enum, not authored copy), and the
+  transcript row's "सुन्नुहोस्" listen label (`:280-284` — its
+  `accessibilityLabel` two lines below already branched correctly, only the
+  visible `Text` did not, the same asymmetry the 2026-08-12 Play/Pause fix
+  addressed elsewhere in this file).
+
+  **The fix.** All six now follow the file's own
+  `language === 'en' ? english : nepali` ternary exactly, no new pattern.
+  Each English string is a plain literal translation of the existing
+  Nepali sentence — no new claims, figures or product facts introduced.
+  `eyebrow`, `walkthroughSteps[].eyebrow`, "INTERACTIVE WALKTHROUGH",
+  "READABLE TRANSCRIPT" and `reviewStatus.replaceAll('_', ' ')` were left
+  untouched, matching the all-caps-chrome-stays-English /
+  raw-enum-stays-unrendered-as-copy precedent both 2026-08-12 entries
+  already established for this exact file.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  unchanged counts everywhere; `learn.tsx` has no colocated test, matching
+  every other `app/*.tsx` screen in this repo (no rendering harness exists
+  for them). `pnpm build` 40/40 (35 cached); `apps/mobile`'s Expo web bundle
+  still exports `/learn` cleanly at 66KB.
+
+  **For the next run.** The two standing product-decision items
+  (`packages/health-records`'s status-guard question; the clinical-suite's
+  missing clinician-identity model) are unchanged and still not a scheduled
+  run's to resolve. Given that a "fresh survey found nothing" claim about
+  this exact file was wrong twice now (once flagged and now confirmed), the
+  next "queue exhausted" run should not treat any single survey's
+  "exhausted" verdict as final without a skeptical direct read of the file
+  in question, mobile i18n included.
 
 - 2026-08-14 — **Queue fully checked; fixed a crash in `packages/auth`'s
   `parseCookieHeader` that turned a malformed cookie into an unhandled 500

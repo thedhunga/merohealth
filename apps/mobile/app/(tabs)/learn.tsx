@@ -88,9 +88,13 @@ export default function LearnScreen() {
   return (
     <Screen>
       <SectionTitle
-        body="छोटो दृश्य, आवाज र पढ्न मिल्ने ट्रान्सक्रिप्ट—कम डेटा हुँदा पनि उपयोगी।"
+        body={
+          language === 'en'
+            ? 'A short video, audio, and a readable transcript — useful even on low data.'
+            : 'छोटो दृश्य, आवाज र पढ्न मिल्ने ट्रान्सक्रिप्ट—कम डेटा हुँदा पनि उपयोगी।'
+        }
         eyebrow="LEARN BY WATCHING, LISTENING OR READING"
-        title="एप कसरी चलाउने"
+        title={language === 'en' ? 'How to use the app' : 'एप कसरी चलाउने'}
       />
 
       <LinearGradient
@@ -182,8 +186,14 @@ export default function LearnScreen() {
       >
         <WifiOff color={colors.primary} />
         <View style={styles.bandwidthCopy}>
-          <Text style={styles.bandwidthTitle}>कम डेटा मोड</Text>
-          <Text style={styles.meta}>भिडियोको सट्टा ट्रान्सक्रिप्ट र आवाज रोज्नुहोस्</Text>
+          <Text style={styles.bandwidthTitle}>
+            {language === 'en' ? 'Low data mode' : 'कम डेटा मोड'}
+          </Text>
+          <Text style={styles.meta}>
+            {language === 'en'
+              ? 'Choose transcript and audio instead of video'
+              : 'भिडियोको सट्टा ट्रान्सक्रिप्ट र आवाज रोज्नुहोस्'}
+          </Text>
         </View>
         <View style={[styles.switch, lowBandwidth && styles.switchOn]}>
           <View style={[styles.knob, lowBandwidth && styles.knobOn]} />
@@ -197,14 +207,17 @@ export default function LearnScreen() {
             {language === 'en' ? 'Accessible by design' : 'सुगम्य बनाइएको'}
           </Text>
           <Text style={styles.noticeText}>
-            यो walkthrough काम गर्छ। उत्पादन MP4 प्रशिक्षण भिडियो, मानवीय narration र चिकित्सा
-            समीक्षा अझै प्रकाशन gate भित्र छन्।
+            {language === 'en'
+              ? 'This walkthrough works today. Production MP4 training videos, human narration, and clinical review are still behind the publish gate.'
+              : 'यो walkthrough काम गर्छ। उत्पादन MP4 प्रशिक्षण भिडियो, मानवीय narration र चिकित्सा समीक्षा अझै प्रकाशन gate भित्र छन्।'}
           </Text>
         </View>
       </View>
 
       <View style={styles.lessonHead}>
-        <Text style={styles.lessonHeading}>पढेर सिक्ने पाठ</Text>
+        <Text style={styles.lessonHeading}>
+          {language === 'en' ? 'Lessons you can read' : 'पढेर सिक्ने पाठ'}
+        </Text>
         <Text style={styles.lessonHint}>
           {language === 'en' ? 'Reviewed scripts' : 'समीक्षा गरिएका स्क्रिप्ट'}
         </Text>
@@ -237,7 +250,10 @@ export default function LearnScreen() {
                   <View style={styles.row}>
                     <Clock3 color={colors.muted} size={13} />
                     <Text style={styles.meta}>
-                      {lesson.durationSeconds} सेकेन्ड · {lesson.reviewStatus.replaceAll('_', ' ')}
+                      {language === 'en'
+                        ? `${lesson.durationSeconds}s`
+                        : `${lesson.durationSeconds} सेकेन्ड`}{' '}
+                      · {lesson.reviewStatus.replaceAll('_', ' ')}
                     </Text>
                   </View>
                 </View>
@@ -263,7 +279,9 @@ export default function LearnScreen() {
                       style={styles.transcriptListen}
                     >
                       <Volume2 color={colors.primary} size={17} />
-                      <Text style={styles.transcriptListenText}>सुन्नुहोस्</Text>
+                      <Text style={styles.transcriptListenText}>
+                        {language === 'en' ? 'Listen' : 'सुन्नुहोस्'}
+                      </Text>
                     </Pressable>
                   </View>
                   <Text style={styles.transcriptText}>
