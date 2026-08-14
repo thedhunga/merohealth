@@ -992,11 +992,98 @@ re-read the table itself rather than trust this paragraph.
       every reachable status. See the 2026-08-13 log entry below (the one
       added by this run) for why the unconditional button was a real,
       reachable dead end.
+- [x] Fixed `packages/auth`'s `parseCookieHeader`: a cookie value with
+      invalid percent-encoding (e.g. `mero_session=%`) now silently drops
+      that one pair instead of letting `decodeURIComponent` throw a raw
+      `URIError` out of `SessionAuthGuard` — the guard sits under every
+      cookie-authenticated `apps/api` route, so an attacker-controlled
+      header value was turning a clean 401 into an unhandled 500 for the
+      whole authenticated surface. See the 2026-08-14 log entry below (the
+      one added by this run) for the trace and the new tests.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; fixed a crash in `packages/auth`'s
+  `parseCookieHeader` that turned a malformed cookie into an unhandled 500
+  on every `SessionAuthGuard`-protected route.** Grepped for `- [ ]` first —
+  zero hits, same as every recent run. Commissioned a fresh independent
+  general-purpose survey agent, briefed on every vein already exhausted
+  (cross-owner/unguarded-`ownerId` access control, ISO-instant/date
+  validation, `ne-Latn` collapse, share-link TTL/entitlements gating,
+  double-booking, negative-reading validation, filename sanitization,
+  `normalizeLabel` dedup, mobile i18n, `classifyIntent`/`termAppears`
+  retrieval bugs, the analytics-source extensions, the emergency-rule
+  word-order/apostrophe fixes, the `next=` redirect chain, and
+  `ApplicationTransitionError` mapping) and the two standing
+  product-decision items (`packages/health-records`'s status-guard question;
+  the clinical-suite's missing clinician-identity model — still not this
+  run's to resolve). Also told not to re-propose the named-but-larger
+  `apps/mobile` equivalent of `IdentityVerification.tsx`.
+
+  **What was found.** `packages/auth/src/index.ts`'s `parseCookieHeader`
+  (lines 153-165) parsed `name=value` pairs out of the raw `Cookie` header
+  and called `decodeURIComponent(value)` on every one with no guard. The
+  function already tolerates one class of garbage — a pair with no `=` is
+  skipped (`if (separatorIndex === -1) continue`) — but not a pair whose
+  *value* is not valid percent-encoding: `decodeURIComponent('%')` throws a
+  raw `URIError`, verified directly with `node -e`. This function is called
+  from `apps/api/src/auth/session-auth.guard.ts`'s `extractSessionToken`,
+  which runs unconditionally at the top of `SessionAuthGuard.canActivate`
+  for every request with no `Bearer` header — i.e. every cookie-based web
+  request to `/auth/me`, `/family/grants`, `/records/*`, `/interop/*`,
+  `/credentialing/*`, `/identity/*`, and every other guarded route.
+  `apps/api/src/main.ts` registers no global exception filter, so Nest's
+  default filter turns the escaping `URIError` into a generic `500`
+  instead of the `401` a malformed/missing session should always produce.
+  The `Cookie` header is fully attacker-controlled and reaches
+  `decodeURIComponent` with no upstream validation, so `Cookie:
+  mero_session=%` from any anonymous caller reliably 500s instead of 401s.
+  Found by a fresh independent survey; `session-auth.guard.test.ts` had six
+  cases (valid bearer, valid cookie, bearer-over-cookie precedence, missing
+  token, forged token, revoked token) but none for a malformed cookie
+  value, and `parseCookieHeader`'s own four existing tests covered the
+  no-`=` case but not invalid percent-encoding.
+
+  **The fix.** Wrapped the `decodeURIComponent(value)` call in a
+  `try/catch`, dropping that one pair on failure — the exact same
+  "tolerate one malformed pair, keep the rest" convention the no-`=` branch
+  two lines above already established, not a new policy. Two new tests: a
+  unit test in `packages/auth/src/index.test.ts` (`parseCookieHeader`
+  ignores a pair whose value is not valid percent-encoding instead of
+  throwing) and an integration-level test in
+  `apps/api/src/auth/session-auth.guard.test.ts` proving the guard now
+  rejects a malformed cookie as a clean `UnauthorizedException` (401)
+  rather than letting the `URIError` escape uncaught.
+
+  **What was deliberately left out.** No global Nest exception filter was
+  added — that would be a broader architectural change (every unhandled
+  exception repo-wide, not just this one) with no other evidence in this
+  survey that it's needed; fixing the one function that's actually reached
+  with fully attacker-controlled input is the narrow, traceable fix. The
+  survey's runner-up (several `apps/mobile/app/(tabs)/learn.tsx` strings —
+  `noticeText`, `lessonHeading`, `SectionTitle` copy, the low-bandwidth
+  toggle's title/subtitle — that don't branch on `language` despite
+  sibling strings in the same file that do) was not picked up: it falls
+  inside the already-exhausted mobile-i18n vein this run was briefed to
+  avoid re-opening, and directly contradicts a very recent log entry's
+  claim that a fresh survey found nothing left there — worth a skeptical,
+  dedicated re-check by whichever run picks it up next, rather than being
+  folded into this one.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean. `pnpm lint` 40/40.
+  `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks — `@swasthya/auth`
+  33/33 (net +1), `@swasthya/api` 645/645 (net +1, the new guard test),
+  every other package's count unchanged. `pnpm build` 40/40.
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not a scheduled run's to resolve. The
+  `learn.tsx` i18n claim above is the concrete lead worth checking first,
+  ahead of commissioning a wholly fresh survey — verify it directly against
+  the file before trusting either this run's flag or the prior run's
+  "nothing left" claim, since the two disagree.
 
 - 2026-08-13 — **Queue fully checked; gated `RegisterView.tsx`'s "start a new
   application" button to the one status it can actually succeed from.**

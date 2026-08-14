@@ -202,4 +202,8 @@ describe('parseCookieHeader', () => {
   it('ignores malformed pairs without an "="', () => {
     expect(parseCookieHeader('a=1; garbage; b=2')).toEqual({ a: '1', b: '2' });
   });
+
+  it('ignores a pair whose value is not valid percent-encoding instead of throwing', () => {
+    expect(parseCookieHeader('a=1; mero_session=%; b=2')).toEqual({ a: '1', b: '2' });
+  });
 });

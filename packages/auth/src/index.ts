@@ -159,7 +159,15 @@ export function parseCookieHeader(header: string | undefined | null): Record<str
     const name = pair.slice(0, separatorIndex).trim();
     const value = pair.slice(separatorIndex + 1).trim();
     if (!name) continue;
-    entries[name] = decodeURIComponent(value);
+    // The cookie header is attacker-controlled and reaches this guard on
+    // every request; an invalid percent-encoding (e.g. a bare "%") must
+    // drop that one pair rather than throw `URIError` out of `SessionAuthGuard`,
+    // which would turn a clean 401 into an unhandled 500 for the whole request.
+    try {
+      entries[name] = decodeURIComponent(value);
+    } catch {
+      continue;
+    }
   }
   return entries;
 }
