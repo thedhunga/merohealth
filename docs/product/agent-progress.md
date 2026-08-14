@@ -1066,11 +1066,128 @@ re-read the table itself rather than trust this paragraph.
       below (the one added by this run) for the repro and why this is a
       distinct, incomplete-coverage gap from the already-fixed "rule had zero
       `ne-Latn` phrases" work.
+- [x] Closed the remaining hardcoded-Nepali gaps in
+      `apps/mobile/app/(tabs)/companion.tsx`, including the entire
+      `EMERGENCY_NOW`/`MATERNAL_CONCERN`/`PEDIATRIC_CONCERN` interrupt panel
+      (kicker, title, hospital-search button, footer note), which never
+      branched on `language` despite the safety `template` text one line
+      below it doing so correctly. See the 2026-08-14 log entry below (the
+      one added by this run) for the full list of thirteen strings fixed and
+      why the emergency panel is the highest-consequence instance of this bug
+      class.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; `apps/mobile/app/(tabs)/companion.tsx`
+  never branched roughly a dozen visible strings on `language`, including the
+  entire `EMERGENCY_NOW`/`MATERNAL_CONCERN`/`PEDIATRIC_CONCERN` interrupt
+  panel.** Grepped for `- [ ]` first — zero hits, same as every recent run.
+  Commissioned a fresh independent survey agent, briefed on the full
+  exhausted-veins list this ledger has accumulated (cross-owner/unguarded-
+  ownerId access control, ISO-instant/date validation, `ne-Latn` collapse,
+  share-link TTL/entitlements gating, double-booking, negative-reading
+  validation, filename sanitization, `normalizeLabel` dedup, mobile i18n,
+  retrieval bugs, the analytics-source extensions, emergency-rule phrase
+  fixes, `normalizeNepaliPhone`'s `977`-prefix bug, `buildAnalyteTrend`/
+  `toFhirObservation`'s numeric coercion, `guardianshipExpiryForMinor`'s
+  leap-day overflow, and the two just-fixed ISO-instant string-comparison
+  bugs in `packages/scheduling`/`packages/population-health`) plus the two
+  standing product-decision items (`packages/health-records`'s status-guard
+  question; the clinical-suite's missing clinician/patient identity model),
+  instructed not to re-propose either without a materially different angle.
+
+  Before accepting the survey's own top pick, I independently investigated
+  its runner-up myself: `ImmunizationController.recordPatientReported` and
+  `ClinicalSummaryController.recordPatientReported`
+  (`apps/api/src/immunization/immunization.controller.ts`,
+  `apps/api/src/clinical-summary/clinical-summary.controller.ts`) accept a
+  client-supplied `patientId` with no `SessionAuthGuard`, which the
+  2026-08-14 `self-harm-001` entry below had flagged as "worth a close look
+  next." A dedicated Explore agent traced `patientId` end to end: it is a
+  wholly separate id space from auth's `subjectId`/`patientProfileId`, with
+  **no join anywhere in the repo** (`packages/database/src/seed-data.ts`'s
+  own `SeedPatientProfile.id` is a distinct UUID from `SeedUser.id`, linked
+  only via `userId`; `packages/patient-registry`'s `Patient.id` is assigned
+  by the caller of `register` and never cross-referenced against either).
+  Confirmed this is exactly the standing-deferred clinician/patient-identity
+  gap the 2026-08-11 and earlier entries already named and set aside, not a
+  mechanical `SessionAuthGuard` fix — swapping in `user.subjectId` would
+  compile and look guarded without being correct, since nothing establishes
+  that a `subjectId` is a valid `patientId` in whatever space these two
+  services' downstream readers expect. Left unfixed, still open, still not a
+  single run's to resolve.
+
+  **What was found instead.** `companion.tsx` destructures `language` from
+  `useAppState()` and correctly branches dozens of strings on
+  `language === 'en' ? … : …` throughout the file — including the
+  safety-critical `template` text from `getSafetyTemplate(assessment
+  .templateId, language)` (line 85-87). But thirteen other visible `<Text>`
+  strings in the same file were hardcoded Devanagari with no ternary at all:
+  the header title/subtitle (`स्वास्थ्य साथी` / `सुरक्षित अर्को कदम खोजौँ`),
+  the intro guide card's title and body, the question label's non-rephrase
+  branch and the input placeholder, the record/stop-record button's visible
+  label (its `accessibilityLabel` one line above was already correctly
+  branched by an earlier run — only the `<Text>` child was missed), the send
+  button, the privacy-notice card, the post-answer panel's `साथीको जानकारी`
+  title, the final "ask another question" button — **and, worst of all, the
+  entire emergency-interrupt panel**: `सामान्य कुराकानी रोकिएको छ` ("normal
+  conversation paused"), `तुरुन्त सहायता लिनुहोस्` ("seek immediate help"),
+  the hospital-search button, and the "no number until verified" footer note
+  (lines 337-345 before this fix). Verified this is real and reachable, not
+  dead code, by reading the file directly rather than trusting the survey:
+  `language` is live app-wide state (`useAppState`, toggled elsewhere,
+  default `'ne'`), `CompanionScreen` is the assistant's only surface, and any
+  English-mode user whose message trips `emergency-breathing-001`/
+  `self-harm-001`/etc. would see the correctly-localized medical `template`
+  sandwiched inside Nepali-only chrome ("तुरुन्त सहायता लिनुहोस्") they may
+  not read — the single worst place in the app for a language mismatch,
+  since it sits directly beside the one string in the whole screen that *was*
+  already localized correctly. Confirmed this is distinct from the two prior
+  `companion.tsx` i18n runs in this file's own history: the 2026-08-1x
+  `learn.tsx`-adjacent sweep that fixed `DEFAULT_ANSWER_TEXT`/"Searching…"/
+  disclaimer text, and the later 19-label `accessibilityLabel` sweep (see
+  that entry's own "Files touched" list, which names `companion.tsx (5)` —
+  all five were `accessibilityLabel` props, none were the visible `<Text>`
+  strings this run fixes).
+
+  **The fix.** Wrapped each of the thirteen strings in the file's own
+  `language === 'en' ? english : nepali` ternary, the exact convention
+  already used 30+ times in this file, with a plain literal English
+  translation of the existing Nepali and no new claims. Reused this file's
+  own existing English translations where the same string already appears
+  elsewhere (the record/stop-record button text reuses the
+  `accessibilityLabel` wording one block above it, which an earlier run had
+  already translated). Left the all-caps eyebrow chrome (`VOICE · TEXT ·
+  SAFETY ROUTING`, `STEP 1 · …`, `GUIDED INFORMATION · NOT A DIAGNOSIS`)
+  untouched, matching the established "chrome stays English" convention from
+  prior entries. No other file changed. `apps/mobile`'s `app/` screens have
+  no colocated-test convention (confirmed by searching the whole `app/`
+  tree — only `src/lib/*` has `index.test.ts` files), matching every prior
+  `companion.tsx`/`learn.tsx`/`care.tsx` i18n fix in this ledger, so no new
+  test file was added.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 644/644 unchanged (this fix touched no test-covered
+  package). `pnpm build` 40/40 (35 cached, 5 rebuilt), `@swasthya/mobile`'s
+  web export includes `/companion` and `/(tabs)/companion` unchanged in size
+  class.
+
+  **For the next run.** No further hardcoded-Nepali gap remains in
+  `companion.tsx` — every visible string now branches on `language`. The two
+  standing product-decision items (`packages/health-records`'s status-guard
+  question; the clinical-suite's missing clinician/patient identity model —
+  now confirmed to also block `ImmunizationController`/
+  `ClinicalSummaryController`'s `recordPatientReported` routes specifically,
+  not just the clinician-authored ones) are still open and still not a
+  scheduled run's to resolve alone. Worth a fresh sweep of the other
+  `app/(tabs)/*.tsx` and `app/*.tsx` screens for the same
+  visible-`<Text>`-vs-`accessibilityLabel` split this run found (an
+  accessibility-label sweep can leave visible copy behind, as it did here) —
+  not done this run to stay within one task.
 
 - 2026-08-14 — **Queue fully checked; `packages/clinical-safety`'s
   `self-harm-001` rule — the single highest-consequence rule in the repo —

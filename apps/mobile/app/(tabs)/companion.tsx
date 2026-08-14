@@ -212,8 +212,12 @@ export default function CompanionScreen() {
         </Pressable>
         <View style={styles.headerCopy}>
           <Text style={styles.headerKicker}>VOICE · TEXT · SAFETY ROUTING</Text>
-          <Text style={styles.headerTitle}>स्वास्थ्य साथी</Text>
-          <Text style={styles.meta}>सुरक्षित अर्को कदम खोजौँ</Text>
+          <Text style={styles.headerTitle}>
+            {language === 'en' ? 'Swasthya Sathi' : 'स्वास्थ्य साथी'}
+          </Text>
+          <Text style={styles.meta}>
+            {language === 'en' ? "Let's find a safe next step" : 'सुरक्षित अर्को कदम खोजौँ'}
+          </Text>
         </View>
         <SathiOrb language={language} size={52} />
       </View>
@@ -230,10 +234,13 @@ export default function CompanionScreen() {
           <View style={styles.guide}>
             <ShieldCheck color={colors.primary} size={21} />
             <View style={styles.guideCopy}>
-              <Text style={styles.guideTitle}>तपाईंको कुरा, तपाईंको नियन्त्रणमा</Text>
+              <Text style={styles.guideTitle}>
+                {language === 'en' ? 'Your words, your control' : 'तपाईंको कुरा, तपाईंको नियन्त्रणमा'}
+              </Text>
               <Text style={styles.guideText}>
-                मुख्य कुरा लेख्नुहोस् वा निजी आवाज नोट रेकर्ड गर्नुहोस्। डेमोले आवाज अपलोड वा
-                ट्रान्सक्राइब गर्दैन।
+                {language === 'en'
+                  ? 'Write what matters most, or record a private voice note. The demo does not upload or transcribe audio.'
+                  : 'मुख्य कुरा लेख्नुहोस् वा निजी आवाज नोट रेकर्ड गर्नुहोस्। डेमोले आवाज अपलोड वा ट्रान्सक्राइब गर्दैन।'}
               </Text>
             </View>
             <Pressable
@@ -251,7 +258,13 @@ export default function CompanionScreen() {
                 {isRephrasing ? 'STEP 1 · REPHRASE' : 'STEP 1 · WHAT MATTERS NOW'}
               </Text>
               <Text style={styles.question}>
-                {isRephrasing ? 'फरक शब्दमा भन्नुहोस्' : 'आज के भइरहेको छ?'}
+                {isRephrasing
+                  ? language === 'en'
+                    ? 'Say it differently'
+                    : 'फरक शब्दमा भन्नुहोस्'
+                  : language === 'en'
+                    ? "What's happening today?"
+                    : 'आज के भइरहेको छ?'}
               </Text>
             </View>
 
@@ -260,7 +273,11 @@ export default function CompanionScreen() {
               multiline
               value={message}
               onChangeText={setMessage}
-              placeholder="जस्तै: दुई दिनदेखि टाउको दुखिरहेको छ…"
+              placeholder={
+                language === 'en'
+                  ? 'e.g. Headache for the last two days…'
+                  : 'जस्तै: दुई दिनदेखि टाउको दुखिरहेको छ…'
+              }
               placeholderTextColor="#82918E"
               style={styles.input}
             />
@@ -287,7 +304,13 @@ export default function CompanionScreen() {
                   <Mic color="white" size={20} />
                 )}
                 <Text style={styles.voiceButtonText}>
-                  {recorderState.isRecording ? 'रेकर्ड रोक्नुहोस्' : 'आवाजमा भन्नुहोस्'}
+                  {recorderState.isRecording
+                    ? language === 'en'
+                      ? 'Stop recording'
+                      : 'रेकर्ड रोक्नुहोस्'
+                    : language === 'en'
+                      ? 'Record voice note'
+                      : 'आवाजमा भन्नुहोस्'}
                 </Text>
               </Pressable>
 
@@ -314,7 +337,9 @@ export default function CompanionScreen() {
               onPress={() => void submitQuestion()}
               style={[styles.send, message.trim().length < 3 && styles.disabled]}
             >
-              <Text style={styles.sendText}>सुरक्षित रूपमा जाँच्नुहोस्</Text>
+              <Text style={styles.sendText}>
+                {language === 'en' ? 'Check safely' : 'सुरक्षित रूपमा जाँच्नुहोस्'}
+              </Text>
               <Send color="white" size={18} />
             </Pressable>
           </View>
@@ -326,22 +351,31 @@ export default function CompanionScreen() {
           >
             <View style={styles.privacyDot} />
             <Text style={styles.privacy}>
-              यो डेमोले उत्तर स्थायी रेकर्डमा राख्दैन। राख्नु वा साझा गर्नु अघि छुट्टै अनुमति
-              मागिन्छ — यहाँ हेर्नुहोस्।
+              {language === 'en'
+                ? 'This demo does not keep answers in a permanent record. A separate consent is asked before keeping or sharing anything — see it here.'
+                : 'यो डेमोले उत्तर स्थायी रेकर्डमा राख्दैन। राख्नु वा साझा गर्नु अघि छुट्टै अनुमति मागिन्छ — यहाँ हेर्नुहोस्।'}
             </Text>
           </Pressable>
         </>
       ) : assessment?.interruptConversation ? (
         <View accessibilityLiveRegion="assertive" style={styles.emergency}>
           <AlertTriangle color="white" size={34} />
-          <Text style={styles.emergencyKicker}>सामान्य कुराकानी रोकिएको छ</Text>
-          <Text style={styles.emergencyTitle}>तुरुन्त सहायता लिनुहोस्</Text>
+          <Text style={styles.emergencyKicker}>
+            {language === 'en' ? 'Normal conversation paused' : 'सामान्य कुराकानी रोकिएको छ'}
+          </Text>
+          <Text style={styles.emergencyTitle}>
+            {language === 'en' ? 'Seek immediate help' : 'तुरुन्त सहायता लिनुहोस्'}
+          </Text>
           <Text style={styles.emergencyBody}>{template}</Text>
           <Pressable style={styles.emergencyButton}>
-            <Text style={styles.emergencyButtonText}>नजिकको उपयुक्त अस्पताल खोज्नुहोस्</Text>
+            <Text style={styles.emergencyButtonText}>
+              {language === 'en' ? 'Find the nearest suitable hospital' : 'नजिकको उपयुक्त अस्पताल खोज्नुहोस्'}
+            </Text>
           </Pressable>
           <Text style={styles.emergencyNote}>
-            स्थानीय सेवा नम्बर प्रमाणित नभएसम्म एपले कुनै नम्बर देखाउँदैन।
+            {language === 'en'
+              ? 'The app shows no number until a local service number is verified.'
+              : 'स्थानीय सेवा नम्बर प्रमाणित नभएसम्म एपले कुनै नम्बर देखाउँदैन।'}
           </Text>
         </View>
       ) : (
@@ -351,7 +385,9 @@ export default function CompanionScreen() {
               <SathiOrb language={language} size={48} />
               <View style={styles.answerHeadCopy}>
                 <Text style={styles.stepLabel}>GUIDED INFORMATION · NOT A DIAGNOSIS</Text>
-                <Text style={styles.headerTitle}>साथीको जानकारी</Text>
+                <Text style={styles.headerTitle}>
+                  {language === 'en' ? "Companion's information" : 'साथीको जानकारी'}
+                </Text>
               </View>
               <Pressable
                 accessibilityLabel={
@@ -511,7 +547,9 @@ export default function CompanionScreen() {
             }}
             style={uiStyles.primaryButton}
           >
-            <Text style={uiStyles.primaryButtonText}>अर्को प्रश्न सोध्नुहोस्</Text>
+            <Text style={uiStyles.primaryButtonText}>
+              {language === 'en' ? 'Ask another question' : 'अर्को प्रश्न सोध्नुहोस्'}
+            </Text>
           </Pressable>
         </>
       )}
