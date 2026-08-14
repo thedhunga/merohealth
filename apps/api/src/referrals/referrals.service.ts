@@ -1,7 +1,16 @@
-import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { findDirectoryEntity } from '@swasthya/care-directory';
-import { acceptReferral, cancelReferral, completeReferral, declineReferral, requestReferral } from '@swasthya/referrals';
+import {
+  ReferralAlreadyCancelledError,
+  ReferralNotAcceptedError,
+  ReferralNotRequestedError,
+  acceptReferral,
+  cancelReferral,
+  completeReferral,
+  declineReferral,
+  requestReferral,
+} from '@swasthya/referrals';
 import type { ClinicalModuleHealth, Referral, RequestReferralInput } from '@swasthya/shared-types';
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
 import { ReferralsRepository } from './referrals.repository.js';
@@ -72,21 +81,48 @@ export class ReferralsService {
    * Never touches clinical-charting — accepting, declining, completing and
    * cancelling all stay available for every referral already requested,
    * even if clinical-charting goes down after the fact.
+   *
+   * Each wraps its `@swasthya/referrals` call through `runTransition`: a
+   * wrong-state transition (accepting/declining an already-resolved
+   * referral, completing one never accepted, cancelling one already
+   * accepted or already cancelled) previously reached the client as a bare,
+   * codeless 500, the same gap `BillingService`/`PrescribingService`/
+   * `ClinicalChartingService`/`DiagnosticsOrdersService`/`ImmunizationService`
+   * were each already fixed for.
    */
   acceptReferral(id: string): Referral {
-    return this.repository.save(acceptReferral(this.getReferral(id), new Date().toISOString()));
+    return this.repository.save(this.runTransition(() => acceptReferral(this.getReferral(id), new Date().toISOString())));
   }
 
   declineReferral(id: string, reason: string): Referral {
-    return this.repository.save(declineReferral(this.getReferral(id), reason, new Date().toISOString()));
+    return this.repository.save(
+      this.runTransition(() => declineReferral(this.getReferral(id), reason, new Date().toISOString())),
+    );
   }
 
   completeReferral(id: string): Referral {
-    return this.repository.save(completeReferral(this.getReferral(id), new Date().toISOString()));
+    return this.repository.save(this.runTransition(() => completeReferral(this.getReferral(id), new Date().toISOString())));
   }
 
   cancelReferral(id: string, reason: string): Referral {
-    return this.repository.save(cancelReferral(this.getReferral(id), reason, new Date().toISOString()));
+    return this.repository.save(
+      this.runTransition(() => cancelReferral(this.getReferral(id), reason, new Date().toISOString())),
+    );
+  }
+
+  private runTransition(transition: () => Referral): Referral {
+    try {
+      return transition();
+    } catch (error) {
+      if (
+        error instanceof ReferralNotRequestedError ||
+        error instanceof ReferralNotAcceptedError ||
+        error instanceof ReferralAlreadyCancelledError
+      ) {
+        throw new BadRequestException({ code: error.name, message: error.message });
+      }
+      throw error;
+    }
   }
 
   /**

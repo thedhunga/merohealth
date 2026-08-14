@@ -1,5 +1,4 @@
-import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { ReferralNotAcceptedError, ReferralNotRequestedError } from '@swasthya/referrals';
+import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
@@ -94,21 +93,78 @@ describe('ReferralsService.acceptReferral, declineReferral, completeReferral and
     expect(completed.status).toBe('COMPLETED');
   });
 
-  it('propagates the domain error refusing completion of a referral that was never accepted', async () => {
+  it('rejects completing a referral that was never accepted, as a 400 with a code', async () => {
     const { charting, referrals } = buildStack();
     const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
     const referral = await referrals.requestReferral(encounter.id, requestInput);
 
-    expect(() => referrals.completeReferral(referral.id)).toThrow(ReferralNotAcceptedError);
+    try {
+      referrals.completeReferral(referral.id);
+      expect.unreachable('expected completeReferral to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'ReferralNotAcceptedError' });
+    }
   });
 
-  it('propagates the domain error refusing to cancel an already-accepted referral', async () => {
+  it('rejects cancelling an already-accepted referral, as a 400 with a code', async () => {
     const { charting, referrals } = buildStack();
     const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
     const referral = await referrals.requestReferral(encounter.id, requestInput);
     referrals.acceptReferral(referral.id);
 
-    expect(() => referrals.cancelReferral(referral.id, 'Changed my mind')).toThrow(ReferralNotRequestedError);
+    try {
+      referrals.cancelReferral(referral.id, 'Changed my mind');
+      expect.unreachable('expected cancelReferral to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'ReferralNotRequestedError' });
+    }
+  });
+
+  it('rejects cancelling an already-cancelled referral, as a 400 with a code', async () => {
+    const { charting, referrals } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const referral = await referrals.requestReferral(encounter.id, requestInput);
+    referrals.cancelReferral(referral.id, 'Patient chose a different provider');
+
+    try {
+      referrals.cancelReferral(referral.id, 'Second attempt');
+      expect.unreachable('expected cancelReferral to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'ReferralAlreadyCancelledError' });
+    }
+  });
+
+  it('rejects accepting a referral that is not awaiting a response, as a 400 with a code', async () => {
+    const { charting, referrals } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const referral = await referrals.requestReferral(encounter.id, requestInput);
+    referrals.acceptReferral(referral.id);
+
+    try {
+      referrals.acceptReferral(referral.id);
+      expect.unreachable('expected acceptReferral to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'ReferralNotRequestedError' });
+    }
+  });
+
+  it('rejects declining a referral that is not awaiting a response, as a 400 with a code', async () => {
+    const { charting, referrals } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const referral = await referrals.requestReferral(encounter.id, requestInput);
+    referrals.acceptReferral(referral.id);
+
+    try {
+      referrals.declineReferral(referral.id, 'Too late');
+      expect.unreachable('expected declineReferral to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'ReferralNotRequestedError' });
+    }
   });
 });
 

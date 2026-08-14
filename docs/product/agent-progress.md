@@ -1130,11 +1130,108 @@ re-read the table itself rather than trust this paragraph.
       added by this run) for the fix and why `immunization.service.ts`
       (`ImmunizationRecordAlreadyVoidedError`) is the one sibling module still
       left with the identical gap.
+- [x] Mapped `ReferralsService`'s three wrong-state domain errors
+      (`ReferralNotRequestedError`, `ReferralNotAcceptedError`,
+      `ReferralAlreadyCancelledError`) to `BadRequestException({ code, message
+      })` — found by the fresh independent survey the
+      `ImmunizationService.voidRecord` run's own log entry asked for, over the
+      eight modules the wrong-state-500 series had never checked
+      independently. See the 2026-08-14 log entry below (the one added by
+      this run) for the survey's findings and why `referrals` was picked
+      first.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; `ReferralsService` had the same
+  wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the five
+  prior runs fixed for `BillingService`, `PrescribingService`,
+  `ClinicalChartingService`, `DiagnosticsOrdersService` and
+  `ImmunizationService`.** Grepped for `- [ ]` first — zero hits, same as
+  every recent run. The `ImmunizationService.voidRecord` run's own log entry
+  asked for a fresh, independent survey of the remaining clinical-suite
+  modules (`referrals`, `teleconsultation`, `scheduling`, `patient-registry`,
+  `clinical-summary`, `interop`, `engagement`, `medication-safety`) rather
+  than assuming none had the gap, since the five-run series had only ever
+  fixed modules a prior run's log entry had already named by hand.
+
+  **The survey.** Grepped each of the eight packages' `src/index.ts` for
+  `class \w+Error` and cross-checked whether the matching `apps/api`
+  service's mutating methods route through a `try`/`catch` before reaching
+  the controller. `medication-safety` and `patient-registry` define no
+  wrong-state error at all (the latter's `FutureDateOfBirthError` is a
+  validation error thrown at creation, not a transition). `interop` already
+  catches its two errors (`ShareLinkError` -> `BadRequestException`,
+  `ShareLinkNotActiveError` -> `GoneException`) — its `InteropService` was
+  built with this `try`/`catch` already in place, unlike the five modules
+  this series had to retrofit; `git log` shows a single commit touching the
+  file, which already includes both catches.
+  `engagement` has one real, narrower gap: `EngagementService.retryMessage`
+  calls `@swasthya/engagement`'s `retryMessage` with no `try`/`catch` at all,
+  so calling it on a message that isn't `FAILED` throws
+  `EngagementMessageNotFailedError` uncaught (its sibling,
+  `EngagementMessageNotQueuedError`, is only reachable inside
+  `attemptDelivery`'s own `try`, so it never escapes uncaught) — left open
+  below. `referrals`, `teleconsultation` and `scheduling`
+  each define wrong-state errors with zero catching anywhere in their
+  service. Picked `referrals` to fix this run — it has the most call sites
+  affected (four: `acceptReferral`, `declineReferral`, `completeReferral`,
+  `cancelReferral`) and its own test file actively encoded the bug, same as
+  every prior module in this series.
+
+  **What was found.** `apps/api/src/referrals/referrals.service.ts` called
+  `@swasthya/referrals`'s `acceptReferral`/`declineReferral`/
+  `completeReferral`/`cancelReferral` directly, with no `try`/`catch`
+  anywhere in the file. Read `packages/referrals/src/index.ts` directly to
+  confirm the full error set: `ReferralNotRequestedError` (thrown by
+  `assertRequested`, reused by `acceptReferral`, `declineReferral` and
+  `cancelReferral`'s fallback), `ReferralNotAcceptedError` (thrown by
+  `completeReferral`), and `ReferralAlreadyCancelledError` (thrown by
+  `cancelReferral`'s own already-cancelled check, ahead of
+  `assertRequested`). The existing test file's `propagates the domain
+  error...` tests asserted the raw domain error directly against
+  `completeReferral`/`cancelReferral` — the same "test itself is wrong"
+  shape every prior module in this series had — and had no case at all for
+  `acceptReferral`, `declineReferral`, or the `ReferralAlreadyCancelledError`
+  branch.
+
+  **The fix.** Added a private `runTransition(transition: () => Referral):
+  Referral` to `ReferralsService`, identical in shape to the five sibling
+  services' own `runTransition`: catches all three errors by `instanceof`,
+  re-throws as `new BadRequestException({ code: error.name, message:
+  error.message })`, lets anything else pass through. All four mutating
+  methods now route through it.
+
+  **Tests.** `referrals.service.test.ts`: rewrote the two existing
+  wrong-state assertions to the try/`expect.unreachable`/catch shape
+  established by `billing.service.test.ts`/`immunization.service.test.ts`,
+  and added four new cases this file had no coverage for at all:
+  cancelling an already-cancelled referral (`ReferralAlreadyCancelledError`,
+  previously completely untested), and accepting/declining a referral that
+  is not awaiting a response (both `ReferralNotRequestedError`, also
+  previously untested). Net six wrong-state tests where there were two.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 661/661 (658 baseline + 2 rewritten + 4 new). `pnpm build`
+  40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** `teleconsultation` and `scheduling` still have the
+  identical zero-catching gap this run found in the same survey —
+  `teleconsultation.service.ts`'s session-lifecycle transitions
+  (`TeleconsultationSessionNotScheduledError`,
+  `TeleconsultationSessionNotActiveError`,
+  `TeleconsultationSessionAlreadyCancelledError`,
+  `TeleconsultationSessionAlreadyBookedError`) and
+  `scheduling.service.ts`'s (`InvalidAppointmentWindowError`,
+  `AppointmentAlreadyCancelledError`, `AppointmentConflictError`) both reach
+  the client as bare 500s today, same shape, same fix. `engagement`'s
+  narrower gap (`EngagementService.retryMessage` letting
+  `EngagementMessageNotFailedError` reach the client uncaught) is smaller
+  but real. Any of the three is a legitimate next pick; this run did one
+  module, not three, per the working agreement.
 
 - 2026-08-14 — **Queue fully checked; `ImmunizationService.voidRecord` had
   the same wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the
