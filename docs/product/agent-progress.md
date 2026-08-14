@@ -1149,11 +1149,80 @@ re-read the table itself rather than trust this paragraph.
       `scheduling` and `engagement`'s narrower gap. See the 2026-08-14 log
       entry below (the one added by this run) for the fix and which two
       sibling modules still have the identical or a related gap.
+- [x] Mapped `SchedulingService`'s three wrong-state domain errors
+      (`InvalidAppointmentWindowError`, `AppointmentConflictError`,
+      `AppointmentAlreadyCancelledError`) to `BadRequestException({ code,
+      message })` — the item the `TeleconsultationService` run's own log
+      entry named directly as one of the two still-open candidates. See the
+      2026-08-14 log entry below (the one added by this run) for the fix and
+      why `engagement`'s narrower `retryMessage` gap is the one instance of
+      this series still left open.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; `SchedulingService` had the same
+  wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the seven
+  prior runs fixed for `BillingService`, `PrescribingService`,
+  `ClinicalChartingService`, `DiagnosticsOrdersService`,
+  `ImmunizationService`, `ReferralsService` and `TeleconsultationService`.**
+  Grepped for `- [ ]` first — zero hits, same as every recent run. The
+  `TeleconsultationService` run's own log entry named `scheduling.service.ts`
+  and `engagement`'s narrower `retryMessage` gap as the two remaining
+  candidates. Picked `scheduling` — it is the same shape as the six prior
+  fixes (a service with zero `try`/`catch` around a domain call), while
+  `engagement`'s gap is a single method, not a whole service.
+
+  **What was found.** `apps/api/src/scheduling/scheduling.service.ts`
+  called `@swasthya/scheduling`'s `scheduleAppointment`/`cancelAppointment`
+  directly, with no `try`/`catch` anywhere in the file. Read
+  `packages/scheduling/src/index.ts` directly to confirm the full error set:
+  `InvalidAppointmentWindowError` (end at or before start),
+  `AppointmentConflictError` (a double-booked clinician — the 2026-08-14
+  double-booking-invariant run's own addition, never wired to a client-facing
+  code), and `AppointmentAlreadyCancelledError` (cancelling twice). The
+  existing test file's `propagates a domain rejection ... unwrapped` and
+  `rejects cancelling an already-cancelled appointment` cases asserted the
+  raw domain error directly — the same "test itself is wrong" shape every
+  prior module in this series had — and `AppointmentConflictError` had *no*
+  service-level test at all; only `packages/scheduling`'s own domain test
+  covered it.
+
+  **The fix.** Added a private `runTransition(transition: () => Appointment):
+  Appointment` to `SchedulingService`, identical in shape to the six sibling
+  services' own `runTransition`: catches all three errors by `instanceof`,
+  re-throws as `new BadRequestException({ code: error.name, message:
+  error.message })`, lets anything else (e.g. `NotFoundException` from
+  `get`) pass through. Both `schedule` and `cancel` now route through it —
+  `schedule` still awaits `assertPatientRegistryAvailable()` and resolves
+  `patientId` through `patients.get()` first, unchanged; only the
+  `scheduleAppointment`/`cancelAppointment` call itself moved inside
+  `runTransition`.
+
+  **Tests.** `scheduling.service.test.ts`: rewrote the two existing
+  wrong-state assertions to the try/`expect.unreachable`/catch shape
+  `billing.service.test.ts` established, and added one new case this file
+  had no coverage for at all — a double-booked clinician
+  (`AppointmentConflictError`), scheduling two overlapping appointments for
+  the same `clinicianId` and asserting the second is rejected as a 400 with
+  that code. Net three wrong-state tests where there were two.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 666/666 (665 baseline + 2 rewritten + 1 new). `pnpm build`
+  40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** This closes every module in the wrong-state-500
+  series named across the eight runs. `engagement`'s narrower gap
+  (`EngagementService.retryMessage` letting `EngagementMessageNotFailedError`
+  reach the client uncaught) is the one instance still open — it is a single
+  method, not a whole-service retrofit, so it may be a smaller pick than a
+  fresh survey deserves. The two standing product-decision items
+  (`packages/health-records`'s status-guard question; the clinical-suite's
+  missing clinician/patient identity model) are unchanged and still not a
+  single run's to resolve alone.
 
 - 2026-08-14 — **Queue fully checked; `TeleconsultationService` had the same
   wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the six prior

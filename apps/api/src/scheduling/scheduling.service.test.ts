@@ -1,5 +1,4 @@
-import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { AppointmentAlreadyCancelledError, InvalidAppointmentWindowError } from '@swasthya/scheduling';
+import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { PatientRegistryRepository } from '../patient-registry/patient-registry.repository.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
@@ -43,13 +42,35 @@ describe('SchedulingService.schedule', () => {
     await expect(scheduling.schedule(appointmentInput('missing'))).rejects.toThrow(NotFoundException);
   });
 
-  it('propagates a domain rejection, e.g. an end time before the start, unwrapped', async () => {
+  it('rejects an end time before the start as a 400 with a stable code, not a raw domain error', async () => {
     const { scheduling, patients } = buildScheduling();
     const patient = patients.register(patientDemographics);
 
-    await expect(
-      scheduling.schedule({ ...appointmentInput(patient.id), scheduledEnd: '2026-08-10T08:00:00.000Z' }),
-    ).rejects.toThrow(InvalidAppointmentWindowError);
+    try {
+      await scheduling.schedule({ ...appointmentInput(patient.id), scheduledEnd: '2026-08-10T08:00:00.000Z' });
+      expect.unreachable('expected scheduling to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'InvalidAppointmentWindowError' });
+    }
+  });
+
+  it('rejects a double-booked clinician as a 400 with a stable code, not a raw domain error', async () => {
+    const { scheduling, patients } = buildScheduling();
+    const patient = patients.register(patientDemographics);
+    await scheduling.schedule(appointmentInput(patient.id));
+
+    try {
+      await scheduling.schedule({
+        ...appointmentInput(patient.id),
+        scheduledStart: '2026-08-10T09:15:00.000Z',
+        scheduledEnd: '2026-08-10T09:45:00.000Z',
+      });
+      expect.unreachable('expected scheduling to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'AppointmentConflictError' });
+    }
   });
 
   it('refuses to schedule while patient-registry is unavailable', async () => {
@@ -95,13 +116,19 @@ describe('SchedulingService.get and cancel', () => {
     expect(cancelled.status).toBe('CANCELLED');
   });
 
-  it('rejects cancelling an already-cancelled appointment', async () => {
+  it('rejects cancelling an already-cancelled appointment as a 400 with a stable code, not a raw domain error', async () => {
     const { scheduling, patients } = buildScheduling();
     const patient = patients.register(patientDemographics);
     const appointment = await scheduling.schedule(appointmentInput(patient.id));
     await scheduling.cancel(appointment.id);
 
-    await expect(scheduling.cancel(appointment.id)).rejects.toThrow(AppointmentAlreadyCancelledError);
+    try {
+      await scheduling.cancel(appointment.id);
+      expect.unreachable('expected cancel to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'AppointmentAlreadyCancelledError' });
+    }
   });
 
   it('refuses to cancel while patient-registry is unavailable, even though cancel never looks a patient up', async () => {
