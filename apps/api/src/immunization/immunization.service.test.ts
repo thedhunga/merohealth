@@ -1,5 +1,4 @@
-import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { ImmunizationRecordAlreadyVoidedError } from '@swasthya/immunization';
+import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
@@ -85,12 +84,18 @@ describe('ImmunizationService.voidRecord', () => {
     expect(voided.voidReason).toBe('Entered against the wrong patient');
   });
 
-  it('rejects voiding an already-voided record', () => {
+  it('rejects voiding an already-voided record, as a 400 with a code', () => {
     const { immunization } = buildImmunization();
     const record = immunization.recordPatientReported(patientReportedInput);
     immunization.voidRecord(record.id, 'Duplicate entry');
 
-    expect(() => immunization.voidRecord(record.id, 'Second attempt')).toThrow(ImmunizationRecordAlreadyVoidedError);
+    try {
+      immunization.voidRecord(record.id, 'Second attempt');
+      expect.unreachable('expected voidRecord to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'ImmunizationRecordAlreadyVoidedError' });
+    }
   });
 });
 

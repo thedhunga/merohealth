@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
+  ImmunizationRecordAlreadyVoidedError,
   recordClinicianAdministeredImmunization,
   recordPatientReportedImmunization,
   voidImmunizationRecord,
@@ -83,7 +84,24 @@ export class ImmunizationService {
   }
 
   voidRecord(id: string, reason: string): ImmunizationRecord {
-    return this.repository.save(voidImmunizationRecord(this.getRecord(id), reason, new Date().toISOString()));
+    return this.repository.save(this.runTransition(() => voidImmunizationRecord(this.getRecord(id), reason, new Date().toISOString())));
+  }
+
+  /**
+   * Same shape as `BillingService.runTransition`/`PrescribingService.runTransition`/
+   * `ClinicalChartingService.runTransition`/`DiagnosticsOrdersService.runTransition`:
+   * a wrong-state domain error must reach the client as a 400 with a stable
+   * `code`, never a bare 500. This module has exactly one such error.
+   */
+  private runTransition(transition: () => ImmunizationRecord): ImmunizationRecord {
+    try {
+      return transition();
+    } catch (error) {
+      if (error instanceof ImmunizationRecordAlreadyVoidedError) {
+        throw new BadRequestException({ code: error.name, message: error.message });
+      }
+      throw error;
+    }
   }
 
   /**

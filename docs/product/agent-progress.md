@@ -266,6 +266,14 @@ Design in
       three candidates prior runs had already ruled out (companion's missing
       `EntitlementsGuard`, an `analytics` `clinical-charting` source, and
       capability-map row 15), and for what was and wasn't translated.
+- [x] Queue exhausted an eighth time — closed the last sibling of the
+      wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap:
+      `ImmunizationService.voidRecord` let `ImmunizationRecordAlreadyVoidedError`
+      reach the client as an unstructured 500 instead of a 400 with a code,
+      the gap `BillingService`/`PrescribingService`/`ClinicalChartingService`/
+      `DiagnosticsOrdersService` were each already fixed for across the four
+      prior runs, and the one the most recent of those runs' own log entry
+      named as the last module with this exact shape.
 
 ### Visual system — Round one, complete
 
@@ -1127,6 +1135,68 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; `ImmunizationService.voidRecord` had
+  the same wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the
+  four prior runs fixed for `BillingService`, `PrescribingService`,
+  `ClinicalChartingService` and `DiagnosticsOrdersService`.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. The
+  `DiagnosticsOrdersService` run's own log entry named
+  `immunization.service.ts` (`ImmunizationRecordAlreadyVoidedError`) as "the
+  last sibling module the `BillingService` survey named with this exact
+  gap." Took that named next step rather than re-surveying.
+
+  **What was found.** `apps/api/src/immunization/immunization.service.ts`'s
+  `voidRecord` called `@swasthya/immunization`'s `voidImmunizationRecord`
+  directly, with no `try`/`catch` and no `BadRequestException` import.
+  Voiding an already-voided record reached the client as an unstructured
+  500. Read `packages/immunization/src/index.ts` directly to confirm the
+  full error set rather than trusting a prior log entry's list: exactly one,
+  `ImmunizationRecordAlreadyVoidedError`, thrown by `voidImmunizationRecord`'s
+  internal `assertNotVoided` guard — this module has only one mutating
+  transition capable of a wrong-state error (`recordPatientReported` and
+  `recordClinicianAdministered` both only ever construct a fresh, always-valid
+  record). The existing test suite's `voidRecord` describe block also
+  actively encoded the bug, asserting
+  `.toThrow(ImmunizationRecordAlreadyVoidedError)` directly against the raw
+  domain error — the same "test itself is wrong" shape every prior module in
+  this series had.
+
+  **The fix.** Added a private `runTransition(transition: () =>
+  ImmunizationRecord): ImmunizationRecord` to `ImmunizationService`, identical
+  in shape to the four sibling services' own `runTransition`: catches
+  `ImmunizationRecordAlreadyVoidedError` by `instanceof`, re-throws as `new
+  BadRequestException({ code: error.name, message: error.message })`, lets
+  anything else pass through. `voidRecord` routes its existing
+  `voidImmunizationRecord` call through it. No change to
+  `@swasthya/immunization`'s pure domain layer.
+
+  **Tests.** `immunization.service.test.ts`: rewrote the one existing
+  wrong-state assertion (`rejects voiding an already-voided record` →
+  `.toThrow(ImmunizationRecordAlreadyVoidedError)`) to the
+  try/`expect.unreachable`/catch shape `billing.service.test.ts` established,
+  asserting `BadRequestException` with `{ code:
+  'ImmunizationRecordAlreadyVoidedError' }`. No new cases needed — this
+  module has only the one wrong-state transition, already covered.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 658/658 (unchanged count — one rewritten case, zero new).
+  `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** This closes the wrong-state-500 series — every
+  clinical-suite module named across the five runs (`billing`, `prescribing`,
+  `clinical-charting`, `diagnostics-orders`, `immunization`) now maps its
+  domain errors to a 400 with a stable `code`. Worth a fresh survey of the
+  remaining clinical-suite modules (`referrals`, `teleconsultation`,
+  `scheduling`, `patient-registry`, `clinical-summary`, `interop`,
+  `engagement`, `medication-safety`) for the same shape before assuming none
+  have it — this series only ever fixed the modules a prior run's log entry
+  had already named, and never ran an independent grep over the rest of
+  `apps/api/src/*/*.service.ts` for an un-caught domain-error import. The two
+  standing product-decision items (`packages/health-records`'s status-guard
+  question; the clinical-suite's missing clinician/patient identity model)
+  are unchanged and still not a single run's to resolve alone.
 
 - 2026-08-14 — **Queue fully checked; `DiagnosticsOrdersService` had the same
   wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the three
