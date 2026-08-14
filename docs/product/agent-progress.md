@@ -1139,11 +1139,91 @@ re-read the table itself rather than trust this paragraph.
       independently. See the 2026-08-14 log entry below (the one added by
       this run) for the survey's findings and why `referrals` was picked
       first.
+- [x] Mapped `TeleconsultationService`'s four wrong-state domain errors
+      (`TeleconsultationSessionNotScheduledError`,
+      `TeleconsultationSessionNotActiveError`,
+      `TeleconsultationSessionAlreadyCancelledError`,
+      `TeleconsultationSessionAlreadyBookedError`) to
+      `BadRequestException({ code, message })` — the concrete next candidate
+      the `ReferralsService` run's own log entry named directly, over
+      `scheduling` and `engagement`'s narrower gap. See the 2026-08-14 log
+      entry below (the one added by this run) for the fix and which two
+      sibling modules still have the identical or a related gap.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; `TeleconsultationService` had the same
+  wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the six prior
+  runs fixed for `BillingService`, `PrescribingService`,
+  `ClinicalChartingService`, `DiagnosticsOrdersService`,
+  `ImmunizationService` and `ReferralsService`.** Grepped for `- [ ]` first —
+  zero hits, same as every recent run. The `ReferralsService` run's own log
+  entry named `teleconsultation.service.ts` and `scheduling.service.ts` as
+  the two remaining modules with the identical zero-catching gap, plus
+  `engagement`'s narrower `retryMessage` gap. Picked `teleconsultation` — it
+  has five mutating call sites to `scheduling`'s two, matching the
+  "most call sites affected" tie-break the `referrals` pick itself used.
+
+  **What was found.** `apps/api/src/teleconsultation/teleconsultation.service.ts`
+  called `@swasthya/teleconsultation`'s `scheduleTeleconsultation`/
+  `startTeleconsultation`/`completeTeleconsultation`/`cancelTeleconsultation`/
+  `markTeleconsultationNoShow` directly, with no `try`/`catch` anywhere in the
+  file. Read `packages/teleconsultation/src/index.ts` directly to confirm the
+  full error set rather than trusting the prior log entry's list: four —
+  `TeleconsultationSessionNotScheduledError` (starting/cancelling/no-showing a
+  session no longer SCHEDULED), `TeleconsultationSessionNotActiveError`
+  (completing a session never started), `TeleconsultationSessionAlreadyCancelledError`
+  (cancelling twice, checked before the not-scheduled case so the two are
+  distinguishable) and `TeleconsultationSessionAlreadyBookedError` (a second
+  session for an appointment that already has one SCHEDULED or ACTIVE). The
+  existing test file's own two wrong-state assertions
+  (`.rejects.toThrow(TeleconsultationSessionAlreadyBookedError)` and
+  `.toThrow(TeleconsultationSessionNotActiveError)`) asserted the raw domain
+  error directly — the same "test itself is wrong" shape every prior module in
+  this series had — and had no case at all for
+  `TeleconsultationSessionNotScheduledError` or
+  `TeleconsultationSessionAlreadyCancelledError`.
+
+  **The fix.** Added a private `runTransition(transition: () =>
+  TeleconsultationSession): TeleconsultationSession` to `TeleconsultationService`,
+  identical in shape to the six sibling services' own `runTransition`: catches
+  all four errors by `instanceof`, re-throws as `new
+  BadRequestException({ code: error.name, message: error.message })`, lets
+  anything else (e.g. `NotFoundException` from `getSession`/`scheduling.get`)
+  pass through. All five mutating methods now route through it, including
+  `scheduleSession` — its `TeleconsultationSessionAlreadyBookedError` throw
+  sits inside `scheduleTeleconsultation` itself, not behind `getSession`, but
+  wraps the same way `BillingService.addLineItem` wraps `getInvoice` plus its
+  transition together.
+
+  **Tests.** `teleconsultation.service.test.ts`: rewrote the two existing raw
+  wrong-state assertions to the try/`expect.unreachable`/catch shape
+  `billing.service.test.ts` established, and added four new cases this file
+  had no coverage for: starting an already-started session, cancelling an
+  already-cancelled session, cancelling a session that has already started
+  (distinguishing `TeleconsultationSessionNotScheduledError` from the
+  already-cancelled case), and marking a started session no-show. Net eight
+  wrong-state tests where there were two.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 665/665 (661 baseline + 2 rewritten + 4 new). `pnpm build`
+  40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** `scheduling.service.ts` still has the identical
+  zero-catching gap (`schedule` can throw `AppointmentConflictError`, `cancel`
+  can throw whatever `cancelAppointment` throws on an already-cancelled
+  appointment — read `packages/scheduling/src/index.ts` directly rather than
+  trusting this list). `engagement`'s narrower gap
+  (`EngagementService.retryMessage` letting `EngagementMessageNotFailedError`
+  reach the client uncaught) is still open too. Either is a legitimate next
+  pick; this run did one module, not two, per the working agreement. The two
+  standing product-decision items (`packages/health-records`'s status-guard
+  question; the clinical-suite's missing clinician/patient identity model)
+  are unchanged and still not a single run's to resolve alone.
 
 - 2026-08-14 — **Queue fully checked; `ReferralsService` had the same
   wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the five

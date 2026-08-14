@@ -1,5 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
-import { TeleconsultationSessionAlreadyBookedError, TeleconsultationSessionNotActiveError } from '@swasthya/teleconsultation';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { PatientRegistryRepository } from '../patient-registry/patient-registry.repository.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
@@ -54,15 +53,22 @@ describe('TeleconsultationService.scheduleSession', () => {
     await expect(teleconsultation.scheduleSession('appt-1')).rejects.toThrow(ServiceUnavailableException);
   });
 
-  it('refuses a second session for an appointment that already has one SCHEDULED', async () => {
+  it('refuses a second session for an appointment that already has one SCHEDULED, as a 400 with a code, not an uncaught 500', async () => {
     const { patients, scheduling, teleconsultation } = buildStack();
     const patient = patients.register(validDemographics);
     const appointment = await bookAppointment(scheduling, patient.id);
     await teleconsultation.scheduleSession(appointment.id);
 
-    await expect(teleconsultation.scheduleSession(appointment.id)).rejects.toThrow(
-      TeleconsultationSessionAlreadyBookedError,
-    );
+    await expect(teleconsultation.scheduleSession(appointment.id)).rejects.toThrow(BadRequestException);
+    try {
+      await teleconsultation.scheduleSession(appointment.id);
+      expect.unreachable('expected scheduleSession to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        code: 'TeleconsultationSessionAlreadyBookedError',
+      });
+    }
   });
 
   it('allows rebooking an appointment whose only prior session was cancelled', async () => {
@@ -103,13 +109,40 @@ describe('TeleconsultationService.startSession, completeSession and getSession',
     expect(started.status).toBe('ACTIVE');
   });
 
-  it('propagates the domain error refusing to complete a session that was never started', async () => {
+  it('refuses to complete a session that was never started, as a 400 with a code, not an uncaught 500', async () => {
     const { patients, scheduling, teleconsultation } = buildStack();
     const patient = patients.register(validDemographics);
     const appointment = await bookAppointment(scheduling, patient.id);
     const session = await teleconsultation.scheduleSession(appointment.id);
 
-    expect(() => teleconsultation.completeSession(session.id)).toThrow(TeleconsultationSessionNotActiveError);
+    expect(() => teleconsultation.completeSession(session.id)).toThrow(BadRequestException);
+    try {
+      teleconsultation.completeSession(session.id);
+      expect.unreachable('expected completeSession to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        code: 'TeleconsultationSessionNotActiveError',
+      });
+    }
+  });
+
+  it('refuses to start a session that has already started, as a 400 with a code', async () => {
+    const { patients, scheduling, teleconsultation } = buildStack();
+    const patient = patients.register(validDemographics);
+    const appointment = await bookAppointment(scheduling, patient.id);
+    const session = await teleconsultation.scheduleSession(appointment.id);
+    teleconsultation.startSession(session.id);
+
+    try {
+      teleconsultation.startSession(session.id);
+      expect.unreachable('expected startSession to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        code: 'TeleconsultationSessionNotScheduledError',
+      });
+    }
   });
 });
 
@@ -135,6 +168,60 @@ describe('TeleconsultationService.cancelSession and markNoShow', () => {
     const noShow = teleconsultation.markNoShow(session.id);
 
     expect(noShow.status).toBe('NO_SHOW');
+  });
+
+  it('refuses to cancel an already-cancelled session, as a 400 with a code, not an uncaught 500', async () => {
+    const { patients, scheduling, teleconsultation } = buildStack();
+    const patient = patients.register(validDemographics);
+    const appointment = await bookAppointment(scheduling, patient.id);
+    const session = await teleconsultation.scheduleSession(appointment.id);
+    teleconsultation.cancelSession(session.id, 'Patient rescheduled');
+
+    try {
+      teleconsultation.cancelSession(session.id, 'Patient rescheduled again');
+      expect.unreachable('expected cancelSession to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        code: 'TeleconsultationSessionAlreadyCancelledError',
+      });
+    }
+  });
+
+  it('refuses to cancel a session that has already started, distinguishing it from an already-cancelled one', async () => {
+    const { patients, scheduling, teleconsultation } = buildStack();
+    const patient = patients.register(validDemographics);
+    const appointment = await bookAppointment(scheduling, patient.id);
+    const session = await teleconsultation.scheduleSession(appointment.id);
+    teleconsultation.startSession(session.id);
+
+    try {
+      teleconsultation.cancelSession(session.id, 'Too late');
+      expect.unreachable('expected cancelSession to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        code: 'TeleconsultationSessionNotScheduledError',
+      });
+    }
+  });
+
+  it('refuses to mark a started session no-show, as a 400 with a code', async () => {
+    const { patients, scheduling, teleconsultation } = buildStack();
+    const patient = patients.register(validDemographics);
+    const appointment = await bookAppointment(scheduling, patient.id);
+    const session = await teleconsultation.scheduleSession(appointment.id);
+    teleconsultation.startSession(session.id);
+
+    try {
+      teleconsultation.markNoShow(session.id);
+      expect.unreachable('expected markNoShow to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        code: 'TeleconsultationSessionNotScheduledError',
+      });
+    }
   });
 });
 
