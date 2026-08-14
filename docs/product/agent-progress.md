@@ -1040,11 +1040,97 @@ re-read the table itself rather than trust this paragraph.
       appointment double-book a clinician. See the 2026-08-14 log entry
       below (the one added by this run) for the repro and why a first
       survey candidate was rejected before this one was found.
+- [x] Added romanized-Nepali (`ne-Latn`) phrase coverage to
+      `packages/clinical-safety`'s `emergency-chest-001`,
+      `pregnancy-warning-001` and `pediatric-warning-001` rules — the three
+      of five emergency rules that had an English regex and a Devanagari
+      regex but no `ne-Latn` one, unlike `emergency-breathing-001` and
+      `self-harm-001`, which already did. See the 2026-08-14 log entry below
+      (the one added by this run) for the repro proving real romanized-Nepali
+      chest-pain/pregnancy/pediatric messages fell through to
+      `CLINICIAN_RECOMMENDED` instead of triggering the mandatory emergency
+      interrupt.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; three of five `packages/clinical-safety`
+  emergency rules had no romanized-Nepali (`ne-Latn`) phrase coverage.**
+  Grepped for `- [ ]` first — zero hits, same as every recent run.
+  Commissioned a fresh independent general-purpose survey agent, briefed on
+  the full exhausted-veins list accumulated by prior entries and the two
+  standing product-decision items (`packages/health-records`'s status-guard
+  question; the clinical-suite's missing clinician-identity model — still not
+  this run's to resolve), instructed to search broadly across
+  `packages/clinical-safety`, `packages/health-records`, `packages/family`,
+  `packages/scheduling`, `packages/teleconsultation`, `packages/interop`,
+  `packages/credentialing`, `packages/identity`, `packages/devices`,
+  `packages/retrieval`, `packages/intent-router`, `packages/evaluation`, and
+  `apps/api`/`apps/web`/`apps/mobile`.
+
+  **What was found.** `packages/clinical-safety/src/index.ts`'s five
+  `safetyRule`s each carry a `phrases: RegExp[]` array checked directly
+  against the raw message text passed to `assessSafety` — no transliteration
+  step exists anywhere on either call site
+  (`apps/api/src/companion.controller.ts`, both routes; `apps/mobile/app/
+  (tabs)/companion.tsx`). `emergency-breathing-001` and `self-harm-001` each
+  carry a direct romanized-Nepali regex (`/saas ferna (garo|sakdina)/i`,
+  `/aatmahatya/i`) alongside their English and Devanagari ones.
+  `emergency-chest-001`, `pregnancy-warning-001` and `pediatric-warning-001`
+  did not — only an English lookahead pattern and a Devanagari-script regex
+  each. `ne-Latn` ("Nepali · Romanized") is a first-class language choice
+  offered at onboarding and accepted by both companion routes' `z.enum(['ne',
+  'en', 'ne-Latn'])` schema, for exactly the audience who picked it because
+  they don't read Devanagari. Read `packages/clinical-safety/src/index.ts`
+  and both call sites directly before accepting the survey's framing, per the
+  standing instruction to verify rather than trust. Confirmed with a direct
+  regex test that plausible romanized-Nepali descriptions of each missing
+  rule's symptom set (severe chest pain with sweating and arm pain; pregnant
+  with heavy bleeding; a blue, not-breathing infant) do not match any of the
+  three rules' existing phrases, so `assessSafety` would return
+  `CLINICIAN_RECOMMENDED`/`interruptConversation: false` instead of the
+  mandatory `EMERGENCY_NOW`/`MATERNAL_CONCERN`/`PEDIATRIC_CONCERN` interrupt —
+  the single highest-consequence path in the repository, silently missing
+  its warning for a person who explicitly told the app they read Romanized
+  Nepali, not Devanagari.
+
+  **The fix.** Added one romanized-Nepali regex to each of the three rules,
+  written as a direct transliteration of the existing Devanagari phrase for
+  that rule — the same convention `approvedSafetyTemplates`' own comment
+  states for template text and that `emergency-breathing-001`/`self-harm-001`
+  already followed for phrases: `chati.*(kada|dukhai|pasina|behos)` for
+  chest pain; `(?=.*garbhawati)(?=.*(dherai ragat|daura|kada tauko))` for
+  pregnancy; `(?=.*bachcha)(?=.*(nilo|saas.*chaina|behos|daura))` for
+  pediatric. No change to matching logic, template text or any other rule.
+  Added one `it.each` case per rule in
+  `packages/clinical-safety/src/index.test.ts` using the new phrasing.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (fresh install this run,
+  `node_modules` was absent; no lockfile change). `pnpm lint` 40/40. `pnpm
+  typecheck` 40/40. `pnpm test` 75/75 turbo tasks — `@swasthya/clinical-safety`
+  23/23 (net +3, the three new romanized cases), `@swasthya/api` 644/644
+  unchanged (this fix touched no `apps/api`-owned test file). `pnpm build`
+  40/40 (35 cached, 5 rebuilt from this change).
+
+  **For the next run.** No further gap in this specific vein —
+  `emergency-breathing-001` and `self-harm-001` already had `ne-Latn`
+  coverage and all five rules now do. The survey's two runners-up, both
+  investigated and correctly set aside: (1) `packages/interop`'s
+  `renderExportBundlePdf`/`buildFhirExportBundle` taking an `ownerId` param
+  that isn't used to filter documents/observations — looks like a
+  cross-owner leak on first read, but neither function has a live caller in
+  `apps/api` today, so there is no reachable route to actually exploit; worth
+  a fresh look if either function ever gets wired up. (2) `packages/
+  scheduling`'s conflict check only guards clinician double-booking, not
+  patient double-booking — plausible but reads as a product-scope decision
+  (does the same patient book two overlapping appointments with different
+  clinicians count as a bug?) rather than a clear-cut bug, and lower
+  consequence than the safety-rule gap. The two standing product-decision
+  items (`packages/health-records`'s status-guard question; the
+  clinical-suite's missing clinician-identity model) are still open and still
+  not a scheduled run's to resolve alone.
 
 - 2026-08-14 — **Queue fully checked; `packages/scheduling`'s
   `assertValidWindow` and `windowsOverlap` compared ISO-instant timestamps as
