@@ -1024,11 +1024,76 @@ re-read the table itself rather than trust this paragraph.
       instead of dropping it as both already claimed to. See the 2026-08-14
       log entry below (the one added by this run) for the fresh independent
       survey that found it, the exact repro, and the shared fix.
+- [x] Fixed `packages/family`'s `guardianshipExpiryForMinor` silently
+      overflowing a leap-day (Feb 29) date of birth into March 1 instead of
+      the ward's actual 18th birthday — the leap-day bug two consecutive
+      prior log entries had each named as real, deterministic and untested
+      but left open. See the 2026-08-14 log entry below (the one added by
+      this run) for the fix and why it clamps to Feb 28 rather than rolling
+      forward.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; `packages/family`'s
+  `guardianshipExpiryForMinor` silently overflowed a Feb 29 date of birth
+  into March 1 instead of the ward's real 18th birthday.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. This was not a fresh
+  survey finding: the 2026-08-14 `buildAnalyteTrend`/`toFhirObservation` log
+  entry named it directly as its survey's runner-up ("real, deterministic
+  and untested ... worth a second look"), and the `assertNonNegative`
+  body-temperature entry right after it repeated the same "worth a second
+  look" framing for its own runner-up without touching this one. Read
+  `packages/family/src/index.ts` directly before changing anything, per the
+  standing instruction to verify rather than trust a prior entry's
+  paraphrase.
+
+  **What was found.** `guardianshipExpiryForMinor` computed
+  `Date.UTC(dob.getUTCFullYear() + 18, dob.getUTCMonth(), dob.getUTCDate())`.
+  Adding 18 to a year never preserves leap-year-ness (18 mod 4 = 2), so for
+  any ward born February 29, the target year is never itself a leap year and
+  `Date.UTC(year, 1, 29)` silently overflows into March 1 — `node -e`
+  confirmed `2008-02-29` → `2026-03-01T00:00:00.000Z` before the fix.
+  `family-and-proxy.md` §2's own stated harm is a guardian retaining access
+  past the ward's actual majority; overflowing forward is exactly that,
+  by one day, for every leap-day-born ward. The existing test only exercised
+  Roshani's March 10 birthday (`packages/database`'s real seed fixture), so
+  the leap-day case was genuinely untested. Not yet reachable from any API
+  route — no guardianship-creation controller exists — but it is a real,
+  deterministic defect in library code the platform already ships and calls
+  from `grantGuardianshipForMinor`, the same bar the `buildAnalyteTrend`/
+  `sanitizeFilename` library-level fixes were held to.
+
+  **The fix.** `guardianshipExpiryForMinor` now checks whether the naive
+  `Date.UTC` result rolled into a different month than the birth month, and
+  if so, clamps to that month's real last day (`Date.UTC(targetYear,
+  birthMonth + 1, 0)`) instead of letting it overflow — Feb 28 in a
+  non-leap target year, never March 1. The check is general (any rollover,
+  not special-cased to day 29) so it also covers the theoretical case of a
+  target-year February being one day shorter for any other reason. Added one
+  regression test in `packages/family/src/index.test.ts`: a ward born
+  `2008-02-29` now gets `expiresAt: '2026-02-28T00:00:00.000Z'`.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks
+  (`@swasthya/family` 108/108, net +1 test). `pnpm build` 40/40 (35 cached,
+  5 rebuilt from this change).
+
+  **For the next run.** No further gap in this vein. The two standing
+  product-decision items from prior entries (`packages/health-records`'s
+  status-guard question; the clinical-suite's missing clinician-identity
+  model) are still open and still not a scheduled run's to resolve alone.
+  There is still no guardianship-creation controller in `apps/api` — this
+  fix protects the library function itself and whatever calls it in tests
+  and future routes, but nothing in `apps/api` exercises
+  `grantGuardianshipForMinor` yet, so this remains dark from a real user's
+  perspective until that controller exists (a real product decision, not a
+  bug fix, per the same reasoning prior entries gave for not building
+  guardianship-creation opportunistically). A fresh independent survey,
+  briefed on the now-longer exhausted-veins list in the entry below, remains
+  the right way to pick the next task.
 
 - 2026-08-14 — **Queue fully checked; `buildAnalyteTrend` and
   `toFhirObservation` were silently coercing non-numeric observation values

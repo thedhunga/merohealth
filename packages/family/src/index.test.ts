@@ -61,6 +61,13 @@ describe('guardianship — minor', () => {
     });
   });
 
+  it('clamps a leap-day birthday to Feb 28 rather than overflowing into March', () => {
+    // Adding 18 to a leap year never lands on another leap year (18 mod 4
+    // = 2), so a naive Date.UTC(year + 18, 1, 29) rolls into March 1 —
+    // a day guardianship would outlive the ward's actual 18th birthday.
+    expect(guardianshipExpiryForMinor('2008-02-29T00:00:00.000Z')).toBe('2026-02-28T00:00:00.000Z');
+  });
+
   it('refuses to grant MINOR guardianship for someone already 18+', () => {
     expect(() =>
       grantGuardianshipForMinor('g-1', 'arjun', 'someone', '2000-01-01T00:00:00.000Z', '2026-08-10T00:00:00.000Z'),

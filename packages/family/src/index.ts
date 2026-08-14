@@ -80,7 +80,18 @@ export class InvalidGuardianshipExpiryError extends Error {
  */
 export function guardianshipExpiryForMinor(dateOfBirth: string): string {
   const dob = new Date(dateOfBirth);
-  return new Date(Date.UTC(dob.getUTCFullYear() + 18, dob.getUTCMonth(), dob.getUTCDate())).toISOString();
+  const birthMonth = dob.getUTCMonth();
+  const targetYear = dob.getUTCFullYear() + 18;
+  const naive = new Date(Date.UTC(targetYear, birthMonth, dob.getUTCDate()));
+  // A ward born on Feb 29 turns 18 in a year that isn't necessarily a leap
+  // year (adding 18 never preserves divisibility by 4), so Date.UTC silently
+  // overflows Feb 29 into Mar 1 — a day guardianship would outlive the
+  // ward's actual majority. Clamp to the birth month's last real day instead
+  // of ever letting the computed date roll into the next month.
+  if (naive.getUTCMonth() !== birthMonth) {
+    return new Date(Date.UTC(targetYear, birthMonth + 1, 0)).toISOString();
+  }
+  return naive.toISOString();
 }
 
 /** Grants guardianship over a minor. `expiresAt` is always the ward's 18th birthday — never accepted as a parameter. */
