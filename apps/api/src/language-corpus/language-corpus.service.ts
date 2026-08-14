@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   clearForTraining,
   corpusReviewQueue,
   discardUtterance,
+  UtteranceNotAwaitingReviewError,
   utteranceIdsForOwner,
   type CorpusUtterance,
 } from '@swasthya/language-corpus';
@@ -56,13 +57,17 @@ export class LanguageCorpusService {
   }
 
   clear(utteranceId: string, reviewerId: string): CorpusUtterance {
-    const cleared = this.repository.save(clearForTraining(this.#require(utteranceId)));
+    const cleared = this.repository.save(
+      this.#runTransition(() => clearForTraining(this.#require(utteranceId))),
+    );
     this.#audit(utteranceId, reviewerId, 'UTTERANCE_CLEARED');
     return cleared;
   }
 
   discard(utteranceId: string, reviewerId: string): CorpusUtterance {
-    const discarded = this.repository.save(discardUtterance(this.#require(utteranceId), new Date().toISOString()));
+    const discarded = this.repository.save(
+      this.#runTransition(() => discardUtterance(this.#require(utteranceId), new Date().toISOString())),
+    );
     this.#audit(utteranceId, reviewerId, 'UTTERANCE_DISCARDED');
     return discarded;
   }
@@ -129,5 +134,25 @@ export class LanguageCorpusService {
     const utterance = this.repository.find(utteranceId);
     if (!utterance) throw new NotFoundException(`No corpus utterance ${utteranceId}`);
     return utterance;
+  }
+
+  /**
+   * `clearForTraining`/`discardUtterance` both throw
+   * `UtteranceNotAwaitingReviewError` on an utterance that isn't
+   * `awaitingHumanReview` — already decided once, or never flagged for
+   * review at all. Previously uncaught, that reached the client as a bare
+   * 500 with no `code`, the same wrong-state-domain-error shape the
+   * clinical-suite services' own `runTransition` helpers already guard
+   * against.
+   */
+  #runTransition(transition: () => CorpusUtterance): CorpusUtterance {
+    try {
+      return transition();
+    } catch (error) {
+      if (error instanceof UtteranceNotAwaitingReviewError) {
+        throw new BadRequestException({ code: error.name, message: error.message });
+      }
+      throw error;
+    }
   }
 }

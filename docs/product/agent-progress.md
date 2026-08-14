@@ -1157,11 +1157,87 @@ re-read the table itself rather than trust this paragraph.
       2026-08-14 log entry below (the one added by this run) for the fix and
       why `engagement`'s narrower `retryMessage` gap is the one instance of
       this series still left open.
+- [x] Mapped `LanguageCorpusService`'s wrong-state domain error
+      (`UtteranceNotAwaitingReviewError`, thrown by both `clear`/`discard`)
+      to `BadRequestException({ code, message })` — found by the fresh,
+      independent survey of the whole `apps/api` tree (not just
+      clinical-suite) the `EngagementService.retryMessage` run's own log
+      entry asked for. See the 2026-08-14 log entry below (the one added by
+      this run) for the survey's findings and why every other non-clinical-
+      suite module checked out clean.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; independent survey of the whole
+  `apps/api` tree found one more instance of the wrong-state-domain-error-
+  reaches-the-client-as-a-bare-500 gap, in `LanguageCorpusService`.** Grepped
+  for `- [ ]` first — zero hits. The `EngagementService.retryMessage` run's
+  own log entry, immediately above, asked for exactly this: a fresh survey of
+  `apps/api` outside `clinical-suite`, rather than assuming the series was
+  fully closed once clinical-suite was.
+
+  **The survey.** Read every `*.service.ts` under `apps/api/src` not already
+  covered by the eight-plus-`engagement` series or the "already confirmed
+  clean" list (`medication-safety`, `patient-registry`, `interop`):
+  `analytics`, `auth`, `credentialing`, `family`, `identity`,
+  `language-corpus`, `records`, `clinical-summary`, `clinical-suite`.
+  `analytics`/`clinical-summary` only throw their own `ServiceUnavailable`/
+  `NotFound` exceptions, never call into a domain package that can throw a
+  wrong-state error. `auth` wraps its one domain call (`normalizeNepaliPhone`)
+  in `try`/`catch` already. `credentialing`/`family`/`identity` already have
+  this exact fix from earlier runs. `clinical-suite` is a read-only aggregate
+  with no mutating domain calls at all. `records.service.ts` calls
+  `confirmObservation`/`correctObservation`/`rejectObservation` from
+  `@swasthya/health-records`, but read that package directly: none of the
+  three has a status guard — they are unconditional, so there is no
+  wrong-state error to catch here. (This is the standing, not-a-single-run's-
+  to-resolve "status-guard question" the series has flagged before, not a new
+  finding.) `transitionDocument`/`DocumentTransitionError` exist in the same
+  package but `RecordsService` never calls `transitionDocument` at all — dead
+  code from this service's point of view, not a live gap.
+
+  **What was found.** `language-corpus.service.ts`'s `clear`/`discard`
+  called `@swasthya/language-corpus`'s `clearForTraining`/`discardUtterance`
+  directly, with no `try`/`catch`. Read the package directly to confirm: both
+  throw `UtteranceNotAwaitingReviewError` when called on an utterance that
+  isn't `awaitingHumanReview` — already decided once by an earlier reviewer,
+  or never flagged for review in the first place. The existing test file's
+  own `refuses to decide an utterance not awaiting review` case asserted the
+  raw domain error directly — the exact "test itself is wrong" shape every
+  prior module in this series had.
+
+  **The fix.** Added a private `#runTransition(transition: () =>
+  CorpusUtterance): CorpusUtterance` to `LanguageCorpusService`, the same
+  shape the sibling services use: catches `UtteranceNotAwaitingReviewError`
+  by `instanceof`, re-throws as `new BadRequestException({ code: error.name,
+  message: error.message })`, lets anything else (e.g. the `NotFoundException`
+  from `#require`) pass through. Both `clear` and `discard` now route their
+  domain call through it.
+
+  **Tests.** `language-corpus.service.test.ts`: rewrote the one existing
+  wrong-state assertion to the try/`expect.unreachable`/catch shape
+  `referrals.service.test.ts` established, covering both `clear` and
+  `discard` (previously only asserted via `.toThrow`, and both calls reused
+  the same utterance id, which would have masked a second bug since `clear`
+  would already have mutated it before `discard` ran — split into two
+  utterances so each assertion is independent).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 666/666 (one test rewritten in place, net count unchanged).
+  `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** This closes the wrong-state-500 series across the
+  entire `apps/api` tree as far as this run's survey found — every module
+  that calls a domain package function capable of throwing on illegal state
+  now catches it. The two standing product-decision items
+  (`packages/health-records`'s status-guard question — should
+  `confirm`/`correct`/`reject` actually gain one, and if so what the legal
+  transitions are; the clinical-suite's missing clinician/patient identity
+  model) are unchanged and still not a single run's to resolve alone.
 
 - 2026-08-14 — **Queue fully checked; closed the last named instance of the
   wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap:
