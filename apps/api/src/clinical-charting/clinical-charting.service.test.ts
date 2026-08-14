@@ -1,5 +1,4 @@
-import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { EncounterAlreadyClosedError, EncounterNotOpenError } from '@swasthya/clinical-charting';
+import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
 import { RecordsRepository } from '../records/records.repository.js';
@@ -52,12 +51,18 @@ describe('ClinicalChartingService encounters', () => {
     expect(charting.closeEncounter(encounter.id).status).toBe('CLOSED');
   });
 
-  it('rejects closing an already-closed encounter', () => {
+  it('rejects closing an already-closed encounter, as a 400 with a code', () => {
     const { charting } = buildCharting();
     const encounter = charting.openEncounter(encounterInput);
     charting.closeEncounter(encounter.id);
 
-    expect(() => charting.closeEncounter(encounter.id)).toThrow(EncounterAlreadyClosedError);
+    try {
+      charting.closeEncounter(encounter.id);
+      expect.unreachable('expected closeEncounter to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'EncounterAlreadyClosedError' });
+    }
   });
 });
 
@@ -76,12 +81,18 @@ describe('ClinicalChartingService notes', () => {
     expect(() => charting.recordNote('missing', noteInput)).toThrow(NotFoundException);
   });
 
-  it('refuses to record a note once its encounter is closed', () => {
+  it('refuses to record a note once its encounter is closed, as a 400 with a code', () => {
     const { charting } = buildCharting();
     const encounter = charting.openEncounter(encounterInput);
     charting.closeEncounter(encounter.id);
 
-    expect(() => charting.recordNote(encounter.id, noteInput)).toThrow(EncounterNotOpenError);
+    try {
+      charting.recordNote(encounter.id, noteInput);
+      expect.unreachable('expected recordNote to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'EncounterNotOpenError' });
+    }
   });
 
   it('revises a note while its encounter is still open', () => {
@@ -94,13 +105,19 @@ describe('ClinicalChartingService notes', () => {
     expect(revised.version).toBe(2);
   });
 
-  it('refuses to revise a note once its encounter is closed', () => {
+  it('refuses to revise a note once its encounter is closed, as a 400 with a code', () => {
     const { charting } = buildCharting();
     const encounter = charting.openEncounter(encounterInput);
     const note = charting.recordNote(encounter.id, noteInput);
     charting.closeEncounter(encounter.id);
 
-    expect(() => charting.reviseNote(note.id, noteInput)).toThrow(EncounterNotOpenError);
+    try {
+      charting.reviseNote(note.id, noteInput);
+      expect.unreachable('expected reviseNote to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'EncounterNotOpenError' });
+    }
   });
 
   it('404s revising an unknown note', () => {
@@ -148,6 +165,32 @@ describe('ClinicalChartingService.attachDocument', () => {
     documents.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
 
     await expect(charting.attachDocument(encounter.id, 'doc-1')).rejects.toThrow(ServiceUnavailableException);
+  });
+
+  it('refuses to attach a document once its encounter is closed, as a 400 with a code', async () => {
+    const { charting, documents } = buildCharting();
+    const encounter = charting.openEncounter(encounterInput);
+    const document = await documents.captureDocument({
+      ownerId: 'owner-1',
+      filename: 'report.jpg',
+      kind: 'LAB_REPORT',
+      title: 'Blood panel',
+      documentDate: null,
+      sensitivity: 'STANDARD',
+      clientEncrypted: false,
+      contentType: 'image/jpeg',
+      bytes: new Uint8Array([1, 2, 3]),
+      pageCount: 1,
+    });
+    charting.closeEncounter(encounter.id);
+
+    try {
+      await charting.attachDocument(encounter.id, document.id);
+      expect.unreachable('expected attachDocument to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'EncounterNotOpenError' });
+    }
   });
 });
 

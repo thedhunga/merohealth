@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
+  EncounterAlreadyClosedError,
+  EncounterNotOpenError,
   attachDocument,
   closeEncounter,
   createChartingTemplate,
@@ -52,12 +54,16 @@ export class ClinicalChartingService {
   }
 
   closeEncounter(id: string): Encounter {
-    return this.repository.saveEncounter(closeEncounter(this.getEncounter(id), new Date().toISOString()));
+    return this.repository.saveEncounter(
+      this.runTransition(() => closeEncounter(this.getEncounter(id), new Date().toISOString())),
+    );
   }
 
   recordNote(encounterId: string, input: SoapNoteInput): SoapNote {
     const encounter = this.getEncounter(encounterId);
-    return this.repository.saveNote(recordSoapNote(encounter, randomUUID(), input, new Date().toISOString()));
+    return this.repository.saveNote(
+      this.runTransition(() => recordSoapNote(encounter, randomUUID(), input, new Date().toISOString())),
+    );
   }
 
   getNote(id: string): SoapNote {
@@ -69,7 +75,9 @@ export class ClinicalChartingService {
   reviseNote(noteId: string, content: Omit<SoapNoteInput, 'authorId'>): SoapNote {
     const note = this.getNote(noteId);
     const encounter = this.getEncounter(note.encounterId);
-    return this.repository.saveNote(reviseSoapNote(encounter, note, content, new Date().toISOString()));
+    return this.repository.saveNote(
+      this.runTransition(() => reviseSoapNote(encounter, note, content, new Date().toISOString())),
+    );
   }
 
   listNotes(encounterId: string): SoapNote[] {
@@ -94,7 +102,9 @@ export class ClinicalChartingService {
     // rule 1) — throws NotFoundException for an id that was never recorded
     // there, the same 404 shape every other lookup in this API already uses.
     this.documents.getDocument(documentId);
-    return this.repository.saveEncounter(attachDocument(encounter, documentId, new Date().toISOString()));
+    return this.repository.saveEncounter(
+      this.runTransition(() => attachDocument(encounter, documentId, new Date().toISOString())),
+    );
   }
 
   private async assertHealthRecordsAvailable(): Promise<void> {
@@ -103,6 +113,25 @@ export class ClinicalChartingService {
       throw new ServiceUnavailableException(
         'Document attachment unavailable: health-records is down (clinical-suite.md capability map row 3)',
       );
+    }
+  }
+
+  /**
+   * Wraps every `@swasthya/clinical-charting` transition: a wrong-state call
+   * (a note or attachment against a closed encounter, closing an
+   * already-closed one) previously reached the client as a bare, codeless
+   * 500. Mapped to `BadRequestException({ code, message })`, the same
+   * convention `BillingService.runTransition`/`PrescribingService.runTransition`
+   * already established.
+   */
+  private runTransition<T>(transition: () => T): T {
+    try {
+      return transition();
+    } catch (error) {
+      if (error instanceof EncounterAlreadyClosedError || error instanceof EncounterNotOpenError) {
+        throw new BadRequestException({ code: error.name, message: error.message });
+      }
+      throw error;
     }
   }
 

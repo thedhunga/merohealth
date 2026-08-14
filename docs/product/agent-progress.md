@@ -1105,11 +1105,80 @@ re-read the table itself rather than trust this paragraph.
       for the fix and which three sibling clinical-suite services
       (`clinical-charting`, `diagnostics-orders`, `immunization`) still have
       the identical gap.
+- [x] Mapped `ClinicalChartingService`'s two wrong-state domain errors
+      (`EncounterAlreadyClosedError`, `EncounterNotOpenError`) to
+      `BadRequestException({ code, message })` — the next module in the
+      priority order the `PrescribingService` run's own log entry named,
+      picked first "because it sits upstream of billing/prescribing/
+      diagnostics-orders in the call graph, so its 500 is reachable through
+      the most paths." See the 2026-08-14 log entry below (the one added by
+      this run) for the fix and which two sibling clinical-suite services
+      (`diagnostics-orders`, `immunization`) still have the identical gap.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; `ClinicalChartingService` had the same
+  wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the two prior
+  runs fixed for `BillingService` and `PrescribingService`.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. The `PrescribingService`
+  run's own log entry named `clinical-charting` as the next fix, "because it
+  sits upstream of billing/prescribing/diagnostics-orders in the call graph,
+  so its 500 is reachable through the most paths." Took that named next step
+  rather than re-surveying.
+
+  **What was found.** `apps/api/src/clinical-charting/clinical-charting.service.ts`'s
+  `closeEncounter`, `recordNote`, `reviseNote` and `attachDocument` all called
+  `@swasthya/clinical-charting`'s `closeEncounter`/`recordSoapNote`/
+  `reviseSoapNote`/`attachDocument` directly, with no `try`/`catch` and no
+  `BadRequestException` import. Closing an already-closed encounter, or
+  writing/revising a note or attaching a document against one already closed,
+  each reached the client as an unstructured 500. Read
+  `packages/clinical-charting/src/index.ts` directly to confirm the full
+  error set rather than trusting a prior log entry's list (the
+  `PrescribingService` run itself had found a prior list one error short) —
+  this module has exactly two, `EncounterAlreadyClosedError` and
+  `EncounterNotOpenError`, both already correctly named in the prior run's
+  own log entry.
+
+  **The fix.** Added a private `runTransition<T>(transition: () => T): T` to
+  `ClinicalChartingService`, identical in shape to
+  `BillingService.runTransition`/`PrescribingService.runTransition` except
+  generic over the return type, since this module's four transitions return
+  two different domain types (`Encounter`, `SoapNote`): catches either domain
+  error by `instanceof`, re-throws as `new BadRequestException({ code:
+  error.name, message: error.message })`, lets anything else (e.g. the
+  `NotFoundException`s `getEncounter`/`getNote` already throw) pass through.
+  All four call sites — including `attachDocument`, an `async` method whose
+  domain call is itself synchronous — route through it. No change to
+  `@swasthya/clinical-charting`'s pure domain layer.
+
+  **Tests.** `clinical-charting.service.test.ts`: rewrote the three existing
+  wrong-state assertions (`toThrow(EncounterAlreadyClosedError)` /
+  `toThrow(EncounterNotOpenError)` ×2) to assert `BadRequestException` with
+  the matching `{ code }`, the same rewrite the billing/prescribing runs made
+  to their own sibling tests — asserting the raw domain error type was itself
+  testing the bug. Added one new case with no prior coverage at all: attaching
+  a document to an already-closed encounter, the fourth call site this fix
+  touches.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 654/654 (was 649 — the four rewritten cases plus the one new
+  one). `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** The identical fix on `diagnostics-orders.service.ts`
+  (`DiagnosticOrderNotOpenError`/`DiagnosticOrderAlreadyCancelledError`/
+  `DiagnosticResultNotHeldError`) next, then `immunization.service.ts`
+  (`ImmunizationRecordAlreadyVoidedError`) — both named by the
+  `PrescribingService` run's own log entry and unchanged by this run. Read
+  each domain package's error exports directly rather than trusting this
+  entry's list. The two standing product-decision items
+  (`packages/health-records`'s status-guard question; the clinical-suite's
+  missing clinician/patient identity model) are unchanged and still not a
+  single run's to resolve alone.
 
 - 2026-08-14 — **Queue fully checked; `PrescribingService` had the same
   wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the prior
