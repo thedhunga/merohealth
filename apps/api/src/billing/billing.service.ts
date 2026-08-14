@@ -1,6 +1,17 @@
-import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { addLineItem, issueInvoice, openInvoice, recordPayment, voidInvoice } from '@swasthya/billing';
+import {
+  EmptyInvoiceError,
+  InvoiceAlreadyVoidedError,
+  InvoiceNotDraftError,
+  InvoiceNotIssuedError,
+  InvoicePaidCannotBeVoidedError,
+  addLineItem,
+  issueInvoice,
+  openInvoice,
+  recordPayment,
+  voidInvoice,
+} from '@swasthya/billing';
 import type {
   BillingLineItemInput,
   ClinicalModuleHealth,
@@ -66,21 +77,52 @@ export class BillingService {
    * Never touches clinical-charting — adding a line item, issuing, paying
    * and voiding all stay available for every invoice already opened, even
    * if clinical-charting goes down after the fact.
+   *
+   * Each wraps its `@swasthya/billing` call: a wrong-state transition
+   * (adding to an issued invoice, issuing empty, paying a draft, voiding an
+   * already-void or paid one) previously reached the client as a bare,
+   * codeless 500. Mapped to `BadRequestException({ code, message })` now,
+   * the same domain-error-to-`{code, message}` convention
+   * `CredentialingService.submit` already established for
+   * `ApplicationTransitionError`.
    */
   addLineItem(id: string, input: BillingLineItemInput): Invoice {
-    return this.repository.save(addLineItem(this.getInvoice(id), randomUUID(), input, new Date().toISOString()));
+    return this.repository.save(
+      this.runTransition(() => addLineItem(this.getInvoice(id), randomUUID(), input, new Date().toISOString())),
+    );
   }
 
   issueInvoice(id: string): Invoice {
-    return this.repository.save(issueInvoice(this.getInvoice(id), new Date().toISOString()));
+    return this.repository.save(this.runTransition(() => issueInvoice(this.getInvoice(id), new Date().toISOString())));
   }
 
   recordPayment(id: string, input: RecordPaymentInput): Invoice {
-    return this.repository.save(recordPayment(this.getInvoice(id), input, new Date().toISOString()));
+    return this.repository.save(
+      this.runTransition(() => recordPayment(this.getInvoice(id), input, new Date().toISOString())),
+    );
   }
 
   voidInvoice(id: string, reason: string): Invoice {
-    return this.repository.save(voidInvoice(this.getInvoice(id), reason, new Date().toISOString()));
+    return this.repository.save(
+      this.runTransition(() => voidInvoice(this.getInvoice(id), reason, new Date().toISOString())),
+    );
+  }
+
+  private runTransition(transition: () => Invoice): Invoice {
+    try {
+      return transition();
+    } catch (error) {
+      if (
+        error instanceof InvoiceNotDraftError ||
+        error instanceof EmptyInvoiceError ||
+        error instanceof InvoiceNotIssuedError ||
+        error instanceof InvoiceAlreadyVoidedError ||
+        error instanceof InvoicePaidCannotBeVoidedError
+      ) {
+        throw new BadRequestException({ code: error.name, message: error.message });
+      }
+      throw error;
+    }
   }
 
   /**

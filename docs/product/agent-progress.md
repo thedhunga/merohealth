@@ -1084,11 +1084,98 @@ re-read the table itself rather than trust this paragraph.
       same visible-`<Text>`-vs-`accessibilityLabel` split. See the 2026-08-14
       log entry below (the one added by this run) for the survey, the fix,
       and why the vein is now exhausted.
+- [x] Mapped `BillingService`'s five wrong-state domain errors
+      (`InvoiceNotDraftError`, `EmptyInvoiceError`, `InvoiceNotIssuedError`,
+      `InvoiceAlreadyVoidedError`, `InvoicePaidCannotBeVoidedError`) to
+      `BadRequestException({ code, message })` instead of letting them reach
+      the client as bare, codeless 500s — the same convention
+      `CredentialingService.submit` already established for
+      `ApplicationTransitionError`. See the 2026-08-14 log entry below (the
+      one added by this run) for why billing specifically, and which four
+      sibling clinical-suite services still have the identical gap.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; `BillingService` let five wrong-state
+  domain errors reach the client as bare, codeless 500s instead of a 400 a
+  caller can branch on.** Grepped for `- [ ]` first — zero hits, same as
+  every recent run. Rather than guess, commissioned a fresh survey agent
+  (research only, no edits), briefed on the full exhausted-veins list this
+  ledger has accumulated (cross-owner access control, ISO-instant validation,
+  `ne-Latn` collapse, share-link gating, double-booking, negative-reading
+  validation, filename sanitization, `normalizeLabel` dedup, mobile i18n —
+  now confirmed exhausted across the *entire* `apps/mobile/app/**` tree, not
+  just `app/(tabs)/`, per the two 2026-08-14 entries below — retrieval bugs,
+  analytics-source extensions, emergency-rule phrasing, the `977`-prefix
+  phone bug, numeric-coercion bugs, `guardianshipExpiryForMinor`'s leap-day
+  bug, and Reflect-metadata guard-wiring sweeps) plus the two standing
+  product-decision items (`packages/health-records`'s status-guard question;
+  the clinical-suite's missing clinician/patient identity model), instructed
+  not to re-propose either without a materially different angle.
+
+  **What was found.** `packages/billing/src/index.ts` defines five domain
+  errors for illegal invoice-state transitions
+  (`InvoiceNotDraftError`/`EmptyInvoiceError`/`InvoiceNotIssuedError`/
+  `InvoiceAlreadyVoidedError`/`InvoicePaidCannotBeVoidedError`), but
+  `apps/api/src/billing/billing.service.ts`'s `addLineItem`/`issueInvoice`/
+  `recordPayment`/`voidInvoice` called the domain functions directly with no
+  `try`/`catch` and no `BadRequestException` import at all. `apps/api` has no
+  global `ExceptionFilter`, so any wrong-state call — adding a line item to
+  an already-issued invoice, issuing an empty one, paying a draft, voiding an
+  already-void or already-paid invoice — reached the client as an
+  unstructured 500 instead of a 4xx with a `code` it could act on. This is
+  the identical bug class already fixed once, for
+  `CredentialingService.submit`'s `ApplicationTransitionError` (see this
+  file's own history around the 2026-08-1x entry for that fix), but never
+  generalised to sibling clinical-suite services. The survey also confirmed
+  four other services carry the exact same gap and left them unfixed for a
+  future run: `apps/api/src/prescribing/prescribing.service.ts`
+  (`PrescriptionNotDraftError`/`EmptyPrescriptionError`/
+  `ControlledSubstanceDisabledError`/`PrescriptionAlreadyVoidedError` — whose
+  own test at `prescribing.service.test.ts:114` literally asserts
+  `rejects.toThrow(EmptyPrescriptionError)`, encoding the bug into the test
+  suite itself), `clinical-charting.service.ts`
+  (`EncounterAlreadyClosedError`/`EncounterNotOpenError`),
+  `diagnostics-orders.service.ts` (`DiagnosticOrderNotOpenError`/
+  `DiagnosticOrderAlreadyCancelledError`/`DiagnosticResultNotHeldError`), and
+  `immunization.service.ts` (`ImmunizationRecordAlreadyVoidedError`). Chose
+  billing to fix first because it has the richest single set of five error
+  classes and no reachability caveat the way the status-guard question does.
+
+  **The fix.** Added a private `runTransition(transition: () => Invoice):
+  Invoice` helper to `BillingService` that runs the domain call, catches any
+  of the five domain errors by `instanceof`, and re-throws as
+  `new BadRequestException({ code: error.name, message: error.message })` —
+  anything else (e.g. `NotFoundException` from `getInvoice`) passes through
+  unchanged. All four mutating methods now route through it. No change to
+  `@swasthya/billing`'s pure domain layer — only the NestJS boundary that
+  translates its errors changed.
+
+  **Tests.** `billing.service.test.ts`: rewrote the one existing
+  wrong-state assertion (`propagates the domain error… toThrow
+  (InvoiceNotDraftError)`) to assert `BadRequestException` with
+  `{ code: 'InvoiceNotDraftError' }` instead — asserting the raw domain
+  error type was itself testing the bug. Added four new cases covering the
+  other four error paths: empty-invoice issuance, payment against a draft,
+  double-void, and voiding a paid invoice — none of these transitions had
+  any test before this run.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 648/648 (was 644 — the four new cases). `pnpm build` 40/40
+  (35 cached, 5 rebuilt).
+
+  **For the next run.** The identical fix, one module at a time, on
+  `prescribing`, `clinical-charting`, `diagnostics-orders` and
+  `immunization` — in that rough priority order, since `prescribing`'s own
+  test already encodes the bug and `clinical-charting`'s
+  `EncounterAlreadyClosedError` sits upstream of billing/prescribing/
+  diagnostics-orders in the call graph, so its 500 is reachable through the
+  most paths. The two standing product-decision items are unchanged and
+  still not a single run's to resolve alone.
 
 - 2026-08-14 — **Queue fully checked; `apps/mobile/app/index.tsx` — the
   app's welcome / language-picker screen — never branched its own visible

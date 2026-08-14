@@ -1,5 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
-import { InvoiceNotDraftError } from '@swasthya/billing';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
@@ -68,14 +67,49 @@ describe('BillingService.addLineItem, issueInvoice, recordPayment and getInvoice
     expect(withItem.lineItems).toHaveLength(1);
   });
 
-  it('propagates the domain error refusing a line item on an already-issued invoice', async () => {
+  it('refuses a line item on an already-issued invoice as a 400 with a code, not an uncaught 500', async () => {
     const { charting, billing } = buildStack();
     const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
     const invoice = await billing.openInvoice(encounter.id, { clinicianId: 'clinician-1' });
     billing.addLineItem(invoice.id, lineItemInput);
     billing.issueInvoice(invoice.id);
 
-    expect(() => billing.addLineItem(invoice.id, lineItemInput)).toThrow(InvoiceNotDraftError);
+    expect(() => billing.addLineItem(invoice.id, lineItemInput)).toThrow(BadRequestException);
+    try {
+      billing.addLineItem(invoice.id, lineItemInput);
+      expect.unreachable('expected addLineItem to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'InvoiceNotDraftError' });
+    }
+  });
+
+  it('refuses to issue an invoice with no line items, as a 400 with a code', async () => {
+    const { charting, billing } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const invoice = await billing.openInvoice(encounter.id, { clinicianId: 'clinician-1' });
+
+    try {
+      billing.issueInvoice(invoice.id);
+      expect.unreachable('expected issueInvoice to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'EmptyInvoiceError' });
+    }
+  });
+
+  it('refuses to record a payment against a draft invoice, as a 400 with a code', async () => {
+    const { charting, billing } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const invoice = await billing.openInvoice(encounter.id, { clinicianId: 'clinician-1' });
+
+    try {
+      billing.recordPayment(invoice.id, { reference: 'receipt-001', recordedBy: 'clinician-1' });
+      expect.unreachable('expected recordPayment to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'InvoiceNotIssuedError' });
+    }
   });
 });
 
@@ -89,6 +123,38 @@ describe('BillingService.voidInvoice', () => {
 
     expect(voided.status).toBe('VOID');
     expect(voided.voidReason).toBe('Opened in error');
+  });
+
+  it('refuses to void an already-void invoice, as a 400 with a code', async () => {
+    const { charting, billing } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const invoice = await billing.openInvoice(encounter.id, { clinicianId: 'clinician-1' });
+    billing.voidInvoice(invoice.id, 'Opened in error');
+
+    try {
+      billing.voidInvoice(invoice.id, 'Opened in error again');
+      expect.unreachable('expected voidInvoice to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'InvoiceAlreadyVoidedError' });
+    }
+  });
+
+  it('refuses to void a paid invoice, as a 400 with a code — there is no refund path yet', async () => {
+    const { charting, billing } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const invoice = await billing.openInvoice(encounter.id, { clinicianId: 'clinician-1' });
+    billing.addLineItem(invoice.id, lineItemInput);
+    billing.issueInvoice(invoice.id);
+    billing.recordPayment(invoice.id, { reference: 'receipt-001', recordedBy: 'clinician-1' });
+
+    try {
+      billing.voidInvoice(invoice.id, 'Attempted reversal');
+      expect.unreachable('expected voidInvoice to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'InvoicePaidCannotBeVoidedError' });
+    }
   });
 });
 
