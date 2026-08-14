@@ -202,6 +202,26 @@ describe('delegation', () => {
     expect(isDelegationActive(grant, '2026-11-10T00:00:00.000Z')).toBe(false);
   });
 
+  it('reports expired once a lower-precision expiresAt has actually lapsed, even though it string-sorts after a higher-precision now', () => {
+    // The controller's isoInstant regex accepts 1, 2 or 3 fractional-second
+    // digits, so a client-supplied expiresAt of "...00.9Z" (900ms) and a
+    // server-generated now of "...00.950Z" (950ms, always 3 digits) are
+    // real neighbours 50ms apart — but "...00.950Z" < "...00.9Z" as plain
+    // strings, because '5' < 'Z' at the first differing character. A string
+    // comparison would report this grant as still active 50ms after it
+    // actually expired.
+    const grant = grantDelegation(
+      'd-1',
+      'janaki',
+      'arjun',
+      ['VIEW_RECORD'],
+      '2026-08-10T00:00:00.000Z',
+      '2026-08-10T09:00:00.9Z',
+    );
+
+    expect(isDelegationActive(grant, '2026-08-10T09:00:00.950Z')).toBe(false);
+  });
+
   it('revokeDelegation ends access before the natural expiry and is idempotent', () => {
     const grant = grantDelegation(
       'd-1',

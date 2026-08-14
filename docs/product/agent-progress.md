@@ -1166,10 +1166,84 @@ re-read the table itself rather than trust this paragraph.
       this run) for the survey's findings and why every other non-clinical-
       suite module checked out clean.
 
+- [x] Fixed `packages/family`'s `isGuardianshipActive`, `isDelegationActive`,
+      `isConditionShareActive` and the three `expiresAt <= grantedAt` grant
+      guards comparing ISO-instant strings directly instead of via
+      `Date.parse` — the same variable-fractional-precision bug class
+      `packages/scheduling` and `packages/population-health` already had to
+      fix, missed in this package despite `family-grants.controller.ts`'s own
+      `isoInstant` regex accepting the identical 1-3-digit fraction range.
+      Found by a fresh independent survey after the `LanguageCorpusService`
+      run's own log entry closed the wrong-state-500 series with no named
+      follow-up. See the 2026-08-14 log entry below (the one added by this
+      run) for the repro and why the sort-only `localeCompare` uses in the
+      same file were deliberately left alone.
+
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; `packages/family` had the same
+  string-vs-`Date.parse` instant-comparison bug already fixed once in
+  `packages/scheduling` and once in `packages/population-health`.** Grepped
+  for `- [ ]` first — zero hits. The `LanguageCorpusService` run's own log
+  entry, immediately below, closed the wrong-state-500 series and named no
+  further candidate, so this run spawned an independent survey agent scoped
+  away from every category the ledger's log already documents as
+  exhaustively mined (wrong-state-500s, ISO-date validation on controllers,
+  cross-owner auth, forgeable reviewer headers, mobile i18n, filename
+  mangling, clinical-safety regex gaps, negative-reading validation), asking
+  it to read source directly rather than the ledger.
+
+  **What was found.** `packages/family/src/index.ts`'s `isGuardianshipActive`
+  (then lines 133-137), `isDelegationActive` (315-318), `isConditionShareActive`
+  (651-653), and the `expiresAt <= grantedAt` guards in
+  `grantGuardianshipForMinor`, `grantGuardianshipForIncapacity` and
+  `buildDelegationGrant` all compared ISO-instant strings with plain
+  `<`/`<=`/`>`. `apps/api/src/family/family-grants.controller.ts:15`'s own
+  `isoInstant` regex accepts 1, 2 or 3 fractional-second digits on
+  client-supplied `expiresAt` — the identical variable-precision shape
+  `packages/scheduling`'s `assertValidWindow`/`windowsOverlap` and
+  `packages/population-health`'s `buildRecallList` were each already fixed
+  for. A server-generated `now` (`new Date().toISOString()`, always 3 digits)
+  compared against a shorter client-supplied `expiresAt` string-sorts wrong:
+  `"...00.950Z" < "...00.9Z"` is `true` as strings even though 950ms is
+  *after* 900ms, so `isDelegationActive`/`isGuardianshipActive` could report
+  an already-expired grant as still active for the tail of its final second.
+
+  **The fix.** Every comparison above now parses both sides with
+  `Date.parse` before comparing, matching `packages/scheduling`'s precedent
+  exactly (a local `nowMs`/`asOfMs` computed once per function, per
+  `packages/population-health`'s own style, rather than re-parsing `now` on
+  every line). The three sort-only `.toSorted((a, b) =>
+  a.grantedAt.localeCompare(b.grantedAt))` calls (`listActiveGuardianshipsFor`,
+  `listActiveDelegationsFor`, `accessLogForOwner`) were left untouched — they
+  only affect display order, not the active/inactive boolean a caller acts
+  on, so they are not the same severity of bug and widening scope to them
+  would have been a separate task.
+
+  **Tests.** `packages/family/src/index.test.ts`: one new case on
+  `isDelegationActive` reproducing the exact scenario — a delegation granted
+  with `expiresAt: '...00.9Z'` (900ms) is reported inactive at
+  `'...00.950Z'` (950ms), which fails without the fix and passes with it.
+  Not duplicated for `isGuardianshipActive`/`isConditionShareActive` since
+  all three functions now share the identical `Date.parse` shape and the
+  scheduling/population-health precedent each added a single regression case
+  per package, not one per function.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (no lockfile change).
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/family` 56/56 (55 baseline + 1 new), `@swasthya/api` 666/666
+  unchanged. `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** No further instances of the string-vs-`Date.parse`
+  instant-comparison bug are known; a survey of the remaining domain packages
+  this run did not check (`packages/interop`, `packages/immunization`,
+  `packages/referrals`, `packages/teleconsultation`, `packages/credentialing`,
+  `packages/identity`, `packages/language-corpus`) for the same pattern would
+  be a reasonable next candidate, but has not been done — do not assume it is
+  clean just because this entry doesn't name a finding there.
 
 - 2026-08-14 — **Queue fully checked; independent survey of the whole
   `apps/api` tree found one more instance of the wrong-state-domain-error-

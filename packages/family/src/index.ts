@@ -103,7 +103,11 @@ export function grantGuardianshipForMinor(
   grantedAt: string,
 ): GuardianshipGrant {
   const expiresAt = guardianshipExpiryForMinor(wardDateOfBirth);
-  if (expiresAt <= grantedAt) throw new WardAlreadyOfAgeError(wardId, wardDateOfBirth, grantedAt);
+  // Date.parse, not string <=: `grantedAt` is caller-supplied and, like every
+  // other instant in this file, may carry 1, 2 or 3 fractional-second digits
+  // — see the note on `isGuardianshipActive` below for why a string compare
+  // of two differently-padded instants does not agree with real chronology.
+  if (Date.parse(expiresAt) <= Date.parse(grantedAt)) throw new WardAlreadyOfAgeError(wardId, wardDateOfBirth, grantedAt);
   return { id, wardId, guardianId, grounds: 'MINOR', grantedAt, expiresAt, revokedAt: null };
 }
 
@@ -120,7 +124,7 @@ export function grantGuardianshipForIncapacity(
   expiresAt: string,
   grantedAt: string,
 ): GuardianshipGrant {
-  if (expiresAt <= grantedAt) throw new InvalidGuardianshipExpiryError(expiresAt, grantedAt);
+  if (Date.parse(expiresAt) <= Date.parse(grantedAt)) throw new InvalidGuardianshipExpiryError(expiresAt, grantedAt);
   return { id, wardId, guardianId, grounds: 'INCAPACITY', grantedAt, expiresAt, revokedAt: null };
 }
 
@@ -129,11 +133,22 @@ export function revokeGuardianship(grant: GuardianshipGrant, now: string): Guard
   return grant.revokedAt === null ? { ...grant, revokedAt: now } : grant;
 }
 
-/** True only between `grantedAt` and whichever of `expiresAt` / `revokedAt` comes first. */
+/**
+ * True only between `grantedAt` and whichever of `expiresAt` / `revokedAt`
+ * comes first. Compared via `Date.parse`, not string `<`/`<=`: the
+ * controller's `isoInstant` regex (`family-grants.controller.ts`) accepts 1,
+ * 2 or 3 fractional-second digits, the same variable-precision shape
+ * `packages/scheduling` and `packages/population-health` already had to
+ * switch off string comparison for — `"...00.950Z" < "...00.9Z"` is `true`
+ * as strings even though 950ms is *after* 900ms, so a caller-supplied
+ * `expiresAt` with fewer fractional digits than the server-generated `now`
+ * could read as still active after it had actually lapsed.
+ */
 export function isGuardianshipActive(grant: GuardianshipGrant, now: string): boolean {
-  if (grant.grantedAt > now) return false;
-  if (grant.revokedAt !== null && grant.revokedAt <= now) return false;
-  return now < grant.expiresAt;
+  const nowMs = Date.parse(now);
+  if (Date.parse(grant.grantedAt) > nowMs) return false;
+  if (grant.revokedAt !== null && Date.parse(grant.revokedAt) <= nowMs) return false;
+  return nowMs < Date.parse(grant.expiresAt);
 }
 
 /* ------------------------------------------------------------------ *
@@ -248,7 +263,8 @@ function buildDelegationGrant(
 ): DelegationGrant {
   if (granterId === delegateId) throw new SelfDelegationError(granterId);
   if (scopes.length === 0) throw new EmptyDelegationScopeError(granterId, delegateId);
-  if (expiresAt <= grantedAt) throw new InvalidDelegationExpiryError(expiresAt, grantedAt);
+  // Date.parse, not string <=: see `isGuardianshipActive`'s doc comment.
+  if (Date.parse(expiresAt) <= Date.parse(grantedAt)) throw new InvalidDelegationExpiryError(expiresAt, grantedAt);
   return { id, granterId, delegateId, scopes, grantedAt, expiresAt, revokedAt: null, enrolment };
 }
 
@@ -311,11 +327,12 @@ export function revokeDelegation(grant: DelegationGrant, now: string): Delegatio
   return grant.revokedAt === null ? { ...grant, revokedAt: now } : grant;
 }
 
-/** True only between `grantedAt` and whichever of `expiresAt` / `revokedAt` comes first. */
+/** True only between `grantedAt` and whichever of `expiresAt` / `revokedAt` comes first. Compared via `Date.parse` — see `isGuardianshipActive`'s doc comment. */
 export function isDelegationActive(grant: DelegationGrant, now: string): boolean {
-  if (grant.grantedAt > now) return false;
-  if (grant.revokedAt !== null && grant.revokedAt <= now) return false;
-  return now < grant.expiresAt;
+  const nowMs = Date.parse(now);
+  if (Date.parse(grant.grantedAt) > nowMs) return false;
+  if (grant.revokedAt !== null && Date.parse(grant.revokedAt) <= nowMs) return false;
+  return nowMs < Date.parse(grant.expiresAt);
 }
 
 /**
@@ -647,10 +664,15 @@ export function revokeConditionShare(share: ConditionShare, now: string): Condit
   return share.revokedAt === null ? { ...share, revokedAt: now } : share;
 }
 
-/** True from `sharedAt` until revoked — there is no expiry to also check, per the type's own comment. */
+/**
+ * True from `sharedAt` until revoked — there is no expiry to also check, per
+ * the type's own comment. Compared via `Date.parse` — see
+ * `isGuardianshipActive`'s doc comment.
+ */
 export function isConditionShareActive(share: ConditionShare, now: string): boolean {
-  if (share.sharedAt > now) return false;
-  return share.revokedAt === null || now < share.revokedAt;
+  const nowMs = Date.parse(now);
+  if (Date.parse(share.sharedAt) > nowMs) return false;
+  return share.revokedAt === null || nowMs < Date.parse(share.revokedAt);
 }
 
 /**
