@@ -204,6 +204,17 @@ describe('normalizeHealthConnectRecord', () => {
     expect(() => normalizeHealthConnectRecord(record, OWNER)).toThrow(InvalidDeviceRecordError);
   });
 
+  it('rejects a negative temperature as physiologically impossible', () => {
+    const record: HealthConnectRecord = {
+      recordType: 'BodyTemperatureRecord',
+      metadata: { id: 'hc-17' },
+      time: '2026-06-01T07:00:00.000Z',
+      temperature: -1,
+      unit: 'celsius',
+    };
+    expect(() => normalizeHealthConnectRecord(record, OWNER)).toThrow(InvalidDeviceRecordError);
+  });
+
   it('rejects a session whose end precedes its start', () => {
     const record: HealthConnectRecord = {
       recordType: 'SleepSessionRecord',
@@ -370,6 +381,18 @@ describe('normalizeHealthKitSample', () => {
       endDate: '2026-06-01T07:00:00.000Z',
       value: -1,
       unit: 'kg',
+    };
+    expect(() => normalizeHealthKitSample(raw, OWNER)).toThrow(InvalidDeviceRecordError);
+  });
+
+  it('rejects a negative temperature as physiologically impossible', () => {
+    const raw: HealthKitSample = {
+      identifier: 'HKQuantityTypeIdentifierBodyTemperature',
+      uuid: 'hk-14',
+      startDate: '2026-06-01T07:00:00.000Z',
+      endDate: '2026-06-01T07:00:00.000Z',
+      value: -1,
+      unit: 'degC',
     };
     expect(() => normalizeHealthKitSample(raw, OWNER)).toThrow(InvalidDeviceRecordError);
   });

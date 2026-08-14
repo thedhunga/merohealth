@@ -109,11 +109,12 @@ function assertFinite(value: number, field: string): void {
 }
 
 /**
- * Steps, heart rate, oxygen saturation, glucose, blood pressure, body weight
- * and respiratory rate have no physiologically valid negative reading. A
- * malformed bridge payload that slips a negative value past `assertFinite`
- * (still a finite number, just impossible) would otherwise normalize
- * silently and flow downstream into trends and `digital-twin`.
+ * Steps, heart rate, oxygen saturation, glucose, blood pressure, body weight,
+ * body temperature and respiratory rate have no physiologically valid
+ * negative reading. A malformed bridge payload that slips a negative value
+ * past `assertFinite` (still a finite number, just impossible) would
+ * otherwise normalize silently and flow downstream into trends and
+ * `digital-twin`.
  */
 function assertNonNegative(value: number, field: string): void {
   if (value < 0) {
@@ -424,6 +425,7 @@ export function normalizeHealthConnectRecord(
 
     case 'BodyTemperatureRecord': {
       assertFinite(record.temperature, 'temperature');
+      assertNonNegative(record.temperature, 'temperature');
       return [
         sample({
           sourceRecordId: record.metadata.id,
@@ -712,6 +714,7 @@ export function normalizeHealthKitSample(
 
     case 'HKQuantityTypeIdentifierBodyTemperature': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,

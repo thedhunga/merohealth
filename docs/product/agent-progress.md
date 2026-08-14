@@ -1008,11 +1008,71 @@ re-read the table itself rather than trust this paragraph.
       despite every sibling string in the same file doing so. See the
       2026-08-14 log entry below (the one added by this run) for the
       resolution of the two disagreeing prior claims about this file.
+- [x] `packages/devices`: `BodyTemperatureRecord` (Health Connect) and
+      `HKQuantityTypeIdentifierBodyTemperature` (HealthKit) now call
+      `assertNonNegative` alongside `assertFinite`, closing the one metric
+      the 2026-08-12 negative-reading-validation sweep missed — the
+      `normalizeNepaliPhone` run's own log entry named this exact gap as its
+      survey's runner-up and left it as "worth a second look." See the
+      2026-08-14 log entry below (the one added by this run) for why it was
+      judged a genuinely distinct instance rather than scope creep on the
+      already-closed vein.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; `packages/devices`'s body-temperature
+  normalizers were missing the negative-reading guard every sibling metric
+  already has.** Grepped for `- [ ]` first — zero hits. The prior run (the
+  `normalizeNepaliPhone` fix, immediately below) had already surfaced this as
+  its survey's runner-up and explicitly left the call open: "ruled out this
+  run as a direct extension of the already-exhausted negative-reading-
+  validation vein rather than a fresh finding, but is real and worth a
+  second look if a future survey judges it genuinely distinct." Read
+  `packages/devices/src/index.ts` directly rather than trust that framing.
+
+  **What was found.** The 2026-08-12 sweep added `assertNonNegative` beside
+  `assertFinite` for steps, heart rate, resting heart rate, oxygen
+  saturation, glucose, both blood-pressure fields, body weight and
+  respiratory rate — every physiologically-signed metric in the file except
+  one. `BodyTemperatureRecord` (Health Connect, `:425-439`) and
+  `HKQuantityTypeIdentifierBodyTemperature` (HealthKit, `:713-727`) both
+  still called only `assertFinite(temperature/value, ...)`. A negative body
+  temperature has no valid reading in either Celsius or Fahrenheit for a
+  living person — the same "finite but impossible" shape the 2026-08-12 fix
+  closed for every other metric — so this was judged a real, distinct
+  instance of the same bug class the prior run correctly declined to touch
+  without a second look, not scope creep restating that fix. `temperature`/
+  `value` is checked before `temperatureToCelsius`'s unit conversion, exactly
+  where `weight` is checked before `massToKg`, so the guard rejects the raw
+  reading regardless of which unit the bridge reports.
+
+  **The fix.** Added `assertNonNegative(record.temperature, 'temperature')`
+  and `assertNonNegative(raw.value, 'value')` to the two call sites, and
+  extended the doc comment on `assertNonNegative` to list body temperature
+  among the metrics it guards. Added one regression test per platform
+  (`packages/devices/src/index.test.ts`): a `-1°C` `BodyTemperatureRecord`
+  and a `-1` `degC` `HKQuantityTypeIdentifierBodyTemperature` sample, each
+  asserting `InvalidDeviceRecordError`.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/devices` 31/31 (net +2, the two new tests), every other package
+  unchanged. `pnpm build` 40/40 (35 cached, 5 rebuilt from this change).
+
+  **For the next run.** No further gap in this vein — every metric in
+  `packages/devices` now pairs `assertFinite` with `assertNonNegative` where
+  a negative reading is physiologically impossible; sleep-session duration,
+  glucose's unit field and timestamps are the only numeric-shaped fields left
+  unchecked, and none of them has a signed-but-invalid range the way a
+  reading does. The two standing product-decision items from prior entries
+  (`packages/health-records`'s status-guard question; the clinical-suite's
+  missing clinician-identity model) are still open and still not a scheduled
+  run's to resolve alone. A fresh independent survey, briefed on the now
+  even-longer exhausted-veins list in the entry below, remains the right way
+  to pick the next task.
 
 - 2026-08-14 — **Queue fully checked; fixed `packages/auth`'s
   `normalizeNepaliPhone` silently corrupting a valid local phone number that
