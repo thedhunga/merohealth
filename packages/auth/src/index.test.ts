@@ -131,6 +131,10 @@ describe('normalizeNepaliPhone', () => {
     expect(normalizeNepaliPhone('9779812345678')).toBe('9812345678');
   });
 
+  it('accepts a bare 10-digit number that itself starts with 977, without corrupting it', () => {
+    expect(normalizeNepaliPhone('9771234567')).toBe('9771234567');
+  });
+
   it('strips spaces and hyphens', () => {
     expect(normalizeNepaliPhone('+977 981-234-5678')).toBe('9812345678');
   });

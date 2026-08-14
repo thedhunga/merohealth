@@ -106,7 +106,13 @@ const NEPAL_MOBILE_PATTERN = /^9\d{9}$/;
  */
 export function normalizeNepaliPhone(input: string): string {
   const digitsOnly = input.replace(/[\s-]/g, '');
-  const withoutCountryCode = digitsOnly.replace(/^\+?977/, '');
+  // A bare (no leading "+") 10-digit number that itself starts with the
+  // digits "977" is indistinguishable from a country-code prefix by prefix
+  // alone — "9771234567" already matches NEPAL_MOBILE_PATTERN on its own.
+  // Only strip "977" when a literal "+" makes the intent unambiguous, or
+  // when the string is too long to be a bare 10-digit number.
+  const hasCountryCode = digitsOnly.startsWith('+') || digitsOnly.length > 10;
+  const withoutCountryCode = hasCountryCode ? digitsOnly.replace(/^\+?977/, '') : digitsOnly;
   if (!NEPAL_MOBILE_PATTERN.test(withoutCountryCode)) {
     throw new InvalidPhoneError(input);
   }

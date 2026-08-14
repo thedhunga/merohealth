@@ -1014,6 +1014,71 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-14 — **Queue fully checked; fixed `packages/auth`'s
+  `normalizeNepaliPhone` silently corrupting a valid local phone number that
+  itself starts with the digits `977`.** Grepped for `- [ ]` first — zero
+  hits, same as every recent run. Commissioned a fresh independent
+  general-purpose survey agent, briefed on every vein already exhausted
+  (cross-owner/unguarded-`ownerId` access control, ISO-instant/date
+  validation, `ne-Latn` collapse, share-link TTL/entitlements gating,
+  double-booking, negative-reading validation, filename sanitization,
+  `normalizeLabel` dedup, mobile i18n, `classifyIntent`/`termAppears`
+  retrieval bugs, the analytics-source extensions, the emergency-rule
+  word-order/apostrophe fixes, the `next=` redirect chain,
+  `ApplicationTransitionError` mapping, `parseCookieHeader`, `learn.tsx`'s
+  six strings, `RegisterView`'s start-over gating, and the credentialing
+  status read-back) and the two standing product-decision items
+  (`packages/health-records`'s status-guard question; the clinical-suite's
+  missing clinician-identity model — still not this run's to resolve).
+  Explicitly told to read files directly rather than trust a grep, per the
+  prior run's own lesson about the `learn.tsx` i18n claim.
+
+  **What was found.** `normalizeNepaliPhone` (`packages/auth/src/index.ts`,
+  then lines 107-114) stripped a leading `^\+?977` unconditionally before
+  validating against `NEPAL_MOBILE_PATTERN` (`/^9\d{9}$/`). A bare (no `+`)
+  10-digit local number that itself starts with the digits `977` —
+  e.g. `9771234567` — already satisfies `NEPAL_MOBILE_PATTERN` as typed, but
+  the unconditional strip collapsed it to `1234567` (7 digits) first, which
+  then correctly-but-wrongly failed validation and threw
+  `InvalidPhoneError`. Verified directly with `node -e` before touching
+  anything: `normalizeNepaliPhone('9771234567')` threw;
+  `normalizeNepaliPhone('9779812345678')` (genuinely 13-digit,
+  country-code-prefixed) correctly returned `9812345678`. Reachable, not
+  theoretical: `docs/architecture/language-corpus.md` documents this repo's
+  own phone shape as `98…`/`97…`, so a `977…`-prefixed local number is
+  in-scope by the repo's own definition, and `parsePhone` (called from
+  `apps/api/src/auth/auth.service.ts`'s `requestOtp`/`verifyOtp`, reached
+  from `apps/web`'s `PhoneOtpFlow.tsx`, whose input has no digit-pattern
+  restriction) and `family-grants.service.ts`'s delegate-phone lookup both
+  call this function with no upstream filtering — a real person whose phone
+  happens to start with `977` could never register, sign in, or be found as
+  a delegate.
+
+  **The fix.** Only strip the `977` prefix when a literal `+` makes the
+  intent unambiguous, or when the digit string is too long to be a bare
+  10-digit number (`digitsOnly.length > 10`) — not merely because the
+  string happens to start with those three characters. The existing
+  four country-code/spacing tests in `packages/auth/src/index.test.ts` are
+  unaffected (all their inputs are either `+`-prefixed or 13 digits); added
+  one regression test for the previously-corrupted 10-digit case.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/auth` 34/34 (net +1, the new test), `@swasthya/api` 644/644
+  unchanged (this fix touched no `apps/api`-owned test file). `pnpm build`
+  40/40.
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not a scheduled run's to resolve. The survey's
+  runner-up — `packages/devices`'s `BodyTemperatureRecord`/
+  `HKQuantityTypeIdentifierBodyTemperature` calling `assertFinite` but not
+  `assertNonNegative`, unlike every sibling metric — was ruled out this run
+  as a direct extension of the already-exhausted negative-reading-validation
+  vein rather than a fresh finding, but is real and worth a second look if a
+  future survey judges it genuinely distinct from what was fixed before. A
+  fresh independent survey, briefed on the now-longer exhausted-veins list
+  above, is still the right way to pick whatever comes after that.
+
 - 2026-08-14 — **Queue fully checked; closed the six remaining
   hardcoded-Nepali strings in `apps/mobile/app/(tabs)/learn.tsx`.** Grepped
   for `- [ ]` first — zero hits. The prior run's own log entry (the
