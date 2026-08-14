@@ -50,18 +50,29 @@ export function buildConditionRegistry(
  * package stays a pure function of its inputs, the same reason every other
  * domain package in this repo takes `now` as a parameter rather than
  * reading the clock itself.
+ *
+ * Compared via `Date.parse`, not string `>=`/`localeCompare`: the same
+ * variable-fraction-length reason as `packages/scheduling`'s
+ * `assertValidWindow`/`windowsOverlap` — `apps/api`'s `isoInstant` regex
+ * accepts 1, 2 or 3 fractional-second digits on both `Appointment.
+ * scheduledStart` and the recall endpoint's `asOf` query param, and a string
+ * comparison of two instants with different fraction lengths does not agree
+ * with chronological order (`"...00.9Z" >= "...00.95Z"` is `true` as
+ * strings — the terminating `Z` sorts above any digit — even though 900ms is
+ * chronologically before 950ms).
  */
 export function buildRecallList(
   registry: readonly PopulationHealthRegistryEntry[],
   appointments: readonly Appointment[],
   asOf: string,
 ): PopulationHealthRecallEntry[] {
+  const asOfMs = Date.parse(asOf);
   return registry.map((entry) => {
     const upcoming = appointments
       .filter((appointment) => appointment.patientId === entry.patientId)
       .filter((appointment) => appointment.status === 'SCHEDULED')
-      .filter((appointment) => appointment.scheduledStart >= asOf)
-      .sort((a, b) => a.scheduledStart.localeCompare(b.scheduledStart));
+      .filter((appointment) => Date.parse(appointment.scheduledStart) >= asOfMs)
+      .sort((a, b) => Date.parse(a.scheduledStart) - Date.parse(b.scheduledStart));
     const nextScheduledAppointmentAt = upcoming[0]?.scheduledStart ?? null;
     return { ...entry, nextScheduledAppointmentAt, dueForRecall: nextScheduledAppointmentAt === null };
   });

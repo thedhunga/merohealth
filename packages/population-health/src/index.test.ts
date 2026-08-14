@@ -133,4 +133,24 @@ describe('buildRecallList', () => {
 
     expect(recall[0]).toMatchObject({ nextScheduledAppointmentAt: null, dueForRecall: true });
   });
+
+  it('orders instants chronologically, not as strings, across differing fractional-second digit counts', () => {
+    // '...00.9Z' sorts above '...00.95Z' as a string (the terminating 'Z' outranks any
+    // digit), even though 900ms is chronologically before 950ms — the same bug class
+    // packages/scheduling's assertValidWindow/windowsOverlap were fixed for.
+    const appt = appointment({ id: 'appt-1', patientId: 'patient-1', scheduledStart: '2026-08-20T09:00:00.9Z' });
+
+    const recall = buildRecallList(registry, [appt], '2026-08-20T09:00:00.95Z');
+
+    expect(recall[0]).toMatchObject({ nextScheduledAppointmentAt: null, dueForRecall: true });
+  });
+
+  it('sorts a chronologically-earlier appointment first even with more fractional-second digits', () => {
+    const earlier = appointment({ id: 'appt-1', patientId: 'patient-1', scheduledStart: '2026-09-01T09:00:00.95Z' });
+    const later = appointment({ id: 'appt-2', patientId: 'patient-1', scheduledStart: '2026-09-01T09:00:01.0Z' });
+
+    const recall = buildRecallList(registry, [later, earlier], '2026-08-11T00:00:00.000Z');
+
+    expect(recall[0]).toMatchObject({ nextScheduledAppointmentAt: '2026-09-01T09:00:00.95Z' });
+  });
 });

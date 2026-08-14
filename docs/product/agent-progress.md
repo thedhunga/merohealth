@@ -1050,11 +1050,116 @@ re-read the table itself rather than trust this paragraph.
       chest-pain/pregnancy/pediatric messages fell through to
       `CLINICIAN_RECOMMENDED` instead of triggering the mandatory emergency
       interrupt.
+- [x] Fixed `packages/population-health`'s `buildRecallList` comparing
+      `Appointment.scheduledStart`/`asOf` ISO-instant strings with `>=` and
+      `localeCompare` instead of `Date.parse` — the same bug class fixed in
+      `packages/scheduling` on 2026-08-14, missed by that fix's own claim to
+      be the only two such comparisons in the repo. See the 2026-08-14 log
+      entry below (the one added by this run) for the repro and why this one
+      is live (both endpoints are client-supplied) rather than dead code.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-14 — **Queue fully checked; `packages/population-health`'s
+  `buildRecallList` compared ISO-instant timestamps as raw strings, missing a
+  patient who should have been flagged due for recall.** Grepped for `- [ ]`
+  first — zero hits, same as every recent run. Commissioned a fresh
+  independent general-purpose survey agent, briefed on the full
+  exhausted-veins list accumulated by prior entries (cross-owner/unguarded-
+  ownerId access control, ISO-instant/date validation, `ne-Latn` collapse,
+  share-link TTL/entitlements gating, double-booking, negative-reading
+  validation, filename sanitization, `normalizeLabel` dedup, mobile i18n,
+  retrieval bugs, the analytics-source extensions, emergency-rule phrase
+  fixes, `normalizeNepaliPhone`'s `977`-prefix bug, `buildAnalyteTrend`/
+  `toFhirObservation`'s numeric coercion, `guardianshipExpiryForMinor`'s
+  leap-day overflow, and the just-fixed `packages/scheduling` ISO-instant
+  string comparison) plus the two standing product-decision items
+  (`packages/health-records`'s status-guard question; the clinical-suite's
+  missing clinician-identity model — still not this run's to resolve),
+  instructed specifically not to re-propose either standing item without a
+  materially different angle.
+
+  **What was found.** `buildRecallList` (`packages/population-health/src/
+  index.ts`) filtered appointments with `appointment.scheduledStart >= asOf`
+  and sorted with `a.scheduledStart.localeCompare(b.scheduledStart)` — both
+  raw string comparisons of ISO-8601 instants, the exact bug class the
+  scheduling fix addressed earlier the same day. That fix's own "for the next
+  run" note claimed `assertValidWindow`/`windowsOverlap` were "the only two
+  places in the repo that order two ISO-instant strings directly rather than
+  through `Date.parse`" — this is a third, missed instance. Verified directly
+  with `node -e`: `'2026-08-20T09:00:00.9Z' >= '2026-08-20T09:00:00.95Z'` is
+  `true` as strings (the terminating `Z` outranks any digit) even though
+  900ms is chronologically *before* 950ms, so a patient whose only
+  appointment is genuinely in the past relative to `asOf` could be silently
+  reported `dueForRecall: false` and dropped from the recall list. Confirmed
+  this is reachable, not dead code: `Appointment.scheduledStart` is
+  client-supplied at `POST /appointments`
+  (`apps/api/src/scheduling/scheduling.controller.ts`) and `asOf` is
+  client-supplied via `GET /population-health/recall?asOf=...`
+  (`apps/api/src/population-health/population-health.controller.ts`), both
+  validated only by the same regex accepting 1-3 fractional-second digits,
+  with no normalization anywhere between the controller and this function
+  (`population-health.service.ts` passes both straight through).
+  `packages/population-health/src/index.test.ts` only ever used uniform
+  `.000Z` timestamps before this run, so the mixed-precision case was
+  genuinely untested — the same gap that let the original scheduling bug
+  ship. clinical-suite.md row 13 names this module's whole purpose as
+  flagging patients due for a recall; a silent false negative here is a
+  data-integrity gap adjacent to patient safety, not just a display bug.
+
+  **The fix.** Both the filter and the sort now compare `Date.parse(...)`
+  numeric values instead of the raw strings, mirroring `packages/
+  scheduling`'s exact precedent — no change to the half-open "at or after"
+  semantics or the soonest-first ordering, only to how two instants are
+  compared. Added two regression tests in `packages/population-health/src/
+  index.test.ts`: a `.9Z` appointment against a `.95Z` `asOf` (correctly
+  excluded, chronologically past), and sorting a `.95Z` appointment ahead of
+  a `.0Z`-one-second-later appointment (correctly ordered first despite the
+  string comparison disagreeing).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/population-health` 11/11 (net +2, the two new tests),
+  `@swasthya/api` 644/644 unchanged (this fix touched no `apps/api`-owned
+  test file). `pnpm build` 40/40 (35 cached, 5 rebuilt from this change).
+
+  **For the next run.** Grepped the repo for every other raw string
+  comparison (`<`, `<=`, `>`, `>=`, `localeCompare`) of a field named
+  `*At`/`*Start`/`*End`/`asOf`/similar before writing this entry, rather than
+  trusting the scheduling fix's own "only two places" claim a second time.
+  Found several more `.toSorted((a, b) => a.field.localeCompare(b.field))`
+  sorts on the same shape — `packages/identity`'s and `packages/
+  credentialing`'s `submittedAt`, `packages/family`'s `occurredAt`/
+  `grantedAt`, `packages/language-corpus`'s `capturedAt`, plus the mirrored
+  sorts in `apps/api/src/{identity,language-corpus,credentialing}`'s
+  repositories. Traced each field's origin before flagging any of them:
+  `submittedAt`, `occurredAt` and `grantedAt` are all stamped server-side
+  with a single `new Date().toISOString()` call
+  (`credentialing.service.ts:55`, `identity.service.ts:123`, `family-
+  grants.service.ts:75`, etc.), which always produces exactly three
+  fractional-second digits — no variable-precision input ever reaches these
+  comparisons, so the bug shape is present but not currently triggerable.
+  `language-corpus`'s `capturedAt` is the one exception — client-supplied,
+  validated by the same 1-3-fractional-digit `isoInstant` regex as
+  `scheduledStart`/`asOf` — but `POST /language-corpus/utterances` has no
+  live caller in `apps/web` or `apps/mobile` today (the same dead-endpoint
+  finding this run's own survey made independently as its second runner-up),
+  so it is real but not reachable, the same bar that kept the `packages/
+  interop` `ownerId`-unused candidate out of scope earlier the same day.
+  Worth a fresh look the day either the language-corpus ingest endpoint gets
+  a live caller or any of the server-stamped fields above ever starts
+  accepting a caller-supplied timestamp instead of stamping its own. The
+  survey's other runner-up, investigated and correctly set aside:
+  `packages/credentialing`'s `isBadgeCurrent` and `packages/family`'s
+  `isGuardianshipActive`/`isDelegationActive`/`isConditionShareActive`
+  compare a stored `string` against `Date.now()`, not two independently-
+  precise strings, so they are not this bug shape at all. The two standing
+  product-decision items (`packages/health-records`'s status-guard question;
+  the clinical-suite's missing clinician-identity model) are still open and
+  still not a scheduled run's to resolve alone.
 
 - 2026-08-14 — **Queue fully checked; three of five `packages/clinical-safety`
   emergency rules had no romanized-Nepali (`ne-Latn`) phrase coverage.**
