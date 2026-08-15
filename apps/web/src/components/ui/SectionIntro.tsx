@@ -26,11 +26,12 @@ interface SectionIntroProps {
   artCaption?: string;
   cta?: SectionIntroCta;
   /**
-   * `forest` continues the layered depth already established by the header
-   * and homepage Hero (dark chrome into a dark opener, then a curved lip
-   * down to paper). `paper` skips that for pages — legal, utility — where
-   * stacking another full-bleed dark block under the permanently dark header
-   * would read as too heavy.
+   * `paper` is the default: white surface, dense scannable type, the WebMD
+   * reference the owner asked for. `forest` is the homepage's full-bleed dark
+   * opener — kept as an opt-in for a page that deliberately wants that strong
+   * editorial moment, but no inner route should reach for it by default. Every
+   * route used to inherit `forest` implicitly; that read as decorative rather
+   * than clinical and is the thing this default was changed to fix.
    */
   tone?: SectionIntroTone;
   /** Which side the artwork sits on at desktop widths. */
@@ -51,7 +52,10 @@ const toneStyles: Record<
   },
   paper: {
     section: 'bg-paper text-ink',
-    eyebrow: 'text-success-600',
+    // indigo-600, matching `SectionHeading`'s light-tone eyebrow — `success`
+    // is reserved for verified/complete states and must never stand in for a
+    // brand accent, per the art direction's standing constraint.
+    eyebrow: 'text-indigo-600',
     title: 'text-ink',
     body: 'text-ink-soft',
     caption: 'text-ink-soft',
@@ -72,7 +76,7 @@ export function SectionIntro({
   image,
   artCaption,
   cta,
-  tone = 'forest',
+  tone = 'paper',
   artPosition = 'end',
   className,
 }: SectionIntroProps) {

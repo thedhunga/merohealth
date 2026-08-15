@@ -146,7 +146,7 @@ longer the integration point.
       a link to the rest, and shorten `ServiceCards` copy. Measure with
       `document.body.scrollHeight / innerHeight` before and after, and record
       both numbers in the log.
-- [ ] **The clinical, light treatment exists only on the homepage.** The other
+- [x] **The clinical, light treatment exists only on the homepage.** The other
       45 routes still open with the old dark hero. Push it through
       `PageTemplate` and `SectionIntro` so every route inherits it. The
       reference is WebMD: white surfaces, dense scannable type, utility over
@@ -1331,6 +1331,77 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-15 — **Round three, task B2: pushed the light, clinical treatment
+  through `PageTemplate`/`SectionIntro` to every inner route.** Checked off —
+  the change is a two-line default flip, but it reaches everywhere the queue
+  named.
+
+  **What changed.** `SectionIntro`'s `tone` prop defaulted to `'forest'`
+  (`bg-indigo-800`, the homepage's full-bleed dark opener); flipped the
+  default to `'paper'` (white surface, dense type). `'forest'` stays in the
+  type as an opt-in for a page that deliberately wants that strong editorial
+  moment, but nothing in the repo passed `tone: 'forest'` explicitly before
+  this change — every caller that didn't set `tone` was silently inheriting
+  the dark hero, which is exactly the "other 45 routes still open with the
+  old dark hero" the task named. Confirmed via `grep` before touching
+  anything: 0 explicit-`forest` call sites, 6 explicit-`paper` (the legal/
+  utility pages), 24 defaulting implicitly — those 24 are now `paper` too,
+  with no per-file edits needed since they inherit the component default.
+  Updated `PageTemplate`'s doc comment, which still described the old
+  forest-by-default framing.
+
+  **Coverage, checked rather than assumed.** `apps/web` has 47 `page.tsx`
+  routes, but most share a handful of reusable view components
+  (`IndividualsPageView`, `OrganizationPartnerView`, etc.), so the real
+  surface is the ~30 `*View.tsx` files that call `PageTemplate`. Confirmed
+  by grep that all 30 do, so this reaches every route built on the shared
+  shell. Two routes intentionally don't: the homepage (`Hero.tsx`, its own
+  bespoke full-bleed component, out of scope for this task) and `/get-care`
+  (`GetCareFlow.tsx` — checked its classes directly; it uses `bg-indigo-800`
+  only on buttons and badges, no full-bleed dark section, so nothing to
+  change there).
+
+  **A second bug found along the way, fixed rather than shipped forward.**
+  `SectionIntro`'s `paper` tone styled its eyebrow `text-success-600` —
+  green, on what is about to become the default state for every inner page.
+  The standing constraints reserve `success` for verified/complete states
+  and explicitly forbid borrowing it for brand or decorative use; this was
+  already true on the 6 legal pages but was about to spread to 24 more.
+  Changed to `text-indigo-600`, matching `SectionHeading`'s own light-tone
+  eyebrow color so the two heading patterns agree. Caught this by screenshot
+  review, not by reading the diff — the color name in the object literal
+  reads reasonably next to `title`/`body`/`caption` and doesn't announce
+  itself as wrong.
+
+  **Verify.** Measured 375×812 before/after with `document.body.scrollHeight
+  / innerHeight` on four representative routes, both locales, production
+  build (`next start`), using `git stash` to get a true before against the
+  same build pipeline: `/about` 4372→4332px, `/en/about` 4524→4484px,
+  `/individuals/how-it-works` 4249→4209px,
+  `/en/individuals/how-it-works` 4320→4280px, `/pricing` 6320→6280px,
+  `/en/pricing` 6432→6392px, `/organizations/our-approach` 4194→4154px,
+  `/en/organizations/our-approach` 4427→4387px — a consistent 40px/route
+  drop, which is exactly `forest` tone's curved-lip transition div
+  (`h-10`) that `paper` tone never rendered. This task was never primarily
+  about height (that's B1), so the small delta is expected, not the point.
+  No horizontal overflow at any measured route, no new console errors beyond
+  the two already-documented pre-existing ones (missing story video,
+  `apps/api` connection-refused with no local API running). Screenshot-
+  verified visually at 375px in both locales: white hero, indigo eyebrow
+  and heading, real photograph or SVG artwork unchanged, marigold still
+  spent nowhere in the hero itself (it appears once, in the artwork), dark
+  header sitting directly on white with no jarring transition. Full
+  monorepo gates: `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks (686 tests in `apps/api`);
+  `pnpm build` 40/40.
+
+  **For the next run.** B1 (homepage screen count) is still open above this
+  in the queue — take that next, or `/app` returning 404 in production
+  (task B3) if continuing in order past it. `CtaBand`'s indigo band was
+  deliberately left untouched: it's one saturated accent at the end of a
+  page, not a second full-bleed dark hero, and the task was about the
+  *opening* section reading as decorative rather than clinical.
 
 - 2026-08-15 — **Round three, task B1 continued: `ServiceCards` collapses to
   three on mobile.** Still left unchecked — real progress, target still not

@@ -49,8 +49,9 @@ interface PageTemplateProps {
  * (`/individuals/diabetes-management`) and segment index pages
  * (`/individuals`, `/organizations`, `/clinicians`) alike, so the ~35
  * remaining marketing routes are content composed onto this shell rather
- * than bespoke layout each. `SectionIntro` is the hero, `CtaBand` the close;
- * both already carry the forest/paper tone rules from the art direction.
+ * than bespoke layout each. `SectionIntro` is the hero and defaults to the
+ * light `paper` tone; `CtaBand` is the close and stays a deliberate indigo
+ * accent — one saturated band per page, not a second full-bleed dark hero.
  */
 export function PageTemplate({ hero, children, cta }: PageTemplateProps) {
   return (
