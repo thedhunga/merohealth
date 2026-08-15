@@ -70,7 +70,7 @@ export default function TabsLayout() {
         name="companion"
         options={{
           href: null,
-          title: 'Ask',
+          title: t(language, 'ask'),
           tabBarIcon: ({ color, size }) => <HeartPulse color={color} size={size} />,
         }}
       />

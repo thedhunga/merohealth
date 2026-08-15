@@ -23,7 +23,6 @@ import {
   SESSION_TTL_MS,
   verifyOtpCode,
 } from '@swasthya/auth';
-import { raiseAssurance } from '@swasthya/identity';
 import type { AssuranceLevel } from '@swasthya/shared-types';
 import { AUTH_STORE, type AuthStore, type AuthUserRecord } from './auth-store.js';
 import { SMS_PROVIDER, type SmsProvider } from './sms-provider.js';
@@ -178,11 +177,15 @@ export class AuthService {
       expiresAt,
       user,
       patientProfileId: patientProfile?.id ?? null,
-      // Every `User` row this service creates was reached by phone + OTP,
-      // and there is no other creation path into this table — so the
-      // transition is always the same legal `ANONYMOUS → REGISTERED` step
-      // `raiseAssurance` exists to guard, never a shortcut around it.
-      assuranceLevel: raiseAssurance('ANONYMOUS', 'REGISTERED'),
+      // `user.assuranceLevel` is the real, persisted value — `REGISTERED` for
+      // the `REGISTER` branch's freshly created row (`createPatientUser` sets
+      // it explicitly), and whatever this returning user actually holds for
+      // `SIGN_IN`, including `IDENTITY_VERIFIED` once `IdentityService.approve`
+      // has raised it. Previously this line always returned the freshly
+      // computed `raiseAssurance('ANONYMOUS', 'REGISTERED')` regardless of
+      // branch, which silently reported an already-verified person signing
+      // back in as merely `REGISTERED`.
+      assuranceLevel: user.assuranceLevel,
     };
   }
 
@@ -200,7 +203,13 @@ export class AuthService {
       subjectId: user.id,
       user,
       patientProfileId: patientProfile?.id ?? null,
-      assuranceLevel: 'REGISTERED',
+      // Was hardcoded to `'REGISTERED'` — no route could ever be reached at
+      // `IDENTITY_VERIFIED`, permanently locking `RECORD_SHARING` and
+      // `TELECONSULTATION` (both gated at that level by
+      // `minimumAssuranceLevel`) for every real user. Reading the persisted
+      // field is what `IdentityService.approve`'s call into
+      // `AuthStore.markIdentityVerified` now has something to change.
+      assuranceLevel: user.assuranceLevel,
     };
   }
 
@@ -219,7 +228,8 @@ export class AuthService {
   }
 }
 
-function parsePhone(rawPhone: string): string {
+/** Exported for `family-grants.service.ts`'s delegate-lookup-by-phone — same normalisation and `INVALID_PHONE` shape a second call site would otherwise have to duplicate. */
+export function parsePhone(rawPhone: string): string {
   try {
     return normalizeNepaliPhone(rawPhone);
   } catch (error) {

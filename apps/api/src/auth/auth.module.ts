@@ -20,6 +20,9 @@ import { SessionAuthGuard } from './session-auth.guard.js';
   // `@UseGuards(SessionAuthGuard)` on its own routes by importing
   // `AuthModule`, the same "import the module, get the guard" wiring
   // `RecordsModule` already gives `EntitlementsGuard` to its own controller.
-  exports: [AuthService, SessionAuthGuard],
+  // `AUTH_STORE` is exported too, for `FamilyModule`'s delegate-by-phone
+  // lookup in `FamilyGrantsService` — the same store `AuthService` itself
+  // uses, not a second one.
+  exports: [AuthService, SessionAuthGuard, AUTH_STORE],
 })
 export class AuthModule {}

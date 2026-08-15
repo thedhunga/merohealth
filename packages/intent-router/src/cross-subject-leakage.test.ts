@@ -1,3 +1,4 @@
+import { grantDelegation, hasScope, revokeDelegation } from '@swasthya/family';
 import { retrieveForSubject } from '@swasthya/retrieval';
 import { describe, expect, it } from 'vitest';
 import type { HealthDocument, HealthObservation } from '@swasthya/shared-types';
@@ -18,13 +19,17 @@ import { composeAnswer, route } from './index';
  * relevant" instead of "owned by this subject," these tests would catch it
  * by the wrong number appearing, not just an extra one.
  *
- * Scope, decided explicitly rather than narrowed silently: `packages/family`
- * (round two, section C) does not exist yet, so "even under an active
- * delegation" — the second half of the queue's own description — has no
- * delegation state machine to test against today. The `it.todo` at the
- * bottom of this file stands in for that half so it stays visible in every
- * test run until `packages/family` ships, instead of quietly vanishing from
- * the suite's description.
+ * The delegation half below (§3's "even under an active delegation") was
+ * left as an `it.todo` until `packages/family` shipped (round two §C) — it
+ * now has. `@swasthya/family` is a devDependency of this package, not a
+ * runtime one: `route`/`retrieveForSubject` take a plain `subjectId` and
+ * know nothing about delegation, by design (grounded-answers.md's own
+ * subject-id-agnostic scoping). §3's property is a *composition* one — "the
+ * subject is her and the retrieval set is hers, never a union of both" —
+ * so the tests below exercise that composition directly: `hasScope` is the
+ * pre-check a real call site must make before ever choosing which
+ * `subjectId` to hand to `route`, and once that id is chosen, this
+ * package's own scoping must hold exactly as it does for any other caller.
  */
 
 function makeObservation(overrides: Partial<HealthObservation> = {}): HealthObservation {
@@ -206,14 +211,98 @@ describe('cross-subject leakage — route and composeAnswer, end to end', () => 
   });
 });
 
-// grounded-answers.md §3's own wording: "even under an active delegation."
-// `packages/family` (round two §C) isn't built yet — no `DelegationGrant`,
-// no scoped-permission state machine — so there is nothing here for a test
-// to exercise that a hand-rolled stand-in wouldn't be fiction dressed as
-// coverage, which "invent no facts" rules out just as much for test fixtures
-// as for product copy. Left as an explicit `todo` so it stays visible in
-// every run's test output rather than being a line in this file's own
-// comments that nobody re-reads: this test must be written for real once
-// `packages/family` lands, exercising retrieval under a delegate acting for
-// someone else, not narrowed further or quietly dropped.
-describe.todo('cross-subject leakage — under an active delegation (blocked on packages/family)');
+// grounded-answers.md §3: "When the grandson asks a question while acting
+// for his grandmother, the subject is her and the retrieval set is hers —
+// never a union of both. A question asked in her context must not be
+// answerable from his record, and vice versa." subject-1 plays the
+// grandmother (granter), subject-3 the grandson (delegate); subject-2 stays
+// the unrelated third party from `sharedCorpus` above, present in every
+// case below to prove the delegation doesn't widen access to *anyone*
+// beyond the one relationship it actually grants.
+const delegateOwnObservation = makeObservation({
+  id: 'obs-3-a',
+  ownerId: 'subject-3',
+  effectiveAt: '2026-02-15',
+  value: '150',
+});
+const delegateOwnDocument = makeDocument({
+  id: 'doc-3-a',
+  ownerId: 'subject-3',
+  title: 'Fasting glucose — subject 3',
+});
+const corpusWithDelegate = {
+  observations: [...sharedCorpus.observations, delegateOwnObservation],
+  documents: [...sharedCorpus.documents, delegateOwnDocument],
+};
+
+const activeDelegation = grantDelegation(
+  'grant-1',
+  'subject-1',
+  'subject-3',
+  ['VIEW_RECORD', 'ASK_ASSISTANT'],
+  '2026-01-01T00:00:00.000Z',
+  '2027-01-01T00:00:00.000Z',
+);
+
+describe('cross-subject leakage — under an active delegation', () => {
+  it('hasScope is the gate a call site must pass before choosing which subjectId to query as', () => {
+    expect(hasScope(activeDelegation, 'ASK_ASSISTANT', '2026-06-01T00:00:00.000Z')).toBe(true);
+  });
+
+  it("a revoked grant fails the gate even though the DelegationGrant object itself still exists", () => {
+    const revoked = revokeDelegation(activeDelegation, '2026-02-01T00:00:00.000Z');
+    expect(hasScope(revoked, 'ASK_ASSISTANT', '2026-06-01T00:00:00.000Z')).toBe(false);
+  });
+
+  it('a scope never granted fails the gate even while the rest of the grant is active', () => {
+    const bookingOnly = grantDelegation(
+      'grant-2',
+      'subject-1',
+      'subject-3',
+      ['MANAGE_APPOINTMENTS'],
+      '2026-01-01T00:00:00.000Z',
+      '2027-01-01T00:00:00.000Z',
+    );
+    expect(hasScope(bookingOnly, 'ASK_ASSISTANT', '2026-06-01T00:00:00.000Z')).toBe(false);
+  });
+
+  it("a delegate acting for the granter — the effective subjectId resolved from the grant, per §3 — sees only her record, never his own and never subject-2's", () => {
+    const routed = route(activeDelegation.granterId, corpusWithDelegate, 'मेरो चिनी कस्तो छ?');
+
+    expect(routed.path).toBe('COMPUTED');
+    if (routed.path !== 'COMPUTED') throw new Error('unreachable');
+    expect(routed.trends[0]?.trend.points.map((p) => p.value)).toEqual([95, 98]);
+    expect(routed.trends[0]?.citations.map((c) => c.sourceId)).toEqual(['obs-1-a', 'obs-1-b']);
+
+    const answer = composeAnswer(routed);
+    if (answer.path !== 'ANSWERED') throw new Error('unreachable');
+    for (const claim of answer.claims) {
+      for (const citation of claim.citations) {
+        expect(citation.documentId).not.toBe('doc-3-a');
+        expect(citation.documentId).not.toBe('doc-2-a');
+      }
+      for (const target of claim.targets) {
+        expect(target.documentId).not.toBe('doc-3-a');
+        expect(target.documentId).not.toBe('doc-2-a');
+      }
+    }
+  });
+
+  it('the same delegate asking in his own context sees only his own record — an active delegation for someone else never leaks into it', () => {
+    const routed = route(activeDelegation.delegateId, corpusWithDelegate, 'मेरो चिनी कस्तो छ?');
+
+    expect(routed.path).toBe('COMPUTED');
+    if (routed.path !== 'COMPUTED') throw new Error('unreachable');
+    expect(routed.trends[0]?.trend.points.map((p) => p.value)).toEqual([150]);
+    expect(routed.trends[0]?.citations.map((c) => c.sourceId)).toEqual(['obs-3-a']);
+
+    const answer = composeAnswer(routed);
+    if (answer.path !== 'ANSWERED') throw new Error('unreachable');
+    for (const claim of answer.claims) {
+      for (const citation of claim.citations) {
+        expect(citation.documentId).not.toBe('doc-1-a');
+        expect(citation.documentId).not.toBe('doc-2-a');
+      }
+    }
+  });
+});

@@ -109,6 +109,15 @@ describe('RecordsService document and timeline reads', () => {
       expect.objectContaining({ documentId: document.id, observationCount: 0 }),
     ]);
   });
+
+  it('lists an owner’s observations regardless of status, for interop to filter', () => {
+    const { service, repository } = buildService();
+    repository.saveObservation(draftObservation({ id: 'obs-owner-1' }));
+    repository.saveObservation(draftObservation({ id: 'obs-owner-2', ownerId: 'owner-2' }));
+
+    const observations = service.listObservationsForOwner('owner-1');
+    expect(observations.map((observation) => observation.id)).toEqual(['obs-owner-1']);
+  });
 });
 
 describe('RecordsService confirm/correct/reject', () => {

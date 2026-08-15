@@ -193,6 +193,42 @@ describe('normalizeHealthConnectRecord', () => {
     expect(() => normalizeHealthConnectRecord(record, OWNER)).toThrow(InvalidDeviceRecordError);
   });
 
+  it('rejects a negative reading as physiologically impossible, distinct from non-finite', () => {
+    const record: HealthConnectRecord = {
+      recordType: 'StepsRecord',
+      metadata: { id: 'hc-16' },
+      count: -50,
+      startTime: '2026-06-01T00:00:00.000Z',
+      endTime: '2026-06-01T23:59:59.000Z',
+    };
+    expect(() => normalizeHealthConnectRecord(record, OWNER)).toThrow(InvalidDeviceRecordError);
+  });
+
+  it('rejects a negative temperature as physiologically impossible', () => {
+    const record: HealthConnectRecord = {
+      recordType: 'BodyTemperatureRecord',
+      metadata: { id: 'hc-17' },
+      time: '2026-06-01T07:00:00.000Z',
+      temperature: -1,
+      unit: 'celsius',
+    };
+    expect(() => normalizeHealthConnectRecord(record, OWNER)).toThrow(InvalidDeviceRecordError);
+  });
+
+  it('rejects a non-negative fahrenheit reading below freezing that converts to a negative celsius value', () => {
+    // 20°F is >= 0 and would pass a check on the raw reading, but it is
+    // below freezing: ((20 - 32) * 5) / 9 = -6.7°C, a physiologically
+    // impossible body temperature that must still be rejected.
+    const record: HealthConnectRecord = {
+      recordType: 'BodyTemperatureRecord',
+      metadata: { id: 'hc-18' },
+      time: '2026-06-01T07:00:00.000Z',
+      temperature: 20,
+      unit: 'fahrenheit',
+    };
+    expect(() => normalizeHealthConnectRecord(record, OWNER)).toThrow(InvalidDeviceRecordError);
+  });
+
   it('rejects a session whose end precedes its start', () => {
     const record: HealthConnectRecord = {
       recordType: 'SleepSessionRecord',
@@ -291,6 +327,21 @@ describe('normalizeHealthKitSample', () => {
     expect(result?.value).toBe(110);
   });
 
+  it('converts body mass from lb to the canonical kg', () => {
+    const raw: HealthKitSample = {
+      identifier: 'HKQuantityTypeIdentifierBodyMass',
+      uuid: 'hk-body-mass-1',
+      startDate: '2026-06-01T07:00:00.000Z',
+      endDate: '2026-06-01T07:00:00.000Z',
+      value: 154,
+      unit: 'lb',
+    };
+    const [result] = normalizeHealthKitSample(raw, OWNER);
+    expect(result?.kind).toBe('BODY_WEIGHT');
+    expect(result?.value).toBeCloseTo(69.9, 1);
+    expect(result?.unit).toBe('kg');
+  });
+
   it('converts body temperature reported in degF', () => {
     const raw: HealthKitSample = {
       identifier: 'HKQuantityTypeIdentifierBodyTemperature',
@@ -332,6 +383,45 @@ describe('normalizeHealthKitSample', () => {
       startDate: '2026-06-01T07:00:00.000Z',
       endDate: '2026-06-01T07:00:00.000Z',
       value: Number.POSITIVE_INFINITY,
+    };
+    expect(() => normalizeHealthKitSample(raw, OWNER)).toThrow(InvalidDeviceRecordError);
+  });
+
+  it('rejects a negative reading as physiologically impossible', () => {
+    const raw: HealthKitSample = {
+      identifier: 'HKQuantityTypeIdentifierBodyMass',
+      uuid: 'hk-13',
+      startDate: '2026-06-01T07:00:00.000Z',
+      endDate: '2026-06-01T07:00:00.000Z',
+      value: -1,
+      unit: 'kg',
+    };
+    expect(() => normalizeHealthKitSample(raw, OWNER)).toThrow(InvalidDeviceRecordError);
+  });
+
+  it('rejects a negative temperature as physiologically impossible', () => {
+    const raw: HealthKitSample = {
+      identifier: 'HKQuantityTypeIdentifierBodyTemperature',
+      uuid: 'hk-14',
+      startDate: '2026-06-01T07:00:00.000Z',
+      endDate: '2026-06-01T07:00:00.000Z',
+      value: -1,
+      unit: 'degC',
+    };
+    expect(() => normalizeHealthKitSample(raw, OWNER)).toThrow(InvalidDeviceRecordError);
+  });
+
+  it('rejects a non-negative fahrenheit reading below freezing that converts to a negative celsius value', () => {
+    // 20°F is >= 0 and would pass a check on the raw reading, but it is
+    // below freezing: ((20 - 32) * 5) / 9 = -6.7°C, a physiologically
+    // impossible body temperature that must still be rejected.
+    const raw: HealthKitSample = {
+      identifier: 'HKQuantityTypeIdentifierBodyTemperature',
+      uuid: 'hk-15',
+      startDate: '2026-06-01T07:00:00.000Z',
+      endDate: '2026-06-01T07:00:00.000Z',
+      value: 20,
+      unit: 'degF',
     };
     expect(() => normalizeHealthKitSample(raw, OWNER)).toThrow(InvalidDeviceRecordError);
   });

@@ -53,9 +53,15 @@ importers:
       '@nestjs/swagger':
         specifier: 11.4.6
         version: 11.4.6(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)
+      '@swasthya/analytics':
+        specifier: workspace:*
+        version: link:../../packages/analytics
       '@swasthya/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@swasthya/billing':
+        specifier: workspace:*
+        version: link:../../packages/billing
       '@swasthya/care-directory':
         specifier: workspace:*
         version: link:../../packages/care-directory
@@ -74,15 +80,30 @@ importers:
       '@swasthya/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@swasthya/diagnostics-orders':
+        specifier: workspace:*
+        version: link:../../packages/diagnostics-orders
+      '@swasthya/engagement':
+        specifier: workspace:*
+        version: link:../../packages/engagement
       '@swasthya/entitlements':
         specifier: workspace:*
         version: link:../../packages/entitlements
+      '@swasthya/family':
+        specifier: workspace:*
+        version: link:../../packages/family
       '@swasthya/health-records':
         specifier: workspace:*
         version: link:../../packages/health-records
       '@swasthya/identity':
         specifier: workspace:*
         version: link:../../packages/identity
+      '@swasthya/immunization':
+        specifier: workspace:*
+        version: link:../../packages/immunization
+      '@swasthya/interop':
+        specifier: workspace:*
+        version: link:../../packages/interop
       '@swasthya/language-corpus':
         specifier: workspace:*
         version: link:../../packages/language-corpus
@@ -95,9 +116,15 @@ importers:
       '@swasthya/patient-registry':
         specifier: workspace:*
         version: link:../../packages/patient-registry
+      '@swasthya/population-health':
+        specifier: workspace:*
+        version: link:../../packages/population-health
       '@swasthya/prescribing':
         specifier: workspace:*
         version: link:../../packages/prescribing
+      '@swasthya/referrals':
+        specifier: workspace:*
+        version: link:../../packages/referrals
       '@swasthya/scheduling':
         specifier: workspace:*
         version: link:../../packages/scheduling
@@ -107,6 +134,9 @@ importers:
       '@swasthya/storage-adapters':
         specifier: workspace:*
         version: link:../../packages/storage-adapters
+      '@swasthya/teleconsultation':
+        specifier: workspace:*
+        version: link:../../packages/teleconsultation
       reflect-metadata:
         specifier: 0.2.2
         version: 0.2.2
@@ -256,6 +286,9 @@ importers:
       '@swasthya/entitlements':
         specifier: workspace:*
         version: link:../../packages/entitlements
+      '@swasthya/family':
+        specifier: workspace:*
+        version: link:../../packages/family
       '@swasthya/language-corpus':
         specifier: workspace:*
         version: link:../../packages/language-corpus
@@ -303,11 +336,37 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@types/node@24.1.0)(vite@8.2.1(@types/node@24.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.9)(yaml@2.9.0))
 
+  packages/analytics:
+    dependencies:
+      '@swasthya/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@types/node@24.1.0)(vite@8.2.1(@types/node@24.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.9)(yaml@2.9.0))
+
   packages/auth:
     devDependencies:
       '@types/node':
         specifier: 24.1.0
         version: 24.1.0
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@types/node@24.1.0)(vite@8.2.1(@types/node@24.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.9)(yaml@2.9.0))
+
+  packages/billing:
+    dependencies:
+      '@swasthya/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
       typescript:
         specifier: 6.0.3
         version: 6.0.3
@@ -427,7 +486,33 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@types/node@24.1.0)(vite@8.2.1(@types/node@24.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.9)(yaml@2.9.0))
 
+  packages/diagnostics-orders:
+    dependencies:
+      '@swasthya/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@types/node@24.1.0)(vite@8.2.1(@types/node@24.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.9)(yaml@2.9.0))
+
   packages/digital-twin:
+    dependencies:
+      '@swasthya/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@types/node@24.1.0)(vite@8.2.1(@types/node@24.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.9)(yaml@2.9.0))
+
+  packages/engagement:
     dependencies:
       '@swasthya/shared-types':
         specifier: workspace:*
@@ -465,6 +550,9 @@ importers:
         specifier: workspace:*
         version: link:../shared-types
     devDependencies:
+      '@swasthya/family':
+        specifier: workspace:*
+        version: link:../family
       typescript:
         specifier: 6.0.3
         version: 6.0.3
@@ -511,6 +599,19 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@types/node@24.1.0)(vite@8.2.1(@types/node@24.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.9)(yaml@2.9.0))
 
+  packages/immunization:
+    dependencies:
+      '@swasthya/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@types/node@24.1.0)(vite@8.2.1(@types/node@24.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.9)(yaml@2.9.0))
+
   packages/intent-router:
     dependencies:
       '@swasthya/health-records':
@@ -523,6 +624,9 @@ importers:
         specifier: workspace:*
         version: link:../shared-types
     devDependencies:
+      '@swasthya/family':
+        specifier: workspace:*
+        version: link:../family
       typescript:
         specifier: 6.0.3
         version: 6.0.3
@@ -583,6 +687,9 @@ importers:
       '@swasthya/shared-types':
         specifier: workspace:*
         version: link:../shared-types
+      '@swasthya/text-normalization':
+        specifier: workspace:*
+        version: link:../text-normalization
     devDependencies:
       typescript:
         specifier: 6.0.3
@@ -617,7 +724,36 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@types/node@24.1.0)(vite@8.2.1(@types/node@24.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.9)(yaml@2.9.0))
 
+  packages/population-health:
+    dependencies:
+      '@swasthya/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+      '@swasthya/text-normalization':
+        specifier: workspace:*
+        version: link:../text-normalization
+    devDependencies:
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@types/node@24.1.0)(vite@8.2.1(@types/node@24.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.9)(yaml@2.9.0))
+
   packages/prescribing:
+    dependencies:
+      '@swasthya/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@types/node@24.1.0)(vite@8.2.1(@types/node@24.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.9)(yaml@2.9.0))
+
+  packages/referrals:
     dependencies:
       '@swasthya/shared-types':
         specifier: workspace:*
@@ -689,6 +825,28 @@ importers:
       s3rver:
         specifier: 3.7.1
         version: 3.7.1
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@types/node@24.1.0)(vite@8.2.1(@types/node@24.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.9)(yaml@2.9.0))
+
+  packages/teleconsultation:
+    dependencies:
+      '@swasthya/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@types/node@24.1.0)(vite@8.2.1(@types/node@24.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.9)(yaml@2.9.0))
+
+  packages/text-normalization:
+    devDependencies:
       typescript:
         specifier: 6.0.3
         version: 6.0.3
@@ -8149,7 +8307,9 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89': {}
 

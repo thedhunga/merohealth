@@ -40,7 +40,7 @@ export class CompanionController {
       });
     const assessment = assessSafety(parsed.data.message);
     const template = assessment.templateId
-      ? getSafetyTemplate(assessment.templateId, parsed.data.language === 'en' ? 'en' : 'ne')
+      ? getSafetyTemplate(assessment.templateId, parsed.data.language)
       : null;
     return {
       assessment,
@@ -79,7 +79,7 @@ export class CompanionController {
       });
     const assessment = assessSafety(parsed.data.message);
     const template = assessment.templateId
-      ? getSafetyTemplate(assessment.templateId, parsed.data.language === 'en' ? 'en' : 'ne')
+      ? getSafetyTemplate(assessment.templateId, parsed.data.language)
       : null;
     if (assessment.interruptConversation) return { assessment, template, research: null };
     return {

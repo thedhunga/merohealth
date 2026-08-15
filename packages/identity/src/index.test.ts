@@ -14,6 +14,7 @@ import {
   raiseAssurance,
   rejectVerification,
   submitEvidence,
+  verificationQueue,
 } from './index';
 
 function makeRequest(overrides: Partial<VerificationRequest> = {}): VerificationRequest {
@@ -162,5 +163,26 @@ describe('evidence lifecycle', () => {
   it('cannot record a decision without first entering review', () => {
     const submitted = makeRequest({ status: 'EVIDENCE_SUBMITTED', evidenceImageRef: 'evidence-ref-1' });
     expect(() => approveVerification(submitted, '2026-08-02T00:00:00.000Z')).toThrow(VerificationTransitionError);
+  });
+});
+
+describe('verificationQueue', () => {
+  it('includes only EVIDENCE_SUBMITTED and UNDER_REVIEW requests, oldest submission first', () => {
+    const notStarted = makeRequest({ id: 'ver-not-started', status: 'NOT_STARTED' });
+    const submitted = makeRequest({
+      id: 'ver-submitted',
+      status: 'EVIDENCE_SUBMITTED',
+      submittedAt: '2026-08-03T00:00:00.000Z',
+    });
+    const underReview = makeRequest({
+      id: 'ver-under-review',
+      status: 'UNDER_REVIEW',
+      submittedAt: '2026-08-01T00:00:00.000Z',
+    });
+    const approved = makeRequest({ id: 'ver-approved', status: 'APPROVED', submittedAt: '2026-08-02T00:00:00.000Z' });
+
+    const queue = verificationQueue([notStarted, submitted, underReview, approved]);
+
+    expect(queue.map((request) => request.id)).toEqual(['ver-under-review', 'ver-submitted']);
   });
 });

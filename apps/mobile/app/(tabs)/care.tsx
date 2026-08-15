@@ -5,15 +5,17 @@ import { searchDirectory } from '@swasthya/care-directory';
 import type { DirectoryEntityType } from '@swasthya/shared-types';
 import { colors, radii, spacing } from '@swasthya/configuration';
 import { Pill, Screen, SectionTitle } from '@/components/ui';
-const filters: { type?: DirectoryEntityType; label: string }[] = [
-  { label: 'सबै' },
-  { type: 'HOSPITAL', label: 'अस्पताल' },
-  { type: 'SPECIALIST', label: 'विशेषज्ञ' },
-  { type: 'PHARMACY', label: 'फार्मेसी' },
-  { type: 'LABORATORY', label: 'ल्याब' },
-  { type: 'HOME_NURSE', label: 'घरमै नर्स' },
+import { useAppState } from '@/state/app-state';
+const filters: { type?: DirectoryEntityType; labelNe: string; labelEn: string }[] = [
+  { labelNe: 'सबै', labelEn: 'All' },
+  { type: 'HOSPITAL', labelNe: 'अस्पताल', labelEn: 'Hospital' },
+  { type: 'SPECIALIST', labelNe: 'विशेषज्ञ', labelEn: 'Specialist' },
+  { type: 'PHARMACY', labelNe: 'फार्मेसी', labelEn: 'Pharmacy' },
+  { type: 'LABORATORY', labelNe: 'ल्याब', labelEn: 'Laboratory' },
+  { type: 'HOME_NURSE', labelNe: 'घरमै नर्स', labelEn: 'Home nurse' },
 ];
 export default function CareScreen() {
+  const { language } = useAppState();
   const { width } = useWindowDimensions();
   const wide = width >= 760;
   const [text, setText] = useState('');
@@ -26,16 +28,20 @@ export default function CareScreen() {
     <Screen>
       <SectionTitle
         eyebrow="VERIFIED CARE NETWORK"
-        title="सही सेवा खोज्नुहोस्"
-        body="अस्पतालदेखि घरमै नर्सिङसम्म। हरेक विवरणको स्रोत र ताजापन स्पष्ट देखाइन्छ।"
+        title={language === 'en' ? 'Find the right service' : 'सही सेवा खोज्नुहोस्'}
+        body={
+          language === 'en'
+            ? "From hospitals to home nursing. Every listing's source and freshness is shown clearly."
+            : 'अस्पतालदेखि घरमै नर्सिङसम्म। हरेक विवरणको स्रोत र ताजापन स्पष्ट देखाइन्छ।'
+        }
       />
       <View style={styles.search}>
         <Search color={colors.muted} size={20} />
         <TextInput
-          accessibilityLabel="Search care directory"
+          accessibilityLabel={language === 'en' ? 'Search care directory' : 'सेवा निर्देशिका खोज्नुहोस्'}
           value={text}
           onChangeText={setText}
-          placeholder="नाम, विशेषज्ञता वा जिल्ला…"
+          placeholder={language === 'en' ? 'Name, specialty or district…' : 'नाम, विशेषज्ञता वा जिल्ला…'}
           placeholderTextColor="#82918E"
           style={styles.searchInput}
         />
@@ -43,17 +49,21 @@ export default function CareScreen() {
       <View style={styles.filters}>
         {filters.map((filter) => (
           <Pill
-            key={filter.label}
-            label={filter.label}
+            key={filter.labelEn}
+            label={language === 'en' ? filter.labelEn : filter.labelNe}
             selected={type === filter.type}
             onPress={() => setType(filter.type)}
           />
         ))}
       </View>
       <View style={styles.demo}>
-        <Text style={styles.demoTitle}>काल्पनिक प्रदर्शन विवरण</Text>
+        <Text style={styles.demoTitle}>
+          {language === 'en' ? 'Fictional demonstration listing' : 'काल्पनिक प्रदर्शन विवरण'}
+        </Text>
         <Text style={styles.demoBody}>
-          राष्ट्रिय सूची अझै जोडिएको छैन। तलका संस्था र व्यक्ति वास्तविक सेवा प्रदायक होइनन्।
+          {language === 'en'
+            ? "The national registry isn't connected yet. The organisations and individuals below are not real service providers."
+            : 'राष्ट्रिय सूची अझै जोडिएको छैन। तलका संस्था र व्यक्ति वास्तविक सेवा प्रदायक होइनन्।'}
         </Text>
       </View>
       <View style={[styles.results, wide && styles.resultsWide]}>
@@ -88,8 +98,14 @@ export default function CareScreen() {
             <View style={styles.verify}>
               <BadgeCheck color={colors.primary} size={17} />
               <Text style={styles.meta}>
-                {entity.verification === 'VERIFIED' ? 'डेमो प्रमाणित' : 'समीक्षा गरिएको'} ·{' '}
-                {new Date(entity.dataAsOf).toLocaleDateString('en-CA')}
+                {entity.verification === 'VERIFIED'
+                  ? language === 'en'
+                    ? 'Demo verified'
+                    : 'डेमो प्रमाणित'
+                  : language === 'en'
+                    ? 'Reviewed'
+                    : 'समीक्षा गरिएको'}{' '}
+                · {new Date(entity.dataAsOf).toLocaleDateString(language === 'en' ? 'en-US' : 'ne-NP')}
               </Text>
             </View>
           </View>

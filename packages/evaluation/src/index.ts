@@ -306,40 +306,21 @@ export const evaluationCases: readonly EvaluationCase[] = [
   },
   {
     id: 'janaki-advice-suffix-gap',
-    description: "A clearly sugar-related 'what should I do' question refuses as fully unrecognised.",
+    description:
+      "A clearly sugar-related 'what should I do' question refuses naming glucose, not as fully unrecognised — " +
+      'सुगरको carries the Nepali possessive suffix को glued directly onto सुगर with no space.',
     subjectId: janakiId,
     script: 'ne',
     query: 'मेरो सुगरको लागि के गर्ने?',
-    expected: { kind: 'REFUSAL', intent: 'ADVICE', reason: 'NOT_UNDERSTOOD', concepts: [] },
-    idealNote:
-      "Ideally this recognises glucose and refuses ADVICE with matchedConcepts ['glucose'], the same as any other " +
-      'ADVICE question about a concept on record — a person asking "के गर्ने" about their sugar has said something ' +
-      'specific, not nothing. It comes back fully unrecognised because `expandQuery` requires a clinical term to ' +
-      'match a *whole token* (packages/retrieval/src/index.ts `termAppears`), and Nepali glues the possessive suffix ' +
-      'को directly onto the noun with no space — सुगरको tokenizes as one token, not सुगर + को — so सुगर never matches. ' +
-      'Fixing this needs either a small suffix-stripping step in `tokenize`/`termAppears` or listing common ' +
-      'inflected forms per term; either is real work belonging to a dedicated task, not a fix hidden inside the ' +
-      'run that only built the evaluation set that found it.',
+    expected: { kind: 'REFUSAL', intent: 'ADVICE', reason: 'NO_MATCHING_RECORD', concepts: ['glucose'] },
   },
   {
     id: 'janaki-definition-marker-collision',
-    description: 'An English value question phrased with "what is" refuses instead of answering.',
+    description: 'An English "what is my current X" value question answers LATEST_VALUE, not DEFINITION.',
     subjectId: janakiId,
     script: 'en',
     query: 'What is my current blood sugar?',
-    expected: {
-      kind: 'REFUSAL',
-      intent: 'DEFINITION',
-      reason: 'NO_MATCHING_RECORD',
-      concepts: ['glucose', 'blood'],
-    },
-    idealNote:
-      'Ideally this answers LATEST_VALUE for glucose, the same as the Nepali अहिले/कति equivalent above — the ' +
-      'question asks for a value, not a definition. `classifyIntent` (packages/intent-router/src/index.ts) checks ' +
-      'DEFINITION_MARKERS before LATEST_VALUE_MARKERS, and "what is" is on the DEFINITION list for the genuine case ' +
-      '("what is thyroid") — it just also matches the opening of any "what is my current X" value question in ' +
-      'English, a collision the Nepali markers (कस्तो/अहिले/कति do not overlap के हो/अर्थ) do not have. Also worth a ' +
-      'dedicated task, not a marker-list edit tucked into this one.',
+    expected: { kind: 'ANSWERED', intent: 'LATEST_VALUE', codes: glucoseCodes },
   },
 ];
 

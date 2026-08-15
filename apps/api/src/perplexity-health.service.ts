@@ -33,7 +33,9 @@ export class PerplexityHealthService {
     const disclaimer =
       language === 'en'
         ? 'General health information only. This is not a diagnosis or a treatment recommendation.'
-        : 'यो सामान्य स्वास्थ्य जानकारी मात्र हो। यो निदान वा उपचार सिफारिस होइन।';
+        : language === 'ne-Latn'
+          ? 'Yo samanya swasthya jankari matra ho. Yo nidan wa upachar sifaris hoina.'
+          : 'यो सामान्य स्वास्थ्य जानकारी मात्र हो। यो निदान वा उपचार सिफारिस होइन।';
     const apiKey = process.env['PERPLEXITY_API_KEY'];
 
     if (!apiKey) {

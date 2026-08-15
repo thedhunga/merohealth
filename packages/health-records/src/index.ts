@@ -125,6 +125,20 @@ export function pendingConfirmations(
  * Trends — what grounds the assistant
  * ------------------------------------------------------------------ */
 
+/**
+ * `Number.parseFloat` only parses a leading numeric prefix — `"70-99"` (a
+ * reference-range string, the exact shape `HealthObservation.referenceRange`
+ * uses, which someone could paste into `value` by mistake) parses to `70`
+ * instead of being rejected. A trend point must come from a value that is
+ * numeric in full, not one that merely starts that way.
+ */
+export function parseStrictNumber(value: string): number | null {
+  const trimmed = value.trim();
+  if (trimmed === '') return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export interface AnalytePoint {
   value: number;
   unit: string | null;
@@ -166,8 +180,8 @@ export function buildAnalyteTrend(
 
   const points: AnalytePoint[] = [];
   for (const observation of matching) {
-    const value = Number.parseFloat(observation.value);
-    if (!Number.isFinite(value) || observation.effectiveAt === null) continue;
+    const value = parseStrictNumber(observation.value);
+    if (value === null || observation.effectiveAt === null) continue;
 
     points.push({
       value,

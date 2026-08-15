@@ -63,13 +63,18 @@ async function requestJson<T>(path: string, options?: RequestOptions): Promise<T
 }
 
 /**
- * No `ownerId`: Round two A4 moved `POST /documents` to owning the document
- * by the caller's verified session identity rather than a client-supplied
- * field (`apps/api/src/records/records.controller.ts`'s `capture()`). This
- * screen has no session to send yet — `apps/mobile` still has no sign-in
- * flow (see the ledger's A4 log entry) — so capture will 401 against a real
- * server until one exists. Left as-is rather than papering over it, since a
- * capture flow that quietly worked would misrepresent that gap as closed.
+ * No `ownerId` anywhere in this file: Round two A4 moved `POST /documents` to
+ * owning the document by the caller's verified session identity rather than a
+ * client-supplied field, and every other route on
+ * `apps/api/src/records/records.controller.ts` now does the same — a
+ * cross-owner read/write gap the 2026-08-13 ledger entry found and closed
+ * (the six routes below took a bare, unauthenticated `ownerId` string with no
+ * guard at all). This screen has no session to send yet — `apps/mobile` still
+ * has no sign-in flow (see `acting-subjects.ts`'s and `local-id.ts`'s own doc
+ * comments) — so every call below will 401 against a real server until one
+ * exists, the same accepted gap `captureDocument` has been in since A4. Left
+ * as-is rather than papering over it, since a records screen that quietly
+ * worked would misrepresent that gap as closed.
  */
 export interface CaptureDocumentInput {
   filename: string;
@@ -83,70 +88,60 @@ export function captureDocument(input: CaptureDocumentInput): Promise<HealthDocu
   return requestJson<HealthDocument>('/documents', { method: 'POST', body: JSON.stringify(input) });
 }
 
-export async function listDocuments(ownerId: string): Promise<readonly HealthDocument[]> {
-  const { items } = await requestJson<{ items: HealthDocument[] }>(
-    `/documents?ownerId=${encodeURIComponent(ownerId)}`,
-  );
+export async function listDocuments(): Promise<readonly HealthDocument[]> {
+  const { items } = await requestJson<{ items: HealthDocument[] }>('/documents');
   return items;
 }
 
 export async function listDocumentObservations(
   documentId: string,
-  ownerId: string,
 ): Promise<readonly HealthObservation[]> {
   const { items } = await requestJson<{ items: HealthObservation[] }>(
-    `/documents/${encodeURIComponent(documentId)}/observations?ownerId=${encodeURIComponent(ownerId)}`,
+    `/documents/${encodeURIComponent(documentId)}/observations`,
   );
   return items;
 }
 
-export async function listTimeline(ownerId: string): Promise<readonly TimelineEntry[]> {
-  const { items } = await requestJson<{ items: TimelineEntry[] }>(
-    `/timeline?ownerId=${encodeURIComponent(ownerId)}`,
-  );
+export async function listTimeline(): Promise<readonly TimelineEntry[]> {
+  const { items } = await requestJson<{ items: TimelineEntry[] }>('/timeline');
   return items;
 }
 
 /**
- * Every DRAFT observation across an owner's documents, worst-confidence
+ * Every DRAFT observation across the caller's documents, worst-confidence
  * first — the confirmation queue this screen exists to drive. There is no
- * bulk "all observations for an owner" endpoint yet, only one document at a
- * time, so this is a real N+1 against the API: acceptable for a first pass on
- * the same "reference implementation, revisit if it matters" basis
+ * bulk "all observations" endpoint yet, only one document at a time, so this
+ * is a real N+1 against the API: acceptable for a first pass on the same
+ * "reference implementation, revisit if it matters" basis
  * `MinioDocumentStore.list()`'s own per-key `statObject` N+1 already set.
  */
-export async function listPendingConfirmations(
-  ownerId: string,
-): Promise<readonly HealthObservation[]> {
-  const documents = await listDocuments(ownerId);
+export async function listPendingConfirmations(): Promise<readonly HealthObservation[]> {
+  const documents = await listDocuments();
   const perDocument = await Promise.all(
-    documents.map((document) => listDocumentObservations(document.id, ownerId)),
+    documents.map((document) => listDocumentObservations(document.id)),
   );
   return pendingConfirmations(perDocument.flat());
 }
 
-export function confirmObservation(observationId: string, ownerId: string): Promise<HealthObservation> {
+export function confirmObservation(observationId: string): Promise<HealthObservation> {
   return requestJson<HealthObservation>(`/observations/${encodeURIComponent(observationId)}/confirm`, {
     method: 'POST',
-    body: JSON.stringify({ ownerId }),
   });
 }
 
 export function correctObservation(
   observationId: string,
-  ownerId: string,
   value: string,
   unit: string | null,
 ): Promise<HealthObservation> {
   return requestJson<HealthObservation>(`/observations/${encodeURIComponent(observationId)}/correct`, {
     method: 'POST',
-    body: JSON.stringify({ ownerId, value, unit }),
+    body: JSON.stringify({ value, unit }),
   });
 }
 
-export function rejectObservation(observationId: string, ownerId: string): Promise<HealthObservation> {
+export function rejectObservation(observationId: string): Promise<HealthObservation> {
   return requestJson<HealthObservation>(`/observations/${encodeURIComponent(observationId)}/reject`, {
     method: 'POST',
-    body: JSON.stringify({ ownerId }),
   });
 }

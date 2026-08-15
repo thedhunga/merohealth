@@ -1,5 +1,6 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { StoredRef } from '@swasthya/shared-types';
+import { sanitizeFilename, sha256Hex } from './filename.js';
 import {
   assertPlacementAllowed,
   backendCapabilities,
@@ -389,11 +390,3 @@ function buildMultipartRelatedBody(
   return Buffer.concat([metadataPart, mediaHeader, Buffer.from(bytes), closing]);
 }
 
-/** Drive allows most characters in a filename, but this keeps the stored name predictable. */
-function sanitizeFilename(filename: string): string {
-  return filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-}
-
-function sha256Hex(bytes: Uint8Array): string {
-  return createHash('sha256').update(bytes).digest('hex');
-}

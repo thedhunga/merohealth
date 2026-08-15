@@ -1,6 +1,12 @@
-import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { cancelAppointment, scheduleAppointment } from '@swasthya/scheduling';
+import {
+  AppointmentAlreadyCancelledError,
+  AppointmentConflictError,
+  InvalidAppointmentWindowError,
+  cancelAppointment,
+  scheduleAppointment,
+} from '@swasthya/scheduling';
 import type { Appointment, ClinicalModuleHealth, ScheduleAppointmentInput } from '@swasthya/shared-types';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
 import { SchedulingRepository } from './scheduling.repository.js';
@@ -34,6 +40,15 @@ export class SchedulingService {
     }
   }
 
+  /**
+   * Both `schedule` and `cancel` route their `@swasthya/scheduling` call
+   * through `runTransition`: a wrong-state transition (an end time at or
+   * before its start, a double-booked clinician, cancelling an
+   * already-cancelled appointment) previously reached the client as a bare,
+   * codeless 500 — the same gap `BillingService`/`PrescribingService`/
+   * `ClinicalChartingService`/`DiagnosticsOrdersService`/`ImmunizationService`/
+   * `ReferralsService`/`TeleconsultationService` were each already fixed for.
+   */
   async schedule(input: ScheduleAppointmentInput): Promise<Appointment> {
     await this.assertPatientRegistryAvailable();
     // Resolves the opaque patientId through patient-registry's own port
@@ -41,7 +56,11 @@ export class SchedulingService {
     // registered there, the same 404 shape every other lookup in this API
     // already uses.
     this.patients.get(input.patientId);
-    return this.repository.save(scheduleAppointment(randomUUID(), input, new Date().toISOString()));
+    return this.repository.save(
+      this.runTransition(() =>
+        scheduleAppointment(randomUUID(), input, new Date().toISOString(), this.repository.list()),
+      ),
+    );
   }
 
   get(id: string): Appointment {
@@ -52,7 +71,22 @@ export class SchedulingService {
 
   async cancel(id: string): Promise<Appointment> {
     await this.assertPatientRegistryAvailable();
-    return this.repository.save(cancelAppointment(this.get(id), new Date().toISOString()));
+    return this.repository.save(this.runTransition(() => cancelAppointment(this.get(id), new Date().toISOString())));
+  }
+
+  private runTransition(transition: () => Appointment): Appointment {
+    try {
+      return transition();
+    } catch (error) {
+      if (
+        error instanceof InvalidAppointmentWindowError ||
+        error instanceof AppointmentConflictError ||
+        error instanceof AppointmentAlreadyCancelledError
+      ) {
+        throw new BadRequestException({ code: error.name, message: error.message });
+      }
+      throw error;
+    }
   }
 
   list(): Appointment[] {

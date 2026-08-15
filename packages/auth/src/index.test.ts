@@ -131,6 +131,10 @@ describe('normalizeNepaliPhone', () => {
     expect(normalizeNepaliPhone('9779812345678')).toBe('9812345678');
   });
 
+  it('accepts a bare 10-digit number that itself starts with 977, without corrupting it', () => {
+    expect(normalizeNepaliPhone('9771234567')).toBe('9771234567');
+  });
+
   it('strips spaces and hyphens', () => {
     expect(normalizeNepaliPhone('+977 981-234-5678')).toBe('9812345678');
   });
@@ -201,5 +205,9 @@ describe('parseCookieHeader', () => {
 
   it('ignores malformed pairs without an "="', () => {
     expect(parseCookieHeader('a=1; garbage; b=2')).toEqual({ a: '1', b: '2' });
+  });
+
+  it('ignores a pair whose value is not valid percent-encoding instead of throwing', () => {
+    expect(parseCookieHeader('a=1; mero_session=%; b=2')).toEqual({ a: '1', b: '2' });
   });
 });

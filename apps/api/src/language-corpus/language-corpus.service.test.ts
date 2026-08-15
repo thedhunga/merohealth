@@ -1,5 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
-import { UtteranceNotAwaitingReviewError } from '@swasthya/language-corpus';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { LanguageCorpusRepository } from './language-corpus.repository.js';
 import { LanguageCorpusService, type IngestUtteranceInput } from './language-corpus.service.js';
@@ -73,12 +72,26 @@ describe('LanguageCorpusService reviewer actions', () => {
     expect(service.auditLog('utterance-1').map((entry) => entry.action)).toEqual(['UTTERANCE_DISCARDED']);
   });
 
-  it('refuses to decide an utterance not awaiting review', () => {
+  it('refuses to decide an utterance not awaiting review, as a 400 with a code', () => {
     const service = buildService();
-    service.ingest({ ...validIngest, awaitingHumanReview: false });
+    service.ingest({ ...validIngest, id: 'a', awaitingHumanReview: false });
+    service.ingest({ ...validIngest, id: 'b', awaitingHumanReview: false });
 
-    expect(() => service.clear('utterance-1', 'reviewer-1')).toThrow(UtteranceNotAwaitingReviewError);
-    expect(() => service.discard('utterance-1', 'reviewer-1')).toThrow(UtteranceNotAwaitingReviewError);
+    try {
+      service.clear('a', 'reviewer-1');
+      expect.unreachable('expected clear to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'UtteranceNotAwaitingReviewError' });
+    }
+
+    try {
+      service.discard('b', 'reviewer-1');
+      expect.unreachable('expected discard to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'UtteranceNotAwaitingReviewError' });
+    }
   });
 
   it('404s reviewer actions against an unknown utterance', () => {

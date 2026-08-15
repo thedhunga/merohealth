@@ -1,7 +1,8 @@
 import { useTranslations } from 'next-intl';
-import { Play, Quote, Sparkles } from 'lucide-react';
+import { Play, Quote, Sparkles, User } from 'lucide-react';
 
 import { testimonialKeys } from '@/content/home';
+import { EditorialImage } from '@/components/ui/EditorialImage';
 import { hasAsset } from '@/lib/assets';
 
 const STORY_VIDEO = '/video/mero-health-story.mp4';
@@ -77,9 +78,28 @@ export function Testimonials() {
               <blockquote className="mt-5 text-lg leading-relaxed text-white text-pretty">
                 {t(`items.${key}.quote`)}
               </blockquote>
-              <footer className="mt-6 border-t border-white/12 pt-4 text-sm text-indigo-200">
-                <span className="block font-semibold text-white">{t(`items.${key}.name`)}</span>
-                {t(`items.${key}.context`)}
+              <footer className="mt-6 flex items-center gap-3 border-t border-white/12 pt-4 text-sm text-indigo-200">
+                {/*
+                  Portraits land one at a time, so each avatar falls back to a
+                  neutral placeholder rather than a broken image. The
+                  photograph is decorative — the name beside it already
+                  carries the meaning — so alt is empty.
+                */}
+                <EditorialImage
+                  alt=""
+                  className="size-11 shrink-0 rounded-full bg-white/15 ring-1 ring-white/25"
+                  fallback={
+                    <span className="relative grid size-11 shrink-0 place-items-center overflow-hidden rounded-full bg-white/15 ring-1 ring-white/25">
+                      <User aria-hidden className="size-5 text-indigo-200" />
+                    </span>
+                  }
+                  sizes="44px"
+                  src={`/imagery/portrait-${key}.webp`}
+                />
+                <span>
+                  <span className="block font-semibold text-white">{t(`items.${key}.name`)}</span>
+                  {t(`items.${key}.context`)}
+                </span>
               </footer>
             </li>
           ))}

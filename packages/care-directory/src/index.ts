@@ -14,6 +14,10 @@ export function searchDirectory(query: DirectoryQuery): DirectoryEntity[] {
     if (query.type && entity.type !== query.type) return false;
     if (query.district && entity.district !== query.district) return false;
     if (query.homeService !== undefined && entity.supportsHomeService !== query.homeService) return false;
-    return !term || [entity.name, entity.nameNe, entity.district, ...entity.specialties].some((value) => value.toLocaleLowerCase().includes(term));
+    return !term || [entity.name, entity.nameNe, entity.district, entity.municipality, ...entity.specialties].some((value) => value.toLocaleLowerCase().includes(term));
   });
+}
+/** care-directory's own port for resolving one entity by id — clinical-suite.md §2 rule 1, so `referrals` (row 12) does not reach into `fictionalDirectory` directly. */
+export function findDirectoryEntity(id: string): DirectoryEntity | undefined {
+  return fictionalDirectory.find((entity) => entity.id === id);
 }

@@ -40,7 +40,9 @@ export default function HomeScreen() {
           </View>
         </View>
         <Pressable
-          accessibilityLabel="Open updates and learning"
+          accessibilityLabel={
+            language === 'en' ? 'Open updates and learning' : 'अपडेट र सिकाइ खोल्नुहोस्'
+          }
           onPress={() => router.push('/(tabs)/learn')}
           style={styles.notification}
         >
@@ -60,8 +62,9 @@ export default function HomeScreen() {
           <Text style={styles.label}>YOUR GUIDED HEALTH COMPANION</Text>
           <Text style={styles.title}>{t(language, 'homePrompt')}</Text>
           <Text style={styles.body}>
-            आवाज वा शब्दमा भन्नुहोस्। साथीले जोखिम पहिले हेर्छ र तपाईंलाई उपयोगी अर्को कदम रोज्न
-            मद्दत गर्छ।
+            {language === 'en'
+              ? 'Say it by voice or text. Sathi checks for risk first and helps you choose a useful next step.'
+              : 'आवाज वा शब्दमा भन्नुहोस्। साथीले जोखिम पहिले हेर्छ र तपाईंलाई उपयोगी अर्को कदम रोज्न मद्दत गर्छ।'}
           </Text>
           <View style={styles.heroActions}>
             <Pressable onPress={() => router.push('/(tabs)/companion')} style={styles.ask}>
@@ -70,15 +73,19 @@ export default function HomeScreen() {
             </Pressable>
             <Pressable onPress={() => router.push('/consultation')} style={styles.video}>
               <Camera color="white" size={18} />
-              <Text style={styles.videoText}>भिडियो परामर्श</Text>
+              <Text style={styles.videoText}>
+                {language === 'en' ? 'Video consult' : 'भिडियो परामर्श'}
+              </Text>
             </Pressable>
           </View>
         </View>
         <View style={styles.orbColumn}>
-          <SathiOrb size={wide ? 126 : 88} />
+          <SathiOrb language={language} size={wide ? 126 : 88} />
           <View style={styles.voiceChip}>
             <View style={styles.voicePulse} />
-            <Text style={styles.voiceChipText}>Voice ready</Text>
+            <Text style={styles.voiceChipText}>
+              {language === 'en' ? 'Voice ready' : 'आवाज तयार'}
+            </Text>
           </View>
         </View>
       </LinearGradient>
@@ -90,7 +97,9 @@ export default function HomeScreen() {
           </View>
           <View style={styles.contextCopy}>
             <Text style={styles.contextLabel}>TODAY</Text>
-            <Text style={styles.contextTitle}>No upcoming care</Text>
+            <Text style={styles.contextTitle}>
+              {language === 'en' ? 'No upcoming care' : 'आगामी कुनै सेवा छैन'}
+            </Text>
           </View>
         </View>
         <View style={styles.contextCard}>
@@ -99,7 +108,9 @@ export default function HomeScreen() {
           </View>
           <View style={styles.contextCopy}>
             <Text style={styles.contextLabel}>CARE NETWORK</Text>
-            <Text style={styles.contextTitle}>Explore verified demo listings</Text>
+            <Text style={styles.contextTitle}>
+              {language === 'en' ? 'Explore verified demo listings' : 'प्रमाणित डेमो सूची हेर्नुहोस्'}
+            </Text>
           </View>
         </View>
       </View>
@@ -107,9 +118,13 @@ export default function HomeScreen() {
       <View style={styles.sectionHead}>
         <View>
           <Text style={styles.sectionEyebrow}>ONE PLACE, CLEAR NEXT STEPS</Text>
-          <Text style={styles.section}>तपाईंलाई के चाहिन्छ?</Text>
+          <Text style={styles.section}>
+            {language === 'en' ? 'What do you need?' : 'तपाईंलाई के चाहिन्छ?'}
+          </Text>
         </View>
-        <Text style={styles.sectionHint}>Tap any card to explore</Text>
+        <Text style={styles.sectionHint}>
+          {language === 'en' ? 'Tap any card to explore' : 'हेर्न कुनै पनि कार्ड थिच्नुहोस्'}
+        </Text>
       </View>
 
       <View style={[styles.actions, wide && styles.actionsWide]}>
@@ -118,14 +133,22 @@ export default function HomeScreen() {
             badge="AVAILABLE"
             icon={Stethoscope}
             onPress={() => router.push('/(tabs)/care')}
-            subtitle="डाक्टर, अस्पताल र घरमै सेवा"
+            subtitle={
+              language === 'en'
+                ? 'Doctors, hospitals and home service'
+                : 'डाक्टर, अस्पताल र घरमै सेवा'
+            }
             title={t(language, 'doctor')}
           />
           <ActionCard
             badge="PATIENT-CONTROLLED"
             icon={FileHeart}
             onPress={() => router.push('/(tabs)/twin')}
-            subtitle="एक–एक कदममा आफ्नो स्वास्थ्य चित्र"
+            subtitle={
+              language === 'en'
+                ? 'Your health picture, one step at a time'
+                : 'एक–एक कदममा आफ्नो स्वास्थ्य चित्र'
+            }
             title={t(language, 'record')}
             tone="jade"
           />
@@ -133,7 +156,11 @@ export default function HomeScreen() {
             badge="GUIDED PREVIEW"
             icon={Beaker}
             onPress={() => router.push('/(tabs)/learn')}
-            subtitle="जाँच, तयारी र नतिजा बुझ्ने पाठ"
+            subtitle={
+              language === 'en'
+                ? 'Lessons on tests, prep and results'
+                : 'जाँच, तयारी र नतिजा बुझ्ने पाठ'
+            }
             title={t(language, 'lab')}
             tone="forest"
           />
@@ -141,7 +168,11 @@ export default function HomeScreen() {
             badge="PHOTOGRAPH & CONFIRM"
             icon={FileText}
             onPress={() => router.push('/records')}
-            subtitle="ल्याब रिपोर्ट वा प्रेस्क्रिप्सन खिचेर थप्नुहोस्"
+            subtitle={
+              language === 'en'
+                ? 'Photograph a lab report or prescription to add it'
+                : 'ल्याब रिपोर्ट वा प्रेस्क्रिप्सन खिचेर थप्नुहोस्'
+            }
             title={t(language, 'documents')}
           />
         </View>
@@ -150,15 +181,21 @@ export default function HomeScreen() {
             badge="VIDEO ROOM"
             icon={Camera}
             onPress={() => router.push('/consultation')}
-            subtitle="क्यामेरा र कल नियन्त्रण हेर्नुहोस्"
-            title="भिडियोमा कुरा गर्नुहोस्"
+            subtitle={
+              language === 'en' ? 'See the camera and call controls' : 'क्यामेरा र कल नियन्त्रण हेर्नुहोस्'
+            }
+            title={language === 'en' ? 'Talk over video' : 'भिडियोमा कुरा गर्नुहोस्'}
             tone="forest"
           />
           <ActionCard
             badge="WORKFLOW PREVIEW"
             icon={Package}
             onPress={() => router.push('/(tabs)/learn')}
-            subtitle="प्रेस्क्रिप्सनबाट फार्मेसीसम्मको प्रक्रिया"
+            subtitle={
+              language === 'en'
+                ? 'From prescription to pharmacy, the process'
+                : 'प्रेस्क्रिप्सनबाट फार्मेसीसम्मको प्रक्रिया'
+            }
             title={t(language, 'medicines')}
             tone="warm"
           />
@@ -168,7 +205,9 @@ export default function HomeScreen() {
             onPress={() =>
               router.push({ pathname: '/(tabs)/companion', params: { demo: 'emergency' } })
             }
-            subtitle="गम्भीर संकेतका लागि तुरुन्त कदम"
+            subtitle={
+              language === 'en' ? 'Immediate steps for serious signs' : 'गम्भीर संकेतका लागि तुरुन्त कदम'
+            }
             title={t(language, 'emergency')}
             tone="danger"
           />
@@ -182,26 +221,34 @@ export default function HomeScreen() {
         <View style={styles.healthStoryCopy}>
           <Text style={styles.healthStoryKicker}>YOUR HEALTH STORY</Text>
           <Text style={styles.healthStoryTitle}>
-            A useful picture grows one confirmed fact at a time.
+            {language === 'en'
+              ? 'A useful picture grows one confirmed fact at a time.'
+              : 'उपयोगी चित्र एक–एक पुष्टि भएको तथ्यबाट बन्छ।'}
           </Text>
           <Text style={styles.healthStoryBody}>
-            No mysterious score. No prediction pretending to be certainty. You can skip, correct,
-            and control future sharing.
+            {language === 'en'
+              ? 'No mysterious score. No prediction pretending to be certainty. You can skip, correct, and control future sharing.'
+              : 'कुनै रहस्यमय अंक छैन। निश्चितताको नक्कल गर्ने भविष्यवाणी छैन। तपाईं छोड्न, सच्याउन र भविष्यको साझेदारी नियन्त्रण गर्न सक्नुहुन्छ।'}
           </Text>
         </View>
         <Pressable onPress={() => router.push('/(tabs)/twin')} style={styles.storyButton}>
           <Sparkles color={colors.primaryDark} size={17} />
-          <Text style={styles.storyButtonText}>Build my picture</Text>
+          <Text style={styles.storyButtonText}>
+            {language === 'en' ? 'Build my picture' : 'मेरो चित्र बनाउनुहोस्'}
+          </Text>
         </Pressable>
       </View>
 
       <View style={styles.trust}>
         <ShieldCheck color={colors.primary} size={22} />
         <View style={styles.trustCopy}>
-          <Text style={styles.trustTitle}>साथी डाक्टर होइन</Text>
+          <Text style={styles.trustTitle}>
+            {language === 'en' ? 'Sathi is not a doctor' : 'साथी डाक्टर होइन'}
+          </Text>
           <Text style={styles.trustBody}>
-            जानकारी, तयारी र सेवा खोज्न मद्दत गर्छ। निदान, उपचार र प्रेस्क्रिप्सन अधिकृत
-            स्वास्थ्यकर्मीले गर्छन्।
+            {language === 'en'
+              ? 'It helps you find information, preparation and services. Diagnosis, treatment and prescriptions are done by authorised health workers.'
+              : 'जानकारी, तयारी र सेवा खोज्न मद्दत गर्छ। निदान, उपचार र प्रेस्क्रिप्सन अधिकृत स्वास्थ्यकर्मीले गर्छन्।'}
           </Text>
         </View>
       </View>

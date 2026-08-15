@@ -1,4 +1,4 @@
-import { isTrusted, selectTrusted } from '@swasthya/health-records';
+import { isTrusted, parseStrictNumber, selectTrusted } from '@swasthya/health-records';
 import type { HealthDocument, HealthObservation } from '@swasthya/shared-types';
 
 /* ------------------------------------------------------------------ *
@@ -148,8 +148,8 @@ export function toFhirObservation(observation: HealthObservation): FhirObservati
     throw new UntrustedObservationError(observation.id, observation.status);
   }
 
-  const numericValue = Number.parseFloat(observation.value);
-  const isNumeric = Number.isFinite(numericValue) && observation.value.trim() !== '';
+  const numericValue = parseStrictNumber(observation.value);
+  const isNumeric = numericValue !== null;
 
   const resource: FhirObservation = {
     resourceType: 'Observation',
@@ -245,6 +245,17 @@ export class ShareLinkError extends Error {
   }
 }
 
+/**
+ * `platform-vision.md` §3.3 specs a "time-limited" share link, not an
+ * indefinite one — 30 days, matching `packages/auth`'s own `SESSION_TTL_MS`,
+ * the longest lifetime already trusted elsewhere in this system. Without a
+ * ceiling, `issueShareLink` only rejected `ttlSeconds <= 0`, so an owner
+ * could request e.g. `Number.MAX_SAFE_INTEGER` and get a link that a
+ * clinician-facing, unauthenticated `GET /interop/share/:token` route would
+ * then honour effectively forever.
+ */
+export const MAX_SHARE_LINK_TTL_SECONDS = 30 * 24 * 60 * 60;
+
 export class ShareLinkNotActiveError extends Error {
   constructor(token: string) {
     super(`Share link is expired or revoked.`);
@@ -279,6 +290,9 @@ export function issueShareLink(request: IssueShareLinkRequest): ShareLink {
   }
   if (request.ttlSeconds <= 0) {
     throw new ShareLinkError('A share link must have a positive time limit.');
+  }
+  if (request.ttlSeconds > MAX_SHARE_LINK_TTL_SECONDS) {
+    throw new ShareLinkError(`A share link cannot exceed ${MAX_SHARE_LINK_TTL_SECONDS} seconds (30 days).`);
   }
 
   const expiresAt = new Date(Date.parse(request.createdAt) + request.ttlSeconds * 1000).toISOString();

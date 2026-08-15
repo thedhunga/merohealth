@@ -311,6 +311,22 @@ describe('GoogleDriveDocumentStore', () => {
     await expect(store.delete(hostedRef)).rejects.toThrow(/cannot resolve a HOSTED ref/);
   });
 
+  it('preserves Devanagari and other non-ASCII characters in the stored filename', async () => {
+    const store = makeStore('owner-7');
+    const ref = await store.put({ ownerId: 'owner-7', filename: 'प्रयोगशाला रिपोर्ट.jpg', blob: encrypted });
+    expect(mock.files.get(ref.externalId)?.name).toBe('प्रयोगशाला रिपोर्ट.jpg');
+  });
+
+  it('still replaces control characters and filesystem-reserved characters with underscores', async () => {
+    const store = makeStore('owner-8');
+    const ref = await store.put({
+      ownerId: 'owner-8',
+      filename: 'a/b\\c:d*e?f"g<h>i|j.jpg',
+      blob: encrypted,
+    });
+    expect(mock.files.get(ref.externalId)?.name).toBe('a_b_c_d_e_f_g_h_i_j.jpg');
+  });
+
   it('deleting an already-gone file does not throw', async () => {
     const store = makeStore('owner-5');
     const ref = await store.put({ ownerId: 'owner-5', filename: 'a.jpg', blob: encrypted });

@@ -1,34 +1,51 @@
 import { Injectable } from '@nestjs/common';
 import { buildModuleRegistry, collectHealthStates, resolveAvailability, type ModuleRegistry, type ResolvedModule } from '@swasthya/module-registry';
+import { createAnalyticsModuleDescriptor } from '../analytics/analytics.module-descriptor.js';
+import { AnalyticsService } from '../analytics/analytics.service.js';
+import { createBillingModuleDescriptor } from '../billing/billing.module-descriptor.js';
+import { BillingService } from '../billing/billing.service.js';
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
 import { createClinicalChartingModuleDescriptor } from '../clinical-charting/clinical-charting.module-descriptor.js';
 import { ClinicalSummaryService } from '../clinical-summary/clinical-summary.service.js';
 import { createClinicalSummaryModuleDescriptor } from '../clinical-summary/clinical-summary.module-descriptor.js';
+import { createDiagnosticsOrdersModuleDescriptor } from '../diagnostics-orders/diagnostics-orders.module-descriptor.js';
+import { DiagnosticsOrdersService } from '../diagnostics-orders/diagnostics-orders.service.js';
+import { createEngagementModuleDescriptor } from '../engagement/engagement.module-descriptor.js';
+import { EngagementService } from '../engagement/engagement.service.js';
+import { createImmunizationModuleDescriptor } from '../immunization/immunization.module-descriptor.js';
+import { ImmunizationService } from '../immunization/immunization.service.js';
+import { createInteropModuleDescriptor } from '../interop/interop.module-descriptor.js';
+import { InteropService } from '../interop/interop.service.js';
 import { MedicationSafetyService } from '../medication-safety/medication-safety.service.js';
 import { createMedicationSafetyModuleDescriptor } from '../medication-safety/medication-safety.module-descriptor.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
 import { createPatientRegistryModuleDescriptor } from '../patient-registry/patient-registry.module-descriptor.js';
+import { createPopulationHealthModuleDescriptor } from '../population-health/population-health.module-descriptor.js';
+import { PopulationHealthService } from '../population-health/population-health.service.js';
 import { PrescribingService } from '../prescribing/prescribing.service.js';
 import { createPrescribingModuleDescriptor } from '../prescribing/prescribing.module-descriptor.js';
 import { RecordsService } from '../records/records.service.js';
 import { createHealthRecordsModuleDescriptor } from '../records/records.module-descriptor.js';
+import { createReferralsModuleDescriptor } from '../referrals/referrals.module-descriptor.js';
+import { ReferralsService } from '../referrals/referrals.service.js';
 import { SchedulingService } from '../scheduling/scheduling.service.js';
 import { createSchedulingModuleDescriptor } from '../scheduling/scheduling.module-descriptor.js';
+import { TeleconsultationService } from '../teleconsultation/teleconsultation.service.js';
+import { createTeleconsultationModuleDescriptor } from '../teleconsultation/teleconsultation.module-descriptor.js';
 
 /**
  * clinical-suite.md §2 rule 5: "the shell renders around holes." Every
- * module up to `prescribing` (capability map rows 1–6, plus `HEALTH_RECORDS`
- * from row 16, which `clinical-charting` already degrades against) ships its
- * own `ModuleDescriptor` and its own fault-isolation test proving *its*
- * `requires`/`degradesWith` edges resolve correctly in a registry built just
- * for that test. None of those ad hoc registries is the one a future shell
- * would actually query — each covers only the two or three modules the test
- * at hand needs. This service builds the one real registry, from the same
- * DI-wired service instances the rest of the app runs on, so there is a
- * single place that answers "what is available right now, and in what mode"
- * across the whole suite. It has no domain logic of its own — every fact it
- * reports is computed by `@swasthya/module-registry`, already proven correct
- * by each module's own fault-isolation test.
+ * module up to `immunization` (capability map rows 1–7, 9, 10, 12–18) ships
+ * its own `ModuleDescriptor` and its own fault-isolation test
+ * proving *its* `requires`/`degradesWith` edges resolve correctly in a
+ * registry built just for that test. None of those ad hoc registries is the
+ * one a future shell would actually query — each covers only the two or
+ * three modules the test at hand needs. This service builds the one real
+ * registry, from the same DI-wired service instances the rest of the app
+ * runs on, so there is a single place that answers "what is available right
+ * now, and in what mode" across the whole suite. It has no domain logic of
+ * its own — every fact it reports is computed by `@swasthya/module-registry`,
+ * already proven correct by each module's own fault-isolation test.
  */
 @Injectable()
 export class ClinicalSuiteService {
@@ -42,6 +59,15 @@ export class ClinicalSuiteService {
     summary: ClinicalSummaryService,
     medicationSafety: MedicationSafetyService,
     prescribing: PrescribingService,
+    diagnosticsOrders: DiagnosticsOrdersService,
+    teleconsultation: TeleconsultationService,
+    billing: BillingService,
+    referrals: ReferralsService,
+    populationHealth: PopulationHealthService,
+    analytics: AnalyticsService,
+    engagement: EngagementService,
+    interop: InteropService,
+    immunization: ImmunizationService,
   ) {
     // Built once, at DI wiring time, per `buildModuleRegistry`'s own
     // contract: a typo'd or missing dependency key fails app bootstrap
@@ -55,6 +81,15 @@ export class ClinicalSuiteService {
       createClinicalSummaryModuleDescriptor(summary),
       createMedicationSafetyModuleDescriptor(medicationSafety),
       createPrescribingModuleDescriptor(prescribing),
+      createDiagnosticsOrdersModuleDescriptor(diagnosticsOrders),
+      createTeleconsultationModuleDescriptor(teleconsultation),
+      createBillingModuleDescriptor(billing),
+      createReferralsModuleDescriptor(referrals),
+      createPopulationHealthModuleDescriptor(populationHealth),
+      createAnalyticsModuleDescriptor(analytics),
+      createEngagementModuleDescriptor(engagement),
+      createInteropModuleDescriptor(interop),
+      createImmunizationModuleDescriptor(immunization),
     ]);
   }
 

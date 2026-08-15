@@ -4,6 +4,34 @@ The first public release is a product demonstration with fictional data. Promoti
 
 ## Gate A - public fictional-data demonstration
 
+Closing this gate is also what should decide whether `robots` stops emitting
+`noindex`. Today that flip is wired to a single code signal:
+`apps/web/src/app/robots.ts` and every page's metadata both key off
+`isDemonstrationBuild` (`apps/web/src/lib/seo.ts`), which is
+`packages/configuration`'s `legalEntity.registrationId` leaving `null`.
+Registering a real legal entity is the one change that reopens indexing in
+code — but the registration id alone does not make indexing appropriate.
+Everything below has to be true first, starting with these four:
+
+- [ ] Every piece of copy touching clinical content has been reviewed by a
+      qualified Nepali-licensed clinician, not drafted and published
+      unreviewed.
+- [ ] Every quantitative claim in public copy (user counts, outcomes,
+      coverage, savings) is a substantiated figure with a recorded source. An
+      unsubstantiated figure is removed, never rounded or hedged into
+      publishing anyway — the same invent-no-facts rule the build ledger
+      holds everywhere else applies to marketing copy too.
+- [ ] The footer's demonstration notice (`footer.demoNotice`) is removed only
+      once no fictional provider, testimonial, or facility record remains
+      anywhere in the build being indexed — not merely once the legal entity
+      is registered. Registering the entity and clearing the notice are two
+      separate facts and both must hold.
+- [ ] `packages/configuration`'s `legalEntity` carries a real registered
+      address, not just a non-null `registrationId` — the current
+      `displayName` placeholder (`"Demonstration entity — configure before
+      launch"`) and the absence of any address field are both signals this
+      has not happened yet.
+
 - [ ] Brand name, logo, copy, and domain ownership approved.
 - [ ] Privacy notice and terms for the demonstration published and reviewed by counsel.
 - [ ] Every data-entry surface says not to enter real patient information.

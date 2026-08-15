@@ -121,17 +121,31 @@ function tokenize(text: string): readonly string[] {
 }
 
 /**
+ * Nepali glues its genitive/possessive case markers directly onto the noun
+ * with no space (सुगर + को → सुगरको), so `tokenize` — which only splits on
+ * non-letter boundaries — hands back the inflected form as a single token
+ * that a bare `queryTokens.includes(normalizedTerm)` check never matches.
+ * `मेरो सुगरको लागि के गर्ने?` ("what should I do for my sugar?") is exactly
+ * this: सुगर never fires because the query only contains सुगरको. Stripping
+ * just these three, rather than adding a general suffix-stripping pass to
+ * `tokenize` itself, keeps the fix scoped to the one gap it closes instead
+ * of changing how every term in the map is matched.
+ */
+const POSSESSIVE_SUFFIXES = ['को', 'की', 'का'] as const;
+
+/**
  * A single-word term must match a whole token (so the two-letter `bp` form
- * doesn't fire inside an unrelated word); a multi-word term (`blood sugar`,
+ * doesn't fire inside an unrelated word) or that same token with a Nepali
+ * possessive suffix glued on; a multi-word term (`blood sugar`,
  * `rakta sharkara`) is checked as a phrase against the normalized query
  * instead, since tokenizing would lose the adjacency that makes it a phrase.
  */
 function termAppears(term: string, normalizedQuery: string, queryTokens: readonly string[]): boolean {
   const normalizedTerm = normalize(term);
   if (normalizedTerm.length === 0) return false;
-  return normalizedTerm.includes(' ')
-    ? normalizedQuery.includes(normalizedTerm)
-    : queryTokens.includes(normalizedTerm);
+  if (normalizedTerm.includes(' ')) return normalizedQuery.includes(normalizedTerm);
+  if (queryTokens.includes(normalizedTerm)) return true;
+  return POSSESSIVE_SUFFIXES.some((suffix) => queryTokens.includes(normalizedTerm + suffix));
 }
 
 export interface ExpandedQuery {

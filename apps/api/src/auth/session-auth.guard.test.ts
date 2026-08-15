@@ -86,4 +86,11 @@ describe('SessionAuthGuard', () => {
 
     await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
   });
+
+  it('rejects a cookie with invalid percent-encoding as a clean 401, not an unhandled URIError', async () => {
+    const guard = new SessionAuthGuard(auth);
+    const context = makeContext({ headers: { cookie: `${SESSION_COOKIE_NAME}=%` } });
+
+    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+  });
 });

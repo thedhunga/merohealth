@@ -1,13 +1,15 @@
-import { BadRequestException, Body, Controller, Get, Headers, Param, Post, UseGuards } from '@nestjs/common';
-import { ApiBody, ApiHeader, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
+import type { CurrentUserResult } from '../auth/auth.service.js';
+import { CurrentUser } from '../auth/current-user.decorator.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { CredentialingService } from './credentialing.service.js';
-import { REVIEWER_ID_HEADER, ReviewerGuard } from './reviewer.guard.js';
+import { ReviewerGuard } from './reviewer.guard.js';
 
 const councilKeySchema = z.enum(['NMC', 'NNC', 'NHPC', 'PHARMACY_COUNCIL', 'AYURVEDIC_COUNCIL']);
 
 const submitSchema = z.object({
-  applicantId: z.string().trim().min(1),
   council: councilKeySchema,
   registrationNumber: z.string().trim().min(1),
   certificateImageRef: z.string().trim().min(1),
@@ -30,33 +32,27 @@ function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
   return parsed.data;
 }
 
-/**
- * `ReviewerGuard` already rejects any request missing this header before a
- * handler runs; re-checked here only so a route that ever loses its
- * `@UseGuards(ReviewerGuard)` fails loudly instead of passing `undefined`
- * through to an audit log entry.
- */
-function requireReviewerId(reviewerId: string | undefined): string {
-  const parsed = z.string().trim().min(1).safeParse(reviewerId);
-  if (!parsed.success) {
-    throw new BadRequestException({ code: 'VALIDATION_ERROR', message: `${REVIEWER_ID_HEADER} is required` });
-  }
-  return parsed.data;
-}
-
 @ApiTags('credentialing')
 @Controller('credentialing')
 export class CredentialingController {
   constructor(private readonly credentialing: CredentialingService) {}
 
+  // Every other route on this controller runs behind `SessionAuthGuard`
+  // (see `ReviewerGuard`'s own doc comment for that history) but this one
+  // never did, and `applicantId` was an ordinary body field — an
+  // unauthenticated caller could submit or resubmit an application under any
+  // known/guessed subject id, clobbering that person's pending submission
+  // with forged evidence for a reviewer to later approve. The applicant id
+  // now comes from the verified session, matching `FamilyGrantsController`'s
+  // `createDelegation` convention, not the request body.
   @Post('applications')
+  @UseGuards(SessionAuthGuard)
   @ApiOperation({ summary: 'Submit, or resubmit after rejection, a council application' })
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['applicantId', 'council', 'registrationNumber', 'certificateImageRef', 'identityImageRef'],
+      required: ['council', 'registrationNumber', 'certificateImageRef', 'identityImageRef'],
       properties: {
-        applicantId: { type: 'string' },
         council: { enum: councilKeySchema.options },
         registrationNumber: { type: 'string' },
         certificateImageRef: { type: 'string' },
@@ -64,66 +60,72 @@ export class CredentialingController {
       },
     },
   })
-  submit(@Body() body: unknown) {
-    return this.credentialing.submit(parseOrThrow(submitSchema, body));
+  submit(@CurrentUser() user: CurrentUserResult, @Body() body: unknown) {
+    const input = parseOrThrow(submitSchema, body);
+    return this.credentialing.submit({ ...input, applicantId: user.subjectId });
   }
 
   @Get('queue')
-  @UseGuards(ReviewerGuard)
-  @ApiHeader({ name: REVIEWER_ID_HEADER, required: true })
+  @UseGuards(SessionAuthGuard, ReviewerGuard)
   @ApiOperation({ summary: 'Applications awaiting review, oldest submission first' })
   queue() {
     const items = this.credentialing.queue();
     return { items, total: items.length };
   }
 
+  // Registered ahead of `applications/:applicationId` below — same ordering
+  // `identity.controller.ts`'s `verification/me` uses, since Nest/Express
+  // resolves GET routes for one controller in declaration order and a
+  // dynamic param would otherwise swallow the literal path `me`.
+  @Get('applications/me')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: "The signed-in caller's own credentialing application, or null if she has never submitted one" })
+  mine(@CurrentUser() user: CurrentUserResult) {
+    return this.credentialing.findMine(user.subjectId);
+  }
+
   @Get('applications/:applicationId')
-  @UseGuards(ReviewerGuard)
-  @ApiHeader({ name: REVIEWER_ID_HEADER, required: true })
+  @UseGuards(SessionAuthGuard, ReviewerGuard)
   @ApiParam({ name: 'applicationId' })
   @ApiOperation({ summary: "Open one application to read its evidence — logged per identity-and-credentialing.md §4" })
-  read(@Param('applicationId') applicationId: string, @Headers(REVIEWER_ID_HEADER) reviewerId?: string) {
-    return this.credentialing.read(applicationId, requireReviewerId(reviewerId));
+  read(@CurrentUser() user: CurrentUserResult, @Param('applicationId') applicationId: string) {
+    return this.credentialing.read(applicationId, user.subjectId);
   }
 
   @Post('applications/:applicationId/begin-review')
-  @UseGuards(ReviewerGuard)
-  @ApiHeader({ name: REVIEWER_ID_HEADER, required: true })
+  @UseGuards(SessionAuthGuard, ReviewerGuard)
   @ApiParam({ name: 'applicationId' })
   @ApiOperation({ summary: 'A reviewer picks the application up off the queue' })
-  beginReview(@Param('applicationId') applicationId: string, @Headers(REVIEWER_ID_HEADER) reviewerId?: string) {
-    return this.credentialing.beginReview(applicationId, requireReviewerId(reviewerId));
+  beginReview(@CurrentUser() user: CurrentUserResult, @Param('applicationId') applicationId: string) {
+    return this.credentialing.beginReview(applicationId, user.subjectId);
   }
 
   @Post('applications/:applicationId/approve')
-  @UseGuards(ReviewerGuard)
-  @ApiHeader({ name: REVIEWER_ID_HEADER, required: true })
+  @UseGuards(SessionAuthGuard, ReviewerGuard)
   @ApiParam({ name: 'applicationId' })
   @ApiOperation({ summary: 'Record an approval — clears the evidence images per §4' })
-  approve(@Param('applicationId') applicationId: string, @Headers(REVIEWER_ID_HEADER) reviewerId?: string) {
-    return this.credentialing.approve(applicationId, requireReviewerId(reviewerId));
+  approve(@CurrentUser() user: CurrentUserResult, @Param('applicationId') applicationId: string) {
+    return this.credentialing.approve(applicationId, user.subjectId);
   }
 
   @Post('applications/:applicationId/reject')
-  @UseGuards(ReviewerGuard)
-  @ApiHeader({ name: REVIEWER_ID_HEADER, required: true })
+  @UseGuards(SessionAuthGuard, ReviewerGuard)
   @ApiParam({ name: 'applicationId' })
   @ApiBody({
     schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string' } } },
   })
   @ApiOperation({ summary: 'Record a rejection with a reason the applicant can act on when resubmitting' })
   reject(
+    @CurrentUser() user: CurrentUserResult,
     @Param('applicationId') applicationId: string,
     @Body() body: unknown,
-    @Headers(REVIEWER_ID_HEADER) reviewerId?: string,
   ) {
     const input = parseOrThrow(rejectSchema, body);
-    return this.credentialing.reject(applicationId, requireReviewerId(reviewerId), input.reason);
+    return this.credentialing.reject(applicationId, user.subjectId, input.reason);
   }
 
   @Get('applications/:applicationId/audit-log')
-  @UseGuards(ReviewerGuard)
-  @ApiHeader({ name: REVIEWER_ID_HEADER, required: true })
+  @UseGuards(SessionAuthGuard, ReviewerGuard)
   @ApiParam({ name: 'applicationId' })
   @ApiOperation({ summary: "Who read this application's evidence and who decided it, oldest first" })
   auditLog(@Param('applicationId') applicationId: string) {

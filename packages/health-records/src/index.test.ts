@@ -192,6 +192,17 @@ describe('buildAnalyteTrend', () => {
     expect(buildAnalyteTrend(messy, '2160-0')?.points).toHaveLength(1);
   });
 
+  it('drops a value that only starts with digits, e.g. a range accidentally entered as the value', () => {
+    // `Number.parseFloat` would read "70-99" as 70 — a leading-prefix parse,
+    // not a full-string one — and silently insert a wrong data point.
+    const messy = [
+      makeObservation({ id: 'o1', value: '70-99', effectiveAt: '2026-01-01' }),
+      makeObservation({ id: 'o2', value: '1.2', effectiveAt: '2026-02-01' }),
+    ];
+
+    expect(buildAnalyteTrend(messy, '2160-0')?.points).toHaveLength(1);
+  });
+
   it('returns null when the analyte is absent', () => {
     expect(buildAnalyteTrend(series, '9999-9')).toBeNull();
   });

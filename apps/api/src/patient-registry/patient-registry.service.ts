@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { registerPatient, updateDemographics } from '@swasthya/patient-registry';
+import { FutureDateOfBirthError, registerPatient, updateDemographics } from '@swasthya/patient-registry';
 import type {
   ClinicalModuleHealth,
   PatientDemographics,
@@ -14,7 +14,9 @@ export class PatientRegistryService {
   constructor(private readonly repository: PatientRegistryRepository) {}
 
   register(demographics: PatientDemographics): PatientRecord {
-    return this.repository.save(registerPatient(randomUUID(), demographics, new Date().toISOString()));
+    return this.repository.save(
+      this.#runTransition(() => registerPatient(randomUUID(), demographics, new Date().toISOString())),
+    );
   }
 
   get(id: string): PatientRecord {
@@ -24,7 +26,9 @@ export class PatientRegistryService {
   }
 
   updateDemographics(id: string, updates: PatientDemographicsPatch): PatientRecord {
-    return this.repository.save(updateDemographics(this.get(id), updates, new Date().toISOString()));
+    return this.repository.save(
+      this.#runTransition(() => updateDemographics(this.get(id), updates, new Date().toISOString())),
+    );
   }
 
   list(): PatientRecord[] {
@@ -40,5 +44,26 @@ export class PatientRegistryService {
    */
   health(): Promise<ClinicalModuleHealth> {
     return Promise.resolve({ status: 'UP' });
+  }
+
+  /**
+   * `registerPatient`/`updateDemographics` both throw `FutureDateOfBirthError`
+   * on an impossible birth date — previously uncaught, so it reached the
+   * client as a bare, codeless 500 instead of an explainable 400. The same
+   * wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the rest of
+   * `apps/api` has already been fixed for module by module; this service was
+   * missed because its one domain error is an input-plausibility rejection,
+   * not a state-machine transition, but the uncaught shape — and the fix —
+   * are identical.
+   */
+  #runTransition(transition: () => PatientRecord): PatientRecord {
+    try {
+      return transition();
+    } catch (error) {
+      if (error instanceof FutureDateOfBirthError) {
+        throw new BadRequestException({ code: error.name, message: error.message });
+      }
+      throw error;
+    }
   }
 }

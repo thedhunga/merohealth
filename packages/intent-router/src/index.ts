@@ -68,11 +68,16 @@ export function classifyIntent(query: string): IntentClassification {
 
   if (includesAny(normalizedQuery, ADVICE_MARKERS)) return { intent: 'ADVICE', matchedConcepts };
   if (matchedConcepts.length === 0) return { intent: 'UNSUPPORTED', matchedConcepts: [] };
-  if (includesAny(normalizedQuery, DEFINITION_MARKERS)) return { intent: 'DEFINITION', matchedConcepts };
-  if (includesAny(normalizedQuery, COMPARISON_MARKERS)) return { intent: 'COMPARISON', matchedConcepts };
+  // LATEST_VALUE is checked ahead of DEFINITION: English "what is my current
+  // X" collides with DEFINITION_MARKERS' "what is" (needed for the genuine
+  // "what is thyroid" case) while also carrying a LATEST_VALUE_MARKERS word
+  // ("current"). The Nepali markers do not collide this way (के हो/अर्थ never
+  // overlap कस्तो/अहिले/कति), so this only changes English routing.
   if (includesAny(normalizedQuery, LATEST_VALUE_MARKERS) && !includesAny(normalizedQuery, TREND_MARKERS)) {
     return { intent: 'LATEST_VALUE', matchedConcepts };
   }
+  if (includesAny(normalizedQuery, DEFINITION_MARKERS)) return { intent: 'DEFINITION', matchedConcepts };
+  if (includesAny(normalizedQuery, COMPARISON_MARKERS)) return { intent: 'COMPARISON', matchedConcepts };
   return { intent: 'TREND', matchedConcepts };
 }
 

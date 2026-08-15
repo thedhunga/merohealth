@@ -89,6 +89,7 @@
     },
     "actions": {
       "signIn": "Sign in",
+      "account": "My account",
       "register": "Register now",
       "openMenu": "Open menu",
       "closeMenu": "Close menu",
@@ -760,9 +761,17 @@
       "status": {
         "heading": "Application submitted",
         "body": "Your application is waiting for a trained reviewer to check your registration number against {council}'s public register. Nobody has reviewed it yet, and no badge is issued until they do.",
+        "approved": "Your application has been approved and your verified badge is live.",
+        "rejected": "Not approved: {reason}",
         "referenceLabel": "Application reference",
-        "demoNotice": "This demonstration build isn't connected to a live review team yet, so this application only exists in this browser tab — reloading the page will clear it.",
+        "demoNotice": "This demonstration build genuinely registers your application for review, but certificate and ID photos aren't uploaded to any real storage yet — only their file names are recorded.",
         "startOverCta": "Start a new application"
+      },
+      "loading": "Loading…",
+      "errors": {
+        "VALIDATION_ERROR": "Check the form and try again.",
+        "ApplicationTransitionError": "You already have an application that's under review or approved — it can't be submitted again.",
+        "GENERIC": "Something went wrong — please try again."
       }
     },
     "ourProviders": {
@@ -1279,12 +1288,6 @@
         "codePlaceholder": "000000",
         "backCta": "Change number",
         "submitCta": "Sign in"
-      },
-      "success": {
-        "heading": "You're signed in",
-        "body": "Signed in as {phone}.",
-        "noAppNotice": "Mero Health's app is still being built — this confirms your account exists, but there is nowhere to use it yet.",
-        "homeCta": "Back to home"
       }
     },
     "register": {
@@ -1311,13 +1314,106 @@
         "codePlaceholder": "000000",
         "backCta": "Change number",
         "submitCta": "Create account"
-      },
-      "success": {
-        "heading": "Account created",
-        "body": "Your account for {phone} is ready.",
-        "noAppNotice": "Mero Health's app is still being built — this confirms your account exists, but there is nowhere to use it yet.",
-        "homeCta": "Back to home"
       }
+    }
+  },
+  "account": {
+    "hero": {
+      "eyebrow": "Account",
+      "title": "You're signed in to Mero Health",
+      "body": "From here you can check your identity, open the real app, and sign out."
+    },
+    "loading": "Loading…",
+    "switcher": {
+      "label": "Whose record is open?",
+      "self": "You",
+      "guardianSuffix": "guardian",
+      "delegateSuffix": "delegate"
+    },
+    "identity": {
+      "heading": "Your identity",
+      "phoneLabel": "Phone number",
+      "assuranceLabel": "Verification level",
+      "assurance": {
+        "ANONYMOUS": "Not verified",
+        "REGISTERED": "Phone verified",
+        "IDENTITY_VERIFIED": "Identity verified"
+      }
+    },
+    "identityVerification": {
+      "heading": "Verify your identity",
+      "body": "Sharing your record with a provider and video consultations both require your identity to be checked once — separate from the phone verification you already have, and only asked for when a feature actually needs it.",
+      "documentTypeLabel": "Document type",
+      "documentTypes": {
+        "NATIONAL_ID": "National ID",
+        "CITIZENSHIP": "Citizenship certificate",
+        "PASSPORT": "Passport",
+        "DRIVING_LICENCE": "Driving licence"
+      },
+      "evidence": {
+        "label": "Photo of your document",
+        "hint": "A clear photo of the front of your document.",
+        "chooseFile": "Choose photo",
+        "changeFile": "Change photo"
+      },
+      "submitCta": "Submit for review",
+      "resubmitCta": "Resubmit",
+      "status": {
+        "pending": "Submitted — a reviewer will check this soon.",
+        "approved": "Your identity is verified.",
+        "rejected": "Not approved: {reason}"
+      },
+      "errors": {
+        "VALIDATION_ERROR": "Check your document type and photo, then try again.",
+        "VerificationTransitionError": "You already have a submission being reviewed.",
+        "GENERIC": "Something went wrong — please try again."
+      }
+    },
+    "delegation": {
+      "heading": "Give someone access",
+      "body": "Share scoped, revocable access to your record with someone you trust — a spouse, an adult child, a caregiver. They will see only what you check below.",
+      "phoneLabel": "Their phone number",
+      "phonePlaceholder": "98XXXXXXXX",
+      "scopesLabel": "What they may do",
+      "scopes": {
+        "VIEW_RECORD": "View your record",
+        "ASK_ASSISTANT": "Ask the assistant on your behalf",
+        "MANAGE_APPOINTMENTS": "Manage your appointments",
+        "UPLOAD_DOCUMENTS": "Upload documents for you"
+      },
+      "expiresLabel": "Access ends on",
+      "submitCta": "Grant access",
+      "success": "Access granted. They can act on your behalf until the date you chose.",
+      "errors": {
+        "INVALID_PHONE": "That doesn't look like a Nepali mobile number.",
+        "DELEGATE_NOT_FOUND": "No registered Mero Health account uses that phone number.",
+        "SelfDelegationError": "You can't grant access to your own account.",
+        "EmptyDelegationScopeError": "Choose at least one thing they may do.",
+        "InvalidDelegationExpiryError": "Choose a date after today.",
+        "DELEGATION_NOT_FOUND": "That access grant no longer exists.",
+        "VALIDATION_ERROR": "Check the form and try again.",
+        "GENERIC": "Something went wrong — please try again."
+      },
+      "granted": {
+        "heading": "Access you've granted",
+        "empty": "You haven't granted anyone access yet.",
+        "delegateLabel": "Delegate:",
+        "status": {
+          "active": "Active",
+          "revoked": "Revoked",
+          "expired": "Expired"
+        },
+        "revokeCta": "Revoke access",
+        "revoking": "Revoking…"
+      }
+    },
+    "openApp": {
+      "heading": "Open the Mero Health app",
+      "body": "Your health record, documents and assistant live there.",
+      "cta": "Open the app"
+    },
+    "signOut": {
+      "cta": "Sign out"
     }
   }
 }

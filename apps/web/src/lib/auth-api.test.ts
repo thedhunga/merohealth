@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { AuthApiError, requestOtp, verifyOtp } from '@/lib/auth-api';
+import { AuthApiError, getCurrentUser, logout, requestOtp, verifyOtp } from '@/lib/auth-api';
 
 function mockFetchOnce(status: number, body: unknown) {
   const fetchMock = vi.fn().mockResolvedValue({
@@ -73,5 +73,46 @@ describe('verifyOtp', () => {
       intent: 'REGISTER',
       displayName: 'Sita Rai',
     });
+  });
+});
+
+describe('getCurrentUser', () => {
+  it('gets /v1/auth/me with credentials included and no body', async () => {
+    const fetchMock = mockFetchOnce(200, {
+      userId: 'u1',
+      phone: '9812345678',
+      role: 'PATIENT',
+      locale: 'ne',
+      patientProfileId: 'p1',
+      assuranceLevel: 'REGISTERED',
+    });
+
+    const result = await getCurrentUser();
+
+    expect(result.assuranceLevel).toBe('REGISTERED');
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://localhost:4000/v1/auth/me');
+    expect(init.method).toBe('GET');
+    expect(init.credentials).toBe('include');
+    expect(init.body).toBeUndefined();
+  });
+
+  it('surfaces UNAUTHENTICATED as a typed AuthApiError so useSession can branch on it, not a generic failure', async () => {
+    mockFetchOnce(401, { code: 'UNAUTHENTICATED', message: 'Sign in required' });
+
+    await expect(getCurrentUser()).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+  });
+});
+
+describe('logout', () => {
+  it('posts to /v1/auth/logout with credentials included', async () => {
+    const fetchMock = mockFetchOnce(200, { ok: true });
+
+    await logout();
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://localhost:4000/v1/auth/logout');
+    expect(init.method).toBe('POST');
+    expect(init.credentials).toBe('include');
   });
 });

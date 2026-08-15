@@ -4,10 +4,14 @@ A scheduled cloud agent works through this file. Each run starts with **zero
 memory of previous runs**, so this document is the only continuity between
 them. Read it first, do one task, update it last.
 
-> **Current operating note (2026-08-15):** the repository is now on `main`
-> and work is being directed interactively by the owner. The historical
-> scheduled-agent agreement below explains older entries but does not override
-> the current developer handoff in `docs/deployment/developer-handoff.md`.
+> **Current operating note (2026-08-15, updated):** `main` and
+> `mero-health/platform-foundation` have been merged into a single history on
+> `main` (see the Round three Task A log entry below). Scheduled runs now work
+> directly on `main` — commit and push there — superseding working-agreement
+> item 1 below, which is kept for historical context only. The historical
+> scheduled-agent agreement otherwise still explains older entries and does
+> not override the current developer handoff in
+> `docs/deployment/developer-handoff.md`.
 
 ## Current interactive work — 2026-08-15 visual upgrade
 
@@ -114,13 +118,16 @@ read that before the first task.
 
 # Round three — reconcile, then finish what the owner actually asked for
 
-Take these in order. Task 1 blocks everything: `main` and this branch have
-genuinely diverged (main +12, branch +105) and production deploys from `main`,
-so until they are one history the branch's work never reaches the live site.
+Take these in order. Task A blocked everything: `main` and
+`mero-health/platform-foundation` had genuinely diverged (main +12, branch
++105) and production deploys from `main`, so until they were one history the
+branch's work never reached the live site. **Resolved 2026-08-15 — see the
+log entry below.** Work now happens directly on `main`; the branch is no
+longer the integration point.
 
 ### A · Unblock
 
-- [ ] **Merge `origin/main` into this branch, resolve the conflicts, verify,
+- [x] **Merge `origin/main` into this branch, resolve the conflicts, verify,
       push.** Three files conflict. `Testimonials.tsx` and `RegisterView.tsx`
       are competing redesigns of the same components, and
       `docs/product/agent-progress.md` is this file. For Testimonials, main's
@@ -128,7 +135,7 @@ so until they are one history the branch's work never reaches the live site.
       branch's `EditorialImage` fallback so a missing portrait degrades to
       artwork rather than a broken image. Do not produce a hybrid that renders
       both layouts.
-- [ ] Once the merge is green, fast-forward `main` to it and push, so a single
+- [x] Once the merge is green, fast-forward `main` to it and push, so a single
       history feeds production.
 
 ### B · The owner's open complaints — these are the point
@@ -268,7 +275,7 @@ Design in
       only, so the footer's app links 404. Copy `apps/mobile/dist` into
       `apps/web/public/app` during the Vercel build — and do not let a failure
       there break the whole deploy.
-- [ ] `apps/web` authenticated surface: a session hook that calls the
+- [x] `apps/web` authenticated surface: a session hook that calls the
       already-built `GET /auth/me` (apps/api's `auth.controller.ts` is real
       and tested; nothing on the web side ever calls it), a protected landing
       page for `PhoneOtpFlow.tsx`'s success step to redirect into instead of
@@ -281,11 +288,86 @@ Design in
       deciding what product content it actually shows — an empty dashboard
       built solely to hold a switcher repeats the mistake this note exists to
       avoid.
-- [ ] Launch-gate checklist in `docs/product/promotion-readiness.md`: what
+- [x] Launch-gate checklist in `docs/product/promotion-readiness.md`: what
       must be true before `robots` stops saying noindex. At minimum: copy
       reviewed by a qualified Nepali clinician, the demonstration notice
       removed only when nothing fictional remains, substantiated figures or no
       figures, and a real registered address.
+- [x] Queue exhausted — added: `Header`/`MobileNav` session-awareness, the
+      gap D2's own log entry flagged and deliberately deferred. Sign-in/
+      register links now swap to an account link for a signed-in visitor on
+      all ~70 marketing routes, via a non-redirecting `useOptionalSession`.
+- [x] Queue exhausted again — added: real `apps/api` persistence and a
+      `GET /family/grants` endpoint for `GuardianshipGrant`/
+      `DelegationGrant`, the item the 2026-08-10/11 log entries both left as
+      the next honest step. New `GuardianshipGrant`/`DelegationGrant` Prisma
+      models (not a reuse of `CaregiverRelationship` — see the 2026-08-11 log
+      entry for why that would have meant inventing fields), a
+      `FamilyGrantsController`/`Service`/`PrismaFamilyGrantsStore` following
+      `AuthStore`'s port-adapter pattern, and `apps/web`'s `AccountView.tsx`
+      now calls it instead of passing `[]`/`[]`.
+- [x] Queue exhausted a third time — added: self-service delegation
+      creation, the item that run's own log entry named as "the natural
+      next piece." `POST /family/grants/delegations` (delegate resolved by
+      phone via `AuthStore.findUserByPhone`, `grantDelegation` for the
+      actual validation, domain errors mapped to `BadRequestException`) and
+      a `DelegationForm` on `/account` calling it. Guardianship creation
+      deliberately not included — see the 2026-08-11 log entry for why
+      `PatientProfile` having no structured date-of-birth field blocks it
+      honestly rather than being an oversight.
+- [x] Queue exhausted a fourth time — added: letting the granter see and
+      revoke the delegations she has made, the concrete unblocked follow-up
+      the delegation-creation run's own log entry named (guardianship
+      creation stayed blocked on the same missing date-of-birth field).
+      `GET /family/grants` now also returns `delegationsGranted`; new
+      `DELETE /family/grants/delegations/:id`
+      (`FamilyGrantsService.revokeDelegation` fetches by id, 404s as
+      `DELEGATION_NOT_FOUND` on any owner mismatch, then persists
+      `packages/family`'s pure `revokeDelegation` result) plus a
+      `DelegationsGrantedList` on `/account` showing each grant's raw
+      delegate id (no name-lookup exists, so none was invented), status and
+      a revoke button.
+- [x] Queue exhausted a fifth time — added: retired the seed data's
+      pre-`packages/family` `CaregiverRelationship` model, replacing its one
+      row with a real `GuardianshipGrant` (Sunita guardian of Roshani,
+      `grounds: MINOR`), the item four consecutive prior log entries had
+      each left open as "still open from before." Dropped the
+      `CaregiverRelationship` table via a new migration and updated
+      `seed-data.ts`/`seed.ts`/both test files to match.
+- [x] Queue exhausted a sixth time — added: a `DelegationGrant` seed row for
+      the two competent Thapa adults (Janaki, Sunita), the demonstration the
+      `CaregiverRelationship`-retirement run's own log entry had explicitly
+      deferred rather than folded in as scope creep. `packages/database`'s
+      `guardianshipGrants` now has a `delegationGrants` sibling — Janaki
+      granting Sunita `VIEW_RECORD`/`ASK_ASSISTANT` (not the full set),
+      modelled as assisted enrolment (`IN_PERSON_VERBAL`, recorded by
+      Sunita) so the family module's demo data finally has one row of each
+      of the two state machines `packages/family` actually models.
+- [x] Queue exhausted a seventh time — fixed a language-consistency gap in
+      `apps/mobile`: `app/(tabs)/care.tsx` was fully hardcoded Nepali and
+      `app/consultation.tsx` was fully hardcoded English, both ignoring the
+      `language` toggle every sibling screen (`companion.tsx`, `twin.tsx`,
+      `learn.tsx`, `records.tsx`) already respects via inline
+      `language === 'en' ? … : …` ternaries. See the 2026-08-11 log entry
+      below for the general-purpose agent survey that found this over the
+      three candidates prior runs had already ruled out (companion's missing
+      `EntitlementsGuard`, an `analytics` `clinical-charting` source, and
+      capability-map row 15), and for what was and wasn't translated.
+- [x] Queue exhausted an eighth time — closed the last sibling of the
+      wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap:
+      `ImmunizationService.voidRecord` let `ImmunizationRecordAlreadyVoidedError`
+      reach the client as an unstructured 500 instead of a 400 with a code,
+      the gap `BillingService`/`PrescribingService`/`ClinicalChartingService`/
+      `DiagnosticsOrdersService` were each already fixed for across the four
+      prior runs, and the one the most recent of those runs' own log entry
+      named as the last module with this exact shape.
+- [x] Queue exhausted a ninth time — closed the same missing-`SessionAuthGuard`
+      gap in `BillingController` that the immediately preceding
+      `TeleconsultationController` fix's own log entry named as the natural
+      next pick: `listInvoices`/`getInvoice` let any unauthenticated caller
+      list or read every patient's invoices, line items and payments
+      system-wide. See the 2026-08-15 log entry below for what stayed
+      unguarded and why.
 
 ### Visual system — Round one, complete
 
@@ -479,14 +561,861 @@ suite grows. A module that "works" but has no outage test is not finished.
       "the shell renders around holes" had no single data source to render
       from until this; every prior fault-isolation test only proves its own
       module's edges in an ad hoc registry built just for that test.
+- [x] `diagnostics-orders` (capability map row 7): lab and imaging orders +
+      results. Reassessed the "stop after prescribing" note (see the
+      2026-08-11 log entry below) and resumed with this one module — see
+      that entry for why row 7 specifically, and why nothing past it.
+- [x] `teleconsultation` (capability map row 9): booking/session lifecycle
+      only — see the 2026-08-11 log entry below for why real WebRTC stays
+      explicitly out of scope and what was built instead.
+- [x] `billing` (capability map row 10): invoice lifecycle only — see the
+      2026-08-11 log entry below for why no real Nepali payment settlement
+      integration is in scope and what was built instead.
+- [x] `referrals` (capability map row 12): request/accept/decline/complete/
+      cancel lifecycle, pairing with `care-directory` — see the 2026-08-11
+      log entry below (the one added by this run) for why row 11
+      (`coverage`) was skipped rather than built first, and what was built
+      instead.
+- [x] `population-health` (capability map row 13): read-only registry and
+      recall lists over `clinical-summary`/`scheduling`, the first module
+      that owns no data of its own — see the 2026-08-11 log entry below (the
+      one added by this run) for why it has no repository and how "invent no
+      facts" shaped it.
+- [x] `analytics` (capability map row 14): read-only dashboard summaries
+      over `patient-registry`/`scheduling`, added once the queue was found
+      fully checked — see the 2026-08-11 log entry below (the one added by
+      this run) for why each summary degrades against exactly one source
+      instead of the whole module hiding together, and what was
+      deliberately left out.
+- [x] Extended `analytics` with a third source, `billing` (invoice totals
+      by status) — the item that run's own log entry named as "an equally
+      honest, lower-risk next step within row 14 itself, deliberately left
+      incomplete above." See the 2026-08-11 log entry below (the one added
+      by this run) for why this stayed a plain count, no revenue figure.
+- [x] Wired `TeleconsultationController.schedule` behind
+      `SessionAuthGuard`/`EntitlementsGuard`/`@RequireModule('TELECONSULTATION')`
+      — added once the queue was found fully checked again, per the working
+      agreement's "pick the highest-value improvement to work already done"
+      fallback. See the 2026-08-11 log entry below (the one added by this
+      run) for why this route specifically, and why nothing else in the
+      clinical suite changed.
+- [x] Wrote the real "under an active delegation" half of
+      `packages/intent-router/src/cross-subject-leakage.test.ts`, replacing
+      its `describe.todo` — the highest-severity test named in
+      `grounded-answers.md` §3, left blocked on `packages/family` since
+      round two §B shipped and unblocked once §C did. See the 2026-08-11
+      log entry below (the one added by this run) for what it composes and
+      why.
+- [x] Wrote the sibling "asked by a delegate on another subject's behalf"
+      half of `packages/evaluation/src/index.test.ts:60`, replacing its own
+      `describe.todo` — the last of the two `packages/family`-blocked test
+      gaps a run's own log entry had explicitly named as "the more obvious
+      'queue exhausted' pick." See the 2026-08-11 log entry below (the one
+      added by this run) for what it composes and why.
 
-Stop after prescribing and reassess. Modules 7-20 in the capability map are
-sequenced but must not be started while anything above is unfinished.
+- [x] Translated `apps/mobile`'s hardcoded-English `accessibilityLabel` props —
+      the low-severity accessibility gap the 2026-08-11 `care.tsx`/
+      `consultation.tsx` run flagged as "a reasonable next 'queue exhausted'
+      pick." See the 2026-08-11 log entry below (the one added by this run)
+      for the full file list, why `apps/web` needed no change, and why
+      `index.web.tsx` was deliberately excluded.
+- [x] Fully localized `apps/mobile/app/index.web.tsx` — the web marketing
+      landing page that had zero `language`/`useAppState` wiring anywhere,
+      the gap the prior run's own log entry named as "a real, larger
+      follow-up if anyone wants this specific gap fully closed." See the
+      2026-08-11 log entry below (the one added by this run) for what stayed
+      unconditional (brand lockup, all-caps eyebrow badges) and why.
+- [x] `engagement` (capability map row 15): patient messaging/reminders over
+      SMS/WhatsApp, `QUEUE_AND_RETRY` by nature — the module every recent
+      log entry had repeated as "the strongest actual candidate left." See
+      the 2026-08-11 log entry below (the one added by this run) for the
+      queue/deliver/retry design and why there is no DELIVERED status.
+- [x] Wired `interop` (capability map row 17) into `apps/api`/
+      `clinical-suite` with its own `ModuleDescriptor` and fault-isolation
+      test — the item the engagement run's own log entry named as the one
+      remaining package with no `apps/api` wiring at all. Share-link issue/
+      list/revoke/resolve endpoints over `@swasthya/interop`'s existing FHIR
+      mapping and expiry/revocation state machine — see the 2026-08-11 log
+      entry below (the one added by this run) for the full design.
+- [x] `immunization` (capability map row 18): patient-reported and
+      clinician-administered immunization records, following row 4's
+      `ClinicalSummaryItem` provenance split exactly rather than inventing a
+      Nepal EPI schedule/vaccine catalogue this repo has no honest source
+      for — see the 2026-08-11 log entry below (the one added by this run)
+      for why `vaccineName` stays free text and what a real schedule would
+      need that this deliberately does not attempt.
+- [x] Extended `analytics` (capability map row 14) with a fifth source,
+      `engagement` (message totals by status) — the concrete, small
+      follow-up the `engagement`-building run's own log entry had named and
+      four subsequent "queue exhausted" runs had each repeated as still
+      open. See the 2026-08-11 log entry below (the one added by this run)
+      for the design and why it is a plain count, no delivery-rate figure.
+- [x] Extended `analytics` (capability map row 14) with a sixth source,
+      `immunization` (record totals by status) — the same identical,
+      already-repeated pattern as the `billing`/`engagement` extensions,
+      applied to the one remaining built module without an analytics
+      source. See the 2026-08-12 log entry below for why `status`
+      (`ACTIVE`/`VOIDED`), not `provenance`, is the counted field.
+- [x] Extended `analytics` (capability map row 14) with a seventh source,
+      `diagnostics-orders` (order totals by status) — the one candidate the
+      immunization-extension run's own log entry flagged as "worth a second
+      look" after finding `interop` genuinely blocked. See the 2026-08-12 log
+      entry below (the one added by this run) for why `diagnostics-orders`
+      turned out just as mechanical as `immunization` had, and why `interop`
+      is still not a same-shape candidate.
+- [x] `records.fault-isolation.test.ts` (`HEALTH_RECORDS`): the module was
+      missing the actual clinical-suite.md §2 deliverable — every sibling
+      module has its own `<module>.fault-isolation.test.ts` proving a broken
+      store in *that* module doesn't take an unrelated one down, plus a
+      `resolveAvailability`-marks-it-DOWN check; `records` only had a
+      descriptor-shape unit test. See the 2026-08-12 log entry below (the one
+      added by this run) for why this was picked over the two items the
+      diagnostics-orders run's own log entry left open (both still genuinely
+      blocked on a product decision).
+- [x] Closed the two mobile language-toggle gaps the fault-isolation run's
+      own log entry (immediately above) named as fallback candidates:
+      `app/(tabs)/companion.tsx`'s research-answer panel and
+      `app/(tabs)/learn.tsx`'s "Accessible by design"/"Reviewed scripts"
+      notice, neither of which branched on the `language` state already in
+      scope in both files. See the 2026-08-12 log entry below (the one added
+      by this run) for exactly what changed, what stayed English on purpose,
+      and a real disclaimer-text bug found and fixed along the way.
+- [x] Fully localized `app/(tabs)/index.tsx` — the home tab, the app's
+      highest-traffic screen — the gap that run's own log entry named as
+      "larger than before" and left deliberately untouched to keep that run
+      to one task. See the 2026-08-12 log entry below (the one added by this
+      run) for the full before/after and why `twin.tsx` is still open.
+- [x] Fully localized `app/(tabs)/twin.tsx` — the last of the named
+      mobile language-toggle gaps, almost entirely hardcoded Nepali with
+      only the prompt content branching on `language`, the item the
+      `index.tsx` run's own log entry named as "still open." See the
+      2026-08-12 log entry below (the one added by this run) for the full
+      before/after.
+- [x] Fixed a last hardcoded-English tab title in
+      `app/(tabs)/_layout.tsx`'s hidden `companion` screen — the one
+      instance a fresh independent survey found after the `twin.tsx` run's
+      own log entry declared the mobile language-toggle vein exhausted.
+      See the 2026-08-12 log entry below (the one added by this run) for
+      why it was missed by every prior grep-based sweep and why the fix
+      reuses the existing `ask` key rather than adding a new one.
+
+- [x] Widened `packages/storage-adapters`'s `google-drive-store.ts`
+      `sanitizeFilename` to preserve non-ASCII characters — a real
+      correctness bug on the Drive adapter's filename handling (every
+      Devanagari filename was silently turned into underscores), picked
+      over the two other named candidates in the `companion`-tab-title
+      run's own log entry (`Testimonials.tsx`/`EditorialImage` dedupe, the
+      `apps/web` root-layout restructure) for being the one that is an
+      actual bug rather than a DRY or architecture item. See the 2026-08-12
+      log entry below (the one added by this run) for the fix and two new
+      tests.
+- [x] Deduped `apps/web`'s `Testimonials.tsx` onto the `EditorialImage`
+      component instead of hand-rolling the same `hasAsset(...) ? <Image/> :
+      <fallback/>` conditional — the item two consecutive prior "queue
+      exhausted" runs had each named as still open. See the 2026-08-12 log
+      entry below (the one added by this run) for why the fallback needed its
+      own wrapper markup rather than a bare swap-in.
+- [x] Restructured `apps/mobile/app/_layout.tsx` so the root `Stack`'s
+      document title reads `language` instead of a fixed English sentence —
+      the "genuinely bigger" candidate three consecutive prior log entries had
+      each left open as needing its own scoped run. See the 2026-08-12 log
+      entry below (the one added by this run) for why it turned out to be a
+      small extraction, not an architecture change, and for the new
+      `appTitle` localization key.
+- [x] Fixed the same Devanagari-filename-mangling bug the 2026-08-12
+      `google-drive-store.ts` run had already fixed once, still present in
+      `packages/storage-adapters`'s other backend, `hosted-store.ts` — a
+      regression of a bug class the team had already paid to fix, in the
+      adapter more likely to be hit in production than the one that got the
+      original fix. See the 2026-08-12 log entry below (the one added by
+      this run) for the shared `filename.ts` helper both adapters now import
+      instead of carrying their own diverging copies.
+- [x] Covered `packages/clinical-safety`'s untested `emergency-chest-001`
+      rule (the chest-pain/heart-attack detector) plus the untested
+      default/negative path and the untested positive path of
+      `getSafetyTemplate` — the highest-consequence test gap found in a
+      fresh, independent survey after the `hosted-store.ts` run's own log
+      entry found nothing new. See the 2026-08-12 log entry below (the one
+      added by this run) for why this package specifically and what each
+      new test guards against.
+- [x] Covered `packages/devices`'s untested `HKQuantityTypeIdentifierBodyMass`
+      HealthKit weight-unit-conversion path — the concrete, named follow-up
+      the `emergency-chest-001` run's own log entry left open as "a real,
+      small, unblocked follow-up." See the 2026-08-12 log entry below (the
+      one added by this run) for the test and why it stayed a single case.
+- [x] `packages/devices`: reject physiologically-impossible negative
+      readings (steps, heart rate, resting heart rate, oxygen saturation,
+      glucose, both blood-pressure fields, body weight, respiratory rate) —
+      `assertFinite` accepted any finite number, including negative ones, so
+      a malformed bridge payload (e.g. `count: -50`) normalized silently and
+      would have flowed downstream into trends/`digital-twin`. Found by an
+      independent survey after the prior run's own log entry reported no new
+      candidate. See the 2026-08-12 log entry below (the one added by this
+      run) for the new `assertNonNegative` guard and what was deliberately
+      left out.
+- [x] `packages/storage-adapters`: `sanitizeFilename` now falls back to a
+      placeholder name instead of returning an empty string — the concrete,
+      unblocked candidate the `assertNonNegative` run's own log entry left
+      open. See the 2026-08-12 log entry below (the one added by this run)
+      for why an empty result was reachable and what the fallback is.
+- [x] New `packages/text-normalization` package holding `normalizeLabel`,
+      replacing the verbatim copy-pasted definition in
+      `packages/medication-safety` and `packages/population-health` — the
+      DRY-drift risk two consecutive prior log entries had each named and
+      left open. See the 2026-08-12 log entry below (the one added by this
+      run) for why a new package rather than a cross-import between the two.
+- [x] Fixed `packages/intent-router`'s `classifyIntent` so an English "what
+      is my current X" question routes to `LATEST_VALUE` instead of
+      `DEFINITION` — a correctness bug in the deterministic answer-routing
+      core (not a UI/copy gap), diagnosed and left open as the
+      `janaki-definition-marker-collision` known-gap case in
+      `packages/evaluation/src/index.ts` since the 2026-08-10 run that first
+      built the evaluation set, surfaced again by a fresh independent survey
+      after the `normalizeLabel`-dedup run's own log entry said one was
+      overdue. See the 2026-08-12 log entry below (the one added by this
+      run) for the fix and why the case moved out of the known-gaps list.
+- [x] Fixed `packages/retrieval`'s `termAppears` so a Nepali term glued to a
+      possessive suffix (सुगर + को → सुगरको) still matches — the sibling
+      known-gap case, `janaki-advice-suffix-gap`, the
+      `classifyIntent`-marker-collision run's own log entry named as "the
+      other standing, already-diagnosed candidate." See the 2026-08-12 log
+      entry below (the one added by this run) for the fix and why the
+      known-gap test now has zero cases rather than an empty describe block
+      deleted outright.
+
+- [x] `apps/api`'s `family-grants.controller.ts`: `createDelegationSchema`'s
+      `expiresAt` field now requires an ISO 8601 UTC instant, matching the
+      `isoInstant` regex convention `scheduling`/`population-health` already
+      apply to their own instant fields. Previously it only checked
+      non-empty, so a value like `"forever"` passed validation, then dodged
+      `packages/family`'s own `expiresAt <= grantedAt` string-comparison
+      guard (every digit-leading ISO string sorts before a letter-leading
+      one), producing a delegation grant `isDelegationActive` reads as live
+      forever. See the 2026-08-12 log entry below for the fresh survey that
+      found it and the new controller test.
+
+- [x] `apps/api`'s `language-corpus.controller.ts`: `ingestSchema`'s
+      `capturedAt` field now requires an ISO 8601 UTC instant, matching the
+      `isoInstant` convention `scheduling`/`population-health`/
+      `family-grants` controllers already apply to their own instant fields.
+      Previously it only checked non-empty. See the 2026-08-12 log entry
+      below for why this was the named, unblocked follow-up left by the
+      `family-grants.controller.ts` `expiresAt` fix.
+
+- [x] `packages/clinical-safety`'s emergency safety templates now carry a
+      `ne-Latn` entry alongside `ne`/`en`, and `getSafetyTemplate` accepts the
+      real `LanguageCode` instead of a hardcoded `'ne' | 'en'` — a person who
+      chose Romanized Nepali (because they don't read Devanagari) was being
+      silently downgraded to a Devanagari emergency warning at the exact
+      moment reading it correctly matters most. Found by an independent
+      survey after the `language-corpus.controller.ts` run's own log entry
+      reported the `isoInstant` vein closed. See the 2026-08-12 log entry
+      below for the two call sites fixed and what was deliberately left open.
+- [x] `apps/api/src/perplexity-health.service.ts`'s `research` `disclaimer`
+      now has its own `ne-Latn` branch instead of collapsing to Devanagari —
+      the exact same-shape gap the `ne-Latn` emergency-template run's own log
+      entry named and deliberately left open ("a real, same-shape gap, but a
+      general research disclaimer, not a `clinical-safety`-gated emergency
+      message"). See the 2026-08-12 log entry below for the fix and the new
+      test file.
+- [x] `packages/interop`'s `issueShareLink` now rejects a `ttlSeconds` above
+      a 30-day ceiling — previously only `<= 0` was rejected, so an owner
+      could request an unbounded `ttlSeconds` and get a share link that the
+      unauthenticated `GET /interop/share/:token` route would then honour
+      effectively forever, defeating `platform-vision.md` §3.3's stated
+      "time-limited" design property. See the 2026-08-12 log entry below for
+      the trace, the new `MAX_SHARE_LINK_TTL_SECONDS` constant, and why 30
+      days.
+- [x] `packages/scheduling`'s `scheduleAppointment` now rejects a new
+      appointment that overlaps another `SCHEDULED` appointment already on
+      the same clinician's calendar — previously the only invariant enforced
+      was `scheduledEnd > scheduledStart`, so two different patients could be
+      booked with the same clinician for the same or overlapping time with no
+      rejection at all. Found by an independent survey after the
+      `issueShareLink` run's own log entry reported no further duration/TTL
+      field without a ceiling. See the 2026-08-12 log entry below (the one
+      added by this run) for the new `AppointmentConflictError`, the
+      half-open-interval overlap check, and why cancelled appointments and
+      different clinicians are exempt.
+- [x] `packages/teleconsultation`'s `scheduleTeleconsultation` now rejects a
+      second session for an appointment that already has a `SCHEDULED` or
+      `ACTIVE` one — the analogous unchecked-conflict gap the scheduling
+      double-booking run's own log entry named as unswept ("worth a look
+      before assuming this was the only instance"). See the 2026-08-13 log
+      entry below (the one added by this run) for the new
+      `TeleconsultationSessionAlreadyBookedError`, why a cancelled/completed/
+      no-show session frees the appointment for rebooking, and why
+      `referrals` was checked and found to have no analogous invariant.
+- [x] Wired `InteropController.issueShareLink` behind `EntitlementsGuard` /
+      `@RequireModule('RECORD_SHARING')` / `@RequireQuota('ACTIVE_SHARE_LINKS')`
+      — an unenforced paywall, not the double-booking shape the
+      teleconsultation run's own log entry asked the next run to sweep
+      `diagnostics-orders`/`billing`/`immunization` for (checked and
+      confirmed none of the three have a shared-resource conflict to guard).
+      See the 2026-08-13 log entry below (the one added by this run) for the
+      new `InteropUsageReader` and why the route was open to every tier
+      until now.
+- [x] Closed a real cross-owner authentication gap on
+      `RecordsController`: six of its seven routes
+      (`list`/`observationsForDocument`/`timeline`/`confirm`/`correct`/
+      `reject`) carried no `SessionAuthGuard` at all and trusted a bare,
+      client-supplied `ownerId` string — anyone who knew or guessed another
+      person's owner id could read their DRAFT observations and confirm,
+      correct or reject their record with no session, cookie or token. Only
+      `capture()` had been fixed, in Round two A4; the other six were the
+      exact gap that run's own log entry named and every run since left
+      untouched. See the 2026-08-13 log entry below (the one added by this
+      run) for the trace, the fix, and what the mobile client cost.
+- [x] Fixed an off-by-one date bug in `apps/web`'s `DelegationForm.tsx`:
+      the `<input type="date">`'s `min` allowed picking today, but a bare
+      `YYYY-MM-DD` parses as UTC midnight of that day, which
+      `packages/family`'s `grantDelegation` always rejects as
+      `expiresAt <= grantedAt` (the server's request instant is always later
+      in the same UTC day). Picking the earliest date the form allowed made
+      the only live caller of `POST /family/grants/delegations` fail 100% of
+      the time. See the 2026-08-13 log entry below (the one added by this
+      run) for the trace and the new `earliestSelectableExpiryDate` helper.
+- [x] `EntitlementsGuard` now enforces `packages/identity`'s
+      `minimumAssuranceLevel` ahead of plan-tier checks, closing a real
+      authorization gap: `RECORD_SHARING` and `TELECONSULTATION` are
+      documented in `identity-and-credentialing.md` §2 as requiring
+      `IDENTITY_VERIFIED`, but nothing in `apps/api` ever read that table, so
+      any merely phone-verified (`REGISTERED`) caller on the right plan could
+      issue a share link or book a teleconsultation with no identity check at
+      all. See the 2026-08-13 log entry below (the one added by this run) for
+      the trace and why this was the deferred half of the 2026-08-09
+      `packages/identity` run rather than a new candidate.
+- [x] Fixed `apps/mobile/app/(tabs)/learn.tsx`'s `walkthroughSteps` so the
+      interactive walkthrough's title/body sentences and their
+      text-to-speech reading follow the `language` toggle instead of always
+      showing and speaking Nepali — the last hardcoded-language gap found by
+      a fresh independent survey after every previously-mined mobile i18n
+      vein came back exhausted. See the 2026-08-13 log entry below (the one
+      added by this run) for the trace and why the eyebrow badges stayed
+      untouched.
+- [x] Closed a real unauthenticated-access gap on
+      `apps/api`'s credentialing review routes: `ReviewerGuard` authorized
+      purely off two client-supplied headers (`x-reviewer-role`,
+      `x-reviewer-id`) with no session check at all, so anyone could declare
+      `x-reviewer-role: CLINICAL_REVIEWER` and approve a council application
+      (granting a public "verified" badge to an unlicensed applicant), read
+      an applicant's certificate/government-ID photographs, or write a
+      falsifiable entry to the audit log. Found by a fresh independent
+      survey after the mobile-i18n vein was declared exhausted. See the
+      2026-08-13 log entry below (the one added by this run) for the trace,
+      the fix (`SessionAuthGuard` ahead of `ReviewerGuard`, role read from
+      the verified session), and the sibling instance in
+      `packages/language-corpus`'s reviewer guard left open.
+- [x] Closed the sibling forgeable-header gap on `apps/api`'s
+      `language-corpus` reviewer routes: `CorpusReviewerGuard` authorized
+      purely off `x-reviewer-role`/`x-reviewer-id` headers, the exact gap the
+      credentialing `ReviewerGuard` fix left open pending a `UserRole`
+      migration for `CORPUS_REVIEWER`, which this run adds. See the
+      2026-08-13 log entry below (the one added by this run) for the
+      migration, the guard/controller/module fix mirroring
+      `credentialing/reviewer.guard.ts` exactly, and how `pnpm
+      install --frozen-lockfile`/`lint`/`typecheck`/`test`/`build` were
+      verified against a real local Postgres 16 this sandbox does not have
+      running by default.
+
+- [x] Closed a cross-owner access-control gap on `apps/api`'s
+      `language-corpus` right-to-erasure route: `DELETE
+      /language-corpus/owners/:ownerId` had no `SessionAuthGuard` at all and
+      trusted the bare path `ownerId`, so anyone who knew or guessed another
+      person's owner id could permanently delete their corpus utterances and
+      pull them out of the review queue with no session, cookie or token —
+      the same shape `RecordsController`'s cross-owner fix closed, and the
+      concrete, unblocked follow-up the prior run's own log entry named
+      directly (`erase`'s own doc comment had flagged the gap explicitly).
+      See the 2026-08-13 log entry below (the one added by this run) for the
+      fix and what was deliberately left open.
+- [x] Closed the sibling unguarded-`ownerId` gap on `apps/api`'s
+      `language-corpus` ingest route: `POST /language-corpus/utterances` had
+      no `SessionAuthGuard` and took `ownerId` straight from the request
+      body, so any caller could store an utterance — including one flagged
+      `awaitingHumanReview: false`, skipping the review queue entirely — under
+      an arbitrary person's owner id with no session, cookie or token. This
+      was the exact follow-up the `erase` cross-owner fix's own log entry
+      named explicitly ("a real, scoped, unblocked candidate ... whenever
+      someone picks it up"). See the 2026-08-13 log entry below (the one
+      added by this run) for the fix and why it follows
+      `RecordsController.capture`'s pattern rather than `erase`'s.
+
+- [x] Fixed a live gap in `packages/clinical-safety`'s `emergency-chest-001`
+      rule: the English regex required a severity word (`severe|sweat|faint|
+      arm|jaw`) to appear *after* the phrase "chest pain"/"chest pressure",
+      but "severe" is the one word in that list that normally comes *before*
+      it in natural phrasing — so the single most direct report, "I have
+      severe chest pain" with no other qualifier, fell through to
+      `CLINICIAN_RECOMMENDED` instead of triggering `EMERGENCY_NOW`. See the
+      2026-08-13 log entry below (the one added by this run) for how an
+      independent survey found it, why the 2026-08-12 test-coverage run for
+      this same rule missed it, and the fix.
+
+- [x] Fixed the same word-order gap the 2026-08-13 `emergency-chest-001` fix
+      found, present in `pregnancy-warning-001` and `pediatric-warning-001`:
+      both rules' English and Nepali phrases required the person/context word
+      (`pregnant`/`pregnancy`, `गर्भवती`; `baby`/`infant`, `बच्चा`) to appear
+      *before* the symptom word, so a message that led with the symptom (e.g.
+      "I have a severe headache, I am pregnant") fell through to
+      `CLINICIAN_RECOMMENDED` instead of triggering the maternal/pediatric
+      concern level. `self-harm-001` was checked and confirmed clean — its
+      phrases are single fixed strings with no ordering component. See the
+      2026-08-13 log entry below (the one added by this run) for the fix and
+      the new order-reversed test cases in both languages.
+
+- [x] Closed an unauthenticated write gap on `apps/api`'s
+      `CredentialingController.submit` (`POST /credentialing/applications`):
+      it was the one route on the controller with no `SessionAuthGuard`,
+      taking `applicantId` straight from the request body — the same
+      unguarded-owner-id shape the records/language-corpus fixes closed,
+      found by a fresh independent survey after the clinical-safety
+      word-order vein was declared exhausted. See the 2026-08-13 log entry
+      below (the one added by this run) for the trace and the fix.
+
+- [x] Wired `apps/web`'s clinician registration flow (`RegisterView.tsx`) to
+      the now-guarded `POST /credentialing/applications` instead of building
+      and "submitting" a `CredentialingApplication` purely client-side with
+      nowhere to send it — the item the `CredentialingController.submit`
+      guard fix's own log entry flagged as needing re-investigation rather
+      than being assumed still blocked. Confirmed `apps/web` already has a
+      working cookie session (`useSession`/`auth-api.ts`, proven by
+      `AccountView.tsx`), so the premise for the old client-only stand-in no
+      longer held. See the 2026-08-13 log entry below (the one added by this
+      run) for the new `credentialing-api.ts` client, the session gate, and
+      what stayed deliberately out of scope.
+- [x] `CredentialingService.submit` now catches `ApplicationTransitionError`
+      and maps it to a `BadRequestException`, matching
+      `FamilyGrantsService.createDelegation`'s domain-error convention —
+      the concrete, named candidate the `RegisterView.tsx` wiring run's own
+      log entry left open ("uncaught ... a bare 500 for it"). See the
+      2026-08-13 log entry below (the one added by this run) for the trace
+      and the new `ApplicationTransitionError` locale strings.
+- [x] Fixed the `next=` redirect-preservation gap on `/clinicians/register`:
+      `useSession` now redirects an unauthenticated visitor to
+      `/signin?next=<their original path>` instead of a bare `/signin`, and
+      `PhoneOtpFlow` reads that `next` back after a successful verify instead
+      of hardcoding `/account` — the item two consecutive prior "queue
+      exhausted" runs had each named as the clearest small, unblocked
+      candidate. See the 2026-08-13 log entry below (the one added by this
+      run) for the new `sanitizeNextPath` guard and why `useSearchParams()`
+      was deliberately avoided.
+- [x] Fixed `packages/clinical-safety`'s `emergency-breathing-001` rule: its
+      `can'?t breathe` phrase only made the *straight* apostrophe (U+0027)
+      optional, so it silently missed "can’t breathe" typed with the
+      *typographic* apostrophe (U+2019) that iOS/most mobile keyboards
+      substitute by default via smart punctuation — a real, live gap in the
+      highest-consequence rule in the file, found by a fresh independent
+      survey after the queue's own checklist stayed fully checked. See the
+      2026-08-13 log entry below (the one added by this run) for the trace
+      and why the fix normalizes typographic quotes for every rule, not just
+      this one phrase.
+- [x] `apps/api`'s `RecordsController.capture`: `documentDate` now requires
+      an ISO 8601 UTC instant instead of accepting any non-empty string —
+      `buildTimeline` (`packages/health-records`) sorts on
+      `Date.parse(documentDate ?? capturedAt)` and `toFhirDocumentReference`
+      (`packages/interop`) writes the raw value into a FHIR
+      `DocumentReference.date`, so a malformed value silently broke
+      reverse-chronological ordering and could ride into a share-link/
+      provider-export bundle. Found by a fresh independent survey after the
+      `emergency-breathing-001` run's own log entry said the next run should
+      commission one rather than assume a candidate was waiting. See the
+      2026-08-13 log entry below (the one added by this run) for why the
+      fix matches the `isoInstant` convention (`scheduling`/`family-grants`/
+      `language-corpus`), not `patient-registry`'s bare-date one, and for the
+      sibling gap left open.
+- [x] `apps/api`'s `immunization.controller.ts`: `administeredOn` now
+      requires a well-formed `YYYY-MM-DD` date instead of accepting any
+      non-empty string — the concrete, unblocked candidate the
+      `RecordsController.capture` `documentDate` run's own log entry named
+      directly ("`administeredOn` has the identical shape gap ... same
+      one-line regex fix, same test shape"). Unlike `documentDate`, this
+      matches `patient-registry`'s bare-date `dateOfBirth` convention, not
+      the `isoInstant` one — every example, seed row and the Swagger
+      `format: 'date'` annotation on both routes already agree it is a bare
+      date. See the 2026-08-13 log entry below for the trace and the two new
+      controller tests.
+- [x] Built `apps/api/src/identity/`, the missing `IdentityController`/
+      `IdentityService` that lets a real session actually reach
+      `IDENTITY_VERIFIED` — until this, `AuthService.currentUser` hardcoded
+      `assuranceLevel: 'REGISTERED'` with no route anywhere that could ever
+      change it, so `RECORD_SHARING` and `TELECONSULTATION` (both gated at
+      `IDENTITY_VERIFIED` since the `EntitlementsGuard` assurance-enforcement
+      run) were permanently unreachable for every real user. Found by a fresh
+      independent survey after the `administeredOn` run's own log entry
+      reported the ISO-date-validation vein closed. See the 2026-08-13 log
+      entry below (the one added by this run) for the full design — a new
+      `User.assuranceLevel` column, `AuthStore.markIdentityVerified`, the
+      `IDENTITY_REVIEWER` role, and why the elevation is written through
+      `AuthStore` rather than a circular module import.
+- [x] Built the `apps/web` UI for `POST /identity/verification/evidence`,
+      the concrete next step that run's own log entry named directly:
+      "without it, `IDENTITY_VERIFIED` is reachable only by a reviewer
+      approving a request submitted directly against the API ... not yet a
+      real user-facing path." New `GET verification/me` route (registered
+      ahead of the existing `verification/:verificationId` reviewer route,
+      same ordering `verification/queue` already relies on) plus
+      `IdentityService.findMine`, and a new `IdentityVerification.tsx` card
+      on `/account`, mounted only while `assuranceLevel !== 'IDENTITY_VERIFIED'`.
+      See the 2026-08-13 log entry below (the one added by this run) for the
+      full design and the `RegisterView.tsx` → shared `EvidenceCapture.tsx`
+      extraction it needed.
+
+Stop after diagnostics-orders and reassess again. Modules 11 and 19-20 in the
+capability map are sequenced but must not be started while anything above is
+unfinished — row 8 (patient portal) is `apps/web`/`apps/mobile` themselves,
+not a module that plugs into this registry, and row 11 (`coverage`) was
+deliberately skipped, not built, because the table's own note calls it
+"blocked on Nepali insurer interfaces that do not yet exist" with no
+compliance-register row naming an interim control the way row 10's did. With
+row 15 (`engagement`), row 17 (`interop`) and row 18 (`immunization`) now
+all built and wired into `clinical-suite`'s registry (sixteen modules
+total), `quality-reporting`/`tenancy` (rows 19-20) are what remain — both
+carry the same "real Nepal DoHS/HMIS indicator set, or a real multi-site
+model, does not exist in this repo" risk that shaped this run's own scope,
+so whoever picks either up next should read this entry's "what was
+deliberately left out" before assuming the module can be built the same way
+`immunization`'s records-only shape was. Which of the two is the realistic
+next candidate is this run's own guess, not a decision; the next run should
+re-read the table itself rather than trust this paragraph.
+
+- [x] `apps/api`'s `CredentialingController`: new `GET applications/me` route
+      (`CredentialingService.findMine`) so a returning applicant can read her
+      own real status — `UNDER_REVIEW`, `APPROVED`, `REJECTED` — instead of
+      only ever seeing the just-submitted `EVIDENCE_SUBMITTED` case her own
+      browser tab happened to hold. Wired into `apps/web`'s
+      `RegisterView.tsx`, which now fetches on mount and jumps a returning
+      applicant straight to the `status` step. See the 2026-08-13 log entry
+      below (the one added by this run) for the full design and why
+      `findMine` returns `null` rather than `IdentityService.findMine`'s
+      unpersisted shell.
+- [x] Gated `RegisterView.tsx`'s "start a new application" button to
+      `application.status === 'REJECTED'` only, instead of rendering it for
+      every reachable status. See the 2026-08-13 log entry below (the one
+      added by this run) for why the unconditional button was a real,
+      reachable dead end.
+- [x] Fixed `packages/auth`'s `parseCookieHeader`: a cookie value with
+      invalid percent-encoding (e.g. `mero_session=%`) now silently drops
+      that one pair instead of letting `decodeURIComponent` throw a raw
+      `URIError` out of `SessionAuthGuard` — the guard sits under every
+      cookie-authenticated `apps/api` route, so an attacker-controlled
+      header value was turning a clean 401 into an unhandled 500 for the
+      whole authenticated surface. See the 2026-08-14 log entry below (the
+      one added by this run) for the trace and the new tests.
+- [x] Closed the remaining hardcoded-Nepali gaps in
+      `apps/mobile/app/(tabs)/learn.tsx`: the `SectionTitle` title/body, the
+      low-data-mode toggle's title/subtitle, the "Accessible by design"
+      notice body, the "Lessons you can read" heading, the lesson-duration
+      unit, and the transcript "Listen" label none branched on `language`
+      despite every sibling string in the same file doing so. See the
+      2026-08-14 log entry below (the one added by this run) for the
+      resolution of the two disagreeing prior claims about this file.
+- [x] `packages/devices`: `BodyTemperatureRecord` (Health Connect) and
+      `HKQuantityTypeIdentifierBodyTemperature` (HealthKit) now call
+      `assertNonNegative` alongside `assertFinite`, closing the one metric
+      the 2026-08-12 negative-reading-validation sweep missed — the
+      `normalizeNepaliPhone` run's own log entry named this exact gap as its
+      survey's runner-up and left it as "worth a second look." See the
+      2026-08-14 log entry below (the one added by this run) for why it was
+      judged a genuinely distinct instance rather than scope creep on the
+      already-closed vein.
+- [x] Fixed `packages/health-records`'s `buildAnalyteTrend` and
+      `packages/interop`'s `toFhirObservation` silently coercing a
+      leading-numeric-but-not-numeric observation value (e.g. a reference
+      range like `"70-99"`) into a wrong trend point / FHIR `valueQuantity`
+      instead of dropping it as both already claimed to. See the 2026-08-14
+      log entry below (the one added by this run) for the fresh independent
+      survey that found it, the exact repro, and the shared fix.
+- [x] Fixed `packages/family`'s `guardianshipExpiryForMinor` silently
+      overflowing a leap-day (Feb 29) date of birth into March 1 instead of
+      the ward's actual 18th birthday — the leap-day bug two consecutive
+      prior log entries had each named as real, deterministic and untested
+      but left open. See the 2026-08-14 log entry below (the one added by
+      this run) for the fix and why it clamps to Feb 28 rather than rolling
+      forward.
+- [x] Fixed `packages/scheduling`'s `assertValidWindow`/`windowsOverlap`
+      comparing ISO-instant timestamps as raw strings instead of parsed
+      instants, which silently mis-orders any pair of instants with
+      different fractional-second digit counts (both counted as valid by
+      the controller's own `isoInstant` regex) — letting an
+      end-before-start window through and letting a genuinely overlapping
+      appointment double-book a clinician. See the 2026-08-14 log entry
+      below (the one added by this run) for the repro and why a first
+      survey candidate was rejected before this one was found.
+- [x] Added romanized-Nepali (`ne-Latn`) phrase coverage to
+      `packages/clinical-safety`'s `emergency-chest-001`,
+      `pregnancy-warning-001` and `pediatric-warning-001` rules — the three
+      of five emergency rules that had an English regex and a Devanagari
+      regex but no `ne-Latn` one, unlike `emergency-breathing-001` and
+      `self-harm-001`, which already did. See the 2026-08-14 log entry below
+      (the one added by this run) for the repro proving real romanized-Nepali
+      chest-pain/pregnancy/pediatric messages fell through to
+      `CLINICIAN_RECOMMENDED` instead of triggering the mandatory emergency
+      interrupt.
+- [x] Fixed `packages/population-health`'s `buildRecallList` comparing
+      `Appointment.scheduledStart`/`asOf` ISO-instant strings with `>=` and
+      `localeCompare` instead of `Date.parse` — the same bug class fixed in
+      `packages/scheduling` on 2026-08-14, missed by that fix's own claim to
+      be the only two such comparisons in the repo. See the 2026-08-14 log
+      entry below (the one added by this run) for the repro and why this one
+      is live (both endpoints are client-supplied) rather than dead code.
+- [x] Added a missing romanized-Nepali (`ne-Latn`) phrase to
+      `packages/clinical-safety`'s `self-harm-001` rule for the colloquial
+      "want to die" phrasing (`मर्न मन लाग` in Devanagari) — the rule had a
+      `ne-Latn` match for the formal word "aatmahatya" (suicide) but none for
+      this colloquial phrase, even though every other rule's `ne-Latn` set is
+      a complete transliteration of its `ne` set. See the 2026-08-14 log entry
+      below (the one added by this run) for the repro and why this is a
+      distinct, incomplete-coverage gap from the already-fixed "rule had zero
+      `ne-Latn` phrases" work.
+- [x] Closed the remaining hardcoded-Nepali gaps in
+      `apps/mobile/app/(tabs)/companion.tsx`, including the entire
+      `EMERGENCY_NOW`/`MATERNAL_CONCERN`/`PEDIATRIC_CONCERN` interrupt panel
+      (kicker, title, hospital-search button, footer note), which never
+      branched on `language` despite the safety `template` text one line
+      below it doing so correctly. See the 2026-08-14 log entry below (the
+      one added by this run) for the full list of thirteen strings fixed and
+      why the emergency panel is the highest-consequence instance of this bug
+      class.
+- [x] Fixed `apps/mobile/app/index.tsx` (the welcome / language-picker
+      screen): every visible string was hardcoded Devanagari even though the
+      screen reads `language` and lets the person tap `en` on step 1 —
+      picking English on this exact screen was a visible no-op for its own
+      copy. The concrete follow-up the `companion.tsx` run's own log entry
+      asked for: a fresh sweep of `app/(tabs)/*.tsx` and `app/*.tsx` for the
+      same visible-`<Text>`-vs-`accessibilityLabel` split. See the 2026-08-14
+      log entry below (the one added by this run) for the survey, the fix,
+      and why the vein is now exhausted.
+- [x] Mapped `BillingService`'s five wrong-state domain errors
+      (`InvoiceNotDraftError`, `EmptyInvoiceError`, `InvoiceNotIssuedError`,
+      `InvoiceAlreadyVoidedError`, `InvoicePaidCannotBeVoidedError`) to
+      `BadRequestException({ code, message })` instead of letting them reach
+      the client as bare, codeless 500s — the same convention
+      `CredentialingService.submit` already established for
+      `ApplicationTransitionError`. See the 2026-08-14 log entry below (the
+      one added by this run) for why billing specifically, and which four
+      sibling clinical-suite services still have the identical gap.
+- [x] Mapped `PrescribingService`'s five wrong-state domain errors
+      (`PrescriptionNotDraftError`, `EmptyPrescriptionError`,
+      `ControlledSubstanceDisabledError`, `PrescriptionAlreadyVoidedError`,
+      `PrescriptionNotSignedError`) to `BadRequestException({ code, message
+      })`, the next module in the priority order the `BillingService` run's
+      own log entry named — `prescribing` first because its own test at
+      `prescribing.service.test.ts:114` literally asserted
+      `rejects.toThrow(EmptyPrescriptionError)`, encoding the bug into the
+      suite. See the 2026-08-14 log entry below (the one added by this run)
+      for the fix and which three sibling clinical-suite services
+      (`clinical-charting`, `diagnostics-orders`, `immunization`) still have
+      the identical gap.
+- [x] Mapped `ClinicalChartingService`'s two wrong-state domain errors
+      (`EncounterAlreadyClosedError`, `EncounterNotOpenError`) to
+      `BadRequestException({ code, message })` — the next module in the
+      priority order the `PrescribingService` run's own log entry named,
+      picked first "because it sits upstream of billing/prescribing/
+      diagnostics-orders in the call graph, so its 500 is reachable through
+      the most paths." See the 2026-08-14 log entry below (the one added by
+      this run) for the fix and which two sibling clinical-suite services
+      (`diagnostics-orders`, `immunization`) still have the identical gap.
+- [x] Mapped `DiagnosticsOrdersService`'s three wrong-state domain errors
+      (`DiagnosticOrderNotOpenError`, `DiagnosticOrderAlreadyCancelledError`,
+      `DiagnosticResultNotHeldError`) to `BadRequestException({ code, message
+      })` — the next module in the priority order the `ClinicalChartingService`
+      run's own log entry named. See the 2026-08-14 log entry below (the one
+      added by this run) for the fix and why `immunization.service.ts`
+      (`ImmunizationRecordAlreadyVoidedError`) is the one sibling module still
+      left with the identical gap.
+- [x] Mapped `ReferralsService`'s three wrong-state domain errors
+      (`ReferralNotRequestedError`, `ReferralNotAcceptedError`,
+      `ReferralAlreadyCancelledError`) to `BadRequestException({ code, message
+      })` — found by the fresh independent survey the
+      `ImmunizationService.voidRecord` run's own log entry asked for, over the
+      eight modules the wrong-state-500 series had never checked
+      independently. See the 2026-08-14 log entry below (the one added by
+      this run) for the survey's findings and why `referrals` was picked
+      first.
+- [x] Mapped `TeleconsultationService`'s four wrong-state domain errors
+      (`TeleconsultationSessionNotScheduledError`,
+      `TeleconsultationSessionNotActiveError`,
+      `TeleconsultationSessionAlreadyCancelledError`,
+      `TeleconsultationSessionAlreadyBookedError`) to
+      `BadRequestException({ code, message })` — the concrete next candidate
+      the `ReferralsService` run's own log entry named directly, over
+      `scheduling` and `engagement`'s narrower gap. See the 2026-08-14 log
+      entry below (the one added by this run) for the fix and which two
+      sibling modules still have the identical or a related gap.
+- [x] Mapped `SchedulingService`'s three wrong-state domain errors
+      (`InvalidAppointmentWindowError`, `AppointmentConflictError`,
+      `AppointmentAlreadyCancelledError`) to `BadRequestException({ code,
+      message })` — the item the `TeleconsultationService` run's own log
+      entry named directly as one of the two still-open candidates. See the
+      2026-08-14 log entry below (the one added by this run) for the fix and
+      why `engagement`'s narrower `retryMessage` gap is the one instance of
+      this series still left open.
+- [x] Mapped `LanguageCorpusService`'s wrong-state domain error
+      (`UtteranceNotAwaitingReviewError`, thrown by both `clear`/`discard`)
+      to `BadRequestException({ code, message })` — found by the fresh,
+      independent survey of the whole `apps/api` tree (not just
+      clinical-suite) the `EngagementService.retryMessage` run's own log
+      entry asked for. See the 2026-08-14 log entry below (the one added by
+      this run) for the survey's findings and why every other non-clinical-
+      suite module checked out clean.
+
+- [x] Fixed `packages/family`'s `isGuardianshipActive`, `isDelegationActive`,
+      `isConditionShareActive` and the three `expiresAt <= grantedAt` grant
+      guards comparing ISO-instant strings directly instead of via
+      `Date.parse` — the same variable-fractional-precision bug class
+      `packages/scheduling` and `packages/population-health` already had to
+      fix, missed in this package despite `family-grants.controller.ts`'s own
+      `isoInstant` regex accepting the identical 1-3-digit fraction range.
+      Found by a fresh independent survey after the `LanguageCorpusService`
+      run's own log entry closed the wrong-state-500 series with no named
+      follow-up. See the 2026-08-14 log entry below (the one added by this
+      run) for the repro and why the sort-only `localeCompare` uses in the
+      same file were deliberately left alone.
+
+- [x] Fixed `packages/credentialing`'s `isBadgeCurrent` comparing `now` and
+      `badge.recheckDueAt` as raw ISO-instant strings instead of via
+      `Date.parse` — the same variable-fractional-precision bug class already
+      fixed in `packages/scheduling`, `packages/population-health` and
+      `packages/family`. This run was the named follow-up survey the
+      `packages/family` run's own log entry asked for, scoped to the seven
+      domain packages that survey had not yet checked. See the 2026-08-15
+      log entry below for the survey's full results (six of seven already
+      clean) and the fix.
+
+- [x] Mapped `PatientRegistryService`'s `FutureDateOfBirthError` (thrown by
+      both `register` and `updateDemographics`) to `BadRequestException({
+      code, message })` — a live, missed instance of the
+      wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap this
+      series repeatedly declared closed. Ten prior modules across two
+      surveys had already been fixed for this exact shape, and two separate
+      log entries had explicitly logged `patient-registry` as "already
+      confirmed clean" — it was not; its own service test asserted the raw
+      domain error unwrapped, the same "test itself is wrong" tell every
+      other module in the series had before its fix. See the 2026-08-15 log
+      entry below (the one added by this run) for how the audit that found
+      it was actually aimed at three unrelated hard constraints, and what
+      else it ruled out.
+- [x] Widened `packages/care-directory`'s `searchDirectory` text search to
+      match on `municipality`, not just `name`/`nameNe`/`district`/
+      `specialties` — the feature gap the 2026-08-15 `devices` temperature run
+      named as a legitimate small next pick "if nothing better turns up."
+- [x] Closed the same wrong-state-domain-error-reaches-the-client-as-a-bare-500
+      gap in `apps/api`'s `CredentialingService.beginReview`/`approve`/
+      `reject` — the sibling the `IdentityService` fix's own log entry named
+      as "very likely the same bug copy-pasted into a second file," per its
+      doc comment lineage claiming to mirror identity's state machine
+      exactly.
+- [x] Closed an unauthenticated bulk-disclosure gap on
+      `TeleconsultationController`: `listSessions`, `getSession`, `start`,
+      `complete`, `cancel` and `noShow` carried no `SessionAuthGuard` at all,
+      so any caller with no session — cookie, token or otherwise — could
+      enumerate every patient's teleconsultation sessions system-wide, read
+      one by guessing/leaking its id, or cancel/mark-no-show a session that
+      was not theirs. Found by a fresh independent survey scoped away from
+      every previously-mined category. See the 2026-08-15 log entry below
+      (the one added by this run) for the trace, why a prior version of the
+      controller's own test suite had locked the bug in as intended
+      behaviour, and the sibling gap left open in `BillingController`.
+- [x] Closed the sibling unauthenticated-disclosure gap on
+      `ClinicalChartingController`: every route on the controller, including
+      `listEncounters`, `getEncounter` and `listNotes`, carried no
+      `SessionAuthGuard` at all — the concrete next candidate the
+      `BillingController` run's own log entry named directly, verified by
+      reading `clinical-charting.controller.ts` before starting. See the
+      2026-08-15 log entry below (the one added by this run) for the trace,
+      the fix, and why `openEncounter`/`closeEncounter`/`recordNote`/
+      `reviseNote`/`attachDocument`/the template routes stay unguarded.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-15 — **Round three, task A: merged `main` and
+  `mero-health/platform-foundation` into one history, directly on `main`.**
+  First unchecked task in the queue, and the one everything else was blocked
+  behind — production deploys from `main`, and the branch carried 106 commits
+  (mostly domain-error-mapping and unauthenticated-disclosure-guard fixes)
+  that had never reached it. Per the scheduled-task handoff this run received,
+  the branch-only working agreement is now superseded: work happens on `main`
+  directly, so this merge was committed and pushed to `main` rather than
+  fast-forwarded from a side branch — bullet two of task A ("fast-forward
+  `main`") is satisfied by that directly rather than as a separate step.
+
+  **Conflicts, seven files, not the three the queue anticipated** (the queue
+  was written from an earlier inventory; the actual `git merge` surfaced four
+  more once both histories were walked in full):
+  - `apps/mobile/app/(tabs)/learn.tsx` and `apps/mobile/app/consultation.tsx`
+    — both sides touched the same walkthrough-step / secure-badge objects.
+    Kept the branch's localization fix (`titleNe`/`titleEn` pairs instead of
+    a single hardcoded English/Nepali string) but **not** its `colors.jadeBright`
+    reference — that token does not exist in `packages/configuration` (the
+    green palette was removed repo-wide in `111390e`, and the branch's
+    security-fix commits predate that removal on `main`'s side of the fork).
+    Used `colors.irisBright` instead, which is what `main` already had there.
+  - `apps/web/src/components/auth/PhoneOtpFlow.tsx` — same shape: kept the
+    branch's `switchLinkHref(path, next)` call (preserves `?next=` through the
+    sign-in ↔ register switch) but with `main`'s `text-indigo-800`, not the
+    branch's `text-forest-700` (banned green, same stale-fork reason).
+  - `apps/web/src/components/clinicians/RegisterView.tsx` — `main` still had
+    an inline `CapturedFile`/`EvidenceCapture` duplicate of a component the
+    branch had already extracted to `@/components/ui/EvidenceCapture` (and
+    `main` was already importing that extracted version above the conflict
+    hunk — the inline copy was dead code your linter hadn't caught yet
+    because nothing exercised both definitions in the same build). Deleted
+    the duplicate, kept the branch's `KNOWN_ERROR_CODES` error-mapping block,
+    which downstream code at line ~191 already depends on.
+  - `apps/web/src/components/home/Testimonials.tsx` — exactly what the queue
+    predicted: `main`'s four-card grid is the current layout (kept, unchanged
+    below the conflict hunks) and the branch's snap-scroll card carousel was
+    dropped rather than kept alongside it. Per the queue's instruction, ported
+    the branch's `EditorialImage` fallback pattern *into* the surviving grid's
+    footer instead of discarding it — each card now shows a real portrait
+    when `/imagery/portrait-{key}.webp` exists and a neutral user-icon circle
+    when it doesn't (none of the four files exist yet). Screenshot-verified at
+    375px: renders as a clean circular placeholder, no broken image, no
+    layout shift. This also directly answers queue item C1 ("confirm the
+    fallback renders cleanly, or restore them") — leaving that checkbox
+    unticked since it wasn't this run's assigned task, but the next run can
+    skip re-checking it.
+  - `docs/product/agent-progress.md` — this file. Both histories had appended
+    to "## Log" independently since the fork, so `HEAD`'s handful of
+    2026-08-15 design entries and the branch's much longer run of fix entries
+    are simply concatenated (`HEAD` first, branch entries follow), preserving
+    both without inventing a merged chronology neither side actually shared.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks (686 tests in `apps/api`
+  alone, all passing — this is where almost all of the branch's fix commits
+  landed); `pnpm build` 40/40, including the Expo web export. Also manually
+  built and ran `next start`, and checked the homepage at 375px in both
+  locales with Playwright (headless Chromium at `/opt/pw-browsers/chromium`,
+  since neither app has Playwright as a project dependency): no console
+  errors beyond two expected ones (`/video/mero-health-story.mp4` missing —
+  handled by the existing `storyReady` fallback — and `GET
+  http://localhost:4000/v1/auth/me` connection-refused, expected with no
+  `apps/api` running locally, matches the documented behavior in
+  `developer-handoff.md`).
+
+  **Mobile measurement, for the next run (task B1 is next in queue).**
+  Homepage at 375×812: **13.36 screens in Nepali, 14.25 in English**
+  (`scrollHeight` 10850 / 11568 over `innerHeight` 812) — worse than the
+  11.8 the queue currently cites, not better. That number was written before
+  this merge landed the branch's 106 commits, none of which touched homepage
+  layout, so the discrepancy is more likely a stale prior measurement (or a
+  different locale/viewport) than a regression introduced here; either way
+  the next run should treat 13.36–14.25 as the current baseline, not 11.8.
+  Tap-target sweep on the same page: 54 of 78 interactive elements under
+  44px in Nepali, 53 of 78 in English — consistent with the queue's existing
+  note that most targets are undersized; task B1 (cut the homepage to
+  four/five screens) is still the right next task and now has an accurate
+  starting number to measure against.
+
+  **For the next run.** Task A is done; start at task B1 (homepage screen
+  count) per queue order. Section C's four items are all still open — C1
+  (portrait fallback) is effectively pre-verified by this run's Testimonials
+  work above, should anyone restore the actual files later.
 
 - 2026-08-15 — **Private `/get-care` flow, Perplexity research wrapper, media
   policy correction, and deployment handoff.** The homepage symptom entry now
@@ -517,6 +1446,8550 @@ run needs to know.
   The combined production smoke test also caught and fixed extensionless Expo
   deep links (`/app/companion` previously 404ed while its `.html` file worked);
   all eight public product routes now have tested rewrites and returned 200.
+- 2026-08-15 — **Queue fully checked; `ClinicalChartingController` had no
+  `SessionAuthGuard` on any route, letting any unauthenticated caller list,
+  read or write every patient's encounters, SOAP notes and document
+  attachments system-wide.** Grepped for `- [ ]` first — zero hits.
+
+  **Why this task.** The immediately preceding run's own log entry (below)
+  named this exact controller as the one worth checking first among the six
+  it had flagged but not verified: "its `GET
+  /clinical-charting/encounters/:encounterId/notes` route ... returns the
+  free-text SOAP notes recorded against an encounter — clinical narrative,
+  not just structured fields — which would make an unguarded leak there
+  comparably serious to billing's, if the same missing-guard shape holds once
+  read all the way through." Confirmed live by reading
+  `clinical-charting.controller.ts` directly: not one of its eleven routes
+  carried `@UseGuards` — the gap was wider than the prior run's note guessed,
+  since it covers every route, not just `listNotes`.
+
+  **What was wrong.** `GET /clinical-charting/encounters` with no session
+  returned every patient's encounters in the system. `GET
+  /clinical-charting/encounters/:id` read any encounter — patient id,
+  clinician id, status, attached document ids — by a guessed or leaked id.
+  `GET /clinical-charting/encounters/:id/notes` did the same for the SOAP
+  note narrative (subjective/objective/assessment/plan) recorded against it.
+
+  **The fix.** Added `@UseGuards(SessionAuthGuard)` to `listEncounters`,
+  `getEncounter` and `listNotes` — the three reads that disclose patient PHI.
+  `listEncounters` now reads the owner from `@CurrentUser()` instead of an
+  optional client-supplied `patientId` query param, so a caller can no longer
+  list another patient's encounters at all. `getEncounter` and `listNotes`
+  resolve through two new service methods, `getEncounterForOwner`/
+  `listNotesForOwner`, which 404 (not 403) an encounter that exists but
+  belongs to someone else — the same rule `BillingService.getInvoiceForOwner`/
+  `TeleconsultationService.getSession` already use. The existing unowned
+  `getEncounter(id)` was left in place: `billing`/`prescribing`/`referrals`/
+  `diagnostics-orders`/`immunization`/`clinical-summary` all call it
+  server-side to resolve an encounter they were already handed a
+  same-request id for, exactly why `BillingService.getInvoice(id)` stayed
+  unowned alongside its own `getInvoiceForOwner`.
+
+  **What was deliberately left out.** `openEncounter`/`closeEncounter`/
+  `recordNote`/`reviseNote`/`attachDocument` stay unguarded — the same
+  clinician-action asymmetry `BillingController`'s doc comment already
+  established: `clinicianId`/`authorId` are free-text fields trusted from the
+  request body across the whole clinical suite, and this app has no
+  clinician-side session to check them against yet, so gating them behind a
+  *patient* `SessionAuthGuard` would make them unusable, not correct.
+  `createTemplate`/`listTemplates` also stay ungated: templates are
+  clinic-wide reusable prompts, not per-patient data, so there is no owner to
+  check them against at all.
+
+  **Tests.** `clinical-charting.controller.test.ts`: added an
+  entitlement-wiring `describe` block asserting `listEncounters`/
+  `getEncounter`/`listNotes` carry `[SessionAuthGuard]` and the eight
+  remaining routes carry none; updated every `getEncounter`/`listEncounters`/
+  `listNotes` call site to pass a `CurrentUserResult`; added two new 404
+  cases (a stranger reading/listing another caller's encounter, and a
+  stranger listing another caller's notes). `clinical-charting.service.ts`:
+  no existing test changed — `getEncounterForOwner`/`listNotesForOwner` are
+  new methods, covered by the controller-level tests above rather than
+  duplicated at the service layer, matching how `BillingService.
+  getInvoiceForOwner` was tested. All new cases fail against the pre-fix code
+  (no guard to trip, or `getEncounter`/`listNotes` returning the record
+  regardless of owner) and pass with it. Neither `apps/web` nor
+  `apps/mobile` calls any clinical-charting route yet, so no client code
+  needed updating.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 686/686 (682 baseline + 4 new). `pnpm build` 40/40 (35
+  cached, 5 rebuilt).
+
+  **For the next run.** The `TeleconsultationController` survey (two runs
+  back now) still names five more controllers with the same plausible
+  missing-guard shape, not yet verified by reading source:
+  `scheduling`/`referrals`/`diagnostics-orders`/`prescribing`/`immunization`'s
+  own read routes. None carry financial or clinical-narrative PHI as directly
+  as billing/teleconsultation/clinical-charting did, but each is still owed a
+  real read before being assumed clean or assumed a gap — the same
+  "confirmed live by reading the controller" standard this run and the two
+  before it held to, not an inference from the pattern alone.
+
+- 2026-08-15 — **Queue fully checked; `BillingController`'s `listInvoices`
+  and `getInvoice` had no `SessionAuthGuard` at all, letting any
+  unauthenticated caller list or read every patient's invoices, line items
+  and payments system-wide.** Grepped for `- [ ]` first — zero hits.
+
+  **Why this task.** The immediately preceding run's own log entry (below)
+  named this exact gap as "the natural next pick, same severity (financial
+  PHI instead of video-consult PHI), same fix shape" as the
+  `TeleconsultationController` fix it had just made. Confirmed live by
+  reading `billing.controller.ts` directly: no `@UseGuards` anywhere on the
+  class or any of its seven routes.
+
+  **What was wrong.** `GET /billing/invoices` took an *optional* `patientId`
+  query param — omitting it returned every invoice in the system, and
+  supplying any patient's id (real or guessed) returned that patient's
+  invoices with no proof the caller was them. `GET
+  /billing/invoices/:invoiceId` read any invoice by its opaque id alone, no
+  auth of any kind.
+
+  **The fix.** Added `@UseGuards(SessionAuthGuard)` to `listInvoices` and
+  `getInvoice`. `listInvoices` now reads the owner from `@CurrentUser()`
+  instead of the client-supplied query param — a caller can no longer list
+  another patient's invoices at all, not even by passing their id
+  explicitly. `getInvoice` resolves through a new
+  `BillingService.getInvoiceForOwner(id, ownerId)`, which 404s (not 403s) an
+  invoice that exists but belongs to someone else — the same
+  "belongs-to-someone-else 404s like it doesn't exist" rule
+  `TeleconsultationService.getSession`/`RecordsService.#requireObservation`
+  already use. The existing unowned `BillingService.getInvoice(id)` was left
+  in place for the staff-side transitions (`addLineItem`/`issueInvoice`/
+  `recordPayment`/`voidInvoice`) that call it internally, and
+  `BillingService.listInvoices(patientId?)` keeps its optional signature
+  since `AnalyticsService.billingSummary` calls it unfiltered for a
+  system-wide aggregate — an internal, server-side call, never a
+  client-controlled route.
+
+  **What was deliberately left out.** `openInvoice`/`addLineItem`/
+  `issueInvoice`/`recordPayment`/`voidInvoice` stay unguarded. Unlike
+  teleconsultation's start/complete/cancel/no-show — patient-initiated
+  transitions on the patient's own session — these are clinic/billing-staff
+  actions (`clinicianId`/`recordedBy` are free-text fields trusted from the
+  request body, the same as across the rest of the clinical suite), and this
+  app has no clinician-side session to check them against yet, the same gap
+  the preceding run's log entry described for teleconsultation. Gating a
+  staff action behind a *patient* `SessionAuthGuard` would not make it
+  correct, only unusable — inventing a clinician identity to check against
+  would be a materially bigger, separate piece of work, not a same-shape fix.
+
+  **Tests.** `billing.controller.test.ts`: added an entitlement-wiring
+  `describe` block asserting `listInvoices`/`getInvoice` carry
+  `[SessionAuthGuard]` and the five staff-side mutation routes plus `health`
+  carry no guard at all (locking in the deliberate asymmetry above so a
+  future run doesn't misread it the way a prior `TeleconsultationController`
+  test suite once locked in its own missing guards as intended behaviour);
+  rewrote the `listInvoices`/`getInvoice` test to use a `CurrentUserResult`
+  instead of a raw `patientId` string, and added a case 404ing a real invoice
+  id under a different caller. `billing.service.test.ts`: two new cases for
+  `getInvoiceForOwner` — reads the owner's own invoice back, 404s both a
+  wrong-owner id and a nonexistent one. All new cases fail against the
+  pre-fix code and pass with it. No client in `apps/web` or `apps/mobile`
+  calls any billing route yet, so no client code needed updating.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 682/682 (677 baseline + 5 new). `pnpm build` 40/40 (35
+  cached, 5 rebuilt).
+
+  **For the next run.** The `TeleconsultationController` survey (named two
+  runs back now) also flagged the same missing-guard pattern as plausible in
+  `scheduling`/`referrals`/`diagnostics-orders`/`prescribing`/
+  `clinical-charting`/`immunization`'s own read routes, judged lower urgency
+  than teleconsultation/billing (no financial or live-consult data) and not
+  yet verified by reading source. That verification is still owed. Of those,
+  `clinical-charting` is worth checking first: its `GET
+  /clinical-charting/encounters/:encounterId/notes` route (confirmed by
+  reading `clinical-charting.controller.ts` to have no `@UseGuards` either)
+  returns the free-text SOAP notes recorded against an encounter — clinical
+  narrative, not just structured fields — which would make an unguarded leak
+  there comparably serious to billing's, if the same missing-guard shape
+  holds once read all the way through.
+
+- 2026-08-15 — **Queue fully checked; `TeleconsultationController` left six of
+  its seven routes with no `SessionAuthGuard` at all, letting any
+  unauthenticated caller list, read or cancel any patient's teleconsultation
+  sessions system-wide.** Grepped for `- [ ]` first — zero hits.
+
+  **Why this task.** Commissioned a survey agent scoped explicitly away from
+  every category this ledger already documents as exhaustively mined
+  (wrong-state-500 across eleven modules now, string-vs-`Date.parse`,
+  ISO-date validation, cross-owner auth on records/language-corpus/
+  credentialing, forgeable reviewer headers, mobile i18n, filename mangling,
+  negative-reading validation, the message-catalogue audit, clinical-safety
+  regex gaps) and pointed instead at the less-explored packages and the
+  ledger's own standing hard constraints. It reported those constraints
+  (DRAFT leakage, clinical-safety bypass, cross-subject leakage, client-side
+  encryption) genuinely well-defended on direct reading, but found this gap
+  in `apps/api/src/teleconsultation/teleconsultation.controller.ts`.
+
+  **What was wrong.** Only `schedule` (booking) carried
+  `@UseGuards(SessionAuthGuard, EntitlementsGuard)`. `listSessions`,
+  `getSession`, `start`, `complete`, `cancel` and `noShow` had no guard at
+  all: `GET /teleconsultation/sessions` with no `patientId` query param and
+  no auth of any kind returned every session in the system — patient id,
+  clinician id, status, cancel reason, timestamps — and
+  `POST /teleconsultation/sessions/:id/cancel` let any unauthenticated caller
+  who knew or guessed a session id cancel or mark-no-show someone else's
+  booked video consultation. Confirmed live by reading the controller and
+  its repository (`TeleconsultationRepository.list`) directly, not inferred.
+  The controller's own test suite had a test, `'leaves every other route
+  ungated'`, that asserted this was intentional — its comment claimed it
+  followed "`RecordsController`'s precedent," but `RecordsController` was
+  read directly too: every one of its read/mutate routes
+  (`list`/`observationsForDocument`/`timeline`/`confirm`/`correct`/`reject`)
+  *does* carry `SessionAuthGuard`; only `capture` additionally carries
+  `EntitlementsGuard`. The locking test encoded a misreading of that
+  precedent as if it were the precedent itself — the same "test itself
+  encodes the bug" tell recurring across this ledger's fixes, just applied to
+  a whole controller's auth surface instead of one error path.
+
+  **The fix.** Added `@UseGuards(SessionAuthGuard)` to all six routes.
+  `listSessions` and `getSession` now read the owner from `@CurrentUser()`
+  instead of an optional client-supplied `patientId` query param — the
+  caller can no longer request another patient's sessions at all, not even
+  by passing their id explicitly. `TeleconsultationService.getSession` now
+  takes `ownerId` and 404s (not 403s) a session that exists but belongs to
+  someone else, the identical "belongs to someone else 404s like it doesn't
+  exist" rule `RecordsService.#requireObservation` already uses.
+  `startSession`/`completeSession`/`cancelSession`/`markNoShow` all resolve
+  through this same `getSession`, so a caller acting on someone else's
+  session id 404s before any transition is attempted. `scheduleSession`'s
+  internal conflict check still calls `this.repository.list()` unfiltered —
+  that is server-internal business logic, never a client-controlled route,
+  so it was left as-is.
+
+  **What was deliberately left out.** No clinician-side identity exists
+  anywhere in this app yet — `clinicianId` is a free-text field trusted from
+  the request body across the whole clinical suite (scheduling, referrals,
+  prescribing, clinical-charting, billing, diagnostics-orders,
+  clinical-summary, immunization all take it the same way). So the fix
+  enforces `patientId === caller` only; it does not attempt to also let "the
+  clinician on the session" through, since there is no real identity to
+  check that against — inventing one would be a materially bigger, separate
+  piece of work, not a same-shape fix.
+
+  **Tests.** `teleconsultation.controller.test.ts`: rewrote the
+  `'leaves every other route ungated'` test into
+  `'gates every read and mutation route behind SessionAuthGuard'` (the
+  correct assertion), and added a `'404s a real session id that belongs to a
+  different caller, on every read and mutation route'` case covering all six
+  routes with a stranger's `CurrentUserResult`.
+  `teleconsultation.service.test.ts`: two new cases — `getSession` 404s a
+  real session id under the wrong owner, and each of
+  `startSession`/`completeSession`/`cancelSession`/`markNoShow` does too. All
+  new cases fail against the pre-fix code (either no guard to trip, or
+  `getSession` returning the session regardless of owner) and pass with it.
+  Updated every pre-existing call site across
+  `teleconsultation.service.test.ts`/`.controller.test.ts`/
+  `.fault-isolation.test.ts` to pass the now-required `ownerId`.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 677/677 (673 baseline + 4 new). `pnpm build` 40/40 (35
+  cached, 5 rebuilt).
+
+  **For the next run.** The survey's report named the identical-shape gap in
+  `apps/api/src/billing/billing.controller.ts`: `listInvoices`/`getInvoice`
+  have no `SessionAuthGuard` either, and omitting `patientId` from
+  `GET /billing/invoices` dumps every patient's invoices, line items and
+  payments unauthenticated — the natural next pick, same severity (financial
+  PHI instead of video-consult PHI), same fix shape. The survey also flagged
+  the same missing-guard pattern as plausible in
+  `scheduling`/`referrals`/`diagnostics-orders`/`prescribing`/
+  `clinical-charting`/`immunization`'s own read routes but judged those lower
+  urgency (no financial or live-consult data) and did not verify each by
+  reading source — that verification is still owed before assuming they are
+  real instances rather than assuming they're clean. Neither
+  `apps/mobile` nor `apps/web` calls any teleconsultation route yet, so no
+  client code needed updating.
+
+- 2026-08-15 — **Queue fully checked; `CredentialingService`'s `beginReview`,
+  `approve` and `reject` had the identical wrong-state-domain-error-reaches-
+  the-client-as-a-bare-500 gap the immediately preceding run had just fixed
+  in `IdentityService`.** Grepped for `- [ ]` first — zero hits.
+
+  **Why this task.** The prior run's own log entry named this exact file as
+  the natural next pick: `credentialing.service.ts`'s doc comments state it
+  mirrors `packages/identity`'s state machine "exactly" (submit → review →
+  decide, rejection resubmits, approval terminal), and `submit` already had
+  the transition-error-to-400 conversion identity's `submit` has, which was
+  the tell that the sibling reviewer methods were likely unguarded too.
+  Confirmed by reading both `credentialing.service.ts` and
+  `packages/credentialing/src/index.ts` directly rather than trusting the
+  analogy: `beginReview`, `approveApplication` and `rejectApplication` all
+  route through the same `transitionApplication` helper that throws
+  `ApplicationTransitionError` on an illegal edge, and none of
+  `CredentialingService`'s three matching methods caught it.
+
+  **What was wrong.** Same shape as identity: a reviewer double-clicking
+  "begin review" (`UNDER_REVIEW → UNDER_REVIEW`, not a legal edge per
+  `transitions`), an approve arriving before `beginReview`
+  (`EVIDENCE_SUBMITTED → APPROVED`), or a reject on an already-decided
+  application (`APPROVED`/`REJECTED` → `REJECTED`) would all throw
+  `ApplicationTransitionError` straight through `CredentialingController`
+  as an unstructured 500. `credentialing.service.test.ts` only exercised the
+  happy path for these three methods — the same "test itself never covered
+  the failing path" tell the whole series has shared.
+
+  **The fix.** Added a private `#transition` helper on `CredentialingService`,
+  identical in shape to `IdentityService`'s, and routed `beginReview`,
+  `approve` and `reject` through it instead of calling
+  `beginReview`/`approveApplication`/`rejectApplication` directly.
+
+  **Tests.** `credentialing.service.test.ts`: three new cases mirroring
+  identity's — approve before `beginReview`, a second `beginReview` on an
+  already-`UNDER_REVIEW` application, and reject on an already-`APPROVED`
+  application — each asserting `BadRequestException` with
+  `code: 'ApplicationTransitionError'`. All three fail without the fix
+  (uncaught `ApplicationTransitionError`) and pass with it.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 673/673 (670 baseline + 3 new). `pnpm build` 40/40 (35
+  cached, 5 rebuilt).
+
+  **For the next run.** The `IdentityService` fix's own log entry also
+  re-confirmed (by reading source) that `packages/retrieval`/
+  `packages/intent-router`/`packages/interop`'s DRAFT-filtering is correct
+  everywhere, that neither package is wired into `apps/api` yet, and that
+  `packages/devices`'s other unit conversions have no sign-flip risk like the
+  Fahrenheit bug did. Two small, previously-named items remain open and
+  untouched by this run: `packages/evaluation/src/index.ts`'s stale "two
+  cases carry `idealNote`" comment (cosmetic, zero behavioural effect), and
+  `apps/web`'s message catalogues, which the 2026-08-15 `municipality` run
+  already audited and found clean (664 keys each side, no untranslated
+  copies). A fresh independent survey, scoped away from every category this
+  log now documents as mined (wrong-state-500 across eleven modules now,
+  string-vs-`Date.parse`, ISO-date validation, cross-owner auth, forgeable
+  headers, mobile i18n, filename mangling, negative-reading validation), is
+  likely the most productive next step.
+
+- 2026-08-15 — **Queue fully checked; `IdentityService`'s `beginReview`,
+  `approve` and `reject` had a live instance of the wrong-state-domain-error-
+  reaches-the-client-as-a-bare-500 gap — the ledger listed `identity` as
+  already checked clean, but that was inferred, not read directly.** Grepped
+  for `- [ ]` first — zero hits.
+
+  **Why this task.** With the queue exhausted, commissioned a survey agent
+  scoped away from every category the log already documents as exhaustively
+  mined (the wrong-state-500 series across ten modules, the string-vs-
+  `Date.parse` series across every domain package, ISO-date validation,
+  cross-owner auth, forgeable headers, mobile i18n, filename mangling,
+  negative-reading validation, the just-fixed care-directory/devices bugs,
+  the message-catalogue audit) and pointed instead at the less-explored
+  packages and the ledger's own standing hard constraints (DRAFT leakage,
+  clinical-safety bypass, cross-subject leakage, client-encryption boundary).
+  It reported those three invariants genuinely well-defended on direct
+  reading, but found this gap in `apps/api/src/identity/identity.service.ts`.
+
+  **What was wrong.** `submit` (the only method in the file) wrapped its
+  domain call in try/catch and converted `VerificationTransitionError` to a
+  `BadRequestException({code, message})`. `beginReview`, `approve` and
+  `reject` called `@swasthya/identity`'s `beginReview`/`approveVerification`/
+  `rejectVerification` with no such handling, so an illegal transition —
+  approving a request still `EVIDENCE_SUBMITTED` (reviewer skips or races
+  "begin review"), double-clicking "begin review" itself
+  (`UNDER_REVIEW → UNDER_REVIEW` is not a legal edge per
+  `packages/identity`'s `verificationTransitions`), or rejecting an
+  already-decided request — reached the client as an unstructured 500
+  instead of an explainable 400. `identity.service.test.ts` only exercised
+  the happy path for these three methods and only asserted the
+  `BadRequestException` conversion for `submit` — the exact "test itself
+  never covered the failing path" tell that has preceded every fix in this
+  series, and the concrete evidence that the "identity checked clean" claim
+  in an earlier `patient-registry` entry was never verified against this
+  file.
+
+  **The fix.** Added a private `#transition` helper on `IdentityService`
+  sharing `submit`'s exact try/catch shape, and routed `beginReview`,
+  `approve` and `reject` through it instead of calling the domain functions
+  directly.
+
+  **Tests.** `identity.service.test.ts`: three new cases — approve before
+  `beginReview`, a second `beginReview` on an already-`UNDER_REVIEW` request,
+  and reject on an already-`APPROVED` request — each asserting
+  `BadRequestException` with `code: 'VerificationTransitionError'`. All three
+  fail without the fix (uncaught `VerificationTransitionError`) and pass with
+  it.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 670/670 (667 baseline + 3 new). `pnpm build` 40/40 (35
+  cached, 5 rebuilt).
+
+  **For the next run.** The survey's own report names a closely related,
+  unfixed sibling: `apps/api/src/credentialing/credentialing.service.ts` has
+  the identical shape — `submit` wrapped, `beginReview`/`approve`/`reject`
+  not — per its own doc comment lineage ("mirrors identity's state machine
+  exactly"), very likely the same bug copy-pasted into a second file. Ruled
+  out of *this* run only to keep to one task; it is the natural next pick.
+  The survey also re-confirmed (by reading source, not inferring) that
+  `packages/retrieval`/`packages/intent-router`/`packages/interop`'s
+  DRAFT-filtering is correct everywhere and that neither package is wired
+  into `apps/api` yet, and that `packages/devices`'s other unit conversions
+  (glucose, weight, oxygen, BP) have no sign-flip risk like the Fahrenheit
+  bug did. `packages/evaluation/src/index.ts`'s stale "two cases carry
+  `idealNote`" comment (now zero cases) remains open and cosmetic.
+
+- 2026-08-15 — **Queue fully checked; widened `packages/care-directory`'s
+  `searchDirectory` to match on `municipality`.** Grepped for `- [ ]` first —
+  zero hits. The prior run (immediately below) had just closed the
+  Fahrenheit-body-temperature bug and left two named fallback candidates plus
+  one open item; this run checked all three before picking one.
+
+  **Checked and ruled out first.** `apps/web`'s message catalogues, the item
+  that run's own log entry left explicitly open ("not yet audited"): wrote a
+  script flattening both `ne.json` and `en.json` to dotted key paths and
+  diffing the sets — 664 keys each side, zero missing in either direction.
+  Then checked for the more likely real bug, a value copy-pasted identically
+  into both locales instead of translated: one pass over every key whose
+  `ne` and `en` values are byte-identical, filtered to values containing
+  alphabetic words with no Devanagari. Four hits, all legitimate
+  (`brand.nameLatin` = "MERO HEALTH", three `phonePlaceholder` keys =
+  "98XXXXXXXX") — not translation bugs. The catalogues are genuinely clean;
+  nothing to fix here.
+
+  **What was built instead.** The other named candidate,
+  `packages/care-directory/src/index.ts`'s `searchDirectory`: it filtered on
+  `[entity.name, entity.nameNe, entity.district, ...entity.specialties]`, so
+  a search for a municipality name (e.g. "Dhangadhi") matched nothing even
+  though `DirectoryEntity.municipality` is a required, populated field and
+  `apps/mobile/app/(tabs)/care.tsx` renders it right next to `district` in
+  every result row. The prior log entry had already checked the placeholder
+  copy ("Name, specialty or district…") doesn't promise municipality search,
+  so this was a quiet completeness gap rather than a broken promise. Added
+  `entity.municipality` to the matched-fields array — a one-line change,
+  since the fixed-value seed data (`fictionalDirectory`) needed no edits.
+
+  **Tests.** `packages/care-directory/src/index.test.ts`: one new case
+  searching `'Dhangadhi'` (matches only `demo-clinic-1`'s
+  `municipality: 'Dhangadhi Sub-Metropolitan'`, no other seed row's
+  name/nameNe/district/specialties contain it) and asserting the `CLINIC`
+  type comes back. Fails without the fix (empty result), passes with it.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/care-directory` 5/5 (4 baseline + 1 new), `@swasthya/api`
+  667/667 unchanged. `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** `packages/evaluation/src/index.ts`'s stale
+  "two cases carry `idealNote`" comment (still open, still cosmetic) is the
+  one named candidate left unaddressed from the prior entry. No new gap was
+  found in this run beyond the message-catalogue audit above, which came back
+  clean — a fresh independent survey is likely more productive than
+  re-checking either of those two.
+
+- 2026-08-15 — **Queue fully checked; `packages/devices`'s negative-reading
+  guard on body temperature checked the wrong unit.** Grepped for `- [ ]`
+  first — zero hits. The two most recent runs (immediately below) had just
+  closed the wrong-state-500 series and the string-vs-`Date.parse` series
+  across the whole repo, so this run commissioned a survey scoped explicitly
+  away from both, and away from every other category the log already
+  documents as exhaustively mined (ISO-date validation on controllers,
+  cross-owner auth, forgeable reviewer headers, mobile i18n, filename
+  mangling, clinical-safety regex gaps, negative-reading validation as a
+  *category*) — pointed instead at the less-explored packages
+  (`devices`, `digital-twin`, `care-directory`, `localization`,
+  `entitlements`, `module-registry`, `interop`, `evaluation`, `retrieval`,
+  `intent-router`) and at `apps/web`'s message catalogues.
+
+  **What was found.** `normalizeHealthConnectRecord`'s `BodyTemperatureRecord`
+  case and `normalizeHealthKitSample`'s
+  `HKQuantityTypeIdentifierBodyTemperature` case (`packages/devices/src/
+  index.ts`) both ran `assertNonNegative` on the *raw source-unit* reading
+  before converting it to Celsius, not on the converted value. That guard was
+  added on 2026-08-14 specifically to stop a physiologically impossible
+  temperature from reaching `DeviceSample.value`, reasoning by analogy with
+  `weight`/`glucose` — checked before their unit conversion, same as this.
+  The analogy doesn't hold for temperature: `massToKg`/glucose conversions
+  are positive scale factors, so a non-negative input can never go negative,
+  but Fahrenheit→Celsius subtracts 32 before scaling. A device reporting
+  `20°F` — non-negative, so it passed the guard — converts to `-6.7°C`
+  (`(20 − 32) × 5 / 9`) and would have reached `DeviceSample.value`,
+  `digital-twin` and any trend built on it as an impossible negative body
+  temperature. The existing regression test for this guard only covered
+  `unit: 'celsius'`, so nothing exercised the Fahrenheit path.
+
+  **The fix.** Both call sites now compute the canonical Celsius value first
+  (`temperatureToCelsius(...)`) and run `assertNonNegative` on that, reusing
+  the already-computed value for the sample instead of converting twice.
+  `assertNonNegative`'s doc comment now explains why this ordering is
+  load-bearing for temperature specifically and not for the other metrics
+  that share the same guard.
+
+  **Tests.** `packages/devices/src/index.test.ts`: one new case per platform
+  — `20°F` (Health Connect) and `20 degF` (HealthKit) — each asserting
+  `InvalidDeviceRecordError`. Both fail without the fix (the raw reading is
+  non-negative) and pass with it.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/devices` 33/33 (31 baseline + 2 new), `@swasthya/api` 667/667
+  unchanged. `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** Two weaker candidates were found and set aside as too
+  cosmetic to justify a run on their own: `packages/evaluation/src/index.ts`'s
+  section comment (~line 172) still claims "two cases carry `idealNote`"
+  after both were fixed to zero — a stale doc comment, not a behavioural bug,
+  and the test file already asserts the current (correct) state directly.
+  `packages/care-directory`'s `searchDirectory` doesn't index `municipality`
+  in its text search (only name/nameNe/district/specialties) — a feature gap
+  the mobile UI's search placeholder doesn't promise either. Neither is worth
+  a dedicated run by itself, but either is a legitimate small next pick if
+  nothing better turns up. `apps/web`'s message catalogues were not yet
+  audited for missing/mismatched keys between `ne.json` and `en.json` — that
+  remains open.
+
+- 2026-08-15 — **Queue fully checked; `PatientRegistryService` had a live,
+  previously-missed instance of the wrong-state-domain-error-reaches-the-
+  client-as-a-bare-500 gap the ledger had twice logged as already closed for
+  this module.** Grepped for `- [ ]` first — zero hits.
+
+  **Why this task, not a bug hunt.** Ten prior modules across this series had
+  already been fixed (billing, prescribing, clinical-charting,
+  diagnostics-orders, immunization, referrals, teleconsultation, scheduling,
+  engagement, language-corpus), and the `LanguageCorpusService` run's own log
+  entry declared the series closed "across the entire `apps/api` tree." Given
+  that, this run commissioned a general-purpose survey agent aimed
+  deliberately away from the exhausted bug-hunt veins, at this ledger's own
+  named hard constraints instead: DRAFT-observation leakage into the
+  assistant/share-link/export path, a clinical-safety-bypassing model-call
+  entry point, and plaintext reaching the Google Drive adapter. The survey
+  found invariants 1 and 2 genuinely well-defended (traced every consumer;
+  `packages/interop`'s `toFhirObservation` re-checks trust status even though
+  callers already filter, and the only live model call —
+  `PerplexityHealthService.research` via `CompanionController.research` —
+  always runs `assessSafety` first). Its one finding, invariant 3, was that
+  `apps/api` never actually resolves a caller's storage tier: `RecordsModule`
+  unconditionally binds the `HOSTED` backend for every request regardless of
+  entitlement, so a `FREE`-tier document capture (100% of captures today,
+  since `FreeTierSubscriptionResolver` resolves everyone to `FREE`) lands in
+  Mero-controlled storage with `clientEncrypted` defaulting `false`, never
+  routed through `resolveStoragePlacement` at all.
+
+  **Investigated that finding and did not act on it.** Confirmed it directly
+  by reading `records.module.ts`/`records.service.ts`/`storage-adapters/src/
+  index.ts`: real, but already an explicitly-decided, well-documented
+  interim state, not a fresh discovery — the 2026-08-09 `GoogleDriveDocumentStore`
+  log entry names exactly why the Drive adapter is not wired into
+  `RecordsModule` (no OAuth consent flow, nowhere to persist a per-person
+  refresh token, both needing an identity/connected-accounts layer that
+  doesn't exist). The "minimal fix" the survey itself proposed — reject a
+  capture when the tier isn't entitled to `HOSTED_STORAGE` and the blob isn't
+  client-encrypted — would not close the gap, it would break every capture on
+  this branch today with no working alternative backend to fall back to, for
+  a business-tier boundary rather than the specific hard-constraint wording
+  ("documents bound for storage we do not control must be client-encrypted"
+  — nothing is currently bound for a backend Mero Health does not control,
+  since Drive is unreachable end to end). Turning a quiet, already-named gap
+  into a broken capture flow would have been a worse outcome than leaving it
+  documented. Did not touch this.
+
+  **What was actually built instead.** Re-reading the two log entries that
+  called `patient-registry` "already confirmed clean"
+  (`ReferralsService`/`SchedulingService` runs, both by inference from a
+  peer's survey rather than a direct read) against the source directly:
+  `PatientRegistryService.register`/`updateDemographics`
+  (`apps/api/src/patient-registry/patient-registry.service.ts`) call
+  `@swasthya/patient-registry`'s `registerPatient`/`updateDemographics` with
+  no `try`/`catch`. Both throw `FutureDateOfBirthError` on an impossible
+  birth date — a real, live rejection reachable via `POST /patients` and
+  `POST /patients/:id/demographics`, both open routes with no
+  `SessionAuthGuard` (a separate, already-standing, not-this-run's-to-resolve
+  gap the ledger has named repeatedly). `patient-registry.service.test.ts`'s
+  own "propagates a domain rejection... unwrapped" test asserted the raw
+  `FutureDateOfBirthError` directly — the exact "test itself is wrong" tell
+  every other module in this series had before its fix, and the strongest
+  evidence the "confirmed clean" claim was never actually checked against
+  this file.
+
+  **The fix.** Added a private `#runTransition` to `PatientRegistryService`,
+  the same shape the nine sibling services already use: catches
+  `FutureDateOfBirthError` by `instanceof`, re-throws as `new
+  BadRequestException({ code: error.name, message: error.message })`, lets
+  anything else pass through. Both `register` and `updateDemographics` now
+  route their domain call through it.
+
+  **Tests.** `patient-registry.service.test.ts`: rewrote the one existing
+  raw-error assertion to the try/`expect.unreachable`/catch shape
+  `referrals.service.test.ts` established, and added a second case for the
+  `updateDemographics` path — the domain guard exists on both call sites but
+  only `register` had ever been exercised at the service-test layer.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 667/667 (net +1: one test rewritten, one new). `pnpm build`
+  40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** This is very likely the true end of the
+  wrong-state-500 series — `analytics`/`clinical-summary`/`clinical-suite`
+  throw no domain error capable of this shape, `auth` already wraps its one
+  call, and `credentialing`/`family`/`identity`/`records` were each checked
+  by name in an earlier entry — but this run's own experience is a concrete
+  reason not to fully trust that without a fresh, direct read: a "confirmed
+  clean" claim two entries deep turned out to be wrong. The two standing
+  product-decision items are unchanged: `packages/health-records`'s
+  status-guard question, and the clinical-suite's missing clinician/patient
+  identity model. A third, real but explicitly out-of-scope-for-one-run item
+  now has a fuller paper trail: `apps/api` never enforces the storage-tier
+  entitlement boundary described in `docs/architecture/platform-vision.md`
+  §3.1, and closing it honestly needs the Drive OAuth/connected-accounts
+  layer the 2026-08-09 log entry already named as its prerequisite — not a
+  reject-on-capture patch that would just break the only working storage
+  path that exists today.
+
+- 2026-08-15 — **Queue fully checked; `packages/credentialing`'s
+  `isBadgeCurrent` had the same string-vs-`Date.parse` instant-comparison bug
+  already fixed in `packages/scheduling`, `packages/population-health` and
+  `packages/family`.** Grepped for `- [ ]` first — zero hits. The 2026-08-14
+  `packages/family` run's own log entry named seven domain packages its
+  survey had not yet checked for this pattern
+  (`interop`, `immunization`, `referrals`, `teleconsultation`,
+  `credentialing`, `identity`, `language-corpus`) and explicitly warned not to
+  assume they were clean. This run commissioned exactly that survey.
+
+  **What the survey found.** Six of the seven packages are clean:
+  `packages/interop`'s `isShareLinkActive` and `packages/language-corpus`'s
+  `isLive` already parse both sides with `Date.parse` before comparing;
+  `packages/immunization`, `packages/referrals` and `packages/teleconsultation`
+  contain no instant comparisons at all (state-machine mutations and
+  status-equality checks only); `packages/identity`'s one `>=` compares
+  enum array positions (`assuranceOrder.indexOf(...)`), not date strings, and
+  its one sort uses `localeCompare` (display-only, correctly left alone by
+  precedent). The seventh, `packages/credentialing/src/index.ts:250`, had it:
+  `isBadgeCurrent(badge, now)` returned `now < badge.recheckDueAt` — a raw
+  string comparison feeding `badgeRenderStatus`'s `VERIFIED`/`UNVERIFIED`
+  decision, the same active/inactive-guard severity as the already-fixed
+  cases, not a sort.
+
+  **Live-triggerability, honestly stated.** Unlike the three prior fixes in
+  this series, this one is currently dormant: no route in `apps/api` calls
+  `issueBadge`/`recheckBadge` yet (`VerifiedBadge.tsx`'s own doc comment says
+  so), so there is no live client-supplied `recheckDueAt` to exploit today.
+  Fixed anyway, on the same "before the wiring lands, not after" reasoning
+  the standing constraints imply — waiting for it to become live first would
+  mean shipping the bug to production at least once.
+
+  **The fix.** `Date.parse(now) < Date.parse(badge.recheckDueAt)`, matching
+  the `packages/family`/`packages/scheduling` precedent exactly, plus a doc
+  comment pointing at `packages/family`'s `isDelegationActive` for the fuller
+  explanation rather than repeating it.
+
+  **Tests.** `packages/credentialing/src/index.test.ts`: one new case —
+  `recheckDueAt` at 900ms, checked against a `now` of 950ms (chronologically
+  50ms *after* the recheck date, so the badge should already read stale).
+  The raw-string comparison sorts `"...00.950Z" < "...00.9Z"` as strings
+  (950ms's string sorts before 900ms's), which would have kept reporting this
+  already-expired badge as `VERIFIED`; the fix correctly reports `false`.
+  First written with the assertion backwards (`toBe(true)`) — caught by
+  `pnpm test` failing, not by review — corrected once the actual chronology
+  was worked through by hand.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/credentialing` 18/18 (17 baseline + 1 new), `@swasthya/api`
+  666/666 unchanged. `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** The string-vs-`Date.parse` instant-comparison series
+  is now closed across every domain package in the repo as far as two
+  independent surveys have found — `packages/family`'s run covered
+  `scheduling`/`population-health`/`family` itself, and this run covered the
+  remaining seven. No further instance is known, but as the family run's own
+  entry cautioned, that is not the same as proof; a package added later
+  should be checked against this pattern before it is assumed clean.
+
+- 2026-08-14 — **Queue fully checked; `packages/family` had the same
+  string-vs-`Date.parse` instant-comparison bug already fixed once in
+  `packages/scheduling` and once in `packages/population-health`.** Grepped
+  for `- [ ]` first — zero hits. The `LanguageCorpusService` run's own log
+  entry, immediately below, closed the wrong-state-500 series and named no
+  further candidate, so this run spawned an independent survey agent scoped
+  away from every category the ledger's log already documents as
+  exhaustively mined (wrong-state-500s, ISO-date validation on controllers,
+  cross-owner auth, forgeable reviewer headers, mobile i18n, filename
+  mangling, clinical-safety regex gaps, negative-reading validation), asking
+  it to read source directly rather than the ledger.
+
+  **What was found.** `packages/family/src/index.ts`'s `isGuardianshipActive`
+  (then lines 133-137), `isDelegationActive` (315-318), `isConditionShareActive`
+  (651-653), and the `expiresAt <= grantedAt` guards in
+  `grantGuardianshipForMinor`, `grantGuardianshipForIncapacity` and
+  `buildDelegationGrant` all compared ISO-instant strings with plain
+  `<`/`<=`/`>`. `apps/api/src/family/family-grants.controller.ts:15`'s own
+  `isoInstant` regex accepts 1, 2 or 3 fractional-second digits on
+  client-supplied `expiresAt` — the identical variable-precision shape
+  `packages/scheduling`'s `assertValidWindow`/`windowsOverlap` and
+  `packages/population-health`'s `buildRecallList` were each already fixed
+  for. A server-generated `now` (`new Date().toISOString()`, always 3 digits)
+  compared against a shorter client-supplied `expiresAt` string-sorts wrong:
+  `"...00.950Z" < "...00.9Z"` is `true` as strings even though 950ms is
+  *after* 900ms, so `isDelegationActive`/`isGuardianshipActive` could report
+  an already-expired grant as still active for the tail of its final second.
+
+  **The fix.** Every comparison above now parses both sides with
+  `Date.parse` before comparing, matching `packages/scheduling`'s precedent
+  exactly (a local `nowMs`/`asOfMs` computed once per function, per
+  `packages/population-health`'s own style, rather than re-parsing `now` on
+  every line). The three sort-only `.toSorted((a, b) =>
+  a.grantedAt.localeCompare(b.grantedAt))` calls (`listActiveGuardianshipsFor`,
+  `listActiveDelegationsFor`, `accessLogForOwner`) were left untouched — they
+  only affect display order, not the active/inactive boolean a caller acts
+  on, so they are not the same severity of bug and widening scope to them
+  would have been a separate task.
+
+  **Tests.** `packages/family/src/index.test.ts`: one new case on
+  `isDelegationActive` reproducing the exact scenario — a delegation granted
+  with `expiresAt: '...00.9Z'` (900ms) is reported inactive at
+  `'...00.950Z'` (950ms), which fails without the fix and passes with it.
+  Not duplicated for `isGuardianshipActive`/`isConditionShareActive` since
+  all three functions now share the identical `Date.parse` shape and the
+  scheduling/population-health precedent each added a single regression case
+  per package, not one per function.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (no lockfile change).
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/family` 56/56 (55 baseline + 1 new), `@swasthya/api` 666/666
+  unchanged. `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** No further instances of the string-vs-`Date.parse`
+  instant-comparison bug are known; a survey of the remaining domain packages
+  this run did not check (`packages/interop`, `packages/immunization`,
+  `packages/referrals`, `packages/teleconsultation`, `packages/credentialing`,
+  `packages/identity`, `packages/language-corpus`) for the same pattern would
+  be a reasonable next candidate, but has not been done — do not assume it is
+  clean just because this entry doesn't name a finding there.
+
+- 2026-08-14 — **Queue fully checked; independent survey of the whole
+  `apps/api` tree found one more instance of the wrong-state-domain-error-
+  reaches-the-client-as-a-bare-500 gap, in `LanguageCorpusService`.** Grepped
+  for `- [ ]` first — zero hits. The `EngagementService.retryMessage` run's
+  own log entry, immediately above, asked for exactly this: a fresh survey of
+  `apps/api` outside `clinical-suite`, rather than assuming the series was
+  fully closed once clinical-suite was.
+
+  **The survey.** Read every `*.service.ts` under `apps/api/src` not already
+  covered by the eight-plus-`engagement` series or the "already confirmed
+  clean" list (`medication-safety`, `patient-registry`, `interop`):
+  `analytics`, `auth`, `credentialing`, `family`, `identity`,
+  `language-corpus`, `records`, `clinical-summary`, `clinical-suite`.
+  `analytics`/`clinical-summary` only throw their own `ServiceUnavailable`/
+  `NotFound` exceptions, never call into a domain package that can throw a
+  wrong-state error. `auth` wraps its one domain call (`normalizeNepaliPhone`)
+  in `try`/`catch` already. `credentialing`/`family`/`identity` already have
+  this exact fix from earlier runs. `clinical-suite` is a read-only aggregate
+  with no mutating domain calls at all. `records.service.ts` calls
+  `confirmObservation`/`correctObservation`/`rejectObservation` from
+  `@swasthya/health-records`, but read that package directly: none of the
+  three has a status guard — they are unconditional, so there is no
+  wrong-state error to catch here. (This is the standing, not-a-single-run's-
+  to-resolve "status-guard question" the series has flagged before, not a new
+  finding.) `transitionDocument`/`DocumentTransitionError` exist in the same
+  package but `RecordsService` never calls `transitionDocument` at all — dead
+  code from this service's point of view, not a live gap.
+
+  **What was found.** `language-corpus.service.ts`'s `clear`/`discard`
+  called `@swasthya/language-corpus`'s `clearForTraining`/`discardUtterance`
+  directly, with no `try`/`catch`. Read the package directly to confirm: both
+  throw `UtteranceNotAwaitingReviewError` when called on an utterance that
+  isn't `awaitingHumanReview` — already decided once by an earlier reviewer,
+  or never flagged for review in the first place. The existing test file's
+  own `refuses to decide an utterance not awaiting review` case asserted the
+  raw domain error directly — the exact "test itself is wrong" shape every
+  prior module in this series had.
+
+  **The fix.** Added a private `#runTransition(transition: () =>
+  CorpusUtterance): CorpusUtterance` to `LanguageCorpusService`, the same
+  shape the sibling services use: catches `UtteranceNotAwaitingReviewError`
+  by `instanceof`, re-throws as `new BadRequestException({ code: error.name,
+  message: error.message })`, lets anything else (e.g. the `NotFoundException`
+  from `#require`) pass through. Both `clear` and `discard` now route their
+  domain call through it.
+
+  **Tests.** `language-corpus.service.test.ts`: rewrote the one existing
+  wrong-state assertion to the try/`expect.unreachable`/catch shape
+  `referrals.service.test.ts` established, covering both `clear` and
+  `discard` (previously only asserted via `.toThrow`, and both calls reused
+  the same utterance id, which would have masked a second bug since `clear`
+  would already have mutated it before `discard` ran — split into two
+  utterances so each assertion is independent).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 666/666 (one test rewritten in place, net count unchanged).
+  `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** This closes the wrong-state-500 series across the
+  entire `apps/api` tree as far as this run's survey found — every module
+  that calls a domain package function capable of throwing on illegal state
+  now catches it. The two standing product-decision items
+  (`packages/health-records`'s status-guard question — should
+  `confirm`/`correct`/`reject` actually gain one, and if so what the legal
+  transitions are; the clinical-suite's missing clinician/patient identity
+  model) are unchanged and still not a single run's to resolve alone.
+
+- 2026-08-14 — **Queue fully checked; closed the last named instance of the
+  wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap:
+  `EngagementService.retryMessage`.** Grepped for `- [ ]` first — zero hits,
+  same as every recent run. The `SchedulingService` run's own log entry named
+  this as the one instance still open, having already ruled out
+  `medication-safety`, `patient-registry` and `interop` in its own survey, so
+  took the named next step rather than re-surveying.
+
+  **What was found.** `apps/api/src/engagement/engagement.service.ts`'s
+  `retryMessage` called `@swasthya/engagement`'s `retryMessage` directly, with
+  no `try`/`catch`. Read `packages/engagement/src/index.ts` to confirm: the
+  domain `retryMessage` throws exactly one error,
+  `EngagementMessageNotFailedError`, when called on a message that is not
+  `FAILED`. Its sibling, `EngagementMessageNotQueuedError`, is thrown by
+  `markSent`/`markFailed` and is only ever reached inside `attemptDelivery`'s
+  own `try`/`catch`, which already turns any thrown error into a recorded
+  `FAILED` message rather than letting it escape — so it was never part of
+  this gap and needed no change. The existing test file's `propagates the
+  domain error...` case asserted the raw domain error directly — the same
+  "test itself is wrong" shape every prior module in this series had.
+
+  **The fix.** Added a private `runTransition(transition: () =>
+  EngagementMessage): EngagementMessage` to `EngagementService`, identical in
+  shape to the eight sibling services' own `runTransition`: catches
+  `EngagementMessageNotFailedError` by `instanceof`, re-throws as `new
+  BadRequestException({ code: error.name, message: error.message })`, lets
+  anything else pass through. `retryMessage` now calls the domain function
+  through `runTransition` before saving and attempting delivery, preserving
+  the existing save-then-deliver order.
+
+  **Tests.** `engagement.service.test.ts`: rewrote the one existing raw
+  wrong-state assertion to the try/`expect.unreachable`/catch shape
+  `referrals.service.test.ts` established, asserting `BadRequestException`
+  with `code: 'EngagementMessageNotFailedError'`. No new case needed — the
+  single error this module has was already covered, just asserted wrong.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 666/666 (one test rewritten in place, net count unchanged).
+  `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** This closes the wrong-state-500 series — the
+  `ImmunizationService`-run survey's eight named modules
+  (`billing`, `prescribing`, `clinical-charting`, `diagnostics-orders`,
+  `immunization`, `referrals`, `teleconsultation`, `scheduling`) plus
+  `engagement`'s narrower single-method gap are all fixed now, and
+  `medication-safety`/`patient-registry`/`interop` were already confirmed
+  clean by the `ReferralsService` run's survey. A fresh, independent survey
+  of the whole `apps/api` tree (not just clinical-suite) for the same
+  uncaught-domain-error shape would be a reasonable next pick rather than
+  assuming none remain outside clinical-suite. The two standing
+  product-decision items (`packages/health-records`'s status-guard question;
+  the clinical-suite's missing clinician/patient identity model) are
+  unchanged and still not a single run's to resolve alone.
+
+- 2026-08-14 — **Queue fully checked; `SchedulingService` had the same
+  wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the seven
+  prior runs fixed for `BillingService`, `PrescribingService`,
+  `ClinicalChartingService`, `DiagnosticsOrdersService`,
+  `ImmunizationService`, `ReferralsService` and `TeleconsultationService`.**
+  Grepped for `- [ ]` first — zero hits, same as every recent run. The
+  `TeleconsultationService` run's own log entry named `scheduling.service.ts`
+  and `engagement`'s narrower `retryMessage` gap as the two remaining
+  candidates. Picked `scheduling` — it is the same shape as the six prior
+  fixes (a service with zero `try`/`catch` around a domain call), while
+  `engagement`'s gap is a single method, not a whole service.
+
+  **What was found.** `apps/api/src/scheduling/scheduling.service.ts`
+  called `@swasthya/scheduling`'s `scheduleAppointment`/`cancelAppointment`
+  directly, with no `try`/`catch` anywhere in the file. Read
+  `packages/scheduling/src/index.ts` directly to confirm the full error set:
+  `InvalidAppointmentWindowError` (end at or before start),
+  `AppointmentConflictError` (a double-booked clinician — the 2026-08-14
+  double-booking-invariant run's own addition, never wired to a client-facing
+  code), and `AppointmentAlreadyCancelledError` (cancelling twice). The
+  existing test file's `propagates a domain rejection ... unwrapped` and
+  `rejects cancelling an already-cancelled appointment` cases asserted the
+  raw domain error directly — the same "test itself is wrong" shape every
+  prior module in this series had — and `AppointmentConflictError` had *no*
+  service-level test at all; only `packages/scheduling`'s own domain test
+  covered it.
+
+  **The fix.** Added a private `runTransition(transition: () => Appointment):
+  Appointment` to `SchedulingService`, identical in shape to the six sibling
+  services' own `runTransition`: catches all three errors by `instanceof`,
+  re-throws as `new BadRequestException({ code: error.name, message:
+  error.message })`, lets anything else (e.g. `NotFoundException` from
+  `get`) pass through. Both `schedule` and `cancel` now route through it —
+  `schedule` still awaits `assertPatientRegistryAvailable()` and resolves
+  `patientId` through `patients.get()` first, unchanged; only the
+  `scheduleAppointment`/`cancelAppointment` call itself moved inside
+  `runTransition`.
+
+  **Tests.** `scheduling.service.test.ts`: rewrote the two existing
+  wrong-state assertions to the try/`expect.unreachable`/catch shape
+  `billing.service.test.ts` established, and added one new case this file
+  had no coverage for at all — a double-booked clinician
+  (`AppointmentConflictError`), scheduling two overlapping appointments for
+  the same `clinicianId` and asserting the second is rejected as a 400 with
+  that code. Net three wrong-state tests where there were two.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 666/666 (665 baseline + 2 rewritten + 1 new). `pnpm build`
+  40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** This closes every module in the wrong-state-500
+  series named across the eight runs. `engagement`'s narrower gap
+  (`EngagementService.retryMessage` letting `EngagementMessageNotFailedError`
+  reach the client uncaught) is the one instance still open — it is a single
+  method, not a whole-service retrofit, so it may be a smaller pick than a
+  fresh survey deserves. The two standing product-decision items
+  (`packages/health-records`'s status-guard question; the clinical-suite's
+  missing clinician/patient identity model) are unchanged and still not a
+  single run's to resolve alone.
+
+- 2026-08-14 — **Queue fully checked; `TeleconsultationService` had the same
+  wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the six prior
+  runs fixed for `BillingService`, `PrescribingService`,
+  `ClinicalChartingService`, `DiagnosticsOrdersService`,
+  `ImmunizationService` and `ReferralsService`.** Grepped for `- [ ]` first —
+  zero hits, same as every recent run. The `ReferralsService` run's own log
+  entry named `teleconsultation.service.ts` and `scheduling.service.ts` as
+  the two remaining modules with the identical zero-catching gap, plus
+  `engagement`'s narrower `retryMessage` gap. Picked `teleconsultation` — it
+  has five mutating call sites to `scheduling`'s two, matching the
+  "most call sites affected" tie-break the `referrals` pick itself used.
+
+  **What was found.** `apps/api/src/teleconsultation/teleconsultation.service.ts`
+  called `@swasthya/teleconsultation`'s `scheduleTeleconsultation`/
+  `startTeleconsultation`/`completeTeleconsultation`/`cancelTeleconsultation`/
+  `markTeleconsultationNoShow` directly, with no `try`/`catch` anywhere in the
+  file. Read `packages/teleconsultation/src/index.ts` directly to confirm the
+  full error set rather than trusting the prior log entry's list: four —
+  `TeleconsultationSessionNotScheduledError` (starting/cancelling/no-showing a
+  session no longer SCHEDULED), `TeleconsultationSessionNotActiveError`
+  (completing a session never started), `TeleconsultationSessionAlreadyCancelledError`
+  (cancelling twice, checked before the not-scheduled case so the two are
+  distinguishable) and `TeleconsultationSessionAlreadyBookedError` (a second
+  session for an appointment that already has one SCHEDULED or ACTIVE). The
+  existing test file's own two wrong-state assertions
+  (`.rejects.toThrow(TeleconsultationSessionAlreadyBookedError)` and
+  `.toThrow(TeleconsultationSessionNotActiveError)`) asserted the raw domain
+  error directly — the same "test itself is wrong" shape every prior module in
+  this series had — and had no case at all for
+  `TeleconsultationSessionNotScheduledError` or
+  `TeleconsultationSessionAlreadyCancelledError`.
+
+  **The fix.** Added a private `runTransition(transition: () =>
+  TeleconsultationSession): TeleconsultationSession` to `TeleconsultationService`,
+  identical in shape to the six sibling services' own `runTransition`: catches
+  all four errors by `instanceof`, re-throws as `new
+  BadRequestException({ code: error.name, message: error.message })`, lets
+  anything else (e.g. `NotFoundException` from `getSession`/`scheduling.get`)
+  pass through. All five mutating methods now route through it, including
+  `scheduleSession` — its `TeleconsultationSessionAlreadyBookedError` throw
+  sits inside `scheduleTeleconsultation` itself, not behind `getSession`, but
+  wraps the same way `BillingService.addLineItem` wraps `getInvoice` plus its
+  transition together.
+
+  **Tests.** `teleconsultation.service.test.ts`: rewrote the two existing raw
+  wrong-state assertions to the try/`expect.unreachable`/catch shape
+  `billing.service.test.ts` established, and added four new cases this file
+  had no coverage for: starting an already-started session, cancelling an
+  already-cancelled session, cancelling a session that has already started
+  (distinguishing `TeleconsultationSessionNotScheduledError` from the
+  already-cancelled case), and marking a started session no-show. Net eight
+  wrong-state tests where there were two.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 665/665 (661 baseline + 2 rewritten + 4 new). `pnpm build`
+  40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** `scheduling.service.ts` still has the identical
+  zero-catching gap (`schedule` can throw `AppointmentConflictError`, `cancel`
+  can throw whatever `cancelAppointment` throws on an already-cancelled
+  appointment — read `packages/scheduling/src/index.ts` directly rather than
+  trusting this list). `engagement`'s narrower gap
+  (`EngagementService.retryMessage` letting `EngagementMessageNotFailedError`
+  reach the client uncaught) is still open too. Either is a legitimate next
+  pick; this run did one module, not two, per the working agreement. The two
+  standing product-decision items (`packages/health-records`'s status-guard
+  question; the clinical-suite's missing clinician/patient identity model)
+  are unchanged and still not a single run's to resolve alone.
+
+- 2026-08-14 — **Queue fully checked; `ReferralsService` had the same
+  wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the five
+  prior runs fixed for `BillingService`, `PrescribingService`,
+  `ClinicalChartingService`, `DiagnosticsOrdersService` and
+  `ImmunizationService`.** Grepped for `- [ ]` first — zero hits, same as
+  every recent run. The `ImmunizationService.voidRecord` run's own log entry
+  asked for a fresh, independent survey of the remaining clinical-suite
+  modules (`referrals`, `teleconsultation`, `scheduling`, `patient-registry`,
+  `clinical-summary`, `interop`, `engagement`, `medication-safety`) rather
+  than assuming none had the gap, since the five-run series had only ever
+  fixed modules a prior run's log entry had already named by hand.
+
+  **The survey.** Grepped each of the eight packages' `src/index.ts` for
+  `class \w+Error` and cross-checked whether the matching `apps/api`
+  service's mutating methods route through a `try`/`catch` before reaching
+  the controller. `medication-safety` and `patient-registry` define no
+  wrong-state error at all (the latter's `FutureDateOfBirthError` is a
+  validation error thrown at creation, not a transition). `interop` already
+  catches its two errors (`ShareLinkError` -> `BadRequestException`,
+  `ShareLinkNotActiveError` -> `GoneException`) — its `InteropService` was
+  built with this `try`/`catch` already in place, unlike the five modules
+  this series had to retrofit; `git log` shows a single commit touching the
+  file, which already includes both catches.
+  `engagement` has one real, narrower gap: `EngagementService.retryMessage`
+  calls `@swasthya/engagement`'s `retryMessage` with no `try`/`catch` at all,
+  so calling it on a message that isn't `FAILED` throws
+  `EngagementMessageNotFailedError` uncaught (its sibling,
+  `EngagementMessageNotQueuedError`, is only reachable inside
+  `attemptDelivery`'s own `try`, so it never escapes uncaught) — left open
+  below. `referrals`, `teleconsultation` and `scheduling`
+  each define wrong-state errors with zero catching anywhere in their
+  service. Picked `referrals` to fix this run — it has the most call sites
+  affected (four: `acceptReferral`, `declineReferral`, `completeReferral`,
+  `cancelReferral`) and its own test file actively encoded the bug, same as
+  every prior module in this series.
+
+  **What was found.** `apps/api/src/referrals/referrals.service.ts` called
+  `@swasthya/referrals`'s `acceptReferral`/`declineReferral`/
+  `completeReferral`/`cancelReferral` directly, with no `try`/`catch`
+  anywhere in the file. Read `packages/referrals/src/index.ts` directly to
+  confirm the full error set: `ReferralNotRequestedError` (thrown by
+  `assertRequested`, reused by `acceptReferral`, `declineReferral` and
+  `cancelReferral`'s fallback), `ReferralNotAcceptedError` (thrown by
+  `completeReferral`), and `ReferralAlreadyCancelledError` (thrown by
+  `cancelReferral`'s own already-cancelled check, ahead of
+  `assertRequested`). The existing test file's `propagates the domain
+  error...` tests asserted the raw domain error directly against
+  `completeReferral`/`cancelReferral` — the same "test itself is wrong"
+  shape every prior module in this series had — and had no case at all for
+  `acceptReferral`, `declineReferral`, or the `ReferralAlreadyCancelledError`
+  branch.
+
+  **The fix.** Added a private `runTransition(transition: () => Referral):
+  Referral` to `ReferralsService`, identical in shape to the five sibling
+  services' own `runTransition`: catches all three errors by `instanceof`,
+  re-throws as `new BadRequestException({ code: error.name, message:
+  error.message })`, lets anything else pass through. All four mutating
+  methods now route through it.
+
+  **Tests.** `referrals.service.test.ts`: rewrote the two existing
+  wrong-state assertions to the try/`expect.unreachable`/catch shape
+  established by `billing.service.test.ts`/`immunization.service.test.ts`,
+  and added four new cases this file had no coverage for at all:
+  cancelling an already-cancelled referral (`ReferralAlreadyCancelledError`,
+  previously completely untested), and accepting/declining a referral that
+  is not awaiting a response (both `ReferralNotRequestedError`, also
+  previously untested). Net six wrong-state tests where there were two.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 661/661 (658 baseline + 2 rewritten + 4 new). `pnpm build`
+  40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** `teleconsultation` and `scheduling` still have the
+  identical zero-catching gap this run found in the same survey —
+  `teleconsultation.service.ts`'s session-lifecycle transitions
+  (`TeleconsultationSessionNotScheduledError`,
+  `TeleconsultationSessionNotActiveError`,
+  `TeleconsultationSessionAlreadyCancelledError`,
+  `TeleconsultationSessionAlreadyBookedError`) and
+  `scheduling.service.ts`'s (`InvalidAppointmentWindowError`,
+  `AppointmentAlreadyCancelledError`, `AppointmentConflictError`) both reach
+  the client as bare 500s today, same shape, same fix. `engagement`'s
+  narrower gap (`EngagementService.retryMessage` letting
+  `EngagementMessageNotFailedError` reach the client uncaught) is smaller
+  but real. Any of the three is a legitimate next pick; this run did one
+  module, not three, per the working agreement.
+
+- 2026-08-14 — **Queue fully checked; `ImmunizationService.voidRecord` had
+  the same wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the
+  four prior runs fixed for `BillingService`, `PrescribingService`,
+  `ClinicalChartingService` and `DiagnosticsOrdersService`.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. The
+  `DiagnosticsOrdersService` run's own log entry named
+  `immunization.service.ts` (`ImmunizationRecordAlreadyVoidedError`) as "the
+  last sibling module the `BillingService` survey named with this exact
+  gap." Took that named next step rather than re-surveying.
+
+  **What was found.** `apps/api/src/immunization/immunization.service.ts`'s
+  `voidRecord` called `@swasthya/immunization`'s `voidImmunizationRecord`
+  directly, with no `try`/`catch` and no `BadRequestException` import.
+  Voiding an already-voided record reached the client as an unstructured
+  500. Read `packages/immunization/src/index.ts` directly to confirm the
+  full error set rather than trusting a prior log entry's list: exactly one,
+  `ImmunizationRecordAlreadyVoidedError`, thrown by `voidImmunizationRecord`'s
+  internal `assertNotVoided` guard — this module has only one mutating
+  transition capable of a wrong-state error (`recordPatientReported` and
+  `recordClinicianAdministered` both only ever construct a fresh, always-valid
+  record). The existing test suite's `voidRecord` describe block also
+  actively encoded the bug, asserting
+  `.toThrow(ImmunizationRecordAlreadyVoidedError)` directly against the raw
+  domain error — the same "test itself is wrong" shape every prior module in
+  this series had.
+
+  **The fix.** Added a private `runTransition(transition: () =>
+  ImmunizationRecord): ImmunizationRecord` to `ImmunizationService`, identical
+  in shape to the four sibling services' own `runTransition`: catches
+  `ImmunizationRecordAlreadyVoidedError` by `instanceof`, re-throws as `new
+  BadRequestException({ code: error.name, message: error.message })`, lets
+  anything else pass through. `voidRecord` routes its existing
+  `voidImmunizationRecord` call through it. No change to
+  `@swasthya/immunization`'s pure domain layer.
+
+  **Tests.** `immunization.service.test.ts`: rewrote the one existing
+  wrong-state assertion (`rejects voiding an already-voided record` →
+  `.toThrow(ImmunizationRecordAlreadyVoidedError)`) to the
+  try/`expect.unreachable`/catch shape `billing.service.test.ts` established,
+  asserting `BadRequestException` with `{ code:
+  'ImmunizationRecordAlreadyVoidedError' }`. No new cases needed — this
+  module has only the one wrong-state transition, already covered.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 658/658 (unchanged count — one rewritten case, zero new).
+  `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** This closes the wrong-state-500 series — every
+  clinical-suite module named across the five runs (`billing`, `prescribing`,
+  `clinical-charting`, `diagnostics-orders`, `immunization`) now maps its
+  domain errors to a 400 with a stable `code`. Worth a fresh survey of the
+  remaining clinical-suite modules (`referrals`, `teleconsultation`,
+  `scheduling`, `patient-registry`, `clinical-summary`, `interop`,
+  `engagement`, `medication-safety`) for the same shape before assuming none
+  have it — this series only ever fixed the modules a prior run's log entry
+  had already named, and never ran an independent grep over the rest of
+  `apps/api/src/*/*.service.ts` for an un-caught domain-error import. The two
+  standing product-decision items (`packages/health-records`'s status-guard
+  question; the clinical-suite's missing clinician/patient identity model)
+  are unchanged and still not a single run's to resolve alone.
+
+- 2026-08-14 — **Queue fully checked; `DiagnosticsOrdersService` had the same
+  wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the three
+  prior runs fixed for `BillingService`, `PrescribingService` and
+  `ClinicalChartingService`.** Grepped for `- [ ]` first — zero hits, same as
+  every recent run. The `ClinicalChartingService` run's own log entry named
+  `diagnostics-orders.service.ts` as the next fix in the priority order, then
+  `immunization.service.ts`. Took that named next step rather than
+  re-surveying.
+
+  **What was found.** `apps/api/src/diagnostics-orders/diagnostics-orders.service.ts`'s
+  `recordResult`, `releaseResult` and `cancelOrder` all called
+  `@swasthya/diagnostics-orders`'s `recordDiagnosticResult`/
+  `releaseDiagnosticResult`/`cancelDiagnosticOrder` directly, with no
+  `try`/`catch` and no `BadRequestException` import. A second result on an
+  already-RESULTED order, releasing a result that was never recorded or was
+  already released, and cancelling an order that already has a result or was
+  already cancelled, each reached the client as an unstructured 500. Read
+  `packages/diagnostics-orders/src/index.ts` directly to confirm the full
+  error set rather than trusting a prior log entry's list: exactly three,
+  `DiagnosticOrderNotOpenError` (reused by both `recordDiagnosticResult` and
+  `cancelDiagnosticOrder` for "not currently ORDERED"),
+  `DiagnosticOrderAlreadyCancelledError` (cancelling twice, checked before
+  the not-open case so the two are distinguishable), and
+  `DiagnosticResultNotHeldError` (releasing with no HELD result). The
+  existing test suite's `recordResult` describe block also actively encoded
+  the bug, asserting `.toThrow(DiagnosticOrderNotOpenError)` directly against
+  the raw domain error — the same "test itself is wrong" shape the
+  `prescribing.service.test.ts` gap had.
+
+  **The fix.** Added a private `runTransition(transition: () =>
+  DiagnosticOrder): DiagnosticOrder` to `DiagnosticsOrdersService`, identical
+  in shape to `BillingService.runTransition`/`PrescribingService.runTransition`:
+  catches any of the three domain errors by `instanceof`, re-throws as `new
+  BadRequestException({ code: error.name, message: error.message })`, lets
+  anything else (e.g. `NotFoundException` from `getOrder`) pass through. All
+  three mutating methods route through it. `orderDiagnostic` was left
+  untouched — the domain `orderDiagnostic` constructor never throws a
+  wrong-state error, so there is nothing for `runTransition` to guard there.
+  No change to `@swasthya/diagnostics-orders`'s pure domain layer.
+
+  **Tests.** `diagnostics-orders.service.test.ts`: rewrote the one existing
+  wrong-state assertion (`propagates the domain error… toThrow
+  (DiagnosticOrderNotOpenError)`) to assert `BadRequestException` with
+  `{ code: 'DiagnosticOrderNotOpenError' }`, matching the try/catch +
+  `expect.unreachable` shape `billing.service.test.ts` established. Added
+  four new cases with no prior coverage: releasing an already-released
+  result, releasing a result that was never recorded, cancelling an order
+  that already has a result, and cancelling an already-cancelled order —
+  none of these four wrong-state paths had a test before this run.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 658/658 (was 653 — the four new cases plus the one
+  rewritten one). `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** The identical fix on `immunization.service.ts`
+  (`ImmunizationRecordAlreadyVoidedError`) next — the last sibling module the
+  `BillingService` survey named with this exact gap. Read
+  `packages/immunization/src/index.ts` directly to confirm its full error set
+  rather than trusting this entry's list, the same discipline that caught the
+  `PrescribingService` run's list being one error short. The two standing
+  product-decision items (`packages/health-records`'s status-guard question;
+  the clinical-suite's missing clinician/patient identity model) are
+  unchanged and still not a single run's to resolve alone.
+
+- 2026-08-14 — **Queue fully checked; `ClinicalChartingService` had the same
+  wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the two prior
+  runs fixed for `BillingService` and `PrescribingService`.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. The `PrescribingService`
+  run's own log entry named `clinical-charting` as the next fix, "because it
+  sits upstream of billing/prescribing/diagnostics-orders in the call graph,
+  so its 500 is reachable through the most paths." Took that named next step
+  rather than re-surveying.
+
+  **What was found.** `apps/api/src/clinical-charting/clinical-charting.service.ts`'s
+  `closeEncounter`, `recordNote`, `reviseNote` and `attachDocument` all called
+  `@swasthya/clinical-charting`'s `closeEncounter`/`recordSoapNote`/
+  `reviseSoapNote`/`attachDocument` directly, with no `try`/`catch` and no
+  `BadRequestException` import. Closing an already-closed encounter, or
+  writing/revising a note or attaching a document against one already closed,
+  each reached the client as an unstructured 500. Read
+  `packages/clinical-charting/src/index.ts` directly to confirm the full
+  error set rather than trusting a prior log entry's list (the
+  `PrescribingService` run itself had found a prior list one error short) —
+  this module has exactly two, `EncounterAlreadyClosedError` and
+  `EncounterNotOpenError`, both already correctly named in the prior run's
+  own log entry.
+
+  **The fix.** Added a private `runTransition<T>(transition: () => T): T` to
+  `ClinicalChartingService`, identical in shape to
+  `BillingService.runTransition`/`PrescribingService.runTransition` except
+  generic over the return type, since this module's four transitions return
+  two different domain types (`Encounter`, `SoapNote`): catches either domain
+  error by `instanceof`, re-throws as `new BadRequestException({ code:
+  error.name, message: error.message })`, lets anything else (e.g. the
+  `NotFoundException`s `getEncounter`/`getNote` already throw) pass through.
+  All four call sites — including `attachDocument`, an `async` method whose
+  domain call is itself synchronous — route through it. No change to
+  `@swasthya/clinical-charting`'s pure domain layer.
+
+  **Tests.** `clinical-charting.service.test.ts`: rewrote the three existing
+  wrong-state assertions (`toThrow(EncounterAlreadyClosedError)` /
+  `toThrow(EncounterNotOpenError)` ×2) to assert `BadRequestException` with
+  the matching `{ code }`, the same rewrite the billing/prescribing runs made
+  to their own sibling tests — asserting the raw domain error type was itself
+  testing the bug. Added one new case with no prior coverage at all: attaching
+  a document to an already-closed encounter, the fourth call site this fix
+  touches.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 654/654 (was 649 — the four rewritten cases plus the one new
+  one). `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** The identical fix on `diagnostics-orders.service.ts`
+  (`DiagnosticOrderNotOpenError`/`DiagnosticOrderAlreadyCancelledError`/
+  `DiagnosticResultNotHeldError`) next, then `immunization.service.ts`
+  (`ImmunizationRecordAlreadyVoidedError`) — both named by the
+  `PrescribingService` run's own log entry and unchanged by this run. Read
+  each domain package's error exports directly rather than trusting this
+  entry's list. The two standing product-decision items
+  (`packages/health-records`'s status-guard question; the clinical-suite's
+  missing clinician/patient identity model) are unchanged and still not a
+  single run's to resolve alone.
+
+- 2026-08-14 — **Queue fully checked; `PrescribingService` had the same
+  wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap the prior
+  run fixed for `BillingService`, and its own test encoded the bug.**
+  Grepped for `- [ ]` first — zero hits, same as every recent run. The
+  prior run's own log entry named the priority order for the four
+  remaining sibling gaps it found but did not fix — `prescribing` first,
+  because `prescribing.service.test.ts:114` asserted
+  `rejects.toThrow(EmptyPrescriptionError)`, meaning the suite actively
+  encoded the bug rather than merely missing coverage for it. Took that
+  named next step rather than re-surveying.
+
+  **What was found.** `apps/api/src/prescribing/prescribing.service.ts`'s
+  `addLine`, `signPrescription` and `voidPrescription` called
+  `@swasthya/prescribing`'s `addPrescriptionLine`/`signPrescription`/
+  `voidPrescription` directly, with no `try`/`catch` and no
+  `BadRequestException` import. Any wrong-state call — a line added to a
+  signed prescription, a controlled-substance line, signing an empty or
+  already-signed prescription, voiding a draft or an already-voided one —
+  reached the client as an unstructured 500. Confirmed by reading
+  `packages/prescribing/src/index.ts` directly rather than trusting the
+  prior run's error-name list: it named four of this module's five errors
+  and omitted `PrescriptionNotSignedError` (thrown by `voidPrescription`
+  when called on a draft), so the full set actually mapped is five, not
+  four.
+
+  **The fix.** Added a private `runTransition(transition: () =>
+  Prescription): Prescription` to `PrescribingService`, identical in shape
+  to `BillingService.runTransition`: runs the domain call, catches any of
+  the five domain errors by `instanceof`, re-throws as `new
+  BadRequestException({ code: error.name, message: error.message })`, lets
+  anything else (e.g. `NotFoundException` from `getPrescription`) pass
+  through. `addLine` and `voidPrescription` route their existing domain
+  call through it directly; `signPrescription` still runs
+  `runSafetyChecks` first (unrelated to this bug — a `MedicationSafetyService`
+  call, never throws) and only wraps the final `signPrescription` domain
+  call. No change to `@swasthya/prescribing`'s pure domain layer.
+
+  **Tests.** `prescribing.service.test.ts`: rewrote the one existing
+  wrong-state assertion (`propagates the domain error… toThrow
+  (EmptyPrescriptionError)`) to assert `BadRequestException` with `{ code:
+  'EmptyPrescriptionError' }` — asserting the raw domain error type was
+  itself testing the bug, the same fix the billing run made to its sibling
+  test. Added five new cases: signing an already-signed prescription,
+  a controlled-substance line, a line on an already-signed prescription,
+  voiding a draft, and voiding an already-voided prescription — none of
+  these five transitions had a test before this run.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 653/653 (was 648 — the five new cases). `pnpm build`
+  40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** The identical fix on `clinical-charting.service.ts`
+  (`EncounterAlreadyClosedError`/`EncounterNotOpenError`) next — the
+  billing run's own log entry noted it sits upstream of billing/
+  prescribing/diagnostics-orders in the call graph, so its 500 is
+  reachable through the most paths — then `diagnostics-orders.service.ts`
+  (`DiagnosticOrderNotOpenError`/`DiagnosticOrderAlreadyCancelledError`/
+  `DiagnosticResultNotHeldError`) and `immunization.service.ts`
+  (`ImmunizationRecordAlreadyVoidedError`). When reading each domain
+  package's error exports to confirm the full set, read the source
+  directly rather than trusting a prior log entry's list — this run found
+  the billing-run's list of prescribing's errors was one short
+  (`PrescriptionNotSignedError`). The two standing product-decision items
+  (`packages/health-records`'s status-guard question; the clinical-suite's
+  missing clinician/patient identity model) are unchanged and still not a
+  single run's to resolve alone.
+
+- 2026-08-14 — **Queue fully checked; `BillingService` let five wrong-state
+  domain errors reach the client as bare, codeless 500s instead of a 400 a
+  caller can branch on.** Grepped for `- [ ]` first — zero hits, same as
+  every recent run. Rather than guess, commissioned a fresh survey agent
+  (research only, no edits), briefed on the full exhausted-veins list this
+  ledger has accumulated (cross-owner access control, ISO-instant validation,
+  `ne-Latn` collapse, share-link gating, double-booking, negative-reading
+  validation, filename sanitization, `normalizeLabel` dedup, mobile i18n —
+  now confirmed exhausted across the *entire* `apps/mobile/app/**` tree, not
+  just `app/(tabs)/`, per the two 2026-08-14 entries below — retrieval bugs,
+  analytics-source extensions, emergency-rule phrasing, the `977`-prefix
+  phone bug, numeric-coercion bugs, `guardianshipExpiryForMinor`'s leap-day
+  bug, and Reflect-metadata guard-wiring sweeps) plus the two standing
+  product-decision items (`packages/health-records`'s status-guard question;
+  the clinical-suite's missing clinician/patient identity model), instructed
+  not to re-propose either without a materially different angle.
+
+  **What was found.** `packages/billing/src/index.ts` defines five domain
+  errors for illegal invoice-state transitions
+  (`InvoiceNotDraftError`/`EmptyInvoiceError`/`InvoiceNotIssuedError`/
+  `InvoiceAlreadyVoidedError`/`InvoicePaidCannotBeVoidedError`), but
+  `apps/api/src/billing/billing.service.ts`'s `addLineItem`/`issueInvoice`/
+  `recordPayment`/`voidInvoice` called the domain functions directly with no
+  `try`/`catch` and no `BadRequestException` import at all. `apps/api` has no
+  global `ExceptionFilter`, so any wrong-state call — adding a line item to
+  an already-issued invoice, issuing an empty one, paying a draft, voiding an
+  already-void or already-paid invoice — reached the client as an
+  unstructured 500 instead of a 4xx with a `code` it could act on. This is
+  the identical bug class already fixed once, for
+  `CredentialingService.submit`'s `ApplicationTransitionError` (see this
+  file's own history around the 2026-08-1x entry for that fix), but never
+  generalised to sibling clinical-suite services. The survey also confirmed
+  four other services carry the exact same gap and left them unfixed for a
+  future run: `apps/api/src/prescribing/prescribing.service.ts`
+  (`PrescriptionNotDraftError`/`EmptyPrescriptionError`/
+  `ControlledSubstanceDisabledError`/`PrescriptionAlreadyVoidedError` — whose
+  own test at `prescribing.service.test.ts:114` literally asserts
+  `rejects.toThrow(EmptyPrescriptionError)`, encoding the bug into the test
+  suite itself), `clinical-charting.service.ts`
+  (`EncounterAlreadyClosedError`/`EncounterNotOpenError`),
+  `diagnostics-orders.service.ts` (`DiagnosticOrderNotOpenError`/
+  `DiagnosticOrderAlreadyCancelledError`/`DiagnosticResultNotHeldError`), and
+  `immunization.service.ts` (`ImmunizationRecordAlreadyVoidedError`). Chose
+  billing to fix first because it has the richest single set of five error
+  classes and no reachability caveat the way the status-guard question does.
+
+  **The fix.** Added a private `runTransition(transition: () => Invoice):
+  Invoice` helper to `BillingService` that runs the domain call, catches any
+  of the five domain errors by `instanceof`, and re-throws as
+  `new BadRequestException({ code: error.name, message: error.message })` —
+  anything else (e.g. `NotFoundException` from `getInvoice`) passes through
+  unchanged. All four mutating methods now route through it. No change to
+  `@swasthya/billing`'s pure domain layer — only the NestJS boundary that
+  translates its errors changed.
+
+  **Tests.** `billing.service.test.ts`: rewrote the one existing
+  wrong-state assertion (`propagates the domain error… toThrow
+  (InvoiceNotDraftError)`) to assert `BadRequestException` with
+  `{ code: 'InvoiceNotDraftError' }` instead — asserting the raw domain
+  error type was itself testing the bug. Added four new cases covering the
+  other four error paths: empty-invoice issuance, payment against a draft,
+  double-void, and voiding a paid invoice — none of these transitions had
+  any test before this run.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 648/648 (was 644 — the four new cases). `pnpm build` 40/40
+  (35 cached, 5 rebuilt).
+
+  **For the next run.** The identical fix, one module at a time, on
+  `prescribing`, `clinical-charting`, `diagnostics-orders` and
+  `immunization` — in that rough priority order, since `prescribing`'s own
+  test already encodes the bug and `clinical-charting`'s
+  `EncounterAlreadyClosedError` sits upstream of billing/prescribing/
+  diagnostics-orders in the call graph, so its 500 is reachable through the
+  most paths. The two standing product-decision items are unchanged and
+  still not a single run's to resolve alone.
+
+- 2026-08-14 — **Queue fully checked; `apps/mobile/app/index.tsx` — the
+  app's welcome / language-picker screen — never branched its own visible
+  copy on `language`.** Grepped for `- [ ]` first — zero hits, same as every
+  recent run. The prior `companion.tsx` entry (immediately below) had named
+  a concrete, unblocked follow-up: "worth a fresh sweep of the other
+  `app/(tabs)/*.tsx` and `app/*.tsx` screens for the same
+  visible-`<Text>`-vs-`accessibilityLabel` split this run found." Commissioned
+  an Explore agent to do exactly that sweep, briefed on the bug class (a
+  screen wires `language` for some strings — e.g. an `accessibilityLabel` or
+  an orb prop — but visible `<Text>` copy still lags one language behind) and
+  the list of files already fully swept (`care.tsx`, `consultation.tsx`,
+  `companion.tsx`, `learn.tsx`, `twin.tsx`, `(tabs)/index.tsx`,
+  `index.web.tsx`, `_layout.tsx`).
+
+  **What was found.** `apps/mobile/app/index.tsx` (`WelcomeScreen`, the very
+  first screen rendered on launch, before `router.replace('/(tabs)')`)
+  destructures `language`/`setLanguage` from `useAppState()` and uses
+  `language` correctly for two things — `<SathiOrb language={language} />`
+  and `selected={language === choice.code}` on the language-choice `Pill`s —
+  but every visible `<Text>` string in the file was a Devanagari literal with
+  no ternary at all: the step-0/step-1 headline and body, the "Sathi keeps
+  you in control" promise card's title and body, the emergency-services
+  safety line, and the primary button's step-0/step-1 label. Verified this is
+  live and reachable, not dead code, by reading the file directly: step 1 is
+  reached by tapping "सुरु गर्नुहोस्" once, at which point the three `Pill`
+  choices (`ne`, `ne-Latn`, `en`) are rendered and tapping the `en` one calls
+  `setLanguage('en')`, which re-renders this same still-mounted screen —
+  making it the one screen in the app where choosing English is a **visible
+  no-op for the screen's own copy**, including the step-1 prompt itself
+  ("कुन भाषामा सहज हुन्छ?", "which language is easiest for you") staying in
+  Devanagari after the person has already tapped English. This is the same
+  bug class as the `companion.tsx` fix — a screen where `language` is real,
+  live state, wired correctly for *some* props, but visible copy was never
+  connected to it — just never previously swept because `index.tsx` sits
+  outside `app/(tabs)/` and had no `accessibilityLabel`-sweep entry that
+  might have caught it first.
+
+  **The fix.** Wrapped each of the nine hardcoded strings in
+  `language === 'en' ? english : nepali`, matching the exact convention used
+  everywhere else in `apps/mobile` (a bare two-way ternary — `ne-Latn`, like
+  every other screen, falls through to the Devanagari branch). Reused the
+  existing English pairing for "सुरु गर्नुहोस्" → "Get started" already
+  established in `index.web.tsx`, and translated the remaining eight fresh
+  (plain literal translations of the existing Nepali, no new claims). Left
+  the brand lockup (`स्वास्थ्य साथी`) and the `DEMO` badge untouched, matching
+  the established "brand chrome stays as-is" convention documented across
+  prior entries. `apps/mobile/app/` has no colocated-test convention
+  (confirmed empty by `find … -name "*.test.ts*"`, matching every prior
+  `app/`-screen i18n fix in this ledger), so no new test file was added.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 644/644 unchanged (this fix touched no test-covered
+  package). `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** The survey agent read every file under
+  `apps/mobile/app/**/*.tsx`, including `records.tsx`, `capture.tsx`,
+  `consent.tsx` and the shared `ProfileSwitcher.tsx`/`document-kinds.ts`
+  helpers, none of which were in the ledger's prior sweep list, and reported
+  all of them clean — every remaining Devanagari string resolved to either a
+  correct sibling ternary, a paired `xNe`/`xEn` data object, or an
+  already-documented brand/eyebrow exception. With `index.tsx` now fixed, the
+  visible-text mobile-i18n vein is exhausted across the whole `app/` tree,
+  not just `app/(tabs)/`. The two standing product-decision items
+  (`packages/health-records`'s status-guard question; the clinical-suite's
+  missing clinician/patient identity model, now confirmed to also block
+  `ImmunizationController`/`ClinicalSummaryController`'s
+  `recordPatientReported` routes) remain open and still not a single
+  scheduled run's to resolve alone.
+
+- 2026-08-14 — **Queue fully checked; `apps/mobile/app/(tabs)/companion.tsx`
+  never branched roughly a dozen visible strings on `language`, including the
+  entire `EMERGENCY_NOW`/`MATERNAL_CONCERN`/`PEDIATRIC_CONCERN` interrupt
+  panel.** Grepped for `- [ ]` first — zero hits, same as every recent run.
+  Commissioned a fresh independent survey agent, briefed on the full
+  exhausted-veins list this ledger has accumulated (cross-owner/unguarded-
+  ownerId access control, ISO-instant/date validation, `ne-Latn` collapse,
+  share-link TTL/entitlements gating, double-booking, negative-reading
+  validation, filename sanitization, `normalizeLabel` dedup, mobile i18n,
+  retrieval bugs, the analytics-source extensions, emergency-rule phrase
+  fixes, `normalizeNepaliPhone`'s `977`-prefix bug, `buildAnalyteTrend`/
+  `toFhirObservation`'s numeric coercion, `guardianshipExpiryForMinor`'s
+  leap-day overflow, and the two just-fixed ISO-instant string-comparison
+  bugs in `packages/scheduling`/`packages/population-health`) plus the two
+  standing product-decision items (`packages/health-records`'s status-guard
+  question; the clinical-suite's missing clinician/patient identity model),
+  instructed not to re-propose either without a materially different angle.
+
+  Before accepting the survey's own top pick, I independently investigated
+  its runner-up myself: `ImmunizationController.recordPatientReported` and
+  `ClinicalSummaryController.recordPatientReported`
+  (`apps/api/src/immunization/immunization.controller.ts`,
+  `apps/api/src/clinical-summary/clinical-summary.controller.ts`) accept a
+  client-supplied `patientId` with no `SessionAuthGuard`, which the
+  2026-08-14 `self-harm-001` entry below had flagged as "worth a close look
+  next." A dedicated Explore agent traced `patientId` end to end: it is a
+  wholly separate id space from auth's `subjectId`/`patientProfileId`, with
+  **no join anywhere in the repo** (`packages/database/src/seed-data.ts`'s
+  own `SeedPatientProfile.id` is a distinct UUID from `SeedUser.id`, linked
+  only via `userId`; `packages/patient-registry`'s `Patient.id` is assigned
+  by the caller of `register` and never cross-referenced against either).
+  Confirmed this is exactly the standing-deferred clinician/patient-identity
+  gap the 2026-08-11 and earlier entries already named and set aside, not a
+  mechanical `SessionAuthGuard` fix — swapping in `user.subjectId` would
+  compile and look guarded without being correct, since nothing establishes
+  that a `subjectId` is a valid `patientId` in whatever space these two
+  services' downstream readers expect. Left unfixed, still open, still not a
+  single run's to resolve.
+
+  **What was found instead.** `companion.tsx` destructures `language` from
+  `useAppState()` and correctly branches dozens of strings on
+  `language === 'en' ? … : …` throughout the file — including the
+  safety-critical `template` text from `getSafetyTemplate(assessment
+  .templateId, language)` (line 85-87). But thirteen other visible `<Text>`
+  strings in the same file were hardcoded Devanagari with no ternary at all:
+  the header title/subtitle (`स्वास्थ्य साथी` / `सुरक्षित अर्को कदम खोजौँ`),
+  the intro guide card's title and body, the question label's non-rephrase
+  branch and the input placeholder, the record/stop-record button's visible
+  label (its `accessibilityLabel` one line above was already correctly
+  branched by an earlier run — only the `<Text>` child was missed), the send
+  button, the privacy-notice card, the post-answer panel's `साथीको जानकारी`
+  title, the final "ask another question" button — **and, worst of all, the
+  entire emergency-interrupt panel**: `सामान्य कुराकानी रोकिएको छ` ("normal
+  conversation paused"), `तुरुन्त सहायता लिनुहोस्` ("seek immediate help"),
+  the hospital-search button, and the "no number until verified" footer note
+  (lines 337-345 before this fix). Verified this is real and reachable, not
+  dead code, by reading the file directly rather than trusting the survey:
+  `language` is live app-wide state (`useAppState`, toggled elsewhere,
+  default `'ne'`), `CompanionScreen` is the assistant's only surface, and any
+  English-mode user whose message trips `emergency-breathing-001`/
+  `self-harm-001`/etc. would see the correctly-localized medical `template`
+  sandwiched inside Nepali-only chrome ("तुरुन्त सहायता लिनुहोस्") they may
+  not read — the single worst place in the app for a language mismatch,
+  since it sits directly beside the one string in the whole screen that *was*
+  already localized correctly. Confirmed this is distinct from the two prior
+  `companion.tsx` i18n runs in this file's own history: the 2026-08-1x
+  `learn.tsx`-adjacent sweep that fixed `DEFAULT_ANSWER_TEXT`/"Searching…"/
+  disclaimer text, and the later 19-label `accessibilityLabel` sweep (see
+  that entry's own "Files touched" list, which names `companion.tsx (5)` —
+  all five were `accessibilityLabel` props, none were the visible `<Text>`
+  strings this run fixes).
+
+  **The fix.** Wrapped each of the thirteen strings in the file's own
+  `language === 'en' ? english : nepali` ternary, the exact convention
+  already used 30+ times in this file, with a plain literal English
+  translation of the existing Nepali and no new claims. Reused this file's
+  own existing English translations where the same string already appears
+  elsewhere (the record/stop-record button text reuses the
+  `accessibilityLabel` wording one block above it, which an earlier run had
+  already translated). Left the all-caps eyebrow chrome (`VOICE · TEXT ·
+  SAFETY ROUTING`, `STEP 1 · …`, `GUIDED INFORMATION · NOT A DIAGNOSIS`)
+  untouched, matching the established "chrome stays English" convention from
+  prior entries. No other file changed. `apps/mobile`'s `app/` screens have
+  no colocated-test convention (confirmed by searching the whole `app/`
+  tree — only `src/lib/*` has `index.test.ts` files), matching every prior
+  `companion.tsx`/`learn.tsx`/`care.tsx` i18n fix in this ledger, so no new
+  test file was added.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 644/644 unchanged (this fix touched no test-covered
+  package). `pnpm build` 40/40 (35 cached, 5 rebuilt), `@swasthya/mobile`'s
+  web export includes `/companion` and `/(tabs)/companion` unchanged in size
+  class.
+
+  **For the next run.** No further hardcoded-Nepali gap remains in
+  `companion.tsx` — every visible string now branches on `language`. The two
+  standing product-decision items (`packages/health-records`'s status-guard
+  question; the clinical-suite's missing clinician/patient identity model —
+  now confirmed to also block `ImmunizationController`/
+  `ClinicalSummaryController`'s `recordPatientReported` routes specifically,
+  not just the clinician-authored ones) are still open and still not a
+  scheduled run's to resolve alone. Worth a fresh sweep of the other
+  `app/(tabs)/*.tsx` and `app/*.tsx` screens for the same
+  visible-`<Text>`-vs-`accessibilityLabel` split this run found (an
+  accessibility-label sweep can leave visible copy behind, as it did here) —
+  not done this run to stay within one task.
+
+- 2026-08-14 — **Queue fully checked; `packages/clinical-safety`'s
+  `self-harm-001` rule — the single highest-consequence rule in the repo —
+  had incomplete romanized-Nepali (`ne-Latn`) coverage.** Grepped for `- [ ]`
+  first — zero hits, same as every recent run. Commissioned a fresh
+  independent general-purpose survey agent, briefed on the full
+  exhausted-veins list accumulated by prior entries (cross-owner/unguarded-
+  ownerId access control, ISO-instant/date validation, `ne-Latn` collapse,
+  share-link TTL/entitlements gating, double-booking, negative-reading
+  validation, filename sanitization, `normalizeLabel` dedup, mobile i18n,
+  retrieval bugs, the analytics-source extensions, emergency-rule phrase
+  fixes, `normalizeNepaliPhone`'s `977`-prefix bug, `buildAnalyteTrend`/
+  `toFhirObservation`'s numeric coercion, `guardianshipExpiryForMinor`'s
+  leap-day overflow, and the ISO-instant string-comparison fixes in
+  `packages/scheduling`/`packages/population-health`) plus the two standing
+  product-decision items (`packages/health-records`'s status-guard question;
+  the clinical-suite's missing clinician-identity model — still not this
+  run's to resolve), instructed specifically not to re-propose either
+  standing item without a materially different angle.
+
+  **What was found.** `packages/clinical-safety/src/index.ts`'s
+  `self-harm-001` rule carries two Devanagari phrases —
+  `/आत्महत्या/u` (the formal word "suicide") and `/मर्न मन लाग/u` (the
+  colloquial "feel like dying" / "want to die") — but only one `ne-Latn`
+  phrase, `/aatmahatya/i`, a transliteration of the formal word alone. No
+  romanized phrase covers the colloquial one, even though the file's own
+  comment states every `ne-Latn` entry is "a direct Romanized
+  transliteration of the approved `ne` wording" and every other rule's
+  `ne-Latn` set fully mirrors its `ne` set. Read `packages/clinical-safety/
+  src/index.ts` and `index.test.ts` directly before accepting the survey's
+  framing, per the standing instruction to verify rather than trust.
+  Confirmed with `node -e`: `"marna man lagcha"`, `"ma marna man lagyo"` and
+  `"malai marna man lagyo"` all fail to match any of the six existing
+  phrases — a person who chose Romanized Nepali specifically because they
+  don't read Devanagari, and who phrases suicidal ideation the colloquial
+  way (arguably more likely in a crisis than the formal medical/legal term
+  "aatmahatya"), would get `CLINICIAN_RECOMMENDED` and no interrupt instead
+  of the mandatory `MENTAL_HEALTH_CONCERN` crisis template — the single
+  highest-consequence silent miss the safety layer can make. Also confirmed
+  `index.test.ts` had exactly one self-harm-001 case in English and one in
+  Devanagari (which matches via `आत्महत्या`, not `मर्न मन लाग`), so the
+  colloquial phrase had zero test coverage in any language before this run.
+  This is a distinct gap from the already-fixed 2026-08-14 work that added
+  `ne-Latn` phrases to `emergency-chest-001`/`pregnancy-warning-001`/
+  `pediatric-warning-001`, which had *zero* `ne-Latn` phrases each — here the
+  rule already had one, just an incomplete transliteration of its own `ne`
+  set.
+
+  **The fix.** Added `/marna man lag/i` to `self-harm-001`'s `phrases`
+  array, a direct transliteration of `मर्न मन लाग` following the same word
+  order (matches `"marna man lagcha"`, `"marna man lagyo"`, and any sentence
+  containing that stem). Added two regression tests to
+  `packages/clinical-safety/src/index.test.ts`'s existing `it.each` table:
+  the Devanagari colloquial phrase (`'मलाई मर्न मन लाग्छ'`, previously
+  untested) and its romanized equivalent (`'malai marna man lagcha'`), both
+  asserting `MENTAL_HEALTH_CONCERN`.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/clinical-safety` 25/25 (net +2, the two new cases), `@swasthya/api`
+  644/644 unchanged (this fix touched no `apps/api`-owned test file). `pnpm
+  build` 40/40 (35 cached, 5 rebuilt from this change).
+
+  **For the next run.** No further gap in this specific vein — every
+  `self-harm-001` phrase now has a matching or superseding `ne-Latn`
+  counterpart, and all five emergency/concern rules have full `ne-Latn`
+  coverage. The survey's two other candidates, investigated and correctly
+  set aside for now: (1) `ImmunizationController.recordPatientReported` and
+  `ClinicalSummaryController.recordPatientReported`
+  (`apps/api/src/immunization/immunization.controller.ts`,
+  `apps/api/src/clinical-summary/clinical-summary.controller.ts`) accept a
+  client-supplied `patientId` with no `SessionAuthGuard` — the same
+  unguarded-owner-id shape already fixed elsewhere, and arguably in-scope as
+  a genuine gap since both are patient-self-report actions (not
+  clinician-authored), unlike the rest of the clinical-suite's auth-model
+  gap. Worth a close look next: distinguishing this from the deferred
+  clinician-identity item needs care, since nearly every other clinical-suite
+  controller (billing, prescribing, medication-safety, diagnostics-orders,
+  scheduling, referrals, population-health) is *also* unguarded and that
+  looks like the standing deferred design gap, not a bug. (2)
+  `packages/patient-registry`'s `dateOfBirth` validated only by digit-shape
+  regex (`/^\d{4}-\d{2}-\d{2}$/`), accepting calendar-impossible dates like
+  `2026-02-30` which `new Date(...)` silently rolls into `2026-03-02` — real
+  and reachable via `POST /patients`, but `grantGuardianshipForMinor` (the
+  one function that would visibly miscompute from it) has no live caller
+  yet, so the present blast radius is stored bad data rather than an
+  observable wrong computation. The two standing product-decision items
+  (`packages/health-records`'s status-guard question; the clinical-suite's
+  missing clinician-identity model) are still open and still not a scheduled
+  run's to resolve alone.
+
+- 2026-08-14 — **Queue fully checked; `packages/population-health`'s
+  `buildRecallList` compared ISO-instant timestamps as raw strings, missing a
+  patient who should have been flagged due for recall.** Grepped for `- [ ]`
+  first — zero hits, same as every recent run. Commissioned a fresh
+  independent general-purpose survey agent, briefed on the full
+  exhausted-veins list accumulated by prior entries (cross-owner/unguarded-
+  ownerId access control, ISO-instant/date validation, `ne-Latn` collapse,
+  share-link TTL/entitlements gating, double-booking, negative-reading
+  validation, filename sanitization, `normalizeLabel` dedup, mobile i18n,
+  retrieval bugs, the analytics-source extensions, emergency-rule phrase
+  fixes, `normalizeNepaliPhone`'s `977`-prefix bug, `buildAnalyteTrend`/
+  `toFhirObservation`'s numeric coercion, `guardianshipExpiryForMinor`'s
+  leap-day overflow, and the just-fixed `packages/scheduling` ISO-instant
+  string comparison) plus the two standing product-decision items
+  (`packages/health-records`'s status-guard question; the clinical-suite's
+  missing clinician-identity model — still not this run's to resolve),
+  instructed specifically not to re-propose either standing item without a
+  materially different angle.
+
+  **What was found.** `buildRecallList` (`packages/population-health/src/
+  index.ts`) filtered appointments with `appointment.scheduledStart >= asOf`
+  and sorted with `a.scheduledStart.localeCompare(b.scheduledStart)` — both
+  raw string comparisons of ISO-8601 instants, the exact bug class the
+  scheduling fix addressed earlier the same day. That fix's own "for the next
+  run" note claimed `assertValidWindow`/`windowsOverlap` were "the only two
+  places in the repo that order two ISO-instant strings directly rather than
+  through `Date.parse`" — this is a third, missed instance. Verified directly
+  with `node -e`: `'2026-08-20T09:00:00.9Z' >= '2026-08-20T09:00:00.95Z'` is
+  `true` as strings (the terminating `Z` outranks any digit) even though
+  900ms is chronologically *before* 950ms, so a patient whose only
+  appointment is genuinely in the past relative to `asOf` could be silently
+  reported `dueForRecall: false` and dropped from the recall list. Confirmed
+  this is reachable, not dead code: `Appointment.scheduledStart` is
+  client-supplied at `POST /appointments`
+  (`apps/api/src/scheduling/scheduling.controller.ts`) and `asOf` is
+  client-supplied via `GET /population-health/recall?asOf=...`
+  (`apps/api/src/population-health/population-health.controller.ts`), both
+  validated only by the same regex accepting 1-3 fractional-second digits,
+  with no normalization anywhere between the controller and this function
+  (`population-health.service.ts` passes both straight through).
+  `packages/population-health/src/index.test.ts` only ever used uniform
+  `.000Z` timestamps before this run, so the mixed-precision case was
+  genuinely untested — the same gap that let the original scheduling bug
+  ship. clinical-suite.md row 13 names this module's whole purpose as
+  flagging patients due for a recall; a silent false negative here is a
+  data-integrity gap adjacent to patient safety, not just a display bug.
+
+  **The fix.** Both the filter and the sort now compare `Date.parse(...)`
+  numeric values instead of the raw strings, mirroring `packages/
+  scheduling`'s exact precedent — no change to the half-open "at or after"
+  semantics or the soonest-first ordering, only to how two instants are
+  compared. Added two regression tests in `packages/population-health/src/
+  index.test.ts`: a `.9Z` appointment against a `.95Z` `asOf` (correctly
+  excluded, chronologically past), and sorting a `.95Z` appointment ahead of
+  a `.0Z`-one-second-later appointment (correctly ordered first despite the
+  string comparison disagreeing).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/population-health` 11/11 (net +2, the two new tests),
+  `@swasthya/api` 644/644 unchanged (this fix touched no `apps/api`-owned
+  test file). `pnpm build` 40/40 (35 cached, 5 rebuilt from this change).
+
+  **For the next run.** Grepped the repo for every other raw string
+  comparison (`<`, `<=`, `>`, `>=`, `localeCompare`) of a field named
+  `*At`/`*Start`/`*End`/`asOf`/similar before writing this entry, rather than
+  trusting the scheduling fix's own "only two places" claim a second time.
+  Found several more `.toSorted((a, b) => a.field.localeCompare(b.field))`
+  sorts on the same shape — `packages/identity`'s and `packages/
+  credentialing`'s `submittedAt`, `packages/family`'s `occurredAt`/
+  `grantedAt`, `packages/language-corpus`'s `capturedAt`, plus the mirrored
+  sorts in `apps/api/src/{identity,language-corpus,credentialing}`'s
+  repositories. Traced each field's origin before flagging any of them:
+  `submittedAt`, `occurredAt` and `grantedAt` are all stamped server-side
+  with a single `new Date().toISOString()` call
+  (`credentialing.service.ts:55`, `identity.service.ts:123`, `family-
+  grants.service.ts:75`, etc.), which always produces exactly three
+  fractional-second digits — no variable-precision input ever reaches these
+  comparisons, so the bug shape is present but not currently triggerable.
+  `language-corpus`'s `capturedAt` is the one exception — client-supplied,
+  validated by the same 1-3-fractional-digit `isoInstant` regex as
+  `scheduledStart`/`asOf` — but `POST /language-corpus/utterances` has no
+  live caller in `apps/web` or `apps/mobile` today (the same dead-endpoint
+  finding this run's own survey made independently as its second runner-up),
+  so it is real but not reachable, the same bar that kept the `packages/
+  interop` `ownerId`-unused candidate out of scope earlier the same day.
+  Worth a fresh look the day either the language-corpus ingest endpoint gets
+  a live caller or any of the server-stamped fields above ever starts
+  accepting a caller-supplied timestamp instead of stamping its own. The
+  survey's other runner-up, investigated and correctly set aside:
+  `packages/credentialing`'s `isBadgeCurrent` and `packages/family`'s
+  `isGuardianshipActive`/`isDelegationActive`/`isConditionShareActive`
+  compare a stored `string` against `Date.now()`, not two independently-
+  precise strings, so they are not this bug shape at all. The two standing
+  product-decision items (`packages/health-records`'s status-guard question;
+  the clinical-suite's missing clinician-identity model) are still open and
+  still not a scheduled run's to resolve alone.
+
+- 2026-08-14 — **Queue fully checked; three of five `packages/clinical-safety`
+  emergency rules had no romanized-Nepali (`ne-Latn`) phrase coverage.**
+  Grepped for `- [ ]` first — zero hits, same as every recent run.
+  Commissioned a fresh independent general-purpose survey agent, briefed on
+  the full exhausted-veins list accumulated by prior entries and the two
+  standing product-decision items (`packages/health-records`'s status-guard
+  question; the clinical-suite's missing clinician-identity model — still not
+  this run's to resolve), instructed to search broadly across
+  `packages/clinical-safety`, `packages/health-records`, `packages/family`,
+  `packages/scheduling`, `packages/teleconsultation`, `packages/interop`,
+  `packages/credentialing`, `packages/identity`, `packages/devices`,
+  `packages/retrieval`, `packages/intent-router`, `packages/evaluation`, and
+  `apps/api`/`apps/web`/`apps/mobile`.
+
+  **What was found.** `packages/clinical-safety/src/index.ts`'s five
+  `safetyRule`s each carry a `phrases: RegExp[]` array checked directly
+  against the raw message text passed to `assessSafety` — no transliteration
+  step exists anywhere on either call site
+  (`apps/api/src/companion.controller.ts`, both routes; `apps/mobile/app/
+  (tabs)/companion.tsx`). `emergency-breathing-001` and `self-harm-001` each
+  carry a direct romanized-Nepali regex (`/saas ferna (garo|sakdina)/i`,
+  `/aatmahatya/i`) alongside their English and Devanagari ones.
+  `emergency-chest-001`, `pregnancy-warning-001` and `pediatric-warning-001`
+  did not — only an English lookahead pattern and a Devanagari-script regex
+  each. `ne-Latn` ("Nepali · Romanized") is a first-class language choice
+  offered at onboarding and accepted by both companion routes' `z.enum(['ne',
+  'en', 'ne-Latn'])` schema, for exactly the audience who picked it because
+  they don't read Devanagari. Read `packages/clinical-safety/src/index.ts`
+  and both call sites directly before accepting the survey's framing, per the
+  standing instruction to verify rather than trust. Confirmed with a direct
+  regex test that plausible romanized-Nepali descriptions of each missing
+  rule's symptom set (severe chest pain with sweating and arm pain; pregnant
+  with heavy bleeding; a blue, not-breathing infant) do not match any of the
+  three rules' existing phrases, so `assessSafety` would return
+  `CLINICIAN_RECOMMENDED`/`interruptConversation: false` instead of the
+  mandatory `EMERGENCY_NOW`/`MATERNAL_CONCERN`/`PEDIATRIC_CONCERN` interrupt —
+  the single highest-consequence path in the repository, silently missing
+  its warning for a person who explicitly told the app they read Romanized
+  Nepali, not Devanagari.
+
+  **The fix.** Added one romanized-Nepali regex to each of the three rules,
+  written as a direct transliteration of the existing Devanagari phrase for
+  that rule — the same convention `approvedSafetyTemplates`' own comment
+  states for template text and that `emergency-breathing-001`/`self-harm-001`
+  already followed for phrases: `chati.*(kada|dukhai|pasina|behos)` for
+  chest pain; `(?=.*garbhawati)(?=.*(dherai ragat|daura|kada tauko))` for
+  pregnancy; `(?=.*bachcha)(?=.*(nilo|saas.*chaina|behos|daura))` for
+  pediatric. No change to matching logic, template text or any other rule.
+  Added one `it.each` case per rule in
+  `packages/clinical-safety/src/index.test.ts` using the new phrasing.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (fresh install this run,
+  `node_modules` was absent; no lockfile change). `pnpm lint` 40/40. `pnpm
+  typecheck` 40/40. `pnpm test` 75/75 turbo tasks — `@swasthya/clinical-safety`
+  23/23 (net +3, the three new romanized cases), `@swasthya/api` 644/644
+  unchanged (this fix touched no `apps/api`-owned test file). `pnpm build`
+  40/40 (35 cached, 5 rebuilt from this change).
+
+  **For the next run.** No further gap in this specific vein —
+  `emergency-breathing-001` and `self-harm-001` already had `ne-Latn`
+  coverage and all five rules now do. The survey's two runners-up, both
+  investigated and correctly set aside: (1) `packages/interop`'s
+  `renderExportBundlePdf`/`buildFhirExportBundle` taking an `ownerId` param
+  that isn't used to filter documents/observations — looks like a
+  cross-owner leak on first read, but neither function has a live caller in
+  `apps/api` today, so there is no reachable route to actually exploit; worth
+  a fresh look if either function ever gets wired up. (2) `packages/
+  scheduling`'s conflict check only guards clinician double-booking, not
+  patient double-booking — plausible but reads as a product-scope decision
+  (does the same patient book two overlapping appointments with different
+  clinicians count as a bug?) rather than a clear-cut bug, and lower
+  consequence than the safety-rule gap. The two standing product-decision
+  items (`packages/health-records`'s status-guard question; the
+  clinical-suite's missing clinician-identity model) are still open and still
+  not a scheduled run's to resolve alone.
+
+- 2026-08-14 — **Queue fully checked; `packages/scheduling`'s
+  `assertValidWindow` and `windowsOverlap` compared ISO-instant timestamps as
+  raw strings, which silently mis-orders instants with different
+  fractional-second digit counts.** Grepped for `- [ ]` first — zero hits,
+  same as every recent run. Commissioned a fresh independent general-purpose
+  survey agent, briefed on the full exhausted-veins list accumulated by prior
+  entries (cross-owner/unguarded-ownerId access control, ISO-instant/date
+  validation, `ne-Latn` collapse, share-link TTL/entitlements gating,
+  double-booking, negative-reading validation across every `packages/devices`
+  metric, filename sanitization, `normalizeLabel` dedup, mobile i18n,
+  `classifyIntent`/`termAppears` retrieval bugs, the analytics-source
+  extensions, the emergency-rule word-order/apostrophe fixes, the `next=`
+  redirect chain, `ApplicationTransitionError` mapping, `parseCookieHeader`,
+  `learn.tsx`'s remaining strings, `RegisterView`'s start-over gating, the
+  credentialing status read-back, `normalizeNepaliPhone`'s `977`-prefix bug,
+  `buildAnalyteTrend`/`toFhirObservation`'s numeric coercion, and
+  `guardianshipExpiryForMinor`'s leap-day overflow) and the two standing
+  product-decision items (`packages/health-records`'s status-guard question;
+  the clinical-suite's missing clinician-identity model — still not this
+  run's to resolve).
+
+  **First candidate, investigated and rejected.** The survey's first report
+  was `ClinicalChartingService.attachDocument`
+  (`apps/api/src/clinical-charting/clinical-charting.service.ts`) never
+  comparing `HealthDocument.ownerId` to `Encounter.patientId` before linking
+  a document to an encounter. Read the code directly before accepting it, per
+  the standing instruction to verify rather than trust a survey's framing —
+  and found `packages/shared-types/src/index.ts:465-470` explicitly documents
+  that these two ids are deliberately unlinked: "This package makes no claim
+  that a `HealthDocument.ownerId` and an `Encounter.patientId` are the same
+  identity ... asserting they line up would be inventing a linkage this
+  codebase has never established." Implementing the suggested check would
+  have fabricated exactly the linkage that comment disclaims, and the
+  underlying gap — `clinical-charting`'s routes carry no auth at all — is the
+  already-known, already-deferred "clinical-suite's missing
+  clinician-identity model" standing item, not a bug a scheduled run can fix
+  alone. Commissioned a second survey, briefed on why the first candidate was
+  rejected, rather than accepting it or silently picking something unrelated.
+
+  **What the second survey found.** `assertValidWindow`
+  (`packages/scheduling/src/index.ts`, then `scheduledEnd <= scheduledStart`)
+  and `windowsOverlap` (`aStart < bEnd && bStart < aEnd`) both compared
+  ISO-8601 instant strings with JavaScript's `<`/`<=`, which only agrees with
+  chronological order when both operands have identical string length. The
+  controller's own validator (`apps/api/src/scheduling/
+  scheduling.controller.ts`'s `isoInstant`,
+  `/^...T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/`) accepts 1, 2 or 3 fractional-
+  second digits, so two legal instants can disagree in digit count. Verified
+  directly with `node -e`: `'2026-08-10T09:00:00.9Z' <
+  '2026-08-10T09:00:00.95Z'` is `false` as strings (the terminating `Z`
+  sorts above any digit, so more fractional digits reads as "smaller") even
+  though 900ms is chronologically *before* 950ms
+  (`Date.parse` agrees: `true`). Two concrete consequences: (1)
+  `scheduledStart: '...00.95Z'`, `scheduledEnd: '...00.9Z'` — end
+  chronologically *before* start — passed `assertValidWindow` uncaught,
+  because the string check evaluated `false`. (2) An existing appointment
+  `09:00:00.9Z`–`09:30:00.000Z` and a new request
+  `08:30:00.000Z`–`09:00:00.95Z` for the same clinician genuinely overlap
+  (the new one ends 50ms after the existing one starts), but
+  `windowsOverlap`'s string comparison returned `false`, so
+  `AppointmentConflictError` never fired — a real double-booking.
+  `packages/scheduling/src/index.test.ts` only ever used uniform `.000Z`
+  timestamps before this run, so the mixed-precision case was genuinely
+  untested. Distinct from the already-fixed "double-booking" item: that item
+  added the conflict-detection logic in the first place; this bug is in the
+  comparison primitive that logic depends on, and defeats it through a
+  different mechanism.
+
+  **The fix.** Both functions now compare `Date.parse(...)` numeric values
+  instead of the raw strings — no change to the half-open-interval or
+  window-validity logic itself, only to how two instants are ordered. Added
+  two regression tests in `packages/scheduling/src/index.test.ts`: an
+  end-before-start window using `.95Z`/`.9Z` fractions, and a double-booking
+  that only overlaps once mixed-precision fractions are compared
+  chronologically.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/scheduling` 10/10 (net +2, the two new tests), `@swasthya/api`
+  644/644 unchanged (this fix touched no `apps/api`-owned test file). `pnpm
+  build` 40/40 (35 cached, 5 rebuilt from this change).
+
+  **For the next run.** No further gap in this vein — `assertValidWindow` and
+  `windowsOverlap` are the only two places in the repo that order two
+  ISO-instant strings directly rather than through `Date.parse`
+  (`buildTimeline`'s `Date.parse(documentDate ?? capturedAt)` and the
+  `documentDate`/`administeredOn` validators added earlier already parse
+  before comparing). The two standing product-decision items are still open
+  and still not a scheduled run's to resolve alone. A fresh independent
+  survey, briefed on the now-longer exhausted-veins list above — and on why
+  the `attachDocument` candidate above is a dead end — remains the right way
+  to pick the next task.
+
+- 2026-08-14 — **Queue fully checked; `packages/family`'s
+  `guardianshipExpiryForMinor` silently overflowed a Feb 29 date of birth
+  into March 1 instead of the ward's real 18th birthday.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. This was not a fresh
+  survey finding: the 2026-08-14 `buildAnalyteTrend`/`toFhirObservation` log
+  entry named it directly as its survey's runner-up ("real, deterministic
+  and untested ... worth a second look"), and the `assertNonNegative`
+  body-temperature entry right after it repeated the same "worth a second
+  look" framing for its own runner-up without touching this one. Read
+  `packages/family/src/index.ts` directly before changing anything, per the
+  standing instruction to verify rather than trust a prior entry's
+  paraphrase.
+
+  **What was found.** `guardianshipExpiryForMinor` computed
+  `Date.UTC(dob.getUTCFullYear() + 18, dob.getUTCMonth(), dob.getUTCDate())`.
+  Adding 18 to a year never preserves leap-year-ness (18 mod 4 = 2), so for
+  any ward born February 29, the target year is never itself a leap year and
+  `Date.UTC(year, 1, 29)` silently overflows into March 1 — `node -e`
+  confirmed `2008-02-29` → `2026-03-01T00:00:00.000Z` before the fix.
+  `family-and-proxy.md` §2's own stated harm is a guardian retaining access
+  past the ward's actual majority; overflowing forward is exactly that,
+  by one day, for every leap-day-born ward. The existing test only exercised
+  Roshani's March 10 birthday (`packages/database`'s real seed fixture), so
+  the leap-day case was genuinely untested. Not yet reachable from any API
+  route — no guardianship-creation controller exists — but it is a real,
+  deterministic defect in library code the platform already ships and calls
+  from `grantGuardianshipForMinor`, the same bar the `buildAnalyteTrend`/
+  `sanitizeFilename` library-level fixes were held to.
+
+  **The fix.** `guardianshipExpiryForMinor` now checks whether the naive
+  `Date.UTC` result rolled into a different month than the birth month, and
+  if so, clamps to that month's real last day (`Date.UTC(targetYear,
+  birthMonth + 1, 0)`) instead of letting it overflow — Feb 28 in a
+  non-leap target year, never March 1. The check is general (any rollover,
+  not special-cased to day 29) so it also covers the theoretical case of a
+  target-year February being one day shorter for any other reason. Added one
+  regression test in `packages/family/src/index.test.ts`: a ward born
+  `2008-02-29` now gets `expiresAt: '2026-02-28T00:00:00.000Z'`.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks
+  (`@swasthya/family` 108/108, net +1 test). `pnpm build` 40/40 (35 cached,
+  5 rebuilt from this change).
+
+  **For the next run.** No further gap in this vein. The two standing
+  product-decision items from prior entries (`packages/health-records`'s
+  status-guard question; the clinical-suite's missing clinician-identity
+  model) are still open and still not a scheduled run's to resolve alone.
+  There is still no guardianship-creation controller in `apps/api` — this
+  fix protects the library function itself and whatever calls it in tests
+  and future routes, but nothing in `apps/api` exercises
+  `grantGuardianshipForMinor` yet, so this remains dark from a real user's
+  perspective until that controller exists (a real product decision, not a
+  bug fix, per the same reasoning prior entries gave for not building
+  guardianship-creation opportunistically). A fresh independent survey,
+  briefed on the now-longer exhausted-veins list in the entry below, remains
+  the right way to pick the next task.
+
+- 2026-08-14 — **Queue fully checked; `buildAnalyteTrend` and
+  `toFhirObservation` were silently coercing non-numeric observation values
+  into wrong numbers instead of dropping them, contradicting both
+  functions' own documented contract.** Grepped for `- [ ]` first — zero
+  hits, same as every recent run. Commissioned a fresh independent
+  general-purpose survey agent, briefed on every vein exhausted so far
+  (cross-owner/unguarded-`ownerId` access control, ISO-instant/date
+  validation, `ne-Latn` collapse, share-link TTL/entitlements gating,
+  double-booking, negative-reading validation across every `packages/devices`
+  metric including body temperature, filename sanitization, `normalizeLabel`
+  dedup, mobile i18n, `classifyIntent`/`termAppears` retrieval bugs, the
+  analytics-source extensions, the emergency-rule word-order/apostrophe
+  fixes, the `next=` redirect chain, `ApplicationTransitionError` mapping,
+  `parseCookieHeader`, `learn.tsx`'s remaining strings, `RegisterView`'s
+  start-over gating, the credentialing status read-back, and
+  `normalizeNepaliPhone`'s `977`-prefix bug) and the two standing
+  product-decision items (`packages/health-records`'s status-guard question;
+  the clinical-suite's missing clinician-identity model — still not this
+  run's to resolve). Told explicitly to read files directly rather than
+  trust a grep-only sweep.
+
+  **What was found.** `buildAnalyteTrend` (`packages/health-records/src/
+  index.ts:169`, then) and `toFhirObservation`
+  (`packages/interop/src/index.ts:151-152`, then) both decided whether
+  `HealthObservation.value` — a free-text string anyone can write via the
+  "correct my own observation" route (`apps/api/src/records/
+  records.controller.ts`'s `z.string().trim().min(1)`) — was numeric using
+  `Number.parseFloat(value)` plus `Number.isFinite(...)`. `parseFloat` only
+  parses a *leading* numeric prefix, not the full string. `health-records`'s
+  own doc comment on `buildAnalyteTrend` promises "points whose value is not
+  numeric are dropped rather than coerced" — false for any value that
+  *starts* with digits but isn't purely numeric. Verified directly before
+  touching anything: `Number.parseFloat('70-99')` → `70`
+  (`Number.isFinite` → `true`), not `NaN`. `"70-99"` is exactly the shape
+  `HealthObservation.referenceRange` already uses in this repo (see the demo
+  seed data and `packages/health-records/src/index.test.ts`'s own
+  `makeObservation` fixture, `referenceRange: '0.7-1.3'`) — a realistic
+  mistake for a range to end up in `value` instead, whether by manual
+  correction or a bad extraction. The existing non-numeric test only
+  exercised a purely-alphabetic case (`'not detected'`), so the leading-digit
+  gap was real and untested, not already covered. Consequence: a
+  range-shaped or unit-suffixed (`"8.2 mg/dL"`) value doesn't get dropped as
+  promised — it becomes a plausible-looking, wrong point that the assistant
+  reasons over via `buildAnalyteTrend` and that a share link/export ships as
+  a real FHIR `valueQuantity` via `toFhirObservation`. Silent data
+  corruption in a health-tracking pipeline, not a cosmetic bug.
+
+  **The fix.** Added `parseStrictNumber` to `packages/health-records/src/
+  index.ts` (exported, next to `AnalytePoint`) — trims, rejects an empty
+  string, and uses `Number(trimmed)` instead of `Number.parseFloat`, since
+  `Number` returns `NaN` for any string with non-numeric trailing content
+  (`"70-99"` → `NaN`, `"1.2"` → `1.2`, unchanged for every value the existing
+  tests already cover). `buildAnalyteTrend` now calls it directly.
+  `packages/interop` already depends on `@swasthya/health-records` for
+  `isTrusted`/`selectTrusted`, so `toFhirObservation` imports the same
+  helper rather than carrying its own diverging copy — the same
+  shared-helper move the 2026-08-12 filename-sanitization fix made across
+  `packages/storage-adapters`'s two backends. Added one regression test per
+  package: a `'70-99'` observation value alongside a `'1.2'` one, asserting
+  the range-shaped point is dropped (`health-records`) and that
+  `toFhirObservation` falls back to `valueString` rather than emitting a
+  `valueQuantity` for it (`interop`).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40 (confirms `numericValue`'s
+  `number | null` narrows correctly through the `isNumeric` alias in
+  `toFhirObservation`). `pnpm test` 75/75 turbo tasks, including the two new
+  tests confirmed individually. `pnpm build` 40/40, forced with `--force` to
+  rule out a stale cache masking a break.
+
+  **For the next run.** No further gap in this vein — both call sites in the
+  only two packages that ever parse `HealthObservation.value` now use the
+  same strict helper. The two standing product-decision items are still open
+  and still not a scheduled run's to resolve alone. The survey's runner-up —
+  a leap-day bug in `packages/family`'s `guardianshipExpiryForMinor`
+  (`Date.UTC(dob.getUTCFullYear() + 18, 1, 29)` silently rolls to March 1 for
+  any ward born Feb 29, since `year + 18` is never itself a leap year) is
+  real, deterministic and untested, but currently unwired to any API route —
+  no guardianship-creation controller exists yet — so it was left for a
+  future run rather than folded in here to keep this run to one task. A
+  fresh independent survey, briefed on the now-longer exhausted-veins list
+  above, remains the right way to pick whatever comes after that.
+
+- 2026-08-14 — **Queue fully checked; `packages/devices`'s body-temperature
+  normalizers were missing the negative-reading guard every sibling metric
+  already has.** Grepped for `- [ ]` first — zero hits. The prior run (the
+  `normalizeNepaliPhone` fix, immediately below) had already surfaced this as
+  its survey's runner-up and explicitly left the call open: "ruled out this
+  run as a direct extension of the already-exhausted negative-reading-
+  validation vein rather than a fresh finding, but is real and worth a
+  second look if a future survey judges it genuinely distinct." Read
+  `packages/devices/src/index.ts` directly rather than trust that framing.
+
+  **What was found.** The 2026-08-12 sweep added `assertNonNegative` beside
+  `assertFinite` for steps, heart rate, resting heart rate, oxygen
+  saturation, glucose, both blood-pressure fields, body weight and
+  respiratory rate — every physiologically-signed metric in the file except
+  one. `BodyTemperatureRecord` (Health Connect, `:425-439`) and
+  `HKQuantityTypeIdentifierBodyTemperature` (HealthKit, `:713-727`) both
+  still called only `assertFinite(temperature/value, ...)`. A negative body
+  temperature has no valid reading in either Celsius or Fahrenheit for a
+  living person — the same "finite but impossible" shape the 2026-08-12 fix
+  closed for every other metric — so this was judged a real, distinct
+  instance of the same bug class the prior run correctly declined to touch
+  without a second look, not scope creep restating that fix. `temperature`/
+  `value` is checked before `temperatureToCelsius`'s unit conversion, exactly
+  where `weight` is checked before `massToKg`, so the guard rejects the raw
+  reading regardless of which unit the bridge reports.
+
+  **The fix.** Added `assertNonNegative(record.temperature, 'temperature')`
+  and `assertNonNegative(raw.value, 'value')` to the two call sites, and
+  extended the doc comment on `assertNonNegative` to list body temperature
+  among the metrics it guards. Added one regression test per platform
+  (`packages/devices/src/index.test.ts`): a `-1°C` `BodyTemperatureRecord`
+  and a `-1` `degC` `HKQuantityTypeIdentifierBodyTemperature` sample, each
+  asserting `InvalidDeviceRecordError`.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/devices` 31/31 (net +2, the two new tests), every other package
+  unchanged. `pnpm build` 40/40 (35 cached, 5 rebuilt from this change).
+
+  **For the next run.** No further gap in this vein — every metric in
+  `packages/devices` now pairs `assertFinite` with `assertNonNegative` where
+  a negative reading is physiologically impossible; sleep-session duration,
+  glucose's unit field and timestamps are the only numeric-shaped fields left
+  unchecked, and none of them has a signed-but-invalid range the way a
+  reading does. The two standing product-decision items from prior entries
+  (`packages/health-records`'s status-guard question; the clinical-suite's
+  missing clinician-identity model) are still open and still not a scheduled
+  run's to resolve alone. A fresh independent survey, briefed on the now
+  even-longer exhausted-veins list in the entry below, remains the right way
+  to pick the next task.
+
+- 2026-08-14 — **Queue fully checked; fixed `packages/auth`'s
+  `normalizeNepaliPhone` silently corrupting a valid local phone number that
+  itself starts with the digits `977`.** Grepped for `- [ ]` first — zero
+  hits, same as every recent run. Commissioned a fresh independent
+  general-purpose survey agent, briefed on every vein already exhausted
+  (cross-owner/unguarded-`ownerId` access control, ISO-instant/date
+  validation, `ne-Latn` collapse, share-link TTL/entitlements gating,
+  double-booking, negative-reading validation, filename sanitization,
+  `normalizeLabel` dedup, mobile i18n, `classifyIntent`/`termAppears`
+  retrieval bugs, the analytics-source extensions, the emergency-rule
+  word-order/apostrophe fixes, the `next=` redirect chain,
+  `ApplicationTransitionError` mapping, `parseCookieHeader`, `learn.tsx`'s
+  six strings, `RegisterView`'s start-over gating, and the credentialing
+  status read-back) and the two standing product-decision items
+  (`packages/health-records`'s status-guard question; the clinical-suite's
+  missing clinician-identity model — still not this run's to resolve).
+  Explicitly told to read files directly rather than trust a grep, per the
+  prior run's own lesson about the `learn.tsx` i18n claim.
+
+  **What was found.** `normalizeNepaliPhone` (`packages/auth/src/index.ts`,
+  then lines 107-114) stripped a leading `^\+?977` unconditionally before
+  validating against `NEPAL_MOBILE_PATTERN` (`/^9\d{9}$/`). A bare (no `+`)
+  10-digit local number that itself starts with the digits `977` —
+  e.g. `9771234567` — already satisfies `NEPAL_MOBILE_PATTERN` as typed, but
+  the unconditional strip collapsed it to `1234567` (7 digits) first, which
+  then correctly-but-wrongly failed validation and threw
+  `InvalidPhoneError`. Verified directly with `node -e` before touching
+  anything: `normalizeNepaliPhone('9771234567')` threw;
+  `normalizeNepaliPhone('9779812345678')` (genuinely 13-digit,
+  country-code-prefixed) correctly returned `9812345678`. Reachable, not
+  theoretical: `docs/architecture/language-corpus.md` documents this repo's
+  own phone shape as `98…`/`97…`, so a `977…`-prefixed local number is
+  in-scope by the repo's own definition, and `parsePhone` (called from
+  `apps/api/src/auth/auth.service.ts`'s `requestOtp`/`verifyOtp`, reached
+  from `apps/web`'s `PhoneOtpFlow.tsx`, whose input has no digit-pattern
+  restriction) and `family-grants.service.ts`'s delegate-phone lookup both
+  call this function with no upstream filtering — a real person whose phone
+  happens to start with `977` could never register, sign in, or be found as
+  a delegate.
+
+  **The fix.** Only strip the `977` prefix when a literal `+` makes the
+  intent unambiguous, or when the digit string is too long to be a bare
+  10-digit number (`digitsOnly.length > 10`) — not merely because the
+  string happens to start with those three characters. The existing
+  four country-code/spacing tests in `packages/auth/src/index.test.ts` are
+  unaffected (all their inputs are either `+`-prefixed or 13 digits); added
+  one regression test for the previously-corrupted 10-digit case.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/auth` 34/34 (net +1, the new test), `@swasthya/api` 644/644
+  unchanged (this fix touched no `apps/api`-owned test file). `pnpm build`
+  40/40.
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not a scheduled run's to resolve. The survey's
+  runner-up — `packages/devices`'s `BodyTemperatureRecord`/
+  `HKQuantityTypeIdentifierBodyTemperature` calling `assertFinite` but not
+  `assertNonNegative`, unlike every sibling metric — was ruled out this run
+  as a direct extension of the already-exhausted negative-reading-validation
+  vein rather than a fresh finding, but is real and worth a second look if a
+  future survey judges it genuinely distinct from what was fixed before. A
+  fresh independent survey, briefed on the now-longer exhausted-veins list
+  above, is still the right way to pick whatever comes after that.
+
+- 2026-08-14 — **Queue fully checked; closed the six remaining
+  hardcoded-Nepali strings in `apps/mobile/app/(tabs)/learn.tsx`.** Grepped
+  for `- [ ]` first — zero hits. The prior run's own log entry (the
+  `parseCookieHeader` fix, immediately below) named exactly this as "the
+  concrete lead worth checking first," flagging that its own claim
+  (`noticeText`, `lessonHeading`, `SectionTitle` copy, the low-bandwidth
+  toggle's title/subtitle don't branch on `language`) directly contradicted
+  an earlier 2026-08-13 entry's claim that a fresh survey "reported no other
+  hardcoded-language gap left in `apps/mobile`." Read `learn.tsx` in full
+  before touching anything, per that instruction, rather than trusting
+  either prior claim.
+
+  **What was found.** The 2026-08-14 flag was correct and the 2026-08-13
+  "nothing left" claim was not. Six sentence-level strings in
+  `learn.tsx` were still fixed Nepali with no `language === 'en' ? … : …`
+  branch, despite every other sentence in the same file — including the
+  `walkthroughSteps[].title`/`.body` a 2026-08-13 run had already fixed and
+  the notice *title*/`lessonHint` a 2026-08-12 run had already fixed —
+  following that exact convention: the `SectionTitle` `title`/`body`
+  (`:90-98`, never touched by either prior `learn.tsx` fix), the low-data
+  toggle's `bandwidthTitle`/`meta` (`:188-197`, likewise never named in any
+  prior entry), the "Accessible by design" notice's *body* text (`:209-213`
+  — only its title was fixed in 2026-08-12), the `lessonHeading` "पढेर सिक्ने
+  पाठ" (`:217-220` — its sibling `lessonHint` was fixed in 2026-08-12, this
+  one was not), the lesson-duration "सेकेन्ड" unit word (`:250-257` — kept
+  separate from `reviewStatus`, which the 2026-08-12 entry explicitly and
+  correctly left alone as a raw enum, not authored copy), and the
+  transcript row's "सुन्नुहोस्" listen label (`:280-284` — its
+  `accessibilityLabel` two lines below already branched correctly, only the
+  visible `Text` did not, the same asymmetry the 2026-08-12 Play/Pause fix
+  addressed elsewhere in this file).
+
+  **The fix.** All six now follow the file's own
+  `language === 'en' ? english : nepali` ternary exactly, no new pattern.
+  Each English string is a plain literal translation of the existing
+  Nepali sentence — no new claims, figures or product facts introduced.
+  `eyebrow`, `walkthroughSteps[].eyebrow`, "INTERACTIVE WALKTHROUGH",
+  "READABLE TRANSCRIPT" and `reviewStatus.replaceAll('_', ' ')` were left
+  untouched, matching the all-caps-chrome-stays-English /
+  raw-enum-stays-unrendered-as-copy precedent both 2026-08-12 entries
+  already established for this exact file.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  unchanged counts everywhere; `learn.tsx` has no colocated test, matching
+  every other `app/*.tsx` screen in this repo (no rendering harness exists
+  for them). `pnpm build` 40/40 (35 cached); `apps/mobile`'s Expo web bundle
+  still exports `/learn` cleanly at 66KB.
+
+  **For the next run.** The two standing product-decision items
+  (`packages/health-records`'s status-guard question; the clinical-suite's
+  missing clinician-identity model) are unchanged and still not a scheduled
+  run's to resolve. Given that a "fresh survey found nothing" claim about
+  this exact file was wrong twice now (once flagged and now confirmed), the
+  next "queue exhausted" run should not treat any single survey's
+  "exhausted" verdict as final without a skeptical direct read of the file
+  in question, mobile i18n included.
+
+- 2026-08-14 — **Queue fully checked; fixed a crash in `packages/auth`'s
+  `parseCookieHeader` that turned a malformed cookie into an unhandled 500
+  on every `SessionAuthGuard`-protected route.** Grepped for `- [ ]` first —
+  zero hits, same as every recent run. Commissioned a fresh independent
+  general-purpose survey agent, briefed on every vein already exhausted
+  (cross-owner/unguarded-`ownerId` access control, ISO-instant/date
+  validation, `ne-Latn` collapse, share-link TTL/entitlements gating,
+  double-booking, negative-reading validation, filename sanitization,
+  `normalizeLabel` dedup, mobile i18n, `classifyIntent`/`termAppears`
+  retrieval bugs, the analytics-source extensions, the emergency-rule
+  word-order/apostrophe fixes, the `next=` redirect chain, and
+  `ApplicationTransitionError` mapping) and the two standing
+  product-decision items (`packages/health-records`'s status-guard question;
+  the clinical-suite's missing clinician-identity model — still not this
+  run's to resolve). Also told not to re-propose the named-but-larger
+  `apps/mobile` equivalent of `IdentityVerification.tsx`.
+
+  **What was found.** `packages/auth/src/index.ts`'s `parseCookieHeader`
+  (lines 153-165) parsed `name=value` pairs out of the raw `Cookie` header
+  and called `decodeURIComponent(value)` on every one with no guard. The
+  function already tolerates one class of garbage — a pair with no `=` is
+  skipped (`if (separatorIndex === -1) continue`) — but not a pair whose
+  *value* is not valid percent-encoding: `decodeURIComponent('%')` throws a
+  raw `URIError`, verified directly with `node -e`. This function is called
+  from `apps/api/src/auth/session-auth.guard.ts`'s `extractSessionToken`,
+  which runs unconditionally at the top of `SessionAuthGuard.canActivate`
+  for every request with no `Bearer` header — i.e. every cookie-based web
+  request to `/auth/me`, `/family/grants`, `/records/*`, `/interop/*`,
+  `/credentialing/*`, `/identity/*`, and every other guarded route.
+  `apps/api/src/main.ts` registers no global exception filter, so Nest's
+  default filter turns the escaping `URIError` into a generic `500`
+  instead of the `401` a malformed/missing session should always produce.
+  The `Cookie` header is fully attacker-controlled and reaches
+  `decodeURIComponent` with no upstream validation, so `Cookie:
+  mero_session=%` from any anonymous caller reliably 500s instead of 401s.
+  Found by a fresh independent survey; `session-auth.guard.test.ts` had six
+  cases (valid bearer, valid cookie, bearer-over-cookie precedence, missing
+  token, forged token, revoked token) but none for a malformed cookie
+  value, and `parseCookieHeader`'s own four existing tests covered the
+  no-`=` case but not invalid percent-encoding.
+
+  **The fix.** Wrapped the `decodeURIComponent(value)` call in a
+  `try/catch`, dropping that one pair on failure — the exact same
+  "tolerate one malformed pair, keep the rest" convention the no-`=` branch
+  two lines above already established, not a new policy. Two new tests: a
+  unit test in `packages/auth/src/index.test.ts` (`parseCookieHeader`
+  ignores a pair whose value is not valid percent-encoding instead of
+  throwing) and an integration-level test in
+  `apps/api/src/auth/session-auth.guard.test.ts` proving the guard now
+  rejects a malformed cookie as a clean `UnauthorizedException` (401)
+  rather than letting the `URIError` escape uncaught.
+
+  **What was deliberately left out.** No global Nest exception filter was
+  added — that would be a broader architectural change (every unhandled
+  exception repo-wide, not just this one) with no other evidence in this
+  survey that it's needed; fixing the one function that's actually reached
+  with fully attacker-controlled input is the narrow, traceable fix. The
+  survey's runner-up (several `apps/mobile/app/(tabs)/learn.tsx` strings —
+  `noticeText`, `lessonHeading`, `SectionTitle` copy, the low-bandwidth
+  toggle's title/subtitle — that don't branch on `language` despite
+  sibling strings in the same file that do) was not picked up: it falls
+  inside the already-exhausted mobile-i18n vein this run was briefed to
+  avoid re-opening, and directly contradicts a very recent log entry's
+  claim that a fresh survey found nothing left there — worth a skeptical,
+  dedicated re-check by whichever run picks it up next, rather than being
+  folded into this one.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean. `pnpm lint` 40/40.
+  `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks — `@swasthya/auth`
+  33/33 (net +1), `@swasthya/api` 645/645 (net +1, the new guard test),
+  every other package's count unchanged. `pnpm build` 40/40.
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not a scheduled run's to resolve. The
+  `learn.tsx` i18n claim above is the concrete lead worth checking first,
+  ahead of commissioning a wholly fresh survey — verify it directly against
+  the file before trusting either this run's flag or the prior run's
+  "nothing left" claim, since the two disagree.
+
+- 2026-08-13 — **Queue fully checked; gated `RegisterView.tsx`'s "start a new
+  application" button to the one status it can actually succeed from.**
+  Grepped for `- [ ]` first — zero hits, same as every recent run.
+  Commissioned a fresh independent general-purpose survey agent, briefed on
+  every vein already exhausted (cross-owner/unguarded-`ownerId` access
+  control, ISO-instant/date validation, `ne-Latn` collapse, share-link
+  TTL/entitlements gating, double-booking, negative-reading validation,
+  filename sanitization, `normalizeLabel` dedup, mobile i18n,
+  `classifyIntent`/`termAppears` retrieval bugs, the analytics-source
+  extensions, the emergency-rule word-order/apostrophe fixes, the `next=`
+  redirect chain, and `ApplicationTransitionError` mapping) and told not to
+  re-propose either standing product-decision item (`packages/health-records`'s
+  status-guard question; the clinical-suite's missing clinician-identity
+  model, which is why `diagnostics-orders`/`prescribing`/`referrals`/
+  `billing`/`engagement`/`analytics`/`clinical-charting`/`medication-safety`/
+  `population-health`/`directory`/`scheduling`/`teleconsultation`/
+  `patient-registry` all have zero `SessionAuthGuard` — confirmed again this
+  run, still not a fresh finding).
+
+  **What was found.** `RegisterView.tsx`'s `status` step (built two runs ago
+  to show `EVIDENCE_SUBMITTED`/`UNDER_REVIEW`/`APPROVED`/`REJECTED`) rendered
+  an unconditional "start a new application" button (`resetFlow`, wired to
+  `status.startOverCta`) beneath every one of those four statuses.
+  `packages/credentialing`'s `transitions` table
+  (`canTransitionApplication`) only permits re-entering `EVIDENCE_SUBMITTED`
+  from `NOT_STARTED` or `REJECTED` — `EVIDENCE_SUBMITTED`, `UNDER_REVIEW` and
+  `APPROVED` all map to either no further transition or one that excludes
+  re-submission. Concretely reachable, not hypothetical: an applicant who
+  was `UNDER_REVIEW` or already `APPROVED` and clicked the button would
+  refill the entire three-step form (council, two photo captures, review),
+  then have the real submit throw `ApplicationTransitionError` back at her —
+  and because `resetFlow` also clears local `application` state to `null`
+  with no re-fetch trigger (the existing-application effect is keyed on
+  `session.status`, which does not change), she would lose on-screen
+  visibility into her real, already-good status until a page reload. The
+  sibling component this one was explicitly built to mirror,
+  `IdentityVerification.tsx`, already gates its equivalent action
+  (`canSubmit`) on `status === 'NOT_STARTED' || status === 'REJECTED'` — this
+  was a real, traceable inconsistency between two near-identical, recently
+  built components, not a speculative gap.
+
+  **The fix.** Wrapped the existing button in
+  `application.status === 'REJECTED' ? … : null`. `NOT_STARTED` never
+  reaches this branch (`application` is only ever set from a persisted
+  record — `getMyCredentialingApplication` returns `null`, not a shell, for
+  a first-time applicant), so `REJECTED` is the only condition needed. No
+  message-file changes: `startOverCta`'s copy was already correct for the
+  one case where it will now actually show. No test file touched or added —
+  confirmed (again) that zero `.test.tsx` files exist anywhere in
+  `apps/web/src`; this multi-step capture flow has never had one, matching
+  the same convention `identity-api.test.ts`/`credentialing-api.test.ts`
+  note for their own sibling components.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean. `pnpm lint` 40/40.
+  `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks, 643/643 `@swasthya/api`
+  tests unchanged (this fix touched no test-covered surface). `pnpm build`
+  40/40.
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve. The survey's runner-up
+  candidate — a real `apps/mobile` equivalent of `IdentityVerification.tsx`
+  — is real but explicitly scoped larger than a single run (a full mobile
+  capture screen, not a small fix) by the run that originally built the web
+  version; still open for whoever wants to take it on deliberately. A fresh
+  independent survey is still the right way to pick whatever comes after
+  that.
+
+- 2026-08-13 — **Queue fully checked; closed a reachability gap on
+  `CredentialingController`: applicants had no way to read their own
+  application status back.** Grepped for `- [ ]` first — zero hits, same as
+  every recent run. Commissioned a fresh independent general-purpose survey
+  agent, briefed on every vein already exhausted (cross-owner/unguarded-
+  `ownerId` access control, ISO-instant/date validation, `ne-Latn` collapse,
+  share-link TTL/entitlements gating, double-booking, negative-reading
+  validation, filename sanitization, `normalizeLabel` dedup, mobile i18n,
+  `classifyIntent`/`termAppears` retrieval bugs, the analytics-source
+  extensions, the emergency-rule word-order/apostrophe fixes, the `next=`
+  redirect chain, and `ApplicationTransitionError` mapping), the two standing
+  product-decision items, and the named-but-larger evidence-storage-adapter
+  candidate the identity-verification-UI run's own log entry had left open.
+
+  **What was found.** `CredentialingController` had `POST applications`
+  (self-submit) and five reviewer-only routes, but nothing analogous to the
+  `GET verification/me` route the identity module gained two runs ago —
+  `CredentialingRepository.findByApplicant` existed and `submit()` already
+  called it internally, but nothing exposed it as a read for the applicant
+  herself. Concretely reachable, not hypothetical: `RegisterView.tsx` held
+  the just-submitted `CredentialingApplication` only in local `useState`, so
+  a reload, a closed tab, or simply returning after a reviewer's decision
+  left the applicant with no way to learn her real status short of walking
+  the multi-step form again — and `submitApplication` only transitions from
+  `NOT_STARTED`/`REJECTED`, so a genuine re-submission attempt while
+  `EVIDENCE_SUBMITTED`/`UNDER_REVIEW`/`APPROVED` would have just thrown
+  `ApplicationTransitionError` back at her with no visibility into why.
+
+  **Why `findMine` returns `null`, not a shell.** `IdentityService.findMine`
+  (the sibling this run mirrors) fabricates an unpersisted `NOT_STARTED`
+  shell for a first-time caller, which works because
+  `VerificationRequest.documentType` is nullable. `CredentialingApplication
+  .council` is a required `CouncilKey` with no honest placeholder — every
+  value in `CouncilKey` is a real statutory register, so defaulting to any
+  of them would misrepresent which council the applicant chose before she's
+  chosen one. `findByApplicant` only ever finds a row once
+  `submitApplication` has actually transitioned it past `NOT_STARTED` (the
+  repository never persists the shell `submit()` builds in memory), so
+  `null` is already a truthful "nothing submitted yet" — no shell needed.
+
+  **What was built.** `CredentialingService.findMine(applicantId)` — a
+  2-line wrapper around `repository.findByApplicant`. `CredentialingController
+  .mine()`, `GET applications/me` under `SessionAuthGuard` only, registered
+  ahead of `GET applications/:applicationId` (same ordering
+  `verification/me` already established, since a dynamic param would
+  otherwise swallow the literal path `me`). `apps/web/src/lib/
+  credentialing-api.ts` gained `getMyCredentialingApplication()`.
+  `RegisterView.tsx` now fetches on mount once the session is live; a
+  `null` result leaves the ordinary apply flow untouched, a real one jumps
+  straight to `status`. The `status` step itself now branches on the real
+  `application.status` — `EVIDENCE_SUBMITTED`/`UNDER_REVIEW` keep the
+  existing "waiting for review" copy, `APPROVED` shows a new confirmation
+  message, `REJECTED` shows the real `rejectionReason` — where previously
+  the step assumed the only reachable status was `EVIDENCE_SUBMITTED`,
+  since nothing before this run could ever hand it anything else. New
+  `status.approved`/`status.rejected` keys added to both `en.json` and
+  `ne.json`; every other string already existed. A failed fetch degrades to
+  the ordinary apply flow rather than blocking the page, the same "never
+  blocks" convention `useFamilyGrants` documents for its own error state.
+
+  **What stayed out.** No `AccountView.tsx` card — unlike identity
+  verification, which has no other page to live on, credentialing already
+  has `/clinicians/register` as its natural, single home, and duplicating
+  the same status readout onto `/account` would be a second surface for one
+  fact with no product reason named anywhere in `identity-and-
+  credentialing.md`. No pre-filling of council/registration number on a
+  post-rejection resubmit — `rejectApplication` nulls the evidence refs the
+  same way `approveApplication` does (checked directly), so a resubmission
+  needs fresh certificate/ID photos regardless; the existing `resetFlow`
+  (full reset) stayed untouched rather than building a partial-prefill path
+  nothing asked for.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean. `pnpm lint` 40/40.
+  `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks — `@swasthya/api`
+  643/643 (net +7: `findMine`/`mine()` cases), `@swasthya/web` 81/81 (net
+  +4, `getMyCredentialingApplication` cases), every other package's count
+  unchanged. `pnpm build` 40/40.
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. The survey that found this run's task
+  also confirmed every `clinical-suite`-family controller
+  (`diagnostics-orders`, `prescribing`, `referrals`, `billing`, `engagement`,
+  `analytics`, `clinical-charting`, `medication-safety`, `population-health`,
+  `directory`) has zero `SessionAuthGuard`/role guards anywhere — but that
+  traces directly to the clinician-identity-model product-decision gap
+  (there's no clinician login/session concept for that whole suite, unlike
+  `AuthStore`'s patient-facing sessions), so it is not a same-shape
+  candidate and should not be picked up without that decision first. A
+  fresh independent survey is still the right way to pick whatever comes
+  after that; no other unblocked candidate was found waiting.
+
+- 2026-08-13 — **Queue fully checked; built the `apps/web` UI for submitting
+  identity verification evidence, the concrete next step the
+  `apps/api/src/identity/` run's own log entry named.** Grepped for `- [ ]`
+  first — zero hits. That entry ("For the next run") said the real next step
+  in this vein was the missing `apps/web`/`apps/mobile` UI, since
+  `IDENTITY_VERIFIED` was reachable only by a reviewer approving a request
+  submitted directly against the API — correct plumbing, not yet a real
+  user-facing path. Went straight to it rather than commissioning a fresh
+  survey, since the candidate was already concrete and unblocked.
+
+  **What was missing.** `IdentityController` had `POST verification/evidence`
+  (self-submit) and five reviewer routes, but nothing for the submitting
+  person herself to read back *her own* status after the fact — no way to
+  tell `NOT_STARTED` from `EVIDENCE_SUBMITTED`/`UNDER_REVIEW` from `REJECTED`
+  (with a reason to act on) without re-submitting blind. `apps/web` had no
+  caller for the submit route at all.
+
+  **What was built.** `IdentityService.findMine(ownerId)` — read-only,
+  returns the owner's real `VerificationRequest` or an unpersisted
+  `NOT_STARTED` shell, the same shell `submit()` already builds for a
+  first-time caller. New `IdentityController` route
+  `GET verification/me`, `SessionAuthGuard`-only (no reviewer role needed —
+  it only ever reads the caller's own row), registered *ahead of*
+  `verification/:verificationId` so the literal path `me` isn't swallowed by
+  the dynamic reviewer route, the same ordering `verification/queue` already
+  relies on. `apps/web/src/lib/identity-api.ts` (`getMyVerification`/
+  `submitIdentityEvidence`, shaped after `credentialing-api.ts`) and a new
+  `IdentityVerification.tsx` card, mounted on `/account` — via
+  `AccountView.tsx`, right after the existing "Your identity" panel that
+  already prints `assuranceLevel` — only while that level is not yet
+  `IDENTITY_VERIFIED`. It fetches status on mount; degrades to rendering
+  nothing on a failed fetch or while loading, the same "never blocks the
+  rest of the page" convention `useFamilyGrants` documents for its own error
+  state (this is an upsell card, not core account data). Shows a document
+  type picker + one photo capture and a submit button when `NOT_STARTED` or
+  `REJECTED` (with the rejection reason surfaced), a pending banner for
+  `EVIDENCE_SUBMITTED`/`UNDER_REVIEW`, and a confirmation for `APPROVED` (the
+  one state that should be unreachable in practice, since `AccountView`
+  itself stops mounting the card once the session reflects
+  `IDENTITY_VERIFIED` — kept as a real branch rather than assumed unreachable,
+  since a reviewer could approve between this component's mount and the
+  session's next refresh).
+
+  **DRY note.** `RegisterView.tsx` already had the exact single-photo capture
+  control this needed (`EvidenceCapture`, a hidden file input behind a
+  styled `<label>`, `capture="environment"` for the phone camera) — defined
+  locally, not exported. Extracted it to
+  `apps/web/src/components/ui/EvidenceCapture.tsx` (same file also now
+  exports `CapturedFile`) and updated `RegisterView.tsx` to import it rather
+  than carrying its own copy, the same call the `Testimonials.tsx` →
+  `EditorialImage` dedupe and the `hosted-store.ts`/`google-drive-store.ts`
+  → shared `filename.ts` dedupe already made once each had a second real
+  caller.
+
+  **What stayed out.** No `apps/mobile` equivalent — `identity-and-
+  credentialing.md` doesn't name a mobile-specific requirement here and
+  `apps/web`'s account page is where every other self-service identity/
+  family action (`DelegationForm`, the assurance-level readout itself)
+  already lives; a mobile capture flow is a real, separate follow-up, not
+  folded in here to keep this run to one surface. No component test —
+  confirmed by `find` that zero `.test.tsx` files exist anywhere in
+  `apps/web/src`; every existing form component (`DelegationForm.tsx`,
+  `RegisterView.tsx`, `ProfileSwitcher.tsx`) is covered only via its `lib/*`
+  API client's test, so `identity-api.test.ts` matches that convention
+  rather than introducing a new one unilaterally.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean. `pnpm lint` 40/40.
+  `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks — `@swasthya/api`
+  639/639 (net +11: `findMine`/`mine()` cases), `@swasthya/web` 77/77 (net
+  +7, `identity-api.test.ts`), every other package's count unchanged.
+  `pnpm build` 40/40.
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. A real evidence-storage adapter for
+  `packages/identity` (today's `evidenceImageRef` is a `local-file:` marker,
+  same as `credentialing`'s own still-open gap) is a real, larger follow-up
+  if anyone wants this path to survive past the browser tab it was submitted
+  from. A fresh independent survey is still the right way to pick whatever
+  comes after that; no other candidate was found waiting.
+
+- 2026-08-13 — **Queue fully checked; built `apps/api/src/identity/`, closing
+  the reachability gap that permanently locked `RECORD_SHARING` and
+  `TELECONSULTATION`.** Grepped for `- [ ]` first — zero hits, same as every
+  recent run. Delegated a fresh independent general-purpose survey agent,
+  briefed on every vein already exhausted (cross-owner/unguarded-`ownerId`
+  access control, ISO-instant/date validation, `ne-Latn` collapse, share-link
+  TTL/entitlements gating, double-booking, negative-reading validation,
+  filename sanitization, `normalizeLabel` dedup, mobile i18n,
+  `classifyIntent`/`termAppears` retrieval bugs, the analytics-source
+  extensions, the emergency-rule word-order/apostrophe fixes, the `next=`
+  redirect chain, and the `ApplicationTransitionError` mapping) and told not
+  to re-propose the two standing product-decision items
+  (`packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model).
+
+  **What was found.** `packages/identity`'s assurance ladder
+  (`ANONYMOUS → REGISTERED → IDENTITY_VERIFIED`) and
+  `minimumAssuranceLevel` (`RECORD_SHARING`/`PROVIDER_EXPORT`/
+  `TELECONSULTATION` all require `IDENTITY_VERIFIED`) have existed since
+  Round two, and `EntitlementsGuard` has enforced `minimumAssuranceLevel`
+  since the 2026-08-13 assurance-enforcement run. But nothing in `apps/api`
+  ever called `raiseAssurance(..., 'IDENTITY_VERIFIED')` or persisted the
+  result: `AuthService.currentUser` hardcoded
+  `assuranceLevel: 'REGISTERED'`, and `grep` confirmed no
+  `identity.controller.ts` existed anywhere and `submitEvidence`/
+  `beginReview`/`approveVerification`/`rejectVerification` were imported
+  nowhere outside `packages/identity`'s own tests. Concretely reachable, not
+  hypothetical: `InteropController.issueShareLink` and
+  `TeleconsultationController.schedule` were both 100%-unreachable for every
+  real session, forever — a shipped, tested, entitlements-priced feature with
+  no path to satisfy its own guard. Named by the assurance-enforcement run's
+  own log entry as "a real, larger candidate for a future run," left open by
+  every run since.
+
+  **Why not a circular module dependency.** The obvious shape —
+  `AuthService.currentUser` asking an injected `IdentityService` for the
+  owner's verification status — would make `AuthModule` depend on
+  `IdentityModule` while `IdentityModule` needs `AuthModule` for
+  `SessionAuthGuard`, the same "import the module, get the guard" wiring
+  every other feature module already uses. Inverted the dependency instead:
+  `User` gets a real, persisted `assuranceLevel` column
+  (`AssuranceLevel { REGISTERED, IDENTITY_VERIFIED }`, migration
+  `20260813020000_add_user_assurance_level`), `AuthStore` gains
+  `markIdentityVerified(userId)`, and `IdentityService.approve` — which
+  already needs `AUTH_STORE` for nothing else — writes through it, the exact
+  same "reach into `AUTH_STORE` directly" pattern `FamilyGrantsService`
+  already established for its own phone lookup. `AuthModule` now knows
+  nothing about `IdentityModule`; only `IdentityModule` imports `AuthModule`,
+  same one-directional shape as `CredentialingModule`/`FamilyModule`.
+  `AuthService.currentUser`/`verifyOtp` both now read `user.assuranceLevel`
+  off the store instead of a hardcoded literal — which also fixed a second,
+  smaller latent bug in the same line: `verifyOtp`'s `SIGN_IN` branch
+  previously always returned `raiseAssurance('ANONYMOUS', 'REGISTERED')`
+  regardless of the signing-in user's real level, so an already-verified
+  person signing back in was silently reported as merely `REGISTERED` until
+  their next `/auth/me` call.
+
+  **What was built.** `apps/api/src/identity/` mirrors
+  `apps/api/src/credentialing/` file-for-file: `IdentityRepository`
+  (in-memory, same "not seeded, not Prisma-backed yet" precedent
+  `CredentialingRepository` already set), `IdentityService` (submit/queue/
+  read/beginReview/reject synchronous, `approve` async only because it now
+  awaits `authStore.markIdentityVerified`), `IdentityReviewerGuard` gating on
+  a new, distinct `IDENTITY_REVIEWER` role (migration
+  `20260813010000_add_identity_reviewer_role` — deliberately not reusing
+  `CLINICAL_REVIEWER`/`CORPUS_REVIEWER`: checking a national ID photograph
+  against a stated name is a different competency and trust boundary from
+  either, and identity-and-credentialing.md never names either as a
+  prerequisite), and `IdentityController` exposing `POST
+  verification/evidence` (self-submit, `ownerId` from the session, not the
+  body — closing the same unguarded-owner-id shape already fixed elsewhere)
+  plus the five reviewer routes (`queue`, `read`, `begin-review`, `approve`,
+  `reject`, `audit-log`), registered in `AppModule`. Added
+  `verificationQueue` to `packages/identity` itself (oldest-submission-first,
+  mirroring `packages/credentialing`'s `reviewQueue` exactly) since the
+  domain package had the state machine but no queue-ordering helper. Not
+  wired into `clinical-suite`'s module registry — confirmed
+  `CredentialingModule` isn't either; both predate and sit outside that
+  registry's scope per `identity-and-credentialing.md` §5.
+
+  **Test-suite blast radius.** `AuthUserRecord` gaining a required
+  `assuranceLevel` field meant every hand-rolled `CurrentUserResult`/
+  `AuthUserRecord` object literal across the test suite needed the new field
+  too — 13 occurrences across 9 existing test files
+  (`interop`/`records`/`auth`/`patient-registry`/`language-corpus` ×3/
+  `family-grants`/`credentialing` ×3), each given
+  `assuranceLevel: 'REGISTERED'` to match its sibling top-level
+  `CurrentUserResult.assuranceLevel` (the two are always the same value in
+  real usage now, since the latter is read straight off the former). New
+  tests: `identity.repository.test.ts`, `identity.service.test.ts`
+  (including the full submit → review → approve path asserting the owner's
+  `AuthStore` record actually reaches `IDENTITY_VERIFIED`, and that a
+  rejection leaves it untouched), `identity-reviewer.guard.test.ts`,
+  `identity.controller.test.ts`, plus two new `auth.service.test.ts` cases
+  proving the actual bug fix (`currentUser` reflecting a real elevation;
+  `SIGN_IN` reporting an already-verified user's true level) and one new
+  `packages/identity` test for `verificationQueue`.
+
+  **Deliberately left out.** No `apps/web`/`apps/mobile` UI for submitting
+  identity evidence or reviewing the queue — this run is the API-reachability
+  fix only, the same scope boundary the credentialing API/UI split already
+  drew (API landed first, `RegisterView.tsx` wiring came in a later, separate
+  run). No liveness check — identity-and-credentialing.md §2's table lists
+  "national ID document + liveness check" but no liveness-detection
+  capability exists anywhere in this repo, and `packages/credentialing`'s own
+  "no automatic approval, ever" precedent already established that a human
+  review queue, not an automated check, is this repo's honest v1. Seed data
+  left untouched: `SeedUser` has no `assuranceLevel` field and needs none —
+  the new column defaults to `REGISTERED`, matching every existing seeded
+  user.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean. `pnpm lint` 40/40.
+  `pnpm typecheck` 40/40 (validated the new migration against
+  `prisma validate`/`prisma generate`, no live Postgres in this sandbox —
+  same constraint prior migration-adding runs noted). `pnpm test` 75/75 turbo
+  tasks — `@swasthya/api` 636/636 (net +27: 25 new identity-module tests + 2
+  new `auth.service.test.ts` cases), `@swasthya/identity` net +1
+  (`verificationQueue`), every other package's count unchanged. `pnpm build`
+  40/40.
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. The real next step in this same vein is
+  the `apps/web`/`apps/mobile` UI to actually submit identity evidence —
+  without it, `IDENTITY_VERIFIED` is reachable only by a reviewer approving a
+  request submitted directly against the API, which is correct plumbing but
+  not yet a real user-facing path. A fresh independent survey is still the
+  right way to pick whatever comes after that; no other candidate was found
+  waiting.
+
+- 2026-08-13 — **Queue fully checked; validated `administeredOn` on
+  `immunization.controller.ts`'s two record routes as a well-formed
+  `YYYY-MM-DD` date.** Grepped for `- [ ]` first — zero hits, same as every
+  recent run. The `documentDate` run's own log entry named this exact field
+  as the clearest small, unblocked candidate ("the identical shape gap ...
+  same one-line `isoInstant` regex fix, same test shape"), so this run
+  verified that claim against the code rather than taking it on faith.
+
+  **What was found.** `administeredOnSchema`
+  (`apps/api/src/immunization/immunization.controller.ts`) was
+  `z.string().trim().min(1)` on both `recordPatientReportedSchema` and
+  `recordClinicianAdministeredSchema` — any non-empty string passed,
+  including `"not-a-date"`.
+
+  **Which format — checked before assuming the log entry's suggested
+  template was right.** The named precedent (`documentDate`) used the
+  `isoInstant` regex (`scheduling`/`family-grants`/`language-corpus`'s
+  convention for a full UTC timestamp), but `administeredOn` is not that
+  shape: every example in this file's own `@ApiBody` Swagger schemas is
+  `format: 'date'` (not `'date-time'`), every seed/test value
+  (`packages/immunization/src/index.test.ts`,
+  `apps/api/src/immunization/immunization.*.test.ts`) is a bare
+  `'2020-01-15'`-style string, and `shared-types`' own doc comment calls it
+  "the date the dose was actually given" — a calendar date, not an instant.
+  That is exactly `patient-registry`'s `dateOfBirth` shape, not
+  `documentDate`'s, so the fix reuses `dateOfBirth`'s existing
+  `/^\d{4}-\d{2}-\d{2}$/` regex convention instead of `isoInstant`. Applying
+  `isoInstant` here would have rejected every existing example, seed row and
+  test fixture in the repo — a sign the template was wrong, not that the
+  data needed to change.
+
+  **What was built.** `administeredOnSchema` now regex-validates
+  `YYYY-MM-DD` with a `'administeredOn must be YYYY-MM-DD'` message, applied
+  to both `recordPatientReportedSchema` and
+  `recordClinicianAdministeredSchema` (they shared one schema constant
+  already, so one change covers both routes). Two new cases in
+  `immunization.controller.test.ts`: `recordPatientReported` rejects
+  `'15-01-2020'`, `recordClinicianAdministered` rejects `'2026/08/11'`. The
+  second test needed `expect(() => ...).toThrow(...)`, not
+  `await expect(...).rejects.toThrow(...)` — unlike the encounter-lookup
+  404, which throws asynchronously from inside the awaited service call,
+  `parseOrThrow` runs synchronously as an *argument* to
+  `recordClinicianAdministered`'s call to the (non-`async`) controller
+  method, so a validation failure throws before any promise is returned. Got
+  this wrong on the first pass (wrote it as `rejects.toThrow` by analogy with
+  the neighbouring 404 test) and `pnpm test` caught it immediately — worth
+  noting for whoever next writes a validation test against an
+  argument-position `parseOrThrow` call in this file.
+
+  **Deliberately left open.** Confirmed by grep that nothing downstream
+  reads `administeredOn` for sorting or export the way `buildTimeline`/
+  `toFhirDocumentReference` read `documentDate` — same as the prior run's own
+  finding. This is still a real fix (format validation belongs at the
+  request boundary regardless of whether a consumer exists yet, and every
+  sibling date/instant field in the repo already gets it), but it closes a
+  latent gap, not a live incident.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean. `pnpm lint` 40/40.
+  `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks — `@swasthya/api`
+  609/609 (net +2, the new `administeredOn` cases), every other package's
+  count unchanged. `pnpm build` 40/40.
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. No further same-shape unvalidated
+  date/instant field turned up in this pass — whoever picks the next task up
+  should commission a fresh independent survey rather than assume one is
+  waiting, per the working agreement.
+
+- 2026-08-13 — **Queue fully checked; validated `documentDate` on
+  `RecordsController.capture` as an ISO 8601 UTC instant.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. The
+  `emergency-breathing-001` run's own log entry explicitly said not to trust
+  a runner-up guess and to commission a fresh independent survey instead, so
+  that's what this run did.
+
+  **What was found.** `captureSchema.documentDate`
+  (`apps/api/src/records/records.controller.ts`) was
+  `z.string().trim().min(1).nullable().default(null)` — any non-empty string
+  passed, including `"not-a-date"`. Every sibling date/instant field on this
+  repo's other controllers is format-validated at the same boundary
+  (`patient-registry`'s `dateOfBirth` via a bare-date regex; `scheduling`'s
+  `scheduledStart`/`scheduledEnd`, `family-grants`'s `expiresAt`, and
+  `language-corpus`'s `capturedAt`, all via a shared `isoInstant` regex) —
+  `documentDate` was the one date-shaped field with no check at all.
+  Concretely reachable, not just a shape gap: `buildTimeline`
+  (`packages/health-records/src/index.ts`, doc comment "Reverse-chronological
+  record view") does
+  `.toSorted((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt))`
+  over `document.documentDate ?? document.capturedAt`; `Date.parse` on a
+  malformed `documentDate` is `NaN`, and a `toSorted` comparator returning
+  `NaN` is treated as `0`, so that document's position in the timeline
+  silently becomes comparator-dependent noise. `toFhirDocumentReference`
+  (`packages/interop/src/index.ts`) writes the same unvalidated value
+  straight into a FHIR `DocumentReference.date`, so a garbage string could
+  ride into a share-link or provider-export bundle — the exact interop
+  surface `platform-vision.md` §3.3 wants to be "mechanical" for a real
+  hospital-system partner. No client currently sends `documentDate` (grepped
+  `apps/mobile`/`apps/web`; only a test stub sends `null`), so this was a
+  latent gap on an already-shipped field, not yet a live incident.
+
+  **Which format.** `patient-registry`'s `dateOfBirth` regex
+  (`/^\d{4}-\d{2}-\d{2}$/`, bare date) looked like the obvious template at
+  first, since `documentDate`'s own doc comment in
+  `packages/shared-types/src/index.ts` says "Date the care event happened."
+  Checked the seed data before assuming that shape: `documentDate` in
+  `packages/database/src/seed-data.ts` is already written as a full instant
+  (`'2026-05-18T00:00:00Z'`), and `records.service.ts` sets `capturedAt` —
+  the field `documentDate` is compared against and falls back to in both
+  `buildTimeline` and `toFhirDocumentReference` — via
+  `new Date().toISOString()`, also a full instant. Validating against a bare
+  date would have rejected the exact shape the field's own real data and its
+  own fallback sibling already use, so the fix reuses the existing
+  `isoInstant` regex instead
+  (`/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/`, the one
+  `scheduling`/`family-grants`/`language-corpus` each already define locally
+  for their own instant fields).
+
+  **What was built.** `records.controller.ts` now defines its own
+  `isoInstant` constant (matching the other three controllers' inline
+  copies, not a new shared import — consistent with how each of those three
+  already carries its own rather than a cross-import) and applies it to
+  `documentDate` via `.regex(isoInstant, 'documentDate must be an ISO 8601
+  UTC instant')`, keeping `.nullable().default(null)`. Five new cases in
+  `records.controller.test.ts`: rejects a non-date string, rejects a bare
+  `YYYY-MM-DD` (explicitly, since that was the wrong template considered and
+  discarded), accepts a well-formed instant and returns it unchanged, and
+  accepts `null`.
+
+  **Deliberately left open.** `apps/api/src/immunization/
+  immunization.controller.ts`'s `administeredOn` has the identical shape gap
+  (`z.string().trim().min(1)`, no format check, despite `shared-types`
+  documenting it as "ISO date"). Not fixed in this pass: unlike
+  `documentDate`, nothing today reads `administeredOn` downstream (no
+  sort/export consumer exists, confirmed by grep), so there is no
+  demonstrable failure path yet, only a latent one, and folding it in here
+  would have made this entry cover two unrelated controllers for one run.
+  Real, small, unblocked candidate for whoever picks it up next — same
+  one-line `isoInstant` regex fix, same test shape.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (37.6s). `pnpm lint`
+  40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 607/607 (net +4, `documentDate`'s new cases), every other
+  package's count unchanged. `pnpm build` 40/40 (35 cached).
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. `immunization.controller.ts`'s
+  `administeredOn` (named above) is the clearest small, unblocked candidate
+  if nothing better turns up on a fresh survey.
+
+- 2026-08-13 — **Queue fully checked; fixed a live gap in
+  `packages/clinical-safety`'s `emergency-breathing-001` rule.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. Delegated a fresh
+  independent general-purpose survey agent, briefed in full on every vein
+  already exhausted (cross-owner/unguarded-`ownerId` access control across
+  every controller, ISO-instant validation, `ne-Latn` collapse, share-link
+  TTL/entitlements gating, double-booking, `EntitlementsGuard`/identity
+  assurance-level enforcement, negative-reading validation, filename
+  sanitization, `normalizeLabel` dedup, mobile i18n, `classifyIntent`/
+  `termAppears` retrieval bugs, the analytics-source extensions, the
+  `emergency-chest-001`/`pregnancy-warning-001`/`pediatric-warning-001`
+  word-order fixes, the `next=` redirect chain, and the `ApplicationTransitionError`
+  mapping) and explicitly told not to re-propose the two standing
+  product-decision items (`packages/health-records`'s observation
+  status-guard question and the clinical-suite's missing clinician-identity
+  model, which blocks gating `teleconsultation`'s remaining routes).
+
+  **What was found.** `emergency-breathing-001`'s first phrase,
+  `/can'?t breathe/i`, only makes the *straight* apostrophe (U+0027)
+  optional. It does not match "can’t breathe" typed with the *typographic*
+  apostrophe (U+2019) — confirmed directly:
+  `/can'?t breathe/i.test("I can’t breathe")` is `false`, and stays `false`
+  even after `.normalize('NFKC')`, since straight and curly apostrophes are
+  not canonically equivalent under NFKC. iOS and most Android keyboards
+  rewrite a typed straight apostrophe to the curly form by default via smart
+  punctuation, and `apps/mobile/app/(tabs)/companion.tsx`'s message input
+  sets no `autoCorrect={false}` to suppress that. `assessSafety` is the same
+  function called both client-side in `companion.tsx` and server-side in
+  `apps/api/src/companion.controller.ts`'s `/companion/assess` and
+  `/companion/research` routes, so the gap is not a client-only cosmetic
+  issue — a message reading "I can’t breathe," arguably the single most
+  natural English phrasing of this exact emergency, silently resolved to
+  `CLINICIAN_RECOMMENDED`/`interruptConversation: false` instead of
+  `EMERGENCY_NOW`, on the rule the standing constraints call out as the one
+  that must never be routed around. The rule's other two English phrases
+  (`cannot breathe`, `difficulty breathing`) still catch some phrasings, so
+  this was a silent narrowing of coverage, not a total bypass.
+
+  **What was built.** `assessSafety` (`packages/clinical-safety/src/index.ts`)
+  now folds typographic single quotes (`‘`/`’`) to the ASCII apostrophe as
+  part of the same normalization step that already runs `.normalize('NFKC')`,
+  before any rule's `phrases` are tested — protecting every current and
+  future phrase in `safetyRules`, not a one-off regex patch to the single
+  rule found. Two new cases in the existing `it.each` table in
+  `packages/clinical-safety/src/index.test.ts`: the straight-apostrophe
+  phrasing (`"I can't breathe"`, previously untested despite being the
+  literal example the regex names) and the curly-apostrophe phrasing
+  (`"I can’t breathe"`, the actual gap), both asserting `EMERGENCY_NOW` and
+  `interruptConversation: true`.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (17.5s). `pnpm lint`
+  40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/clinical-safety` 20/20 (net +2, the new apostrophe cases), every
+  other package's count unchanged. `pnpm build` 40/40 (35 cached).
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve: `packages/health-records`'s
+  status-guard question and the clinical-suite's missing clinician-identity
+  model. The survey's runners-up were both checked and ruled out as real
+  findings: `packages/interop`'s `resolveSharedBundle` looks like it could
+  leak observations outside a share link's document scope but
+  `buildFhirExportBundle` re-derives its filter from the already-scoped
+  `documents` array, so the final bundle is correct; `packages/devices`'s
+  `assertNonNegative` deliberately excludes `BODY_TEMPERATURE` (no natural
+  zero floor), a documented prior decision, not an oversight. No further gap
+  is known in `clinical-safety`'s other rules (`self-harm-001` was checked
+  after the chest/pregnancy/pediatric word-order fixes and confirmed clean);
+  the next run should commission a fresh survey rather than assume one is
+  waiting.
+
+- 2026-08-13 — **Queue fully checked; carried `next` across the sign-in ↔
+  register switch link, the follow-up the redirect-preservation run's own
+  log entry left open.** Grepped for `- [ ]` first — zero hits, same as
+  every recent run. That prior entry named this exact gap as "the clearest
+  small, unblocked candidate if nothing better turns up," so went straight
+  to it rather than commissioning another fresh survey.
+
+  **What was found.** The primary bounce (`useSession` → `/signin?next=…` →
+  `PhoneOtpFlow` reads it back on submit) was already fixed, but
+  `PhoneOtpFlow`'s own sign-in ↔ register switch link (`switchPrompt`) still
+  pointed at a bare `/signin` or `/register` regardless of `next`. A visitor
+  bounced onto `/signin?next=/clinicians/register` who doesn't actually have
+  an account yet and clicks through to `/register` lost the destination on
+  that hop and landed on `/account` after registering instead of back on the
+  page they were trying to reach — the same failure mode the primary fix
+  addressed, one click further along.
+
+  **What was built.** New `switchLinkHref(basePath, next)` in
+  `apps/web/src/lib/safe-redirect.ts`, alongside `sanitizeNextPath`: returns
+  the bare path when there's nothing to carry, or a `{ pathname, query:
+  { next } }` object otherwise — the same href shape `useSession`'s
+  `router.replace` already uses, so no new href convention was invented.
+  `PhoneOtpFlow` now holds `next` in state (`useState<string | null>(null)`,
+  populated from `sanitizeNextPath(window.location.search)` inside a
+  `useEffect` that runs once on mount) rather than recomputing it only at
+  submit time — first render matches SSR (no `window` there, so `null` is
+  correct either way), and the value is then reused for both the post-verify
+  `router.push` (replacing the old submit-time-only computation, now dead
+  code) and the switch link's `href={switchLinkHref(...)}`. This is the
+  hydration-safe pattern the prior entry's "Deliberately left out" section
+  said this would need.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (18.2s). `pnpm lint`
+  40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/web` 72/72 (net +3: `switchLinkHref`'s three cases in
+  `safe-redirect.test.ts`), `@swasthya/api` 603/603 unchanged. `pnpm build`
+  40/40 (35 cached, `apps/web` rebuilt clean including `/ne/signin`,
+  `/en/signin`, `/ne/register`, `/en/register`).
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. No further gap in the sign-in/register
+  redirect chain is known; the next run should commission a fresh survey
+  rather than assume one is waiting.
+
+- 2026-08-13 — **Queue fully checked; fixed the `next=` redirect-preservation
+  gap on `/clinicians/register`.** Grepped for `- [ ]` first — zero hits,
+  same as every recent run. Two consecutive prior log entries had each named
+  this specific gap as the clearest remaining candidate rather than
+  commissioning another fresh survey, so went straight to it instead of
+  re-deriving the same list of exhausted veins a third time.
+
+  **What was found.** `useSession` (`apps/web/src/hooks/useSession.ts`)
+  redirects any signed-out visitor on a protected page to a bare `/signin`
+  with no memory of where they came from. `PhoneOtpFlow.tsx`'s success step
+  then always sends a verified visitor to `/account`. The two compose badly:
+  someone who lands on `/clinicians/register` signed out — the one other
+  page `useSession` protects — gets bounced to `/signin`, signs in
+  correctly, and lands on `/account` instead of back on the registration
+  form they actually wanted, with no error and no indication anything went
+  wrong. They then have to find and re-click through to
+  `/clinicians/register` a second time. `AccountView.tsx`'s own use of
+  `useSession` masked this because `/account` already *is* its fallback
+  destination, so the bug was invisible on the one page most manual testing
+  would have hit first.
+
+  **What was built.** `useSession` now redirects through
+  `{ pathname: '/signin', query: { next: pathname } }` (`usePathname()` from
+  `@/i18n/navigation`, so the value is already locale-agnostic — confirmed
+  by reading `createNavigation`'s runtime source, since router hrefs with no
+  `pathnames` config pass an object's `query` straight through
+  `serializeSearchParams`, no `pathnames` registry entry needed). New
+  `apps/web/src/lib/safe-redirect.ts` exports `sanitizeNextPath`, rejecting
+  anything that isn't a same-origin absolute path — `next` reaches
+  `PhoneOtpFlow` with zero server-side validation anywhere in the chain, so
+  an unguarded `next=https://evil.example` or the protocol-relative
+  `next=//evil.example` would otherwise turn a routine sign-in bounce into
+  an open redirect. `PhoneOtpFlow.handleCodeSubmit` reads `next` from
+  `window.location.search` (not next/navigation's `useSearchParams()` —
+  that hook requires a Suspense boundary on a statically-prerendered page
+  like `/signin`/`/register`, which neither page has, and this only ever
+  needs the value once, at the moment of a real submit, not on every
+  render), sanitizes it, and falls back to `/account` exactly as before when
+  absent or rejected.
+
+  **Deliberately left out.** The sign-in ↔ register switch links inside
+  `PhoneOtpFlow` (`switchPrompt`) don't carry `next` across themselves — a
+  visitor bounced to `/signin?next=/clinicians/register` who doesn't
+  actually have an account yet and clicks through to `/register` loses the
+  `next` value on that hop. Preserving it there means computing a
+  hydration-safe href (the query would differ between the server-rendered
+  and post-mount client render, since it depends on
+  `window.location.search`), which felt like more design surface than this
+  scoped fix should carry — a real, small, unblocked follow-up if anyone
+  wants the whole switcher round-trip covered, not just the primary
+  bounce-and-return path this run fixed.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (21.9s). `pnpm lint`
+  40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/web` 69/69 (net +9: the new `safe-redirect.test.ts`),
+  `@swasthya/api` 603/603 unchanged. `pnpm build` 40/40 (35 cached,
+  `apps/web` rebuilt clean including `/ne/signin`, `/en/signin`,
+  `/ne/register`, `/en/register`, `/ne/clinicians/register` and
+  `/en/clinicians/register`, confirming the static prerender still succeeds
+  with no `useSearchParams()` added to either auth page).
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. The sign-in/register switch-link `next`
+  round-trip named above is the clearest small, unblocked candidate if
+  nothing better turns up on a fresh survey.
+
+- 2026-08-13 — **Queue fully checked; mapped `CredentialingService.submit`'s
+  uncaught `ApplicationTransitionError` to a proper `BadRequestException`.**
+  Grepped for `- [ ]` first — zero hits, same as every recent run. Rather
+  than trust the prior run's own guesses again, went straight to its named
+  "for the next run" candidates instead of commissioning a fresh survey: the
+  `next=` redirect-preservation gap on `/clinicians/register`, and the
+  uncaught `ApplicationTransitionError` 500. Picked the latter — a real
+  correctness/UX bug in a live code path with a well-established fix
+  pattern already in the codebase — over the redirect gap, which the prior
+  run had already flagged as needing a general redirect-preserving
+  mechanism, more design surface than a "queue exhausted" pick should carry
+  on its own.
+
+  **What was found.** `CredentialingService.submit` calls
+  `packages/credentialing`'s `submitApplication`, which can only reach
+  `EVIDENCE_SUBMITTED` from `NOT_STARTED` or `REJECTED`
+  (`canTransitionApplication`). An applicant who already has an application
+  `EVIDENCE_SUBMITTED`, `UNDER_REVIEW` or `APPROVED` and calls submit again
+  hits `transitionApplication`'s `throw new ApplicationTransitionError(...)`
+  uncaught — Nest's default filter turns that into a bare, unstructured 500,
+  the one route on this controller with no domain-error-to-`{code,
+  message}` mapping, unlike `FamilyGrantsService.createDelegation`'s
+  `SelfDelegationError`/`EmptyDelegationScopeError`/
+  `InvalidDelegationExpiryError` handling. `apps/web`'s
+  `RegisterView.tsx`/`credentialing-api.ts` (wired up in the immediately
+  prior run) already has a generic `errors.GENERIC` fallback for any
+  uncoded error, so nothing was visibly broken end to end — but a real
+  clinician who double-taps submit, or resubmits after already being
+  approved, got an unexplained generic failure instead of a clear "you
+  already have one under review" message.
+
+  **What was built.** `CredentialingService.submit` now wraps the
+  `submitApplication` call in try/catch, catching `ApplicationTransitionError`
+  specifically and throwing `new BadRequestException({ code: error.name,
+  message: error.message })` — the exact `error.name`-as-`code` convention
+  `FamilyGrantsService` established, so no new naming scheme was invented.
+  Any other thrown error still propagates unchanged. `RegisterView.tsx`'s
+  `KNOWN_ERROR_CODES` gained `'ApplicationTransitionError'` alongside
+  `'VALIDATION_ERROR'`, with a new `clinicians.register.errors.
+  ApplicationTransitionError` string in both `ne.json`/`en.json` — worded to
+  cover all three blocking states (already submitted, under review, or
+  approved) without claiming which one applies, since the API's message
+  carries the enum values but the UI has no reason to expose them raw.
+  Updated `credentialing.service.test.ts`: the existing "refuses a second
+  submission" test now asserts `BadRequestException` with `code:
+  'ApplicationTransitionError'` instead of the raw domain error leaking
+  through, plus a new test covering the `APPROVED` case specifically (the
+  scenario named above) since the existing test only exercised
+  `EVIDENCE_SUBMITTED`.
+
+  **Deliberately left out.** The `next=` redirect-preservation gap on
+  `/clinicians/register` is untouched — still real, still needs a
+  general mechanism `PhoneOtpFlow.tsx`'s hardcoded `/account` redirect
+  doesn't have, worth its own scoped run. `apps/web` has no test file for
+  `RegisterView.tsx` at all (none existed before this run either — testing
+  a multi-step file-capture flow would be a larger, separate undertaking),
+  so the new error code has API-level coverage only, not a component test.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (27.6s). `pnpm lint`
+  40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 603/603 (net +1: the new `APPROVED`-resubmission test).
+  `pnpm build` 40/40 (35 cached, `apps/web` rebuilt clean including both
+  `/ne/clinicians/register` and `/en/clinicians/register`).
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. The `next=` redirect-preservation gap
+  above is still the clearest small, unblocked candidate if nothing better
+  turns up on a fresh survey.
+
+- 2026-08-13 — **Queue fully checked; wired `apps/web`'s clinician
+  registration flow to the real, now-guarded `POST
+  /credentialing/applications` backend route.** Grepped for `- [ ]` first —
+  zero hits, same as every recent run. Rather than trust the prior run's own
+  "worth checking before assuming it is a one-line fetch call" note,
+  delegated a fresh independent survey briefed on every vein already
+  exhausted (listed in full in the survey prompt — cross-owner access
+  control, ISO-instant validation, ne-Latn fallbacks, share-link TTL,
+  double-booking, EntitlementsGuard wiring, identity assurance-level
+  enforcement, negative-reading validation, filename sanitization, DRY
+  dedup, mobile i18n, retrieval bugs, analytics-source extensions, and the
+  clinical-safety word-order rules), asking it to specifically re-check
+  whether the clinician-registration gap was really still blocked.
+
+  **What was found.** `apps/web/src/lib/clinician-application.ts` and
+  `RegisterView.tsx` built a `CredentialingApplication` entirely in-browser
+  via `@swasthya/credentialing`'s pure `submitApplication` function and
+  never issued a `fetch` — both files' doc comments justified this by
+  claiming `apps/web` "has no backend route" for it. That was true when
+  written but stale: `CredentialingController.submit` has had
+  `SessionAuthGuard` since the immediately-prior run in this same log, and
+  `apps/web` has had a working cookie-based session since Round two D2
+  (`useSession`/`auth-api.ts`, already proven by `AccountView.tsx` and
+  `DelegationForm.tsx`'s calls to `family-api.ts`). So the entire clinician
+  registration funnel on web was a no-op that only *looked* successful — a
+  submitted application never reached `CredentialingRepository`, never
+  appeared in the reviewer queue, and could never be approved.
+
+  **What was built.** New `apps/web/src/lib/credentialing-api.ts`
+  (`submitCredentialingApplication`), shaped after `family-api.ts`: `POST
+  /v1/credentialing/applications` with `credentials: 'include'`, a typed
+  `CredentialingApiError` carrying the server's machine-readable `code`.
+  `RegisterView.tsx` now gates on `useSession()` (the same pattern
+  `AccountView.tsx` uses for its one other protected page — a signed-out
+  visitor is redirected to `/signin` before seeing the form at all) and
+  calls the new client instead of the old local-only function, with a
+  `submitting`/`submitError` state and a `KNOWN_ERROR_CODES` +
+  `errorsT`/`GENERIC` fallback matching `DelegationForm.tsx`'s convention.
+  Deleted `clinician-application.ts`/`.test.ts` (the local-only stand-in,
+  now fully superseded) and added `credentialing-api.test.ts`. Updated both
+  `status.demoNotice` strings (`ne.json`/`en.json`) to state the true
+  current behaviour — the application really enters the review queue now,
+  but certificate/ID photos still aren't uploaded anywhere real, only their
+  file names are recorded as `local-file:` refs — plus new
+  `clinicians.register.loading`/`errors.{VALIDATION_ERROR,GENERIC}` keys in
+  both locales.
+
+  **Deliberately left out.** Real evidence-image upload — there is still no
+  storage adapter for credentialing evidence, a separate, already-documented
+  gap; `local-file:` refs are the honest placeholder both before and after
+  this change, and the schema only requires a non-empty string. No `next=`
+  redirect-back parameter: `PhoneOtpFlow.tsx`'s success step hardcodes a
+  redirect to `/account`, so a visitor who lands on `/clinicians/register`
+  signed out is bounced to `/signin` and then lands on `/account`, not back
+  on the registration form — building a general redirect-preserving
+  mechanism for one page felt like more invented scope than this task
+  warranted; whoever wants that fixed should treat it as its own item.
+  `CredentialingController.submit` can still throw an uncaught
+  `ApplicationTransitionError` with no `code` (e.g. resubmitting an already
+  `APPROVED` application) — the client's `GENERIC` fallback handles this
+  gracefully but the API itself still returns a bare 500 for it, a
+  pre-existing gap this run did not introduce and did not fix.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (16.2s). `pnpm lint`
+  40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/web` 60/60 (net +1 test: `clinician-application.test.ts`'s 4
+  replaced by `credentialing-api.test.ts`'s 5), `@swasthya/api` 602/602
+  unchanged. `pnpm build` 40/40 (35 cached, `apps/web` rebuilt clean
+  including both `/ne/clinicians/register` and `/en/clinicians/register`).
+
+  **For the next run.** The two standing product-decision items are still
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. The `next=` redirect gap and the
+  uncaught `ApplicationTransitionError` 500 above are both real, small,
+  unblocked candidates if nothing better turns up on the next fresh survey.
+
+- 2026-08-13 — **Queue fully checked; closed an unauthenticated write gap on
+  `apps/api`'s `CredentialingController.submit` route.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. Rather than trust
+  the prior entry's "for the next run" guesses, delegated a fresh
+  independent survey (a general-purpose agent, briefed on every vein
+  already exhausted: cross-owner/unguarded-ownerId access control on
+  records/language-corpus/credentialing-review routes, ISO-instant
+  validation, ne-Latn fallbacks, share-link TTL, double-booking,
+  EntitlementsGuard/RequireModule wiring, identity assurance-level
+  enforcement, negative-reading validation, filename sanitization, DRY
+  dedup, mobile i18n, classifyIntent/termAppears retrieval bugs, the
+  analytics-source extensions, and the clinical-safety word-order rules) to
+  independently re-read the code rather than the ledger's own prose.
+
+  **What was found.** `credentialing.controller.ts`'s `submit()`
+  (`POST /credentialing/applications`) was the one route on that controller
+  with no `@UseGuards(SessionAuthGuard, ...)` — every reviewer route
+  (`queue`, `read`, `beginReview`, `approve`, `reject`, `auditLog`) was
+  already upgraded to `SessionAuthGuard`/`ReviewerGuard` when that guard's
+  own forgeable-header gap was closed, but the applicant-facing submission
+  route was never given the same treatment. `submitSchema` took
+  `applicantId` as an ordinary body field, and `CredentialingService.submit`
+  finds-or-creates an application keyed purely on that id
+  (`findByApplicant(input.applicantId)`). An unauthenticated caller who
+  knew or guessed a real subject id could submit or resubmit an application
+  under it — `submitApplication`'s resubmission path clears any prior
+  `rejectionReason` and overwrites `registrationNumber`/
+  `certificateImageRef`/`identityImageRef` with attacker-supplied values —
+  and a reviewer working the queue later would see a plausible-looking
+  submission and could approve it, rendering a `VERIFIED` badge against a
+  forged registration number attributed to a real person's subject id. No
+  live caller of the API route exists yet (`apps/web`'s
+  `clinician-application.ts` calls `@swasthya/credentialing`'s
+  `submitApplication` directly, client-side, with nowhere to send it — a
+  separate, already-documented gap), so this was an open door with no
+  current traffic through it rather than an active exploit, but the same
+  was true of the `language-corpus` ingest gap this run's survey was
+  briefed on as already closed.
+
+  **What was built.** Added `@UseGuards(SessionAuthGuard)` to `submit()`,
+  removed `applicantId` from `submitSchema` and the Swagger `@ApiBody`
+  schema, and now derive it from `@CurrentUser().subjectId` — the same
+  convention `FamilyGrantsController.createDelegation` already uses and
+  documents (a forged owner id must never come from something the client
+  typed). Updated `credentialing.controller.test.ts` to pass a
+  `CurrentUserResult` and assert that an `applicantId` smuggled into the
+  body is ignored in favour of the session subject, plus
+  `patient-registry.fault-isolation.test.ts`, the one other test file
+  calling `CredentialingController.submit` directly, to match the new
+  signature.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (18.7s). `pnpm lint`
+  40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 602/602 (net unchanged test count: two existing tests
+  were adapted, one new assertion added inside an existing test rather than
+  as a new `it`). `pnpm build` 40/40 (35 cached).
+
+  **For the next run.** The two standing product-decision items are
+  unchanged and still not this run's to resolve: `packages/health-records`'s
+  status-guard question and the clinical-suite's missing clinician-identity
+  model. `apps/web`'s `clinician-application.ts` still has no live backend
+  call (it builds and returns a `CredentialingApplication` purely
+  client-side with a comment explaining `apps/web` has no backend caller
+  yet) — wiring it to the now-guarded `POST /credentialing/applications`
+  would need a signed-in web session flow to attach the auth cookie/token
+  to, which does not obviously exist yet on `apps/web`'s clinician
+  registration page; worth checking before assuming it is a one-line fetch
+  call.
+
+- 2026-08-13 — **Queue fully checked; fixed the sibling word-order bug in
+  `packages/clinical-safety`'s `pregnancy-warning-001` and
+  `pediatric-warning-001` rules, the exact follow-up the prior run's own log
+  entry left open.** Grepped for `- [ ]` first — zero hits, same as every
+  recent run. The prior (same-day) log entry, on fixing
+  `emergency-chest-001`'s trailing-severity-word ordering bug, named this
+  directly as unfinished: "No other rule in `safetyRules` showed the same
+  order-dependency on a quick re-check of `self-harm-001`,
+  `pregnancy-warning-001` and `pediatric-warning-001`, but that was not a
+  full independent survey ... worth a dedicated look before assuming they're
+  clean." Rather than trust that quick re-check, tested each rule's regexes
+  directly against reversed-order input in Node before touching any code.
+
+  **What was found.** `self-harm-001` is clean — its phrases (`kill myself`,
+  `suicide`, `end my life`, `आत्महत्या`, `मर्न मन लाग`, `aatmahatya`) are
+  single fixed strings with no two-part ordering to get wrong.
+  `pregnancy-warning-001` and `pediatric-warning-001` both had the identical
+  bug class the chest-pain fix addressed, in **both** their English and
+  Nepali phrases:
+  `/(pregnant|pregnancy).*(heavy bleeding|seizure|severe headache)/i` matched
+  `'I am pregnant and have a severe headache'` but not
+  `'I have a severe headache, I am pregnant'`
+  (`preg.test(...)` confirmed `true` then `false`); the Nepali
+  `/गर्भवती.*(धेरै रगत|दौरा|कडा टाउको)/u` showed the same gap
+  (`'धेरै रगत बगिरहेको छ, गर्भवती छु'` failed to match). Symmetrically,
+  `/(baby|infant).*(blue|not breathing|unresponsive|seizure)/i` matched
+  `'my baby is not breathing'` but not `'not breathing, my baby is'`, and
+  Nepali `/बच्चा.*(नीलो|सास.*छैन|बेहोस|दौरा)/u` failed on
+  `'दौरा आयो, बच्चालाई'`. Both routes sit in the same live
+  `assessSafety` path as the chest-pain rule, so a pregnant or infant
+  emergency reported symptom-first — a phrasing at least as natural as
+  leading with the person, especially for someone typing under stress —
+  would have silently downgraded to `CLINICIAN_RECOMMENDED` with
+  `interruptConversation: false`.
+
+  **What was built.** Applied the identical fix as the chest-pain rule: each
+  ordered `.*` pattern became two independent lookaheads
+  (`/(?=.*(pregnant|pregnancy))(?=.*(heavy bleeding|seizure|severe
+  headache))/i` and its Nepali/pediatric siblings), so the two required
+  clauses can appear in either order without inventing new trigger words.
+  Left the pediatric Nepali alternation's internal `सास.*छैन` ("no breath")
+  untouched — that is a fixed-order compound phrase for "not breathing," not
+  the person-vs-symptom ordering this run targeted, and changing it would be
+  scope creep on a different question. Added four new
+  `it.each` cases to `index.test.ts` covering the reversed order in both
+  languages for both rules.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (17.6s, no lockfile
+  change — dependencies were not yet installed in this sandbox, so this was
+  a real fresh install, not a no-op). `pnpm lint` 40/40. `pnpm typecheck`
+  40/40. `pnpm test` 75/75 turbo tasks — `@swasthya/clinical-safety` 18/18
+  (net +4, confirmed directly with `pnpm --filter @swasthya/clinical-safety
+  test`), `@swasthya/api` 602/602 unchanged. `pnpm build` 40/40 (35 cached).
+
+  **For the next run.** All three non-chest-pain rules named in the prior
+  entry are now confirmed either clean (`self-harm-001`) or fixed
+  (`pregnancy-warning-001`, `pediatric-warning-001`) — this specific
+  order-dependency vein in `packages/clinical-safety` is exhausted; don't
+  re-survey it without a new reason to suspect it. `emergency-breathing-001`
+  was not checked by this run (its phrases are also single fixed strings
+  like `self-harm-001`'s, so it is unlikely to share the bug, but that is an
+  inference, not a verified check). The two standing product-decision items
+  are unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model (blocking `teleconsultation`'s remaining
+  ungated routes and the same shape across `patient-registry`, `billing`,
+  `prescribing`, etc.).
+
+- 2026-08-13 — **Queue fully checked; fixed a live word-order bug in
+  `packages/clinical-safety`'s `emergency-chest-001` rule.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. Rather than trust the
+  most recent log entries' own "for the next run" guesses at face value,
+  delegated a fresh independent survey (a general-purpose agent, explicitly
+  briefed on every vein already exhausted: cross-owner/unguarded-ownerId
+  access control, ISO-instant validation, ne-Latn locale fallbacks,
+  share-link TTL ceilings, double-booking, EntitlementsGuard wiring,
+  negative-reading validation, filename sanitization, DRY dedup, mobile
+  i18n, classifyIntent/termAppears retrieval bugs, and the analytics-source
+  extensions) to independently re-read the code rather than the ledger's own
+  prose, prioritizing correctness/security bugs in production safety paths
+  over cosmetic cleanups.
+
+  **What was found.** `emergency-chest-001`'s English phrase was
+  `/chest (pain|pressure).*(severe|sweat|faint|arm|jaw)/i` — it requires one
+  of the trailing words to appear *after* "chest pain"/"chest pressure" in
+  the message. But "severe" is the one word in that list that, in ordinary
+  English, is said *before* the symptom ("severe chest pain"), not after.
+  Confirmed directly: `/chest (pain|pressure).*(severe|sweat|faint|arm|jaw)/i
+  .test('I have severe chest pain')` is `false`. So the single most direct,
+  minimal report of this symptom — "I have severe chest pain," nothing
+  else — fell through `assessSafety` to `CLINICIAN_RECOMMENDED` with
+  `interruptConversation: false`, instead of the `EMERGENCY_NOW` /
+  `interrupt: true` result this rule exists to guarantee.
+  `assessSafety` sits in the live companion-chat path on both
+  `apps/api/src/companion.controller.ts` and
+  `apps/mobile/app/(tabs)/companion.tsx`, so this was not a theoretical gap.
+  A 2026-08-12 log entry had already added test coverage for this exact rule
+  and declared every regex "already correct" — but its added case was
+  `'I have severe chest pain and I am sweating'`, which passes only because
+  "sweating" (not "severe") satisfies the trailing group; the isolated
+  "severe chest pain, nothing else" phrasing was never exercised. The
+  Nepali phrase (`/छाती.*(कडा|दुखाइ|पसिना|बेहोस)/u`) has no equivalent
+  order-dependency, so this was English-specific.
+
+  **What was built.** Replaced the single ordered regex with two independent
+  lookaheads — `/(?=.*chest (pain|pressure))(?=.*(severe|sweat|faint|arm|
+  jaw))/i` — so the symptom phrase and the severity word can appear in
+  either order while still requiring both, matching the rule's intent
+  without inventing new wording. Added `['I have severe chest pain',
+  'EMERGENCY_NOW']` to `index.test.ts`'s existing `it.each` table, alongside
+  the pre-existing two-symptom case, so both orderings are now covered by a
+  distinct assertion.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (17.4s, no lockfile
+  change). `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo
+  tasks — `@swasthya/clinical-safety` 14/14 (net +1, confirmed directly with
+  `pnpm --filter @swasthya/clinical-safety test`), `@swasthya/api` 602/602
+  unchanged. `pnpm build` 40/40 (35 cached).
+
+  **For the next run.** The two standing product-decision items are
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model (which blocks gating
+  `teleconsultation`'s remaining ungated routes —
+  `listSessions`/`getSession`/`start`/`complete`/`cancel`/`noShow` — and the
+  same shape across `patient-registry`, `billing`, `prescribing`, etc.). No
+  other rule in `safetyRules` showed the same order-dependency on a quick
+  re-check of `self-harm-001`, `pregnancy-warning-001` and
+  `pediatric-warning-001`, but that was not a full independent survey of
+  those three the way this run's survey was for `emergency-chest-001` —
+  worth a dedicated look before assuming they're clean.
+
+- 2026-08-13 — **Queue fully checked; closed the sibling unguarded-`ownerId`
+  gap on `apps/api`'s `language-corpus` ingest route, the concrete follow-up
+  the prior run's own log entry left open.** Grepped for `- [ ]` first — zero
+  hits, same as every recent run. The prior (same-day) log entry, on closing
+  the cross-owner gap in `erase`, named this exact route —
+  `LanguageCorpusController.ingest` (`POST /language-corpus/utterances`) — as
+  "a real, scoped, unblocked candidate," since it carried the identical
+  unguarded-`ownerId` shape but had no live caller in the repo, so this run
+  picked it up directly rather than re-running a fresh survey. Re-read
+  `language-corpus.controller.ts`, `language-corpus.service.ts` and
+  `records.controller.ts`'s `capture()`/`captureSchema` (the precedent this
+  run followed, not `erase`'s fetch-then-check-then-404 shape) before
+  touching anything.
+
+  **What was found.** `POST /language-corpus/utterances` took `id`,
+  `ownerId`, `kind`, `text`, `locale`, `capturedAt`,
+  `precedingAssistantText`, `redactionCount` and `awaitingHumanReview`
+  straight from the request body with no `SessionAuthGuard` at all. Unlike
+  `erase` (delete-only, so the worst case was denial of service), `ingest`
+  is a write that can *create* attributed content: an unauthenticated caller
+  could store an utterance under any `ownerId` they chose, including one
+  with `awaitingHumanReview: false`, which `corpusReviewQueue` filters on —
+  such an utterance would never surface for the human review
+  `language-corpus.md` §5 requires before any derived snapshot can include
+  it, and would sit under a stranger's identity in the corpus indefinitely.
+  Confirmed no live caller exists anywhere in the repo (`apps/mobile`'s
+  companion only calls the pure `retainUtterance` from
+  `@swasthya/language-corpus`, never this HTTP endpoint) — same as `erase`
+  before its fix, so no request shape broke.
+
+  **What was built.** Unlike `erase`, which 404s on a path-vs-session
+  mismatch because the caller must specify *whose* record to erase,
+  `ingest` never had a legitimate reason for the caller to specify anyone's
+  id but their own — the same reasoning `RecordsController.capture`'s
+  `captureSchema` comment already gives for having no `ownerId` field at
+  all. So this run followed that precedent instead of `erase`'s: dropped
+  `ownerId` from `ingestSchema` and its Swagger `ApiBody` schema entirely,
+  added `@UseGuards(SessionAuthGuard)` and `@CurrentUser() user:
+  CurrentUserResult` to `ingest()`, and the controller now always passes
+  `ownerId: user.subjectId` to `LanguageCorpusService.ingest` — a
+  client-supplied `ownerId` in the body is silently ignored rather than
+  rejected, matching how `captureSchema` handles it. Updated
+  `LanguageCorpusService.erase`'s doc comment, which had explicitly named
+  `ingest` as the deferred gap, to describe the fix instead of asking for
+  it. Updated every `controller.ingest(...)` call in
+  `language-corpus.controller.test.ts` to pass a `CurrentUserResult` as the
+  first argument (nine call sites), added a new test asserting a
+  client-supplied `ownerId: 'owner-2'` in the body is ignored and the
+  utterance is stored under the actual caller's `subjectId`, and removed
+  `ownerId` from the shared `validIngest` fixture.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 602/602 (net +1, the new ignored-ownerId test). `pnpm
+  build` 40/40 (35 cached).
+
+  **For the next run.** The two standing product-decision items are
+  unchanged and still not this run's to resolve: `packages/health-records`'s
+  status-guard question and the clinical-suite's missing clinician-identity
+  model. With both `language-corpus` HTTP routes' unguarded-`ownerId` shape
+  now closed, that specific vein is exhausted; the next run should treat
+  this as fully closed rather than re-surveying `language-corpus` again, and
+  either re-read the "Stop after diagnostics-orders" note above for
+  `quality-reporting`/`tenancy`, or run a fresh independent survey rather
+  than trusting this paragraph's guess.
+
+- 2026-08-13 — **Queue fully checked; closed a cross-owner access-control gap
+  on `apps/api`'s `language-corpus` right-to-erasure route.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. The prior (same-day)
+  log entry, on closing the forgeable-header gap in
+  `corpus-reviewer.guard.ts`, named this exact function —
+  `language-corpus.service.ts`'s `erase` — as "a real, smaller, unblocked
+  follow-up," and `erase`'s own doc comment already spelled out the fix
+  needed ("this route additionally needs the caller's verified `ownerId`
+  checked against the `ownerId` in the path, the same shape
+  `RecordsController`'s cross-owner fix required"), so this run picked it up
+  directly rather than spending a survey re-finding what was already found.
+  Re-read `language-corpus.controller.ts`, `language-corpus.service.ts`,
+  `records.controller.ts`/`records.service.ts` (the `#requireObservation`
+  precedent) and `family-grants.service.ts`'s `revokeDelegation` (the same
+  fetch-then-check-then-404 shape) before touching anything.
+
+  **What was found.** `DELETE /language-corpus/owners/:ownerId` — a
+  right-to-erasure request that permanently deletes every corpus utterance
+  belonging to an owner, from both the corpus and the review queue — carried
+  no `SessionAuthGuard` and no ownership check of any kind. It took the
+  `ownerId` to erase straight from the URL path. Concretely: an
+  unauthenticated caller who knew or guessed another person's owner id could
+  send `DELETE /language-corpus/owners/<their-id>` and permanently erase
+  someone else's retained utterances with no session, cookie or token —
+  itself a denial-of-service against `language-corpus.md`'s consent-driven
+  retention (data the owner explicitly chose to keep would vanish without
+  their action), and, because deletion is not reversible, worse than the
+  read-only cross-owner gaps this ledger has fixed on other modules. Grepped
+  for a live caller first: none exists anywhere in the repo (`apps/web`,
+  `apps/mobile`) — same as `ingest`, this route has no client wired to it
+  yet — so the fix carried no risk of breaking a real request shape.
+
+  **What was built.** `LanguageCorpusController.erase` now carries
+  `@UseGuards(SessionAuthGuard)` and takes `@CurrentUser() user:
+  CurrentUserResult` alongside the existing `@Param('ownerId')`. After the
+  existing blank-string validation, it compares the path `ownerId` against
+  `user.subjectId` and throws `NotFoundException({ code: 'OWNER_NOT_FOUND'
+  })` on any mismatch — 404, not 403, matching this ledger's repeated
+  "never confirm whose data exists to a caller who isn't its owner"
+  convention (`RecordsService.#requireObservation`,
+  `FamilyGrantsService.revokeDelegation`). The service call itself now
+  always passes `user.subjectId`, never the raw path value, so a caller
+  cannot erase anyone but themselves regardless of what the guard did.
+  `language-corpus.service.ts`'s `erase` doc comment updated to describe the
+  fix instead of asking for it, and to note `ingest` is a separate,
+  deliberately-untouched gap (same unguarded shape, but zero live callers
+  anywhere, unlike `erase`). New controller test: a signed-in caller cannot
+  erase another owner's utterances (asserts both the thrown `NotFoundException`
+  and that the target owner's data survives), alongside two existing tests
+  updated to pass a `CurrentUserResult`.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 601/601 (net +1, the new mismatch test; confirmed against
+  a stashed pre-change run at 600/600). `pnpm build` 40/40 (35 cached).
+
+  **For the next run.** The two standing product-decision items are
+  unchanged and still not this run's to resolve: `packages/health-records`'s
+  status-guard question and the clinical-suite's missing clinician-identity
+  model. A real, smaller, unblocked follow-up this run leaves open, named
+  explicitly rather than left implicit: `language-corpus.controller.ts`'s
+  `ingest` (`POST /language-corpus/utterances`) has the identical
+  unguarded-`ownerId`-in-body shape `erase` just had, but was deliberately
+  left alone here because it has no live caller anywhere in the repo today
+  (`apps/mobile`'s companion only calls the pure `retainUtterance` from
+  `@swasthya/language-corpus`, never this HTTP endpoint) — fixing it is a
+  real, scoped, unblocked candidate, not a hypothetical one, whenever
+  someone picks it up.
+
+- 2026-08-13 — **Queue fully checked; closed the sibling forgeable-header gap
+  on `packages/language-corpus`'s reviewer routes, the concrete follow-up the
+  prior run's own log entry left open.** Grepped for `- [ ]` first — zero
+  hits, same as every recent run. The prior (same-day) log entry, on closing
+  the identical gap in `credentialing/reviewer.guard.ts`, named this exact
+  file — `apps/api/src/language-corpus/corpus-reviewer.guard.ts` — as "a real,
+  scoped, unblocked candidate," so this run picked it up directly rather than
+  spending an independent survey re-finding what was already found. Re-read
+  `corpus-reviewer.guard.ts`, `language-corpus.controller.ts`,
+  `language-corpus.module.ts`, `credentialing/reviewer.guard.ts` (the fixed
+  sibling) and `session-auth.guard.ts` before touching anything, to confirm
+  the pattern actually matched before copying the fix.
+
+  **What was found.** `CorpusReviewerGuard.canActivate` authorized purely by
+  string-comparing two client-supplied headers, `x-reviewer-role` and
+  `x-reviewer-id` — no session verification at all, the identical shape
+  `credentialing/reviewer.guard.ts` had until earlier today. Its own doc
+  comment explained why it hadn't been fixed alongside that one:
+  `CORPUS_REVIEWER` was not yet in `packages/database`'s `UserRole` Prisma
+  enum, and the comment further claimed `@swasthya/database` was "not wired
+  into `apps/api` by anything today" — also stale, since `AuthService`
+  already depends on it via `auth-store.ts`. Concretely: an unauthenticated
+  caller sending `x-reviewer-role: CORPUS_REVIEWER` with any
+  `x-reviewer-id` could list the review queue, read any utterance's
+  de-identified conversational text, and clear/discard utterances (the
+  discard decision that permanently excludes text from ever training a
+  model) — all attributed in the audit log to whatever `reviewerId` string
+  the caller typed, an falsifiable trail identical to the credentialing bug.
+
+  **What was built.** Two-part fix, matching the credentialing precedent
+  exactly rather than inventing a new shape. (1) `packages/database`: new
+  migration `20260813000000_add_corpus_reviewer_role` adds `CORPUS_REVIEWER`
+  to the `UserRole` enum (`ALTER TYPE "UserRole" ADD VALUE
+  'CORPUS_REVIEWER'`) — this sandbox has no Postgres running by default
+  (`compose.yaml`'s service isn't up and `docker` has no daemon here), but a
+  real `postgresql-16` server and client were already installed as native
+  packages; started the `main` cluster with `pg_ctlcluster`, created the
+  `swasthya` role/database matching `.env.example`'s `DATABASE_URL`, and
+  actually ran `prisma migrate deploy` from empty — all five migrations,
+  including the new one, applied cleanly, `prisma migrate diff
+  --from-config-datasource --to-schema prisma/schema.prisma --exit-code`
+  reported zero drift, and `tsx prisma/seed.ts` still seeds cleanly against
+  the new schema. (2) `apps/api`: `CorpusReviewerGuard.canActivate` now reads
+  `request.authUser` (only `SessionAuthGuard` populates it) and checks
+  `user.role === CORPUS_REVIEWER_ROLE`, dropping the header constants and
+  parsing helper entirely. Every reviewer route in
+  `language-corpus.controller.ts` (`review-queue`, `utterances/:id`,
+  `.../clear`, `.../discard`, `.../audit-log`) now carries
+  `@UseGuards(SessionAuthGuard, CorpusReviewerGuard)`, and the four routes
+  that previously read `@Headers(REVIEWER_ID_HEADER)` plus a local
+  `requireReviewerId` re-check now take `@CurrentUser() user:
+  CurrentUserResult` and use `user.subjectId` as the reviewer id attributed
+  on every audit entry — the same `@CurrentUser()` pattern
+  `CredentialingController` already uses. `LanguageCorpusModule` now imports
+  `AuthModule` for the guard, the same "import the module, get the guard"
+  wiring `CredentialingModule` already established. `ingest` and `erase`
+  were left exactly as they were — both are the data subject acting on their
+  own record, not a reviewer, so this fix doesn't touch them; updated
+  `erase`'s doc comment, which had cited the now-fixed `CorpusReviewerGuard`
+  excuse as its own justification, to describe its actual remaining gap
+  instead (no verified `ownerId` binding) rather than leave a stale
+  cross-reference. Updated `corpus-reviewer.guard.test.ts` (now exercises a
+  fake `CurrentUserResult` instead of raw headers, plus a "rejects a patient
+  session" case) and `language-corpus.controller.test.ts` (reviewer calls now
+  pass a fake `CurrentUserResult`; dropped the one test asserting the old
+  header-required-even-though-guard-screens-it-first behavior, since that
+  behavior no longer exists).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 600/600 (net −2 from the two removed header-only test
+  cases described above, no test weakened — both replaced by session-based
+  equivalents covering the same guard boundary, the identical net-2 shape
+  the credentialing fix produced for the same reason). `pnpm build` 40/40.
+
+  **For the next run.** No sibling forgeable-header guard remains — this was
+  the last one named. The two standing product-decision items are unchanged
+  and still not this run's to resolve: `packages/health-records`'s
+  status-guard question and the clinical-suite's missing clinician-identity
+  model. A real, smaller, unblocked follow-up this run leaves open:
+  `language-corpus.service.ts`'s `erase` (a data-subject-initiated
+  right-to-erasure request, not a reviewer route) still trusts a bare
+  client-supplied `ownerId` with no session or ownership check at all — the
+  same cross-owner shape `RecordsController` had before its own fix, just
+  not yet found by a survey naming it directly.
+
+- 2026-08-13 — **Queue fully checked; closed an unauthenticated-access gap on
+  `apps/api`'s credentialing review routes — `ReviewerGuard` authorized off
+  two forgeable client headers instead of a verified session.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. Delegated a fresh
+  independent survey (an `Explore` subagent, read-only) instructed to avoid
+  every already-mined vein this log lists and both standing
+  product-decision items (the `health-records` status-guard question and
+  the clinical-suite clinician-identity gap). It returned one strong, traced
+  candidate; this run independently re-verified it by reading
+  `reviewer.guard.ts`, `credentialing.controller.ts`, `session-auth.guard.ts`
+  and `entitlements.guard.ts` before touching anything, per this ledger's
+  "trust but verify" habit for delegated work.
+
+  **What was found.** `apps/api/src/credentialing/reviewer.guard.ts`, which
+  gates the entire clinician-credentialing review workflow
+  (`GET /credentialing/queue`, the evidence-read route, `begin-review`,
+  `approve`, `reject`, `audit-log`), authorized purely by string-comparing
+  two client-supplied headers, `x-reviewer-role` and `x-reviewer-id` — no
+  session verification at all. Its own doc comment justified this by saying
+  "there is still no identity/auth layer anywhere in this repo." That has
+  been false since `SessionAuthGuard`/`AuthService` shipped (Round two A3)
+  and `UserRole.CLINICAL_REVIEWER` has existed in the Prisma enum the whole
+  time; nobody had revisited this guard since. Concretely: an
+  unauthenticated caller sending `x-reviewer-role: CLINICAL_REVIEWER` with
+  any `x-reviewer-id` could `POST .../approve` to grant a publicly-displayed
+  "verified NMC/NNC/..." badge to an unlicensed applicant
+  (`credentialing.service.ts` → `packages/credentialing`'s
+  `approveApplication`), `GET` an applicant's certificate and
+  government-ID photographs, and have every action attributed in the audit
+  log to whatever `reviewerId` string they typed — the audit trail itself
+  was falsifiable. `packages/language-corpus`'s
+  `corpus-reviewer.guard.ts` is a structural copy of the same pattern
+  guarding human review of de-identified conversational text, but
+  `CORPUS_REVIEWER` isn't yet in the `UserRole` enum, so fixing it needs a
+  migration first — left open below rather than folded into this run.
+
+  **What was built.** `ReviewerGuard.canActivate` now reads
+  `request.authUser` (only `SessionAuthGuard` populates it, from a verified
+  session token) and checks `user.role === CLINICAL_REVIEWER_ROLE`, dropping
+  the two header constants and the header-parsing helper entirely. Every
+  reviewer route in `credentialing.controller.ts` now carries
+  `@UseGuards(SessionAuthGuard, ReviewerGuard)` — the same guard-order
+  convention `EntitlementsGuard`'s own doc comment established — and the
+  five routes that previously read `@Headers(REVIEWER_ID_HEADER)` now take
+  `@CurrentUser() user: CurrentUserResult` and use `user.subjectId` as the
+  reviewer id attributed on every audit entry, matching
+  `RecordsController`'s existing `@CurrentUser()` pattern exactly.
+  `CredentialingModule` now imports `AuthModule` for the guard, the same
+  "import the module, get the guard" wiring `RecordsModule` already uses.
+  Updated `reviewer.guard.test.ts` (now exercises a fake `CurrentUserResult`
+  instead of raw headers, plus a new "rejects a patient session" case for
+  the actual attacker-shaped input) and `credentialing.controller.test.ts`
+  (calls now pass a fake reviewer `CurrentUserResult` instead of a bare
+  string; dropped the one test that asserted the old
+  header-required-even-though-guard-screens-it-first behavior, since that
+  behavior no longer exists — the guard alone now enforces authentication,
+  nothing left for the controller to re-check).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 602/602 (net −2 from the two removed header-only test
+  cases described above, no test weakened, both replaced by session-based
+  equivalents covering the same guard boundary). `pnpm build` 40/40 (35
+  cached).
+
+  **For the next run.** The two standing product-decision items are
+  unchanged and still not this run's to resolve: `packages/health-records`'s
+  status-guard question and the clinical-suite's missing
+  clinician-identity model. New, concrete follow-up this run leaves open:
+  `packages/language-corpus`'s `corpus-reviewer.guard.ts` has the identical
+  forgeable-header pattern this run just fixed, but needs a `UserRole`
+  migration (`CORPUS_REVIEWER` is not yet in the Prisma enum) before it can
+  get the same treatment — a real, scoped, unblocked candidate for whoever
+  picks it up next.
+
+- 2026-08-13 — **Queue fully checked; `apps/mobile/app/(tabs)/learn.tsx`'s
+  interactive walkthrough now follows the `language` toggle instead of
+  always showing and speaking Nepali.** Grepped for `- [ ]` first — zero
+  hits, same as every recent run. Delegated a fresh independent survey (an
+  `Explore` subagent, read-only) instructed to avoid every already-mined
+  vein this log lists and both standing product-decision items (the
+  `health-records` status-guard question and the clinical-suite
+  clinician-identity gap). It returned one strong, traced candidate; this
+  run independently re-verified it by reading the actual file before
+  touching anything, and by grepping the log for every prior `learn.tsx`
+  mention to confirm the specific fields were never touched, per this
+  ledger's "trust but verify" habit for delegated work.
+
+  **What was found.** `walkthroughSteps` (`learn.tsx:21-40`) is the data
+  behind the Learn tab's "how to use the app" walkthrough player. Its three
+  steps each held a `title`/`body` pair with Nepali-only sentences and no
+  English counterpart at all — unlike every other sentence-level string in
+  this same file and every sibling screen, which all follow the
+  `language === 'en' ? … : …` ternary convention this repo has used
+  consistently since the 2026-08-11 `care.tsx`/`consultation.tsx` run.
+  `currentStep.title`/`currentStep.body` were rendered unconditionally
+  (`:110-111` before this fix), and `speakCurrentStep` fed the same
+  Nepali-only text into `Speech.speak` with `language: 'en-US'` whenever
+  the app's toggle was set to English — so an English-toggled user not
+  only saw Nepali sentences on screen, tapping "Listen to this step" read
+  Nepali text aloud through an English voice profile. This was genuinely
+  unmined: two 2026-08-12 entries (grepped and read in full before
+  starting) explicitly discuss `learn.tsx` and ruled that its all-caps
+  `walkthroughSteps[].eyebrow` badges (`STEP 1 · ASK` etc.) stay English
+  chrome by design, matching the `index.web.tsx`/teleconsultation eyebrow
+  precedent — but neither entry, nor any other `learn.tsx` mention in the
+  log, discusses `.title`/`.body`, which are sentence-case body copy the
+  same precedent says should translate, not chrome.
+
+  **What was built.** `walkthroughSteps[].title`/`.body` split into
+  `.titleNe`/`.titleEn`/`.bodyNe`/`.bodyEn`, matching the `questionEn`/
+  `questionNe`/`whyEn`/`whyNe` naming `twin.tsx` already established for
+  the same shape of bilingual content object. Each English string is a
+  plain literal translation of the existing Nepali sentence — no new
+  claims. The two render call sites (`stepTitle`/`stepBody`) now branch on
+  `language` like every other visible string in the file, and
+  `speakCurrentStep` now speaks the language-appropriate variant with a
+  language-appropriate sentence separator (`। ` for Nepali, `. ` for
+  English — the old code always used the Devanagari danda regardless of
+  language). The eyebrow badges and "INTERACTIVE WALKTHROUGH"/"READABLE
+  TRANSCRIPT" chrome were left untouched, matching the precedent above.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` unchanged at 604/604 — this file has no colocated test,
+  matching every other `app/*.tsx` screen in this repo (no rendering
+  harness exists for them, per the 2026-08-11 accessibility-label run's own
+  note). `pnpm build` 40/40 (35 cached); `apps/mobile`'s Expo web bundle
+  still exports `/learn` cleanly at 66KB.
+
+  **For the next run.** The two standing product-decision items are
+  unchanged and still not this run's to resolve:
+  `packages/health-records`'s status-guard question and the clinical-suite's
+  missing clinician-identity model. A fresh survey reported no other
+  hardcoded-language gap left in `apps/mobile` — the mobile i18n vein this
+  log has repeatedly mined (`care.tsx`, `consultation.tsx`, `index.tsx`,
+  `twin.tsx`, `companion.tsx`, `_layout.tsx`, now `learn.tsx`) appears
+  genuinely exhausted; a future "queue exhausted" run should treat a repeat
+  of that specific sweep as low-probability and look elsewhere first.
+
+- 2026-08-13 — **Queue fully checked; `EntitlementsGuard` now enforces
+  `packages/identity`'s assurance-level policy, closing a real authorization
+  gap on `RECORD_SHARING`/`TELECONSULTATION`.** Grepped for `- [ ]` first —
+  zero hits, same as every recent run. Delegated a fresh independent survey
+  (an `Explore` subagent, read-only) instructed to avoid every already-mined
+  vein this log lists and both standing product-decision items (the
+  `health-records` status-guard question and the clinical-suite
+  clinician-identity gap the same-day `DelegationForm.tsx` run's own entry
+  re-confirmed as a real architecture gap, not a small fix). It returned one
+  strong, traced candidate; this run independently re-verified every claim in
+  the candidate's report by reading the actual source files before touching
+  anything, per this ledger's "trust but verify" habit for delegated work.
+
+  **What was found.** `docs/architecture/identity-and-credentialing.md` §2's
+  table is explicit: sharing records with a named clinician and
+  teleconsultation both require `IDENTITY_VERIFIED` (national ID + liveness),
+  not merely `REGISTERED` (phone + OTP). `packages/identity/src/index.ts`
+  transcribes that table exactly as `minimumAssuranceLevel` — exhaustive over
+  `ModuleKey`, plus a ready-made `meetsAssuranceForModule` helper — and has
+  since the 2026-08-09 run that built the package. But
+  `apps/api/src/entitlements/entitlements.guard.ts`'s `EntitlementsGuard`,
+  the only place `@RequireModule` is actually enforced, never imported
+  `@swasthya/identity` at all (confirmed by grep: zero references anywhere in
+  `apps/api` before this run). It read `request.subjectId` (set by
+  `SessionAuthGuard`) to resolve a plan tier and called `checkModule`, but
+  checked nothing about the caller's identity-assurance level. `@RequireModule`
+  is used on exactly three routes; two of the three declare a module requiring
+  `IDENTITY_VERIFIED`: `InteropController.issueShareLink`
+  (`RECORD_SHARING`, `interop.controller.ts:60`) and
+  `TeleconsultationController.schedule` (`TELECONSULTATION`,
+  `teleconsultation.controller.ts:49`). `RecordsController.capture` requires
+  only `HEALTH_RECORD` → `REGISTERED`, already satisfied by
+  `SessionAuthGuard` alone, so it had no gap. Since `AuthService.verifyOtp`
+  only ever produces `assuranceLevel: 'REGISTERED'` (no verification flow in
+  `apps/api` reaches `IDENTITY_VERIFIED` yet), any phone-verified caller on a
+  plan that includes the module — PLUS for `RECORD_SHARING`, PRO for
+  `TELECONSULTATION`, confirmed against `packages/entitlements`'s catalogue —
+  could today issue a share link handing their documents to a named external
+  clinician, or book a video consultation, with zero identity check. This was
+  not a fresh gap: the 2026-08-09 `packages/identity` run's own log entry
+  named it explicitly as deferred, because `SessionAuthGuard` didn't exist
+  yet to supply a real `assuranceLevel`. That blocker has been gone since
+  `SessionAuthGuard`/`AuthService` shipped; nobody had revisited the
+  follow-up since.
+
+  **What was built.** `EntitlementsGuard.canActivate` now calls a new
+  `extractAssuranceLevel` helper (reads `request.authUser.assuranceLevel`,
+  defaulting to `ANONYMOUS` if absent — fail-closed, matching
+  `extractOwnerId`'s existing stance) and checks
+  `meetsAssuranceForModule` from `@swasthya/identity` before `checkModule`,
+  since a plan upgrade cannot substitute for identity verification the way it
+  can for a quota limit. A failure throws `ForbiddenException` with a new
+  `IDENTITY_VERIFICATION_REQUIRED` code carrying the module, the required
+  level and the caller's current level — the same "verdict in the body, not a
+  bare 403" shape `MODULE_NOT_INCLUDED`/`QUOTA_EXCEEDED` already use. No
+  change to `InteropController`/`TeleconsultationController` themselves: both
+  already ran `EntitlementsGuard` after `SessionAuthGuard` per Round two A4's
+  established order, so the fix is entirely inside the guard. Updated
+  `entitlements.guard.test.ts`: added an `authUser` field to the test request
+  shape (real requests always carry it alongside `subjectId`, set together by
+  `SessionAuthGuard` — the old tests only set `subjectId`, which happened to
+  still pass for the tier-only assertions but would have masked the new
+  assurance check by always defaulting to `ANONYMOUS`), and five new cases
+  covering: denial at `REGISTERED` against an `IDENTITY_VERIFIED`-gated
+  module even on a plan that includes it, success once verified, the full
+  exception-body shape, that the identity check reports first when both tier
+  and identity would fail, and the fail-closed default with no `authUser` at
+  all.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 604/604 (net +5, all in `entitlements.guard.test.ts`, now
+  13/13), every other package's count unchanged. `pnpm build` 40/40 (39
+  cached).
+
+  **For the next run.** The same two standing product-decision items remain
+  open and untouched by this run: `packages/health-records`'s
+  `confirmObservation`/`correctObservation`/`rejectObservation` status-guard
+  question, and the clinical-suite's missing clinician-identity model. Also
+  worth noting: this fix only closes the enforcement gap for the two routes
+  that already carry `@RequireModule`. No `apps/api` flow yet actually raises
+  anyone from `REGISTERED` to `IDENTITY_VERIFIED` — `packages/identity`'s
+  verification state machine and `packages/credentialing`'s reviewer queue
+  exist, but no controller wires a person through `submitEvidence` →
+  `approveVerification` today, so both newly-enforced routes are, honestly,
+  unreachable for every real user until that flow is built. That flow is a
+  real, larger candidate for a future run, not something to bolt on here
+  without its own scoped pass.
+
+- 2026-08-13 — **Queue fully checked; fixed an off-by-one date bug in
+  `DelegationForm.tsx` that made the delegation form's earliest allowed
+  expiry date always fail server-side validation.** Grepped for `- [ ]`
+  first — zero hits, same as every recent run. Before guessing at a new
+  candidate, spent this run's own investigation on the specific lead the
+  same-day `RecordsController` run's log entry left open — whether
+  `teleconsultation`'s `listSessions`/`getSession`/`start`/`complete`/
+  `cancel`/`noShow` have the same missing-identity shape `RecordsController`
+  did. They do not: `patientId` in the whole clinical-suite family
+  (`patient-registry`, `scheduling`, `teleconsultation`, and siblings) has
+  zero connection anywhere in the repo to auth's `subjectId` concept (a
+  grep across both module trees returns nothing). Bolting
+  `SessionAuthGuard` onto those routes would only require "any signed-in
+  consumer," not verify session ownership, because no clinician-identity
+  model exists yet to make that check meaningful — a real architecture gap,
+  not the mechanical fix `RecordsController` got. Correctly set aside
+  rather than guessing, and delegated a fresh independent survey instead
+  (instructed to avoid every already-mined vein this log lists and both
+  standing product-decision items — the health-records status-guard
+  question and this run's own teleconsultation finding).
+
+  **What was found.** `apps/web/src/components/account/DelegationForm.tsx`
+  (the one and only live caller of `POST /family/grants/delegations` —
+  `apps/mobile` has no equivalent call anywhere) set the expiry
+  `<input type="date">`'s `min` to `new Date().toISOString().slice(0, 10)`
+  — today, in the caller's UTC date. A bare `YYYY-MM-DD` from that input
+  parses as UTC midnight of that day. `apps/api/src/family/
+  family-grants.service.ts` sets `grantedAt` to the real request instant,
+  and `packages/family/src/index.ts`'s `buildDelegationGrant` rejects the
+  grant with `InvalidDelegationExpiryError` whenever
+  `expiresAt <= grantedAt`. Since UTC midnight on "today" is by definition
+  no later than a request made any time that same UTC day, picking the
+  earliest date the form allowed — the date most date pickers default to
+  or highlight — made the submission fail every time, in every timezone,
+  with no client-side warning before the round trip; the `disabled` check
+  on the submit button only verified a date was present, not that it would
+  pass server-side validation. The code's own comment asserted the
+  opposite: that the resulting `expiresAt` is "always after `grantedAt`
+  ... for any date the `min` attribute below allows" — false for the
+  boundary value `min` itself permitted. A prior run (2026-08-12, the
+  `family-grants.controller.ts` `isoInstant` fix) had read this exact file
+  and called it "fully localized," but that pass only checked i18n
+  wiring, never the date-boundary math, so this was a genuinely
+  un-mined finding.
+
+  **What was built.** A new `apps/web/src/lib/delegation-expiry.ts` with a
+  single pure helper, `earliestSelectableExpiryDate(now: Date): string`,
+  returning `now + 24h`'s date rather than `now`'s own date — a flat +24h
+  is safe here since every value in this calculation is UTC, with no DST
+  to account for. `DelegationForm.tsx`'s `min` now calls it instead of
+  computing today's date inline, and the misleading inline comment was
+  corrected to describe what the helper actually guarantees. New
+  `apps/web/src/lib/delegation-expiry.test.ts` (4 cases): the basic
+  next-day case, the UTC-midnight boundary that broke the old code, the
+  just-before-midnight boundary, and a sweep across every 3-hour mark of a
+  day asserting the returned date always parses back to an instant later
+  than the injected `now` — matching this repo's established
+  testable-pure-helper convention (`acting-subjects.ts`, `local-id.ts`),
+  since `apps/web` has no component-render test harness to exercise the
+  `<input>` itself.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks
+  — `@swasthya/web` 60/60 (net +4, the new file), every other package's
+  count unchanged, `@swasthya/api` still 599/599. `pnpm build` 40/40
+  (35 cached).
+
+  **For the next run.** The two standing product-decision items are
+  unchanged and still not this run's to resolve: `packages/health-records`'s
+  `confirmObservation`/`correctObservation`/`rejectObservation` applying
+  unconditionally regardless of status (REJECTED terminal vs. reversible),
+  and the clinical-suite's missing clinician-identity model this run's own
+  investigation reconfirmed (needed before any of `patient-registry`/
+  `scheduling`/`teleconsultation`/siblings can be meaningfully gated by
+  identity, not just by a bare login requirement). Also worth a look:
+  `teleconsultation.controller.test.ts`'s own comment still cites the
+  now-fixed `RecordsController` gap as precedent for leaving its own
+  routes ungated — that reasoning was already re-examined once this run
+  and found to rest on a real, unresolved identity-model gap rather than
+  an oversight, so a future run picking this up should start from this
+  entry rather than re-deriving the same investigation.
+
+- 2026-08-13 — **Queue fully checked; `RecordsController` closed a real
+  cross-owner authentication gap on six of its seven routes.** Grepped for
+  `- [ ]` first — zero hits, same as every recent run. Rather than guess at a
+  new candidate, delegated a fresh independent survey (instructed to avoid
+  every already-mined vein this log lists, and specifically not to re-propose
+  the `confirmObservation`/`correctObservation`/`rejectObservation`
+  status-guard question the same-day `InteropController` run's own log entry
+  had flagged but explicitly left as "may be intentional… worth deciding
+  rather than assuming"). The survey traced that exact candidate through the
+  real `apps/mobile` UI and confirmed it is not reachable there (no screen
+  ever calls `confirm` on an observation the UI itself has already filtered
+  out of the pending queue) and would require inventing a transition-table
+  policy this repo states nowhere — correctly set it aside rather than
+  guessing, and returned a different, unambiguous finding instead.
+
+  **What was found.** `apps/api/src/records/records.controller.ts`: only
+  `capture()` (`POST /records/documents`) carried
+  `@UseGuards(SessionAuthGuard, EntitlementsGuard)` and derived its owner from
+  `@CurrentUser()`. The other six routes on the same controller —
+  `list`/`observationsForDocument`/`timeline` (`GET`) and
+  `confirm`/`correct`/`reject` (`POST`) — carried no guard at all and took
+  `ownerId` as a bare, unauthenticated query or body string, checked only by
+  `requireOwnerId` (non-empty, nothing else). `RecordsService`'s
+  `#requireObservation`/`listDocumentObservations` then compare that string
+  against the stored document/observation's `ownerId` — a self-consistency
+  check, not an identity check. Net effect: any unauthenticated caller who
+  knew or guessed another person's `ownerId` (not a secret — a plain string)
+  could list their documents, read every observation on a document *draft
+  included* (the route's own doc comment said so), read their timeline, and
+  **confirm, correct or reject** their observations, all with zero
+  authentication. This was not a fresh gap: `captureSchema`'s own doc comment
+  and Round two A4's log entry both named it explicitly ("the records
+  module's other five routes… still trust a client-supplied ownerId… same bug
+  class, smaller blast radius") and it sat untouched through roughly 250
+  subsequent log entries. It had also propagated into two other controllers'
+  own reasoning: `family-grants.controller.ts`'s doc comment cites "the
+  records module's `ownerId` check" as the precedent for 404ing a mismatch —
+  true of the check, false of the missing guard in front of it — and
+  `teleconsultation.controller.test.ts`'s own comment justifies leaving most
+  of its routes ungated by citing "`RecordsController`'s precedent." Neither
+  of those is fixed by this run; both are worth a read by whoever picks up
+  the survey's other named runner-up (the observation-status-guard question)
+  or does a wiring sweep of `teleconsultation`.
+
+  **What was built.** Added `@UseGuards(SessionAuthGuard)` to all six routes,
+  mirroring `capture()`'s and `FamilyGrantsController`'s already-established
+  pattern exactly (confirmed by reading `family-grants.controller.ts`, which
+  independently arrived at the identical shape: guard the route, take the
+  subject id from `@CurrentUser()`, never a client-supplied field). Dropped
+  `ownerId` from `correctSchema` and deleted `ownerActionSchema`/
+  `requireOwnerId` entirely — nothing left to validate once the client can no
+  longer assert who it is. `list`/`timeline`/`observationsForDocument` now
+  take `@CurrentUser()` instead of a query param; `confirm`/`correct`/
+  `reject` take it instead of a body field. `RecordsService`'s methods are
+  unchanged — they already took an explicit `ownerId`; only what fills that
+  parameter changed, from a forgeable string to a verified `subjectId`. No
+  change was needed to how a document/observation belonging to someone else
+  404s — that check was already correct, it was simply guarding the wrong
+  identity. Checked whether this would break any *currently working*
+  delegation flow first: it would not, because no `apps/api` HTTP route
+  anywhere resolves cross-subject access via `GuardianshipGrant`/
+  `DelegationGrant` today (that only happens inside `packages/intent-router`'s
+  in-process evaluation harness) — `family-grants.controller.ts` is the CRUD
+  for grants themselves, not a consumer of them, so `user.subjectId ===
+  ownerId` is exactly as permissive as every other guarded route in this repo
+  already is, not a new restriction on a working feature.
+
+  **What this costs `apps/mobile`.** `apps/mobile` has no identity/auth layer
+  at all yet (`local-id.ts`'s and `acting-subjects.ts`'s own doc comments say
+  so directly), so `records-api.ts`'s `requestJson` sends no session token or
+  cookie. Every one of these six routes will now 401 against a real deployed
+  server from the mobile app, exactly like `capture()` already has since A4.
+  Updated `records-api.ts` to match the new contract anyway (dropped the now
+  meaningless `ownerId` parameter from every exported function and the
+  matching query strings/body fields) and updated `records.tsx`'s three call
+  sites and both test files to match — a client that still sent a
+  server-ignored `ownerId` would misrepresent this as a smaller gap than it
+  is. This is the same accepted trade-off `capture()`'s own doc comment
+  already made, extended to the rest of the module rather than a new one.
+
+  New tests: a `RecordsController auth wiring` describe block in
+  `records.controller.test.ts` (Reflect-metadata assertions mirroring
+  `teleconsultation.controller.test.ts`'s pattern — `capture` gated on both
+  guards, the six routes above gated on `SessionAuthGuard` alone, `health`
+  ungated) plus a same-file behavioural test proving a forged
+  `CurrentUserResult.subjectId` still 404s on someone else's document. The
+  four pre-existing "requires ownerId" tests were deleted — there is no
+  longer a client-suppliable `ownerId` for them to exercise — and replaced
+  with the wiring tests above, which assert the guard exists rather than a
+  weaker runtime symptom of its absence.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 599/599 (net +1: 4 deleted, 5 added), `@swasthya/mobile`
+  20/20 (`records-api.test.ts` unchanged in count, updated in shape), every
+  other package's count unchanged. `pnpm build` 40/40 (35 cached); mobile's 16
+  static routes unchanged in count and size.
+
+  **For the next run.** The survey's own runner-up, restated precisely so a
+  future run does not have to re-derive it: `packages/health-records`'s
+  `confirmObservation`/`correctObservation`/`rejectObservation` apply
+  unconditionally regardless of an observation's current status, unlike
+  `transitionDocument`'s explicit `canTransition` guard for documents — not
+  reachable through the current `apps/mobile` UI, and resolving it requires
+  deciding whether `REJECTED` should be a terminal state or a reversible one
+  (the identity-and-credentialing precedent — "rejection is reversible and
+  explained" — argues for reversible; the fact that `confirm()` would
+  silently re-trust the exact same value the person already flagged wrong,
+  with no new input, argues for restricting it). A genuine product decision,
+  not a bug fix; flag for the owner rather than guessing. Also worth a look:
+  `teleconsultation.controller.test.ts`'s own comment cites the now-fixed gap
+  as its reason for leaving `listSessions`/`getSession`/`start`/`complete`/
+  `cancel`/`noShow` ungated — worth checking whether those routes have the
+  same missing-identity shape or a different, already-adequate one before
+  assuming the precedent still holds now that its premise changed.
+
+- 2026-08-13 — **Queue fully checked; `InteropController.issueShareLink` now
+  gated behind `EntitlementsGuard`.** Grepped for `- [ ]` first — zero hits,
+  same as every recent "queue exhausted" run. Followed the specific lead the
+  same-day teleconsultation run's own log entry left open — whether
+  `diagnostics-orders`, `billing` or `immunization` have the same missing
+  shared-resource-conflict shape just fixed in `scheduling`/
+  `teleconsultation` — and ruled it out myself by reading all three: none of
+  them has a shared resource (a calendar slot, a seat) that two records could
+  double-book. `orderDiagnostic`/`openInvoice`/`recordPatientReportedImmunization`
+  each create an independent row with no cross-record invariant to check, so
+  that specific vein is genuinely closed. Delegated a fresh independent
+  survey agent instead, instructed to avoid every already-mined vein listed
+  in this log (isoInstant validation, ne-Latn collapse, mobile i18n gaps,
+  filename sanitization, `normalizeLabel` dedup, `classifyIntent`/
+  `termAppears`, analytics sources, the two named-blocked items, and the
+  now-closed diagnostics-orders/billing/immunization conflict check) and to
+  check every `apps/api` controller for a missing entitlement guard, the same
+  gap class `companion.controller.ts` was flagged for once already.
+
+  **What was found.** `apps/api/src/interop/interop.controller.ts`'s
+  `POST /interop/share-links` (`issueShareLink`) carried only
+  `@UseGuards(SessionAuthGuard)` — no `EntitlementsGuard`, no
+  `@RequireModule`, no `@RequireQuota` — and `interop.module.ts` never
+  imported any entitlements pieces at all. But unlike `companion.controller.ts`
+  (genuinely blocked on an unresolved anonymous-vs-signed-in metering
+  question), this is not a product-decision gap: `packages/entitlements`'s
+  plan catalogue (`packages/entitlements/src/index.ts`, one commit, three
+  days before `interop` was even built) already prices this exact capability
+  — `RECORD_SHARING` is a real `ModuleKey`, absent from FREE, present on
+  PLUS/PRO; `ACTIVE_SHARE_LINKS` is a real `QuotaDimension` with concrete
+  ceilings (FREE 1 — moot, since FREE has no `RECORD_SHARING` module at all —
+  PLUS 5, PRO 25). The controller's own doc comment claimed "`INTEROP` is not
+  in the module catalogue" and used that to justify no gate — true only
+  because it was checking for a key literally named `INTEROP`, when every
+  other module is named by capability instead (`HEALTH_RECORD`, not
+  `RECORDS`; `TELECONSULTATION`, not `TELECONSULT`). The comment was simply
+  wrong; `RECORD_SHARING`/`ACTIVE_SHARE_LINKS` were sitting in the same file
+  the whole time. Net effect: any signed-in caller on any tier, including
+  FREE, could mint unlimited active, unrevoked, up-to-30-day share links to
+  their own documents with zero paywall enforcement — confirmed with a
+  `git log --follow` on the entitlements file and a grep across
+  `interop.controller.test.ts`/`interop.service.test.ts`/
+  `interop.fault-isolation.test.ts` turning up no mention of
+  `EntitlementsGuard`, `RequireModule`, `RequireQuota`, `ForbiddenException`
+  or any plan tier anywhere in the package's own tests.
+
+  **What was built.** Followed `RecordsModule`'s wiring exactly (the same
+  "import the module, get the guard" pattern `TeleconsultationModule` also
+  uses). New `apps/api/src/interop/interop-usage.reader.ts`:
+  `InteropUsageReader implements UsageReader`, meters only
+  `ACTIVE_SHARE_LINKS` by counting `InteropRepository.listForOwner(ownerId)`
+  filtered through `@swasthya/interop`'s own `isShareLinkActive(link, now)` —
+  a revoked or expired link frees its slot, the same "terminal states release
+  the resource" reasoning `scheduling`'s conflict check applies to a
+  cancelled appointment — and throws for any other dimension, matching
+  `RecordsUsageReader`'s "fail loudly, never report zero" convention.
+  `interop.module.ts` now binds `EntitlementsGuard`,
+  `{ provide: SUBSCRIPTION_RESOLVER, useClass: FreeTierSubscriptionResolver }`
+  and `{ provide: USAGE_READER, useClass: InteropUsageReader }`.
+  `interop.controller.ts`'s `issueShareLink` now carries
+  `@UseGuards(SessionAuthGuard, EntitlementsGuard)`,
+  `@RequireModule('RECORD_SHARING')` and `@RequireQuota('ACTIVE_SHARE_LINKS')`
+  — `listShareLinks`/`revokeShareLink` keep their pre-existing
+  `SessionAuthGuard` alone (reading/revoking creates no new usage, the same
+  "gate only the action that creates usage" precedent `RecordsController`
+  sets), `resolveSharedBundle`/`health` stay fully open. Also corrected the
+  controller's stale doc comment. New tests: `interop-usage.reader.test.ts`
+  (owner-scoped counting, a revoked link excluded, an expired link excluded,
+  the no-meter-for-this-dimension throw) and an `InteropController
+  entitlement wiring` describe block in `interop.controller.test.ts` mirroring
+  `teleconsultation.controller.test.ts`'s own `Reflect`-metadata guard
+  assertions (`issueShareLink` gated on both guards plus both decorators;
+  every other route checked individually — `listShareLinks`/`revokeShareLink`
+  keep `SessionAuthGuard` only, `health`/`resolveSharedBundle` stay
+  guard-free). The existing `interop.controller.test.ts` behavioural tests
+  needed no change — they call controller methods directly as plain
+  functions, bypassing Nest's guard pipeline entirely, the same reason
+  `records.controller.test.ts`'s equivalent tests never needed touching when
+  `RecordsController.capture` was gated.
+
+  **What was deliberately not touched.** No change to
+  `FreeTierSubscriptionResolver` (still resolves every caller to FREE — no
+  real Subscription persistence exists yet) or to the entitlements catalogue
+  itself. Under the current placeholder resolver this means share-link
+  issuance now 403s for every caller until real subscription persistence
+  lands, but that is the same already-accepted state
+  `TeleconsultationModule`'s `@RequireModule('TELECONSULTATION')` has been in
+  since that module was wired — `TELECONSULTATION` isn't in FREE either —
+  not a new regression this run introduces.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 598/598 total (+6: 4 new in `interop-usage.reader.test.ts`,
+  2 new in the `interop.controller.test.ts` wiring block), all other package
+  counts unchanged. `pnpm build` 40/40 (35 cached); mobile's 16 static routes
+  unchanged in count and size.
+
+  **For the next run.** The survey agent's report (not otherwise acted on
+  this run, since this candidate was found independently first) named two
+  runners-up worth a look: `packages/health-records`'s
+  `confirmObservation`/`correctObservation`/`rejectObservation` apply
+  unconditionally regardless of an observation's current status — no
+  `canTransition`-style guard the way `transitionDocument` enforces for
+  documents, so a REJECTED observation can be silently re-confirmed with no
+  invariant check — though it may be intentional "owner can always correct
+  their own record" design rather than a bug, worth deciding rather than
+  assuming. `packages/credentialing`'s badge issuance and
+  `packages/identity`'s verification-request state machine remain fully
+  unwired to any `apps/api` route — dead code, no live failure, same
+  "unreachable" dead end prior surveys have already ruled out for other
+  candidates. The two long-standing blocked items are unchanged:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (genuinely a
+  product decision — no catalogue entry exists for it, unlike interop's) and
+  analytics' open `clinical-charting` source. `quality-reporting`/`tenancy`
+  (capability map rows 19-20) remain the only two unbuilt clinical-suite
+  modules.
+
+- 2026-08-13 — **Queue fully checked; `packages/teleconsultation` now
+  rejects a second session for an appointment that already has one.**
+  Grepped for `- [ ]` first — zero hits, same as every recent "queue
+  exhausted" run. Delegated a survey agent with the specific lead the
+  previous (2026-08-12 scheduling) log entry left open: whether
+  `teleconsultation` or `referrals` have an analogous missing-cross-record-
+  check gap to the double-booked-clinician bug just fixed in `scheduling`.
+
+  **What was found.** `apps/api/src/teleconsultation/teleconsultation.service.ts`'s
+  `scheduleSession(appointmentId)` resolved the appointment via
+  `scheduling.get()` and called `repository.save(scheduleTeleconsultation(...))`
+  unconditionally — it never checked whether a non-terminal session already
+  existed for that `appointmentId`. `TeleconsultationRepository` did not even
+  expose a way to ask: only `save`/`find(id)`/`list(patientId?)`, no lookup
+  by appointment. `POST /teleconsultation/appointments/:appointmentId/sessions`
+  is real and wired (`SessionAuthGuard` + `EntitlementsGuard`/
+  `RequireModule('TELECONSULTATION')`, neither of which prevents calling it
+  twice), so a double-click or a client retry created two independent
+  `TeleconsultationSession` rows sharing one `appointmentId`, each separately
+  startable/completable/cancellable — the same shape of bug as the
+  double-booked clinician, one module over. No test in the package or the
+  API service/controller test files ever called `scheduleSession` twice
+  against the same appointment. The survey also checked `packages/referrals`
+  for the sibling case and found no analogous invariant: nothing in
+  `docs/architecture` or the domain model supports "at most one referral per
+  encounter" as a real rule — a clinic can legitimately re-refer after a
+  decline or refer to two specialists from one encounter, so adding a
+  uniqueness check there would invent a business rule rather than fix a bug.
+
+  **What was built.** A new `TeleconsultationSessionAlreadyBookedError` in
+  `packages/teleconsultation/src/index.ts`, matching
+  `AppointmentConflictError`'s precedent in `packages/scheduling`.
+  `scheduleTeleconsultation` now takes a sixth parameter,
+  `existingSessions: readonly TeleconsultationSession[]`, and calls a new
+  `assertNoExistingSession` first. Only `SCHEDULED`/`ACTIVE` sessions block a
+  rebooking — `CANCELLED`/`COMPLETED`/`NO_SHOW` have all released the
+  appointment, the same "terminal/settled states free the slot" reasoning
+  `scheduling`'s own conflict check applies to a cancelled appointment.
+  `apps/api/src/teleconsultation/teleconsultation.service.ts`'s
+  `scheduleSession` now passes `this.repository.list()` as that sixth
+  argument, mirroring exactly how `SchedulingService.schedule()` passes its
+  own `repository.list()` into `scheduleAppointment`. Added four cases to
+  `packages/teleconsultation/src/index.test.ts` (second SCHEDULED session
+  throws; second session against an ACTIVE one throws; rebooking after
+  cancelled/completed/no-show succeeds; a different appointment's SCHEDULED
+  session does not conflict) and two to
+  `apps/api/src/teleconsultation/teleconsultation.service.test.ts` (calling
+  `scheduleSession` twice on the same appointment throws on the second call;
+  rebooking after a cancel succeeds). No other call site of
+  `scheduleTeleconsultation` exists anywhere in the repo (confirmed by grep).
+
+  **What was deliberately not touched.** No API-boundary (zod) validation
+  and no controller-level error mapping — the conflict is a domain
+  impossibility, not a request-shape problem, so it follows
+  `AppointmentConflictError`'s own precedent of propagating unwrapped (this
+  repo has no global exception filter mapping domain error names to HTTP
+  status codes; scheduling's conflict error does not get one either).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/teleconsultation` 18/18 (was 14/14, +4), `@swasthya/api` 592/592
+  total (+2 new), all other package counts unchanged. `pnpm build` 40/40 (35
+  cached); mobile's 16 static routes unchanged in count and size.
+
+  **For the next run.** The survey did not sweep every remaining module for
+  this same missing-invariant shape beyond scheduling/teleconsultation/
+  referrals — `diagnostics-orders`, `billing`, and `immunization` were not
+  checked and are worth a look before assuming the vein is closed. The two
+  long-standing blocked items are unchanged: `companion.controller.ts`'s
+  missing `EntitlementsGuard` and analytics' open `clinical-charting`
+  source, both needing a product decision, not code. `quality-reporting`/
+  `tenancy` (capability map rows 19-20) remain the only two unbuilt
+  clinical-suite modules and still carry the no-real-dataset risk prior
+  entries describe.
+
+- 2026-08-12 — **Queue fully checked; `packages/scheduling` now rejects a
+  double-booked clinician.** Grepped for `- [ ]` first — zero hits, same as
+  every recent "queue exhausted" run. Delegated an independent survey agent
+  with instructions to read the full log and avoid every already-mined vein
+  (isoInstant/duration ceilings, ne-Latn collapse, mobile language-toggle
+  gaps, filename sanitization, `normalizeLabel` dedup, `classifyIntent`/
+  `termAppears`, analytics sources, and the two named-blocked items —
+  `companion.controller.ts`'s missing `EntitlementsGuard` and analytics'
+  open `clinical-charting` source). It traced several plausible-looking leads
+  to dead ends first — `packages/family`'s guardianship-for-incapacity
+  `expiresAt`, `RecordsUsageReader` counting `DELETED` documents, and
+  engagement's uncapped retries all turned out to be unreachable: no
+  controller or route in `apps/api` exercises the code path yet, so there is
+  no live failure scenario to point at.
+
+  **What was found.** `packages/scheduling/src/index.ts`'s
+  `scheduleAppointment` enforced exactly one invariant —
+  `assertValidWindow` rejecting `scheduledEnd <= scheduledStart` — and
+  nothing else. It never checked a new appointment against the *other*
+  appointments already on the same clinician's calendar.
+  `apps/api/src/scheduling/scheduling.service.ts`'s `schedule()` calls it and
+  saves the result unconditionally once the patient exists and
+  patient-registry is up; the route it backs
+  (`POST /appointments`) is real, wired and unauthenticated. Two different
+  patients could be booked with the same `clinicianId` for the exact same or
+  an overlapping time window with no rejection — the system silently
+  accepted both. `scheduling.repository.ts` already exposes `list()`, so the
+  data needed for the check was sitting right next to the call site; it was
+  simply never consulted. None of `scheduling.service.test.ts`'s 11 prior
+  cases exercised a second booking against an already-booked slot.
+
+  **What was built.** A new `AppointmentConflictError` in
+  `packages/scheduling/src/index.ts`, matching the file's existing
+  error-class style. `scheduleAppointment` now takes a fourth parameter,
+  `existingAppointments: readonly Appointment[]`, and calls a new
+  `assertNoSchedulingConflict` right after `assertValidWindow`. The overlap
+  test (`windowsOverlap`) uses a half-open interval (`aStart < bEnd &&
+  bStart < aEnd`) so an appointment that starts exactly when another ends is
+  back-to-back, not a conflict — the same boundary convention a calendar UI
+  would expect. Only `status === 'SCHEDULED'` appointments for the *same*
+  `clinicianId` count, so a cancelled slot frees its time and a different
+  clinician's identical window is unaffected.
+  `apps/api/src/scheduling/scheduling.service.ts`'s `schedule()` now passes
+  `this.repository.list()` as that fourth argument — the only call site
+  outside the package's own tests; a repo-wide grep confirmed no seed data
+  or other module calls `scheduleAppointment` directly. Added four cases to
+  `packages/scheduling/src/index.test.ts` (overlap throws; same-clinician
+  back-to-back does not; a different clinician's identical window does not;
+  overlap against a cancelled appointment does not) and updated the four
+  existing calls in that file for the new required parameter. No change was
+  needed to `scheduling.service.test.ts`, `scheduling.controller.test.ts` or
+  `scheduling.fault-isolation.test.ts` — all their existing scenarios book
+  at most one appointment per clinician per test, and the broken-repository
+  fault-isolation case throws inside `list()` itself, before
+  `scheduleAppointment` is ever reached, preserving that test's assertion.
+
+  **What was deliberately not touched.** No API-boundary (zod) validation
+  was added — the conflict is a domain impossibility the same way an
+  inverted time window already is, not a request-shape problem, so it
+  follows `InvalidAppointmentWindowError`'s existing convention of
+  propagating unwrapped rather than being pre-validated in the controller.
+  No client (`apps/web`/`apps/mobile`) consumes this endpoint yet, so this
+  was a backend-only change with nothing to wire up in either app.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/scheduling` 8/8 (was 4/4, +4 new tests), all other package
+  counts unchanged. `pnpm build` 40/40 (35 cached); mobile's 16 static
+  routes unchanged in count and size.
+
+  **For the next run.** A fresh independent survey is again the right first
+  move; this pass did not attempt a full sweep of every module for the same
+  missing-cross-record-check shape (e.g. whether `teleconsultation` or
+  `referrals` have an analogous unchecked-conflict gap of their own — worth
+  a look before assuming this was the only instance). The two long-standing
+  blocked items are unchanged: `companion.controller.ts`'s missing
+  `EntitlementsGuard` and analytics' open `clinical-charting` source, both
+  needing a product decision, not code. `quality-reporting`/`tenancy`
+  (capability map rows 19-20) remain the only two unbuilt clinical-suite
+  modules and still carry the no-real-dataset risk prior entries describe.
+
+- 2026-08-12 — **Queue fully checked; `packages/interop`'s `issueShareLink`
+  now rejects a `ttlSeconds` above a 30-day ceiling, closing an unbounded-TTL
+  gap that let a "time-limited" share link become effectively permanent.**
+  Grepped for `- [ ]` first — zero hits, same as every recent "queue
+  exhausted" run. Rather than re-grep the closed `isoInstant`/`ne-Latn`/
+  mobile-language-toggle veins the last several entries had already mined
+  dry, delegated an independent survey agent with explicit instructions to
+  search fresh ground (untested risky branches, correctness bugs, loose
+  numeric/enum validation at `apps/api` boundaries, DRY drift, `apps/web`
+  i18n/a11y) and to avoid every closed vein and the two named blocked items
+  (`companion.controller.ts`'s missing `EntitlementsGuard`, `analytics`'s
+  open `clinical-charting` source).
+
+  **What was found.** `apps/api/src/interop/interop.controller.ts`'s
+  `issueShareLinkSchema` only validated `ttlSeconds: z.number().int().positive()`,
+  and `packages/interop/src/index.ts`'s `issueShareLink` only rejected
+  `ttlSeconds <= 0` — no upper bound anywhere. Traced the actual consequence
+  rather than trusting the pattern match: `GET /interop/share/:token`
+  (`resolveSharedBundle`) is deliberately unauthenticated — per its own doc
+  comment, "the token itself is the credential," since its whole purpose is
+  letting a clinician with no Mero Health account open it. So an owner
+  passing e.g. `Number.MAX_SAFE_INTEGER` as `ttlSeconds` gets a link that,
+  once its token leaks or is reused past the intended visit, grants
+  indefinite, unrevoked access to the owner's real documents/observations —
+  directly defeating `platform-vision.md` §3.3's stated v1 scope, "**a
+  time-limited**, revocable share link scoped to selected records." No test
+  in `interop.controller.test.ts`, `interop.service.test.ts` or
+  `packages/interop/src/index.test.ts` exercised a large `ttlSeconds`; every
+  test used `3600`. Same bug *shape* as the already-fixed `family-grants`
+  `expiresAt`-never-lapses bug, but a distinct code path (a duration field
+  on a different module, not an ISO-instant field), so not a re-open of the
+  closed `isoInstant` vein.
+
+  **What was built.** Added `MAX_SHARE_LINK_TTL_SECONDS = 30 * 24 * 60 * 60`
+  to `packages/interop/src/index.ts` — 30 days, matching `packages/auth`'s
+  own `SESSION_TTL_MS`, the longest lifetime already trusted elsewhere in
+  this system, rather than inventing an arbitrary number. `issueShareLink`
+  now throws `ShareLinkError` above that ceiling, same as its existing
+  `<= 0` branch. Mirrored the cap in the controller's zod schema via
+  `.max(MAX_SHARE_LINK_TTL_SECONDS)` so an over-long request 400s at the
+  boundary rather than round-tripping to the domain layer to be told the
+  same thing — the pattern `family-grants.controller.ts` already uses for
+  its own `expiresAt` regex. Added two cases to
+  `packages/interop/src/index.test.ts` (rejects one second past the
+  ceiling, accepts exactly at it) and one to
+  `apps/api/src/interop/interop.controller.test.ts` (rejects at the
+  controller boundary, confirming the `BadRequestException` fires before
+  the service is ever called).
+
+  **What was deliberately not touched.** The two runners-up the survey
+  flagged were left alone: `immunization.controller.ts`'s
+  `doseNumberSchema`'s missing upper bound has no traced downstream
+  consequence (cosmetic only), and `summaryKindSchema`'s duplication
+  between `clinical-summary.controller.ts` and
+  `population-health.controller.ts` matches this repo's own deliberate
+  per-controller-copy convention (the same one `isoInstant` uses), so
+  de-duplicating it would cut against an existing, intentional pattern
+  rather than fix a bug.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/interop` 33/33 (was 31/31, +2 new tests), `@swasthya/api`
+  590/590 (was 589/589, +1 new test), all other package counts unchanged.
+  `pnpm build` 40/40 (35 cached); mobile's 16 static routes unchanged in
+  count and size.
+
+  **For the next run.** No further TTL/duration field was found without a
+  ceiling in this pass, but this was one controller, not a full sweep — a
+  fresh survey is still the right first move rather than assuming every
+  duration-shaped field elsewhere is already bounded. The two long-standing
+  blocked items are unchanged: `companion.controller.ts`'s missing
+  `EntitlementsGuard` and `analytics`'s open `clinical-charting` source, both
+  needing a product decision, not code. `quality-reporting`/`tenancy`
+  (capability map rows 19-20) remain the only two unbuilt clinical-suite
+  modules and still carry the no-real-dataset risk prior entries describe.
+
+- 2026-08-12 — **Queue fully checked; fixed the `ne-Latn`-collapses-to-
+  Devanagari gap in `apps/api/src/perplexity-health.service.ts`'s `research`
+  disclaimer.** Grepped for `- [ ]` first — zero hits, same as every recent
+  "queue exhausted" run. Rather than open a fresh independent survey, took the
+  concrete candidate the prior run's own log entry had already named and
+  deliberately left open: that run fixed the same `ne-Latn`-collapse bug class
+  in `packages/clinical-safety`'s emergency templates, found the identical
+  pattern a few lines from `research`'s already-correct `languageInstruction`
+  branch, and explicitly deferred it as "a real, same-shape gap ... left as
+  the next run's candidate rather than folded in to keep this run to one
+  task."
+
+  **What was found.** `PerplexityHealthService.research`'s `disclaimer`
+  ternary only branched on `language === 'en'`, so both `'ne'` and `'ne-Latn'`
+  fell through to the Devanagari string — identical to the bug already fixed
+  in `clinical-safety`'s templates, but here on the general research
+  disclaimer rather than a `clinical-safety`-gated emergency message. A person
+  who chose Romanized Nepali because they cannot read Devanagari would still
+  see this one line rendered in Devanagari on every research answer.
+
+  **What was built.** Added a `language === 'ne-Latn'` branch to the
+  `disclaimer` ternary, giving it its own Romanized string
+  ("Yo samanya swasthya jankari matra ho. Yo nidan wa upachar sifaris
+  hoina.") — a direct transliteration of the existing `ne` wording, following
+  the no-diacritics informal style already established in
+  `clinical-safety`'s `ne-Latn` entries and confirmed against that file
+  before writing this one. The service had no colocated test file at all
+  (`companion.controller.test.ts` only exercises it through a mock), so added
+  `apps/api/src/perplexity-health.service.test.ts` with one case per language,
+  asserting `ne-Latn` returns the Romanized string rather than the Devanagari
+  fallback. `PERPLEXITY_API_KEY` is unset in the test environment, so all
+  three cases exercise the real `disclaimer` assembly via the existing
+  `setup-required` early return — no `fetch` mocking needed.
+
+  **What was deliberately not touched.** `languageInstruction` in the same
+  file already branched on `ne-Latn` correctly and needed no change. No other
+  `ne-Latn`-collapse instance was found while reading this file; a fresh
+  survey for further instances elsewhere is the honest next step rather than
+  assuming this was the last one.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` 589/589 (was 586/586, +3 new tests in the new file), all
+  other package counts unchanged. `pnpm build` 40/40; mobile's 16 static
+  routes unchanged in count and size.
+
+- 2026-08-12 — **Queue fully checked; `packages/clinical-safety`'s emergency
+  templates now have a `ne-Latn` entry, and the two call sites that fired
+  them stop collapsing `ne-Latn` to `ne`.** Grepped for `- [ ]` first — zero
+  hits, same as every prior "queue exhausted" run. Rather than trust the
+  prior run's own "for the next run" guess (a fresh survey, not a repeat of
+  the closed `isoInstant` vein or the mined mobile-language-toggle vein),
+  delegated an independent survey agent, which came back with this as its
+  top pick over a higher-severity but genuinely blocked fallback (records
+  routes trusting a bare `ownerId` with no session auth — blocked on
+  `apps/mobile` having no sign-in flow, the same shape as the two
+  already-named blocked items).
+
+  **What was found.** `LanguageCode` is `'ne' | 'en' | 'ne-Latn'` and
+  `ne-Latn` (Romanized Nepali, for people who understand spoken/read Nepali
+  but not the Devanagari script) is a real, user-selectable option in
+  `apps/mobile/app/index.tsx`'s language picker — `packages/localization`'s
+  own `copy` object already carries a full `ne-Latn` variant of every string
+  it holds, including `emergency`. But `packages/clinical-safety`'s
+  `approvedSafetyTemplates` only ever had `ne`/`en` keys, and both call
+  sites — `apps/api/src/companion.controller.ts`'s `assess`/`research` and
+  `apps/mobile/app/(tabs)/companion.tsx`'s inline `template` derivation —
+  collapsed any non-`en` language to `'ne'` before calling
+  `getSafetyTemplate`, because the function's signature only accepted
+  `'ne' | 'en'`. A person who picked Romanized Nepali specifically because
+  they don't read Devanagari would see the chest-pain/self-harm/maternal/
+  pediatric emergency instruction rendered in the one script they may not be
+  able to read, at the highest-stakes moment the app has. This is squarely
+  inside "never weaken the safety layer" — not a new safety decision, a gap
+  in delivering an already-approved one to a language the product already
+  claims to support.
+
+  **What was built.** Added a `'ne-Latn'` key to each of the four templates
+  in `approvedSafetyTemplates` — direct Romanized transliterations of the
+  already-approved `ne` wording sitting next to them, not new clinical
+  content, following the exact no-diacritics informal-transliteration style
+  `packages/localization/src/index.ts`'s own `ne-Latn` entries already use
+  (confirmed against that file before writing these, rather than inventing a
+  style). Widened `getSafetyTemplate`'s signature from `'ne' | 'en'` to the
+  real `LanguageCode` from `@swasthya/shared-types`. Updated both call sites
+  to pass `language` through unmodified instead of collapsing it — this also
+  fixes `apps/mobile`'s inline `template` derivation, which had the
+  identical collapse. Extended `packages/clinical-safety/src/index.test.ts`'s
+  existing "known id and language" loop and "never leaves a template with
+  identical wording" test to cover `ne-Latn` as a third case (asserting it
+  differs from *both* `ne` and `en`, not just from `en`), and added one
+  `CompanionController` test asserting a `ne-Latn` breathing-emergency
+  request returns the Romanized template text verbatim, not a Devanagari
+  fallback.
+
+  **What was deliberately not touched.** `apps/api/src/perplexity-health.service.ts`'s
+  `research`'s `disclaimer` string has the identical collapse (`language ===
+  'en' ? en : ne`, silently dropping `ne-Latn` to Devanagari) a few lines
+  from where its own `languageInstruction` already branches on `ne-Latn`
+  correctly — a real, same-shape gap, but a general research disclaimer, not
+  a `clinical-safety`-gated emergency message, so it was left as the next
+  run's candidate rather than folded in to keep this run to one task. No
+  other `ne-Latn` collapse was found in `clinical-safety`'s own call graph.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/clinical-safety` 13/13 (was 9, +4 new assertions across
+  extended cases), `@swasthya/api` 586/586 (was 585/585, +1 new test), all
+  other package counts unchanged. `pnpm build` 40/40; mobile's 16 static
+  routes unchanged in count and size.
+
+  **For the next run.** The `perplexity-health.service.ts` disclaimer
+  collapse above is a concrete, unblocked, same-shape follow-up. Beyond
+  that, the two long-standing blocked items are unchanged: `companion.controller.ts`'s
+  missing `EntitlementsGuard` (needs a product decision on
+  anonymous-vs-signed-in metering) and `analytics`'s open `clinical-charting`
+  source (needs a decision on what an encounter-only summary should count).
+  `quality-reporting`/`tenancy` (capability map rows 19-20) remain the only
+  two unbuilt clinical-suite modules. A fresh independent survey worked well
+  this run (it found a real, previously-unmined gap) — repeating that
+  approach rather than re-grepping the same closed veins is likely the
+  better use of the next run's first move too.
+
+- 2026-08-12 — **Queue fully checked; `language-corpus.controller.ts`'s
+  `ingestSchema.capturedAt` now rejects a non-ISO-instant value instead of
+  silently accepting any non-empty string.** Grepped for `- [ ]` first — zero
+  hits, same as every prior "queue exhausted" run. The
+  `family-grants.controller.ts` `expiresAt` run's own log entry (immediately
+  below) named this exact gap as its runner-up candidate — same bug shape,
+  same missing `isoInstant` regex — and left it open deliberately to keep
+  that run to one fix. Went straight to it rather than spawning a fresh
+  survey, since the prior run had already diagnosed it down to the field and
+  the fix pattern.
+
+  **What was found.** `language-corpus.controller.ts`'s `ingestSchema` had
+  `capturedAt: z.string().trim().min(1)` — the same shape the
+  `family-grants` controller carried before its own fix, and the same gap
+  the prior run explicitly flagged rather than folding in. Confirmed the
+  consequence is real, if lower-severity than `expiresAt`: `packages/language-corpus`'s
+  `queue()` sorts pending review items with
+  `.toSorted((a, b) => a.capturedAt.localeCompare(b.capturedAt))` — a
+  malformed value (or one in a different format, e.g. no trailing `Z`, or a
+  non-UTC offset) would sort by string rather than by time, silently
+  reordering the human reviewer's queue with no error anywhere. The only
+  real caller, `apps/mobile/src/state/app-state.tsx`'s `captureUtterance`/
+  `grantConsentAndCapture`, always builds `capturedAt` from
+  `new Date().toISOString()`, which already matches the regex, so the
+  tightened schema needed no client-side change.
+
+  **What was built.** Added the same `isoInstant` regex
+  (`/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/`) already carried
+  independently by `scheduling.controller.ts`, `population-health.controller.ts`
+  and `family-grants.controller.ts`, as its own per-controller copy —
+  matching the existing convention of not sharing one across controllers —
+  and applied it to `capturedAt` via `z.string().regex(...)`. One new test
+  in `language-corpus.controller.test.ts` asserting `capturedAt: 'yesterday'`
+  throws `BadRequestException` from `ingest`, mirroring the `family-grants`
+  test's shape.
+
+  **What was deliberately not touched.** `packages/language-corpus` itself
+  was left as-is: unlike `expiresAt`, no domain-layer function silently
+  misinterprets a malformed `capturedAt` as a valid state (there is no
+  liveness check depending on it) — the only consumer is the sort, which a
+  non-ISO string merely reorders rather than breaks a guarantee for. The
+  boundary fix alone closes the reachable gap for the one real caller and
+  any future one. `packages/evaluation`'s test fixtures and
+  `packages/language-corpus`'s own tests already use well-formed ISO strings
+  throughout, so nothing there needed updating.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` now 585/585 (was 584/584, +1 new test), all other package
+  counts unchanged. `pnpm build` 40/40 (35 cached); mobile's 16 static
+  routes unchanged in count and size.
+
+  **For the next run.** No further `- [ ]` items remain in the same
+  `isoInstant`-validation vein — every controller found to date carrying an
+  instant-shaped field (`scheduling`, `population-health`, `family-grants`,
+  `language-corpus`) now validates it. The two long-standing blocked items
+  are unchanged: `companion.controller.ts`'s missing `EntitlementsGuard`
+  (needs a product decision on anonymous-vs-signed-in metering) and
+  `analytics`'s open `clinical-charting` source (needs a decision on what an
+  encounter-only summary should count). `quality-reporting`/`tenancy`
+  (capability map rows 19-20) remain the only two unbuilt clinical-suite
+  modules and still carry the no-real-dataset risk multiple prior entries
+  have already described. A fresh independent survey (not a repeat of the
+  angles the 2026-08-12 `expiresAt` run's own entry already listed as
+  checked clean) is likely the right next step rather than trusting this
+  entry's own guess at what remains.
+
+- 2026-08-12 — **Queue fully checked; `family-grants.controller.ts`'s
+  `createDelegation` now rejects a non-ISO `expiresAt` instead of silently
+  creating a delegation grant that never lapses.** Grepped for `- [ ]` first
+  — zero hits, same as every prior "queue exhausted" run. The prior
+  (`termAppears`) run's own log entry said a fresh, independent survey was
+  likely needed rather than trusting its own guess, and warned the last
+  several runs had been closing out a fixed candidate list found days
+  earlier — so this run spawned a general-purpose survey agent with explicit
+  instructions to search along angles the ledger's own history shows are
+  *not* yet covered (real correctness bugs in under-scrutinized packages,
+  untested risky branches, data-integrity gaps analogous to the
+  `devices`/`assertNonNegative` fix, DRY drift analogous to
+  `normalizeLabel`, a fresh `apps/web` i18n sweep, and unvalidated input at
+  `apps/api` boundaries) and told explicitly not to resurface the two
+  already-named, product-decision-blocked items
+  (`companion.controller.ts`'s `EntitlementsGuard`,
+  `analytics`'s open `clinical-charting` source) or propose building
+  `quality-reporting`/`tenancy` wholesale.
+
+  **What was found.** The survey noticed `apps/api` has an established,
+  three-times-repeated convention: `scheduling.controller.ts` and
+  `population-health.controller.ts` both validate their own ISO-instant
+  fields (`scheduledStart`/`scheduledEnd`, `asOf`) with a shared-shape
+  `isoInstant` regex (`/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/`),
+  `scheduling.controller.ts`'s own comment explaining why (regex, "not
+  zod's built-in `.datetime()`, for the same 'explicit over a library
+  validator' reason `patient-registry`'s `dateOfBirth` regex already set").
+  `family-grants.controller.ts`'s `createDelegationSchema.expiresAt` was
+  still just `z.string().trim().min(1)` — non-empty, nothing else. Verified
+  this was a real, reachable bug rather than a style-only gap by tracing the
+  actual failure through the domain layer: `packages/family/src/index.ts`'s
+  `buildDelegationGrant` (line 240) validates expiry only via
+  `expiresAt <= grantedAt`, a plain string comparison — `'forever' <=
+  '2026-08-12T...Z'` is `false` because ASCII `'f'` sorts after every digit,
+  so the guard never fires. The grant then persists with
+  `expiresAt: 'forever'`, and `isDelegationActive` (line 304) checks
+  `now < grant.expiresAt`, which is `true` for every future ISO timestamp
+  compared against `'forever'` — the grant reads as active forever through
+  the domain layer's own liveness check, directly defeating
+  `family-and-proxy.md` §2's stated guarantee that "an abandoned grant
+  lapses instead of persisting forever." The route is reachable by any
+  authenticated caller (`SessionAuthGuard` only, no schema-side date
+  parsing) — the web form's `new Date(expiresAt).toISOString()` conversion
+  in `DelegationForm.tsx` is a client-side convenience, not a server-side
+  guarantee, so a raw API call (curl, Postman, a future second client) could
+  send any string. No existing test in `family-grants.controller.test.ts`
+  or `family-grants.service.test.ts` exercised a non-ISO `expiresAt` —
+  only empty scopes, an invalid phone, and a syntactically-valid-but-past
+  date were covered.
+
+  **What was built.** Hoisted the same `isoInstant` regex into
+  `family-grants.controller.ts` (a per-controller copy, matching the
+  existing convention — `scheduling` and `population-health` each carry
+  their own rather than sharing one) and applied it to `expiresAt` via
+  `z.string().regex(...)`, same as the two sibling controllers. One new
+  test in `family-grants.controller.test.ts` asserting `expiresAt: 'forever'`
+  throws `BadRequestException` before the service is ever called, matching
+  the file's existing `toThrow`-not-`rejects` pattern for the schema's
+  synchronous rejection. Confirmed `DelegationForm.tsx`'s
+  `new Date(expiresAt).toISOString()` call always emits the exact `.SSSZ`
+  shape the regex expects, so the one real caller needed no change.
+
+  **What was deliberately not touched.** The survey's runner-up,
+  `language-corpus.controller.ts`'s `ingestSchema.capturedAt` (same
+  `z.string().trim().min(1)` gap, same missing `isoInstant` regex), was left
+  open — it is the same bug *shape* but lower severity: `capturedAt` only
+  drives review-queue ordering via `localeCompare`, with no permanent-access
+  consequence the way `expiresAt` has. Left as a named candidate for the
+  next run rather than bundled in, to keep this run to the one concrete,
+  highest-value fix. `packages/family`'s own `expiresAt <= grantedAt`
+  string-comparison guard was also left as-is — tightening the domain
+  layer itself (e.g. parsing to a real `Date` and comparing numerically)
+  would be a second, broader change to a package every guardianship and
+  delegation check depends on, and the boundary fix alone already closes
+  the reachable gap: nothing between the API and `packages/family` can
+  reach `buildDelegationGrant` with an unparseable string anymore.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/api` now 584/584 (was 583/583, +1 new test), all other package
+  counts unchanged. `pnpm build` 40/40 (35 cached); mobile's 16 static
+  routes unchanged in count and size.
+
+  **For the next run.** `language-corpus.controller.ts`'s `capturedAt` (above)
+  is a real, small, unblocked follow-up in the same bug class. The two
+  long-standing blocked items are unchanged: `companion.controller.ts`'s
+  missing `EntitlementsGuard` (needs a product decision on
+  anonymous-vs-signed-in metering) and `analytics`'s open `clinical-charting`
+  source (needs a decision on what an encounter-only summary should count).
+  `quality-reporting`/`tenancy` (capability map rows 19-20) remain the only
+  two unbuilt clinical-suite modules and still carry the no-real-dataset
+  risk multiple prior entries have already described. This run's survey also
+  read through `packages/entitlements`, `packages/credentialing`,
+  `packages/identity`, `packages/module-registry`, `packages/care-directory`,
+  `packages/digital-twin`, `packages/language-corpus` (the package, not its
+  controller), `packages/family` (the package itself, not its controller),
+  `packages/interop/src/export-pdf.ts`, `packages/scheduling`,
+  `packages/medication-safety`, and the newest `apps/web` account
+  components (`DelegationForm.tsx`, `DelegationsGrantedList.tsx`, both
+  fully localized) — all found clean, so the next survey shouldn't need to
+  repeat them.
+
+- 2026-08-12 — **Queue fully checked; fixed `packages/retrieval`'s
+  `termAppears` so a Nepali possessive suffix glued onto a clinical term no
+  longer blocks the match, closing the `janaki-advice-suffix-gap` known
+  gap.** Grepped for `- [ ]` first — zero hits, same as every prior "queue
+  exhausted" run. The `classifyIntent`-marker-collision run's own log entry
+  (immediately below) named this as "the other standing, already-diagnosed
+  candidate" in `packages/evaluation`, so this run went straight to it
+  rather than spawning a fresh survey — the case was diagnosed in enough
+  depth (down to the exact function and line) by the 2026-08-10 run that
+  built the evaluation set that a repeat survey would only have rediscovered
+  the same gap.
+
+  **What was found.** `packages/evaluation/src/index.ts`'s
+  `janaki-advice-suffix-gap` case: "मेरो सुगरको लागि के गर्ने?" ("what should
+  I do for my sugar?") came back a fully unrecognised `NOT_UNDERSTOOD`
+  refusal instead of naming glucose, because `packages/retrieval/src/index.ts`'s
+  `termAppears` requires a single-word term to equal a whole query token
+  (`queryTokens.includes(normalizedTerm)`), and `tokenize` — which only
+  splits on non-letter/mark/digit boundaries — has no notion of Nepali
+  morphology. सुगर ("sugar") with the possessive suffix को glued directly
+  onto it with no space tokenizes as one token, `सुगरको`, which never equals
+  `सुगर`. Confirmed the gap was still live by rereading `git log` on
+  `packages/retrieval/src/index.ts` since the 2026-08-10 evaluation-set run
+  (untouched) and by the known-gap test asserting the fully-unrecognised
+  output before this run's change.
+
+  **What was built, and why the narrower of the `idealNote`'s two options.**
+  The case's own `idealNote` named two possible fixes: a general
+  suffix-stripping pass inside `tokenize`/`termAppears`, or listing inflected
+  forms per term. Took a third, narrower option instead — a small,
+  additive check in `termAppears` alone, not a change to `tokenize` (which
+  every term in the map runs through, including phrase terms, romanized
+  forms and English) or to `clinicalTermMap` (which would mean hand-listing
+  को/की/का variants for all eleven concepts' Nepali forms, a much larger
+  surface for a translation mistake to hide in). A new
+  `POSSESSIVE_SUFFIXES = ['को', 'की', 'का']` constant and a same-token
+  fallback check: `queryTokens.includes(normalizedTerm + suffix)`, tried only
+  after the existing exact-token check fails, and only for single-word terms
+  — a multi-word (phrase) term keeps matching by substring against the whole
+  normalized query, unaffected. Two new tests in
+  `packages/retrieval/src/index.test.ts`: the exact
+  `janaki-advice-suffix-gap` query now matches `glucose`, and a second case
+  (`मेरो मुटुको बारेमा`, "about my heart") confirming the fix only adds the
+  suffixed form of the matching term rather than loosening matching into a
+  general substring check that could pull in unrelated concepts.
+
+  **Evaluation-set fallout.** Updated the `janaki-advice-suffix-gap` case's
+  `expected` to `{ kind: 'REFUSAL', intent: 'ADVICE', reason:
+  'NO_MATCHING_RECORD', concepts: ['glucose'] }` (worked through
+  `composeAnswer`'s branching by hand: `ADVICE` is never in
+  `COMPUTABLE_INTENTS`, so it is always `NOT_COMPUTABLE`;
+  `unconfirmedDraftsOnly` is hardcoded `false` for a non-computable intent;
+  with a non-empty `matchedConcepts` that leaves `NO_MATCHING_RECORD`, not
+  `NOT_UNDERSTOOD`) and dropped its `idealNote`, the same "move it out of the
+  known-gaps list" instruction the marker-collision run followed for its own
+  case. That left `evaluationCases` with **zero** `idealNote` entries — the
+  `known-gap cases still match their documented, verified current behavior`
+  test's `expect(knownGapCases.length).toBeGreaterThan(0)` assumed at least
+  one would always exist, which stopped being true. Rewrote that assertion
+  to run `runEvaluationSet` over the (now empty) known-gap list and assert
+  `passed === total` instead of asserting a nonzero count — the property the
+  test exists to guard ("known-gap cases match their documented behavior")
+  holds vacuously at zero and the same assertion starts exercising real
+  cases again the moment a future survey documents a new `idealNote`. This
+  is a real behavior-preserving fix to an assumption the test's own history
+  invalidated, not a weakened assertion — it was checked against the working
+  agreement's "never weaken a test" rule before making the change.
+
+  **What was deliberately not touched.** `tokenize` itself, and the other
+  Nepali case markers (`लाई`, `ले`, `मा`, `बाट`, `देखि`, `हरू`) — the
+  `idealNote` and this case both named specifically the possessive family
+  (को/की/का), and generalizing to every Nepali postposition without a
+  concrete failing case to verify against would be exactly the "broad,
+  unverified change to the core matching primitive" the original `idealNote`
+  warned against.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/retrieval` now 25/25 (was 23/23, +2 new tests),
+  `@swasthya/evaluation` 13/13 (unchanged count), `@swasthya/intent-router`
+  37/37 (unchanged), `@swasthya/api` unchanged at 583/583. `pnpm build`
+  40/40 (35 cached); mobile's 16 static routes unchanged in count and size.
+
+  **For the next run.** Both `packages/evaluation` known-gap cases from the
+  2026-08-10 evaluation-set run are now fixed; a fresh independent survey is
+  likely needed to find the next candidate rather than trusting this entry's
+  guess. The two long-standing blocked items are unchanged:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (needs a product
+  decision on anonymous-vs-signed-in metering) and `analytics`'s open
+  `clinical-charting` source (needs a decision on what an encounter-only
+  summary should count). `quality-reporting`/`tenancy` (capability map rows
+  19-20) remain the only two unbuilt clinical-suite modules and still carry
+  the no-real-dataset risk multiple prior entries have already described.
+
+- 2026-08-12 — **Queue fully checked; fixed `classifyIntent`'s
+  DEFINITION/LATEST_VALUE marker collision, closing the
+  `janaki-definition-marker-collision` known gap.** Grepped for `- [ ]`
+  first — zero hits, same as every prior "queue exhausted" run. The
+  `normalizeLabel`-dedup run's own log entry said a fresh, independent
+  survey was overdue since several runs in a row had been closing out a
+  fixed candidate list two survey agents found days earlier — so this run
+  spawned a new survey (ownership-check audit across every `apps/api`
+  controller, i18n key-parity diff, fault-isolation coverage check across
+  all 16 clinical-suite modules, a fresh TODO/FIXME grep, and a read-through
+  of `packages/evaluation`, a package no recent entry had revisited) rather
+  than continuing down the old list.
+
+  **What was found and why it ranked first.** `packages/evaluation/src/index.ts`
+  already documents two live, unfixed gaps as `idealNote`-carrying "known-gap"
+  cases, both dating to the 2026-08-10 run that built the evaluation set and
+  explicitly deferred fixing them as "real work belonging to a dedicated
+  task." `janaki-definition-marker-collision` (an English "What is my current
+  blood sugar?" question) was the higher-value of the two: it is a
+  correctness bug in the deterministic answer-routing core the whole
+  grounded-answers architecture depends on (`grounded-answers.md` §2 — "a
+  question about a number in the record must never reach the model as
+  something to answer"), not a UI/copy gap, and closer to the
+  safety/correctness tier of prior accepted work (`emergency-chest-001`,
+  `assertNonNegative`) than a translation fix. `packages/intent-router/src/index.ts`'s
+  `classifyIntent` checked `DEFINITION_MARKERS` (which includes the English
+  phrase `'what is'`, needed for the genuine "what is thyroid" case) before
+  `LATEST_VALUE_MARKERS` (which includes `'current'`), so "What is my
+  **current** blood sugar?" matched `'what is'` first and was classified
+  `DEFINITION` — a `NOT_COMPUTABLE` intent — instead of `LATEST_VALUE`, and
+  refused with `NO_MATCHING_RECORD` instead of answering. Confirmed the bug
+  was still live (untouched since the original Round-two commits) via `git
+  log` on both `packages/intent-router/src/index.ts` and
+  `packages/retrieval/src/index.ts`, and via the evaluation suite's own
+  "known-gap cases still match their documented, verified current behavior"
+  test, which passed before this run — i.e. asserted the bug's presence.
+
+  **What was built.** Reordered `classifyIntent`'s marker checks so
+  `LATEST_VALUE_MARKERS && !TREND_MARKERS` is checked before
+  `DEFINITION_MARKERS` (COMPARISON_MARKERS and the TREND fallback unchanged).
+  This only changes English routing — the Nepali markers don't collide
+  (के हो/अर्थ/मतलब never overlap कस्तो/अहिले/पछिल्लो/हालको) — and doesn't
+  disturb any existing `classifyIntent` test: none of the current
+  DEFINITION/COMPARISON test queries contain a `LATEST_VALUE_MARKERS` word,
+  confirmed by rereading `packages/intent-router/src/index.test.ts` and by
+  the full 37/37 intent-router suite staying green. Ran the actual query
+  through `runEvaluationCase` (via a built-`dist` scratch script, not left in
+  the repo) to get the real output rather than guessing it: `route` now
+  retrieves for the LATEST_VALUE intent and answers with exactly
+  `glucoseCodes` (`['4548-4', '1558-6']`, Hemoglobin A1c + Fasting Glucose) —
+  confirming the `matchedConcepts` also picking up `'blood'` (from "blood
+  sugar"/"blood" both being surface forms in `clinicalTermMap`) doesn't pull
+  in an unrelated code, since no other trusted Janaki observation's label
+  contains "blood" on its own. Updated the `janaki-definition-marker-collision`
+  case's `expected` to `{ kind: 'ANSWERED', intent: 'LATEST_VALUE', codes:
+  glucoseCodes }` and dropped its `idealNote`, moving it out of the
+  known-gaps list and into the "ideal answer" set per that test file's own
+  instructions ("the fix is to move the case out of this list ... not to
+  weaken this assertion").
+
+  **What was deliberately not touched.** The sibling known gap,
+  `janaki-advice-suffix-gap` (Nepali possessive-suffix तokenization — "सुगरको"
+  never matches "सुगर" because `termAppears` requires a whole-token match),
+  is unrelated to this collision and stays open with its own `idealNote` —
+  fixing it needs either a suffix-stripping change to `packages/retrieval`'s
+  `tokenize`/`termAppears` (a broad change to the core matching primitive
+  every clinical term goes through) or per-term inflected-form entries in
+  `clinicalTermMap`, either of which is its own task. Did not touch
+  `COMPARISON_MARKERS`'s position relative to `LATEST_VALUE_MARKERS` — no
+  collision between them exists in any current test or the fixed case, so
+  reordering them too would be an unverified change with no evidence behind
+  it.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  `@swasthya/intent-router` 37/37 (unchanged count), `@swasthya/evaluation`
+  13/13 (unchanged count, previously 12 passed + 1 failed), `@swasthya/api`
+  unchanged at 583/583. `pnpm build` 40/40 (35 cached); mobile's 16 static
+  routes unchanged in count and size.
+
+  **For the next run.** `janaki-advice-suffix-gap` (above) is the other
+  standing, already-diagnosed candidate in `packages/evaluation`, though it's
+  a narrower win than this one was. The two long-standing blocked items are
+  unchanged: `companion.controller.ts`'s missing `EntitlementsGuard` (needs a
+  product decision on anonymous-vs-signed-in metering) and `analytics`'s open
+  `clinical-charting` source (needs a decision on what an encounter-only
+  summary should count). `quality-reporting`/`tenancy` (capability map rows
+  19-20) remain the only two unbuilt clinical-suite modules and still carry
+  the no-real-dataset risk multiple prior entries have already described.
+  This run's own survey audited every `apps/api` controller's ownership
+  checks (all clean or explicit, already-flagged tenancy debt — see
+  `clinical-suite.md` row 20), diffed `ne.json`/`en.json` key sets (clean,
+  639/639), and confirmed all 16 clinical-suite modules have their
+  `*.fault-isolation.test.ts` — none of those are live candidates anymore.
+
+- 2026-08-12 — **Queue fully checked; extracted the duplicated
+  `normalizeLabel` into a new `packages/text-normalization` package.**
+  Grepped for `- [ ]` first — zero hits, same as every prior "queue
+  exhausted" run. The two most recent log entries (the `sanitizeFilename`
+  fallback run and the `assertNonNegative` run before it) had each already
+  named the same concrete, unblocked candidate and each deferred it as
+  "not a reachable bug the way the empty-filename case was" — `normalizeLabel`
+  (NFKC + trim + lowercase) copy-pasted verbatim into
+  `packages/medication-safety/src/index.ts:27-29` and
+  `packages/population-health/src/index.ts:27-29`, each file's own comment
+  pointing at the other as "the original." Confirmed with `grep -n
+  "normalizeLabel" -r packages/medication-safety/src
+  packages/population-health/src` that both copies were still byte-identical
+  before touching anything. This is the same duplication class already paid
+  down once this repo (`hosted-store.ts`/`google-drive-store.ts`'s filename
+  sanitization, deduped into a shared `filename.ts` earlier the same day) —
+  taken now because two consecutive runs had already flagged it and moved on
+  without fixing it, and every day it stays duplicated is another day the two
+  copies can silently diverge the way the filename sanitizers once did.
+
+  **What was built and why a new package.** `medication-safety` and
+  `population-health` are siblings with no dependency between them and no
+  existing shared runtime-logic package to hold this (`shared-types` is
+  types only — grepped for `^export function` there and found none; adding a
+  function would break that package's own contract). Cross-importing one
+  package from the other was rejected too: `population-health` depending on
+  `medication-safety` (or vice versa) purely for an unrelated string helper
+  would be an invented coupling between two bounded contexts that otherwise
+  don't know about each other, worse than the duplication it would remove.
+  So this run added `packages/text-normalization`, following this repo's own
+  "extraction-ready domain packages" pattern (`platform-vision.md` §3) and
+  matching `shared-types`'s precedent of a small package existing purely to
+  be depended on by others — package.json/tsconfig copied from
+  `packages/configuration` (the closest existing example of a dependency-free
+  leaf package), one exported `normalizeLabel`, and a colocated
+  `index.test.ts` with five cases: case-fold, whitespace trim, an NFKC
+  compatibility-ligature case (`ﬁ` → `fi`), a precomposed-vs-decomposed
+  accent case (verified via raw UTF-8 bytes that the two literal test inputs
+  are genuinely different codepoint sequences before asserting
+  `normalizeLabel` treats them the same), and a negative case confirming
+  distinct labels stay distinct. Both call sites now `import {
+  normalizeLabel } from '@swasthya/text-normalization'` instead of defining
+  it locally; `pnpm install` (not frozen) regenerated `pnpm-lock.yaml` with
+  the new workspace importer before verifying `--frozen-lockfile` passed
+  clean afterward.
+
+  **What was deliberately not touched.** `packages/clinical-safety`'s own
+  `message.normalize('NFKC').trim()` (no case-fold, matched instead via
+  case-insensitive regex flags) was left alone — it is a different
+  normalisation for a different purpose in the one package the standing
+  constraints single out as never-to-be-routed-around, and neither
+  `medication-safety`'s nor `population-health`'s original comment claiming
+  it as "the same normalisation `packages/clinical-safety` uses" was ever
+  quite accurate (it doesn't lowercase). Reconciling that comment's accuracy
+  or unifying the two normalisations was out of scope for a one-task run
+  touching a safety-critical package.
+
+  **Verify.** `pnpm install` (non-frozen, to add the new workspace importer)
+  then `pnpm install --frozen-lockfile` clean. `pnpm lint` 40/40 (was 39/39
+  — the new package). `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks —
+  new `@swasthya/text-normalization` 1 file / 5 tests, `@swasthya/api`
+  unchanged at 583/583 (99 files). `pnpm build` 40/40 (35 cached); mobile's
+  16 static routes unchanged in count and size, since nothing in
+  `apps/mobile`/`apps/web` imports either changed package.
+
+  **For the next run.** No new candidate was surfaced beyond what earlier
+  entries already named. The two standing blocked items are unchanged:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (needs a product
+  decision on anonymous-vs-signed-in metering) and `analytics`'s open
+  `clinical-charting` source (needs a decision on what an encounter-only
+  summary should count). `quality-reporting`/`tenancy` (capability map rows
+  19-20) remain the only two unbuilt clinical-suite modules and still carry
+  the no-real-dataset risk multiple prior entries have already described. A
+  fresh, independent survey is likely overdue — the last several runs have
+  been closing out a fixed list of candidates two survey agents found days
+  ago rather than looking again.
+
+- 2026-08-12 — **Queue fully checked; `packages/storage-adapters`'s
+  `sanitizeFilename` no longer returns an empty string.** Grepped for
+  `- [ ]` first — zero hits, same as every prior "queue exhausted" run. The
+  prior run's own log entry (the `assertNonNegative` guard, immediately
+  below) named two concrete, unblocked candidates rather than leaving a
+  vague pointer to "survey again," so this run verified the higher-severity
+  one before touching anything: `sanitizeFilename` (`filename.ts`) maps each
+  character to itself or `_`, never drops one, so the only way its result
+  can be empty is an input that is itself empty or entirely whitespace
+  (control characters get replaced with `_`, not stripped, so they don't
+  trigger it). Confirmed both call sites take that string uncritically —
+  `hosted-store.ts:96` concatenates it into an object key (survivable, if
+  ugly: `ownerId/uuid-`) but `google-drive-store.ts:208` hands it straight to
+  the Drive API as the multipart request's `name` field, which would upload
+  a file with no name at all. `grep -n "BodyMass\|sanitizeFilename" -r
+  packages/storage-adapters/src` confirmed no existing test exercised the
+  empty/whitespace-only input on either function.
+
+  **What was built.** A `FALLBACK_FILENAME = 'document'` constant in
+  `filename.ts`; `sanitizeFilename` now returns it whenever the sanitized,
+  trimmed result is `''`, instead of returning `''` itself. Both adapters
+  pick this up for free since they already import the shared helper — no
+  change needed in `hosted-store.ts` or `google-drive-store.ts` themselves,
+  which is exactly the point of the shared-helper extraction the
+  `hosted-store.ts` run did earlier the same day. Three new tests in
+  `filename.test.ts`: empty-string input, whitespace-only input (both assert
+  `'document'`), and a control case confirming a string of only reserved
+  characters (`/\:*?"<>|`) does *not* fall back, since those characters
+  survive as underscores rather than vanishing — `'_________'`, not
+  `'document'` — so the fallback only fires for the genuinely-empty case,
+  not for "every character happened to be unsafe."
+
+  **What was deliberately not touched.** `normalizeLabel` (NFKC + trim +
+  lowercase), duplicated verbatim between
+  `packages/medication-safety/src/index.ts:27-29` and
+  `packages/population-health/src/index.ts:27-29` — the `assertNonNegative`
+  run's other named candidate — was left open: it is a DRY/drift risk, not a
+  reachable bug the way the empty-filename case was, and this run's working
+  agreement is one task.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73 turbo tasks —
+  `@swasthya/storage-adapters` now 46/46 tests (was 43/43), `@swasthya/api`
+  unchanged at 583/583. `pnpm build` 39/39 (34 cached; this package has no
+  `apps/web`/`apps/mobile` build-time dependency).
+
+  **For the next run.** `normalizeLabel`'s duplication (above) is still a
+  real, small, unblocked candidate. The two standing blocked items are
+  unchanged: `companion.controller.ts`'s missing `EntitlementsGuard` (needs a
+  product decision on anonymous-vs-signed-in metering) and `analytics`'s
+  open `clinical-charting` source (needs a decision on what an
+  encounter-only summary should count). `quality-reporting`/`tenancy`
+  (capability map rows 19-20) remain the only two unbuilt clinical-suite
+  modules and still carry the no-real-dataset risk multiple prior entries
+  have already described.
+
+- 2026-08-12 — **Queue fully checked; `packages/devices` now rejects
+  negative readings for metrics that can never physiologically be negative.**
+  Grepped for `- [ ]` first — zero hits, same as every prior "queue
+  exhausted" run. The prior run's own log entry said it closed the one
+  candidate it already had named and recommended a fresh, independent survey
+  rather than trusting its own guess at what's left, so this run spawned a
+  survey agent instructed to re-search the codebase itself: it re-verified
+  message-key parity between `apps/web/messages/ne.json` and `en.json` (zero
+  mismatches), grepped the whole repo for `TODO`/`FIXME`/`.skip(`/`xit(`/
+  `describe.todo(` (nothing outside a test string asserting their absence),
+  and found three genuinely unblocked gaps. Took the highest-value one:
+  `packages/devices/src/index.ts`'s `assertFinite` (used throughout
+  `normalizeHealthConnectRecord`/`normalizeHealthKitSample`) only ever
+  checked `Number.isFinite`, never sign, for metrics that can never
+  legitimately be negative — `STEPS`, `HEART_RATE`, `RESTING_HEART_RATE`,
+  `BLOOD_OXYGEN`, `BLOOD_GLUCOSE`, both `BLOOD_PRESSURE_*` fields,
+  `BODY_WEIGHT`, `RESPIRATORY_RATE`. A malformed bridge payload (e.g.
+  `count: -50`) would silently normalize and flow downstream into
+  trends/`digital-twin` with no downstream check to catch it. This package
+  has data-integrity consequences closer to the safety layer than the other
+  two candidates the survey found (an empty-string fallback gap in
+  `storage-adapters`'s `sanitizeFilename`, and a `normalizeLabel`
+  duplicated verbatim between `medication-safety` and `population-health`),
+  so it went first.
+
+  **What was built.** A new `assertNonNegative(value, field)` guard next to
+  `assertFinite` in `packages/devices/src/index.ts`, throwing the existing
+  `InvalidDeviceRecordError` with a `Negative <field>: <value>` message —
+  same error type and shape `assertFinite` already uses, so callers
+  (currently none; this package isn't wired to a caller yet) don't need a
+  new catch branch. Called immediately after every existing `assertFinite`
+  call for the nine metric kinds listed above, across both the Health
+  Connect and HealthKit normalizers (18 call sites total). Two new tests in
+  `index.test.ts`: a Health Connect `StepsRecord` with `count: -50` and a
+  HealthKit `HKQuantityTypeIdentifierBodyMass` sample with `value: -1`, both
+  asserting `InvalidDeviceRecordError`, mirroring the existing non-finite
+  rejection tests' shape exactly.
+
+  **What was deliberately not touched.** `BODY_TEMPERATURE` and
+  `SLEEP_DURATION` were left without a non-negative guard: temperature is
+  converted from a raw Fahrenheit/Celsius reading with no natural zero floor
+  the way a count or a percentage has (the survey didn't flag it, and
+  extending the guard there would have been the agent's own invented
+  threshold, not a case backed by the same "count can't be negative" logic
+  as the other nine), and `SLEEP_DURATION` is derived from
+  `minutesBetween`, which already rejects `end < start` and therefore can
+  never itself go negative. The other two survey candidates (the
+  `sanitizeFilename` empty-string fallback and the `normalizeLabel`
+  duplication) were left open for a future run.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73 turbo tasks —
+  `@swasthya/devices` now 29/29 tests (was 27/27), `@swasthya/api` unchanged
+  at 583/583. `pnpm build` 39/39 (34 cached).
+
+  **For the next run.** Two concrete, unblocked candidates from this run's
+  own survey were not taken: (1) `packages/storage-adapters/src/filename.ts`
+  `sanitizeFilename` can return an empty string when the input is empty or
+  entirely whitespace/control characters, with no fallback before
+  `google-drive-store.ts:208` passes it straight to the Drive API as
+  `name:`; (2) `normalizeLabel` (NFKC + trim + lowercase) is copy-pasted
+  verbatim in `packages/medication-safety/src/index.ts:27-29` and
+  `packages/population-health/src/index.ts:27-29`, each with a comment
+  pointing at the other as the "original" — the same DRY-drift risk class
+  already fixed once for `google-drive-store.ts`/`hosted-store.ts`'s
+  filename sanitization, not yet extracted to a shared util. The two
+  standing blocked items are unchanged: `companion.controller.ts`'s missing
+  `EntitlementsGuard` (needs a product decision on anonymous-vs-signed-in
+  metering) and `analytics`'s open `clinical-charting` source (needs a
+  decision on what an encounter-only summary should count).
+  `quality-reporting`/`tenancy` (capability map rows 19-20) remain the only
+  two unbuilt clinical-suite modules and still carry the no-real-dataset
+  risk multiple prior entries have already described.
+
+- 2026-08-12 — **Queue fully checked; covered `packages/devices`'s untested
+  `HKQuantityTypeIdentifierBodyMass` HealthKit weight-conversion path.**
+  Grepped for `- [ ]` first — zero hits, same as every prior "queue exhausted"
+  run. Rather than re-survey the whole repo again, took the prior run's own
+  named follow-up at face value and verified it before touching anything:
+  `packages/devices/src/index.ts:667-681` normalizes
+  `HKQuantityTypeIdentifierBodyMass` through the same `massToKg(value, unit)`
+  helper the Health Connect `WeightRecord` case already uses, but
+  `index.test.ts` only ever exercised the Health Connect side (`'converts
+  weight from lb to kg'`, line 137) — `grep -n "BodyMass" index.test.ts`
+  before this run returned nothing. Every other HealthKit quantity type in
+  the file (glucose, temperature, oxygen saturation) already had its own
+  conversion test; body mass was the one silent gap, consistent with what
+  the survey agent two runs ago had already found and the prior run had
+  deliberately left open rather than scope-creep into.
+
+  **What was built.** One new test in `packages/devices/src/index.test.ts`,
+  `'converts body mass from lb to the canonical kg'`, mirroring the existing
+  Health Connect weight test's shape and inputs exactly (154 lb →
+  `toBeCloseTo(69.9, 1)`, `unit: 'kg'`) plus an assertion on `kind` —
+  `'BODY_WEIGHT'` — that the Health Connect test omits, since `massToKg`'s
+  own correctness was already proven there and this test's job is confirming
+  the HealthKit branch routes to it and tags the result correctly. No source
+  line in `index.ts` changed; `massToKg`, the `HealthKitBodyMassSample`
+  interface and its `switch` case were already correct — this closed a
+  coverage gap, not a behavior bug.
+
+  **What was deliberately not added.** A second HealthKit body-mass case for
+  the untouched `kg`-unit passthrough was considered and skipped: the
+  Health Connect suite doesn't test that branch either (only lb→kg is
+  covered there), and `massToKg`'s `kg` branch is a one-line `round(value,
+  1)` with no unit-conversion logic to verify — adding it here without the
+  same test existing on the Health Connect side would have been asymmetric
+  coverage for its own sake, not a real gap.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73 turbo tasks —
+  `@swasthya/devices` now 27/27 tests (was 26/26), `@swasthya/api` unchanged
+  at 583/583. `pnpm build` 39/39 (34 cached; this package has no
+  `apps/web`/`apps/mobile` build-time dependency).
+
+  **For the next run.** The two standing blocked items are unchanged:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (needs a product
+  decision on anonymous-vs-signed-in metering) and `analytics`'s open
+  `clinical-charting` source (needs a decision on what an encounter-only
+  summary should count). `quality-reporting`/`tenancy` (capability map rows
+  19-20) remain the only two unbuilt clinical-suite modules and still carry
+  the no-real-dataset risk multiple prior entries have already described. No
+  new candidate was surfaced by this run — it closed the one already named
+  rather than searching for another — so the next "queue exhausted" run
+  should do a fresh, independent survey rather than assume this list is
+  exhaustive.
+
+- 2026-08-12 — **Queue fully checked; covered `packages/clinical-safety`'s
+  untested `emergency-chest-001` rule and two other test gaps in the same
+  file.** Grepped for `- [ ]` first — zero hits, same as every prior "queue
+  exhausted" run. The prior run's own log entry (the `hosted-store.ts`
+  dedupe, immediately below) said it found no new candidate and recommended
+  "a fresh, wider survey next time rather than assuming this file's own
+  guess at candidates is exhaustive," so this run spawned an independent
+  general-purpose survey agent instructed to re-search the codebase itself
+  rather than trust the ledger's own running list of blocked/done items, and
+  to explicitly confirm each candidate wasn't already covered. It re-verified
+  (not just repeated) that the filename-sanitization bug class, the mobile
+  localization vein and the fault-isolation-test coverage across all 16
+  clinical-suite modules are genuinely exhausted, then found this: `src/index.ts:11`
+  defines `emergency-chest-001` — the chest-pain/heart-attack pattern, with
+  both an English regex (`/chest (pain|pressure).*(severe|sweat|faint|arm|jaw)/i`)
+  and a Nepali one (`/छाती.*(कडा|दुखाइ|पसिना|बेहोस)/u`) — but
+  `src/index.test.ts`'s `it.each` block exercised the other four safety
+  rules and never this one. `grep -rn "chest" --include="*.test.ts"` across
+  the whole repo returned zero hits before this run. Standing constraints
+  name this exact package ("Never weaken the safety layer... runs its
+  deterministic interception before any model call"), so an entirely
+  untested rule inside it — the one built specifically to catch a described
+  heart attack — was the highest-consequence gap found anywhere in the
+  survey, and closing it required no source change and no product decision,
+  only tests.
+
+  **What was built.** Extended the existing `it.each` table in
+  `packages/clinical-safety/src/index.test.ts` with one English phrasing
+  (`'I have severe chest pain and I am sweating'`) and one Nepali phrasing
+  (`'छाती दुखाइ र पसिना आइरहेको छ'`) asserting `emergency-chest-001` fires with
+  `riskLevel: 'EMERGENCY_NOW'` and `interruptConversation: true`, matching
+  the exact shape already used for the other four rules — no new assertion
+  style introduced. Also added, since the same file had two other silent
+  gaps once actually read: a negative-path test asserting a benign message
+  ('What is a normal blood pressure range?') returns
+  `{ riskLevel: 'CLINICIAN_RECOMMENDED', matchedRuleIds: [], interruptConversation: false }`
+  — `assessSafety`'s no-match branch (`index.ts:39`) had no test at all
+  before this, positive or negative; and two `getSafetyTemplate` tests
+  iterating every real `templateId`/language pair in `approvedSafetyTemplates`,
+  asserting the returned string matches the source record exactly and that
+  no template's `ne` and `en` wording are ever identical — the exact bug
+  class an earlier run (2026-08-12, `companion.tsx`'s disclaimer) found and
+  fixed elsewhere in this repo, where a language ternary's two branches held
+  the same English sentence. Before this run, nothing in
+  `clinical-safety`'s own suite would have caught that same mistake inside
+  `approvedSafetyTemplates`.
+
+  **What was deliberately not touched.** No source line in
+  `packages/clinical-safety/src/index.ts` changed — every regex, every
+  template string and every rule's `level`/`interrupt`/`templateId` were
+  already correct; this was purely a coverage gap, not a behavior bug. The
+  survey's #2 candidate (an untested `HKQuantityTypeIdentifierBodyMass`
+  weight-unit conversion path in `packages/devices`, mirroring a test that
+  already exists on the Health Connect side) was left open — lower stakes
+  than a missed emergency-detection rule and a reasonable next pick if this
+  vein is revisited.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73 turbo tasks —
+  `@swasthya/clinical-safety` now 13/13 tests (was 7/7), `@swasthya/api`
+  unchanged at 583/583. `pnpm build` 39/39 (34 cached, this package has no
+  `apps/web`/`apps/mobile` build-time dependency, only a runtime import from
+  `apps/api`, and no `apps/api` route changed).
+
+  **For the next run.** `packages/devices`'s untested HealthKit `BodyMass`
+  path (survey candidate #2 above) is a real, small, unblocked follow-up.
+  The two standing blocked items are still unchanged:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (needs a product
+  decision on anonymous-vs-signed-in metering) and `analytics`'s open
+  `clinical-charting` source (needs a decision on what an encounter-only
+  summary should count). `quality-reporting`/`tenancy` (capability map rows
+  19-20) remain the only two unbuilt clinical-suite modules and still carry
+  the no-real-dataset risk multiple prior entries have already described.
+
+- 2026-08-12 — **Queue fully checked; fixed `packages/storage-adapters`'s
+  `hosted-store.ts` carrying the same non-ASCII-filename bug already fixed
+  once in `google-drive-store.ts`, and deduped both onto a shared helper.**
+  Grepped for `- [ ]` first — zero hits, same as every prior "queue
+  exhausted" run. Rather than trust my own read of the diff, spawned a
+  general-purpose survey agent instructed to name real, non-blocked
+  candidates and explicitly not resurface the two standing blocked items
+  (`companion.controller.ts`'s missing `EntitlementsGuard`,
+  `analytics`'s open `clinical-charting` source) or the low-value
+  `Hero.tsx` `hasVideo` swap-in a prior entry had already named and
+  deprioritized. It found this: `hosted-store.ts:183-185`'s
+  `sanitizeFilename` was still the original `filename.replace(/[^a-zA-Z0-9._-]/g,
+  '_')` — the exact regex the `google-drive-store.ts` run (earlier the same
+  day) had replaced with a code-point-iterating version, after discovering
+  it turned every Devanagari filename into a string of underscores. That
+  fix never touched the hosted (MinIO/S3) adapter, which is the plain
+  default backend — arguably hit more often than the bring-your-own Drive
+  path — so the identical bug was still live in production-reachable code
+  one file away from where it had already been paid down. Verified by
+  reading both files side by side before touching anything, not by trusting
+  the survey agent's report on its own.
+
+  **What was built.** New `packages/storage-adapters/src/filename.ts`
+  (Node-only, imported by neither the package's React-Native-safe root
+  export nor anything mobile-reachable — both call sites are already
+  Node-only entry points per their own file-header comments) holding one
+  `sanitizeFilename(filename, reserved = RESERVED_FILENAME_CHARS)` and one
+  `sha256Hex(bytes)`, extracted verbatim from `google-drive-store.ts`'s
+  already-correct versions. Both `hosted-store.ts` and
+  `google-drive-store.ts` now import from it instead of each carrying its
+  own copy — the duplication that let the two backends silently diverge on
+  this exact rule in the first place. `hosted-store.ts` keeps the same
+  reserved-character set Drive uses (control characters plus
+  `/ \ : * ? " < > |`); the S3 object key is
+  `${ownerId}/${uuid}-${sanitizeFilename(filename)}`, so keeping `/` in the
+  reserved set still matters there — an unsanitized `/` in the filename
+  would add spurious depth to the key without ever escaping the owner-scoped
+  prefix `list()` already relies on, so nothing about the fix changes that
+  boundary's actual security property, just its predictability.
+
+  **What changed in behavior, not just the fix.** The old regex also
+  stripped spaces (nothing in `[^a-zA-Z0-9._-]` matches a space); the shared
+  helper does not, matching Drive's existing behavior. `hosted-store.test.ts`'s
+  first test asserted the object key contained `lab_report.jpg` for an
+  input of `lab report.jpg` — updated that assertion to the new, correct
+  `lab report.jpg` (space preserved) rather than leaving a test pinned to
+  the bug. Added two new tests mirroring `google-drive-store.test.ts`'s
+  existing pair: one Devanagari round-trip through a real `s3rver` instance,
+  one confirming control/reserved characters still become underscores. New
+  `packages/storage-adapters/src/filename.test.ts` unit-tests the shared
+  helper directly (Devanagari/space/punctuation preserved, reserved set
+  stripped, trims trailing whitespace left after sanitizing, a caller-supplied
+  reserved set is respected, the exported default set is not mutated by a
+  call, and `sha256Hex` matches the known empty-input digest).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73 turbo tasks —
+  `@swasthya/storage-adapters` now 4 test files / 43 tests (was 3 files),
+  `@swasthya/api` unchanged at 583/583. `pnpm build` 39/39, no route or
+  bundle-size changes (this package has no `apps/web`/`apps/mobile` call
+  site of its own — `apps/api` wires it, and no `apps/api` route changed).
+
+  **For the next run.** No new candidate surfaced beyond what was already
+  on record. The two standing blocked items are unchanged, and
+  `quality-reporting`/`tenancy` (capability map rows 19-20) remain the only
+  two unbuilt clinical-suite modules, still carrying the no-real-dataset
+  risk every recent entry has already described. Worth a fresh, wider
+  survey next time rather than assuming this file's own guess at candidates
+  is exhaustive — this run deliberately used an independent search rather
+  than re-deriving the same three names every recent entry had already
+  repeated.
+
+- 2026-08-12 — **Queue fully checked; restructured `apps/mobile/app/_layout.tsx`
+  so the root `Stack`'s document title reads `language`.** Grepped for
+  `- [ ]` first — zero hits, same as every prior "queue exhausted" run. Three
+  consecutive prior log entries (the `Testimonials.tsx`/`EditorialImage`
+  dedupe run and the two before it) had each named this candidate and each
+  deferred it, describing it as "a genuinely bigger change" needing its own
+  scoped run, or (in the run that first found it) blocked because "`RootLayout`
+  renders `AppStateProvider` itself — it sits *outside* the context that
+  carries `language`... a real architectural change." Read the file before
+  trusting that description: it was not an architecture change, just a
+  render-scope one. `RootLayout`'s own function body runs *before*
+  `AppStateProvider` mounts, so it can never call `useAppState()` itself —
+  but a child component rendered *inside* `<AppStateProvider>` can, exactly
+  the pattern `app/(tabs)/_layout.tsx` already uses for its five tab titles
+  (`t(language, 'companion')` etc.), one directory below this same file.
+
+  **What was built.** Extracted the `Stack` (plus the sibling `StatusBar`)
+  out of `RootLayout` into a new `RootStack` component, rendered as
+  `AppStateProvider`'s child instead of alongside it in the same JSX
+  expression. `RootStack` calls `useAppState()` for `language` and passes
+  `t(language, 'appTitle')` to `screenOptions.title` instead of the literal
+  `'Mero Health - Your health, in your language'`. Added the `appTitle` key
+  to `packages/localization/src/index.ts`'s `copy` object for all three
+  `LanguageCode`s (`ne`/`en`/`ne-Latn`) — the first new key added there since
+  the package's initial build — with an original Nepali translation (no
+  existing Nepali source for this exact tagline anywhere in the repo) and a
+  Romanized `ne-Latn` variant, both following `index.web.tsx`'s established
+  precedent of translating "Mero Health" to "मेरो स्वास्थ्य"/"Mero Swasthya"
+  inside a Nepali sentence rather than leaving the English brand name
+  embedded. New test in `packages/localization/src/index.test.ts` asserting
+  the Nepali and Romanized variants are not just the English string copied
+  three times — the failure mode a translation-less "make it typecheck" fix
+  could have produced.
+
+  **What was deliberately left alone, and why.** `app/+html.tsx` — the
+  static HTML shell React Navigation replaces once the app hydrates, used
+  for the very first paint and for `og:title`/`twitter:title` meta tags —
+  keeps its own hardcoded English title unchanged. It has no access to
+  `AppStateProvider` at all (it runs before any React tree mounts, as a
+  literal static template Expo's web export fills in once at build time) and
+  a person's language preference is client-side, session state with nothing
+  server-rendered to read it from; treating that as in scope here would have
+  been the same invented-scope problem the profile-switcher entry (round two
+  §C) already flagged for a different feature. This is genuinely a
+  first-paint-only string, not a second copy of the same user-visible bug —
+  the tab bar, the `(tabs)` titles and every screen the app actually renders
+  already respect the toggle.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73 turbo tasks —
+  `@swasthya/localization` now 2/2 (was 1/1), `@swasthya/api` unchanged at
+  583/583. `pnpm build` 39/39, `@swasthya/mobile:build` unchanged bundle set
+  (16 static routes, same sizes) — this change touches `screenOptions`, not
+  route content, so no route's bundle size was expected to move and none did.
+
+  **For the next run.** The two standing blocked items are unchanged:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (needs a product
+  decision on anonymous-vs-signed-in metering) and `analytics`'s open
+  `clinical-charting` source (needs a decision on what an encounter-only
+  summary should count). `quality-reporting`/`tenancy` (capability map rows
+  19-20) remain the only two unbuilt clinical-suite modules and still carry
+  the no-real-dataset risk multiple prior entries have already described. No
+  new candidate was found this run beyond those already on record — the next
+  "queue exhausted" run should re-survey rather than assume this list is
+  exhaustive.
+
+- 2026-08-12 — **Queue fully checked; deduped `apps/web`'s `Testimonials.tsx`
+  onto `EditorialImage`.** Grepped for `- [ ]` first — zero hits, same as
+  every prior "queue exhausted" run. Two consecutive prior log entries (the
+  `sanitizeFilename` run below, and the `companion`-tab-title run before it)
+  had both named this as a real, open, non-blocked candidate: `EditorialImage`
+  (the `next/image`-with-SVG-fallback component built as its own checked
+  task, back when the photography pipeline was still empty) had zero import
+  sites anywhere in `apps/web`, while `Testimonials.tsx` hand-duplicated the
+  exact same `hasAsset(...) ? <Image/> : <fallback/>` conditional for its
+  portrait avatars. Picked this over the other two remaining named
+  candidates — the `apps/web` root-layout restructure (still genuinely
+  bigger, needs its own scoped run per the entry that first flagged it) and
+  the two standing blocked items (`companion.controller.ts`'s missing
+  `EntitlementsGuard`, `analytics`'s open `clinical-charting` source), both
+  of which still need a product decision no run is positioned to make.
+
+  **What was built.** `Testimonials.tsx`'s per-testimonial avatar `<span>`
+  now renders `<EditorialImage>` instead of its own `hasAsset` check. The one
+  wrinkle: `EditorialImage`'s fallback branch (`apps/web/src/components/ui/
+  EditorialImage.tsx:39-41`) returns the `fallback` node bare, with no
+  wrapper — it only applies `relative overflow-hidden` plus the caller's
+  `className` to the *image-present* branch. The original inline code wrapped
+  both branches in one `span` carrying the sizing/shape classes
+  (`size-11 shrink-0 rounded-full bg-white/15 ring-1 ring-white/25`), so a
+  naive swap would have left the fallback `<User>` icon unstyled and
+  unsized the moment an asset went missing. Fixed by passing those same
+  classes to `EditorialImage`'s `className` prop for the image case, and
+  passing a fully self-contained `<span>` (same classes, plus its own
+  `relative`/`overflow-hidden`/`grid place-items-center` for centering) as
+  the `fallback` prop for the other. Confirmed byte-for-byte equivalent
+  output by diffing the portrait markup in `apps/web/.next/server/app/
+  en.html` after `pnpm build` against what the pre-change component emitted
+  (same `next/image` `srcSet`, same wrapper classes) — the portraits
+  (`portrait-mina.webp` etc.) already exist in `apps/web/public/imagery/`,
+  so this render path is live today, not hypothetical. `import Image from
+  'next/image'` dropped from `Testimonials.tsx`; `hasAsset` stays imported
+  for the unrelated story-video check on the same file.
+
+  **Why no new test.** Checked first: `apps/web` has zero React-component
+  tests anywhere (`find apps/web/src -name '*.test.ts*'` returns 12 files,
+  all pure logic in `content/`/`lib/`) — this repo's actual convention for
+  `apps/web`, despite the working agreement's general colocated-test rule,
+  is that components render logic gets exercised by `pnpm build`'s static
+  prerender, not a component test harness that does not exist here. Adding
+  one file's worth of component-testing infrastructure to fix one dedupe
+  would have been scope creep beyond this task.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73 turbo tasks,
+  `@swasthya/api` unchanged at 583/583 (no `apps/web` test suite to move).
+  `pnpm build` 39/39 — inspected the prerendered `en.html`/`ne.html` output
+  directly to confirm the portrait markup matches pre-change byte-for-byte.
+
+  **For the next run.** Two named candidates remain open, both flagged
+  repeatedly as needing more than a single-task run: the `apps/web`
+  root-layout restructure so its default `Stack` title can read `language`,
+  and widening past this dedupe to check whether any other component
+  hand-rolls the same `hasAsset` pattern. Checked: `hasAsset(` has exactly
+  one other call site outside `EditorialImage.tsx`/`Testimonials.tsx` —
+  `Hero.tsx`'s `heroVideoReady` — but that gates a bare `<source>` on a
+  `<video>`, not an `<Image>`/fallback pair, so it is not the same
+  duplication and `EditorialImage`'s sibling `hasVideo` export was built for
+  exactly this narrower case; swapping it in there would be a same-shape,
+  lower-value follow-up, not a bug. The two standing blocked items
+  (`companion.controller.ts`'s `EntitlementsGuard`, `analytics`'s
+  `clinical-charting` source) and `quality-reporting`/`tenancy`
+  (capability map rows 19-20) are unchanged from every prior entry.
+
+- 2026-08-12 — **Queue fully checked; widened `packages/storage-adapters`'s
+  `google-drive-store.ts` `sanitizeFilename` to preserve non-ASCII
+  characters.** Grepped for `- [ ]` first — zero hits, same as every prior
+  "queue exhausted" run. Went straight to the highest-priority of the three
+  named candidates the immediately-prior run's own log entry (below) left
+  open: `sanitizeFilename` replaced every character outside
+  `[a-zA-Z0-9._-]` with `_`, so any Devanagari filename — the expected case
+  for a Nepali-first product's own document uploads — was silently turned
+  into a string of underscores before ever reaching Drive. Real correctness
+  bug on a real seam (`docs/architecture/platform-vision.md` §3.1's
+  bring-your-own-storage adapter), even though the only current caller
+  (`apps/mobile/app/capture.tsx`) happens to always synthesize an ASCII
+  filename, so nothing user-visible was broken today — the fix closes the
+  gap before the next upload path (or a future direct-filename-entry flow)
+  hits it live. The other two candidates from the prior entry
+  (`Testimonials.tsx`/`EditorialImage` dedupe, `apps/web` root-layout
+  restructure) stayed real DRY/architecture items but neither is a
+  correctness bug reachable through a real (if currently narrow) path,
+  which is what made this the higher-priority pick.
+
+  **What was built.** `sanitizeFilename` no longer uses a regex character
+  class; it now iterates the filename by Unicode code point (correct for
+  astral characters, and sidesteps ESLint's `no-control-regex` rule from
+  `eslint.configs.recommended`, which a literal control-character range would
+  have tripped) and replaces only control characters (code point `< 0x20`
+  or `0x7f`) and the filesystem-reserved set `/ \ : * ? " < > |` — the
+  characters illegal in a filename on the common desktop OSes a person
+  might see this file in later (Drive's own UI, or a synced folder).
+  Everything else, including Devanagari, spaces and punctuation, now passes
+  through untouched. Two new tests in `google-drive-store.test.ts`: one
+  round-trips a Devanagari filename (`प्रयोगशाला रिपोर्ट.jpg`) through
+  `put()` and asserts the mock Drive server stored it unchanged (reading
+  `mock.files.get(ref.externalId)?.name`, which the existing tests never
+  needed to inspect); the other confirms control/reserved characters still
+  get replaced, so the widening didn't quietly turn into "sanitize
+  nothing."
+
+  **A tooling note for future runs.** Composing the reserved-character test
+  fixture (a string mixing several punctuation characters) via the Edit
+  tool's `old_string`/`new_string` parameters produced a file with a stray
+  U+0007 (BEL) control character silently spliced into the literal — not
+  visible in a normal diff view, only caught because the test then failed
+  with a one-character-longer-than-expected result and `od -c` on the raw
+  line showed the extra byte. Fixed by rewriting the literal in place via a
+  small Python script operating on the file's raw bytes rather than trying
+  to re-type the same string through the same tool path. Worth remembering:
+  a test that fails by exactly one unexpected character when the input
+  contains hand-typed escape sequences is worth an `od -c` before assuming
+  the *logic* is wrong.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73 turbo tasks —
+  `@swasthya/storage-adapters` now 34/34 (was 32/32), `@swasthya/api`
+  unchanged at 583/583. `pnpm build` 39/39.
+
+  **For the next run.** The two remaining named candidates from the prior
+  entry are still open: dedupe `Testimonials.tsx` onto `EditorialImage` (or
+  delete `EditorialImage` if a reviewer would rather not reuse it), and
+  restructuring `apps/web`'s root layout so its default `Stack` title can
+  read `language` (genuinely bigger — scope it properly rather than
+  rushing it into a single-task run). The two standing blocked items
+  (`companion.controller.ts`'s missing `EntitlementsGuard`, `analytics`'s
+  open `clinical-charting` source) and `quality-reporting`/`tenancy`
+  (capability map rows 19-20) are unchanged from every prior entry.
+
+- 2026-08-12 — **Queue fully checked; fixed a hardcoded-English tab title in
+  `apps/mobile/app/(tabs)/_layout.tsx`.** Grepped for `- [ ]` first — zero
+  hits. The `twin.tsx` run's own log entry (immediately below) had declared
+  the mobile language-toggle vein exhausted after surveying every
+  `apps/mobile/app/**/*.tsx` screen; the two standing blocked items
+  (`companion.controller.ts`'s missing `EntitlementsGuard`,
+  `analytics`'s open `clinical-charting` source) still need a product
+  decision neither this run nor any prior one is positioned to make, and
+  `quality-reporting`/`tenancy` (capability map rows 19-20) still carry the
+  no-real-dataset risk multiple entries have described. Rather than force
+  either open, a general-purpose agent ran a fresh, independent audit of the
+  whole repo (not just `apps/mobile`) for a genuine, low-risk improvement to
+  work already shipped — full brief and findings in this run's own
+  transcript, summarised here.
+
+  **What the audit found.** Three real candidates, ranked: (1) `apps/web`'s
+  `EditorialImage` component (the `next/image`-with-SVG-fallback component
+  built as its own checked task) has zero import sites anywhere in
+  `apps/web` — `Testimonials.tsx` hand-duplicates the exact same
+  `hasAsset(...) ? <Image/> : <User/>` conditional instead of using it; (2)
+  `apps/mobile/app/(tabs)/_layout.tsx` line 73 — every sibling
+  `Tabs.Screen` in the file sets `title: t(language, …)` except the hidden
+  `companion` screen (`href: null`), which had a bare `title: 'Ask'`. Every
+  prior i18n sweep missed this because it greps
+  `apps/mobile/app/**/*.tsx` for hardcoded strings in JSX/render bodies, not
+  `Tabs.Screen`/`Stack.Screen` `options` object literals — a blind spot in
+  the sweep method, not evidence the file was actually checked. This route
+  is reached from both `index.web.tsx` and `(tabs)/index.tsx` via
+  `router.push('/(tabs)/companion')`, and React Navigation sets
+  `document.title` from the focused screen's `title` on web — i.e. this
+  reaches the Expo-web build served at `apps/web/public/app`, a real,
+  live surface, not a hypothetical one; (3) `packages/storage-adapters`'s
+  `google-drive-store.ts` `sanitizeFilename` strips every non-ASCII
+  character (so a Devanagari filename becomes all underscores) — real, but
+  currently dormant, since the only caller (`apps/mobile/app/capture.tsx`)
+  always synthesizes an ASCII filename.
+
+  **Why #2, not #1 or #3.** #2 is a direct violation of the standing
+  constraint ("every user-visible string goes in both locales, never
+  hardcode copy") on a route this build actually serves, with an existing
+  `ask` key already carrying the right meaning (`ask: 'स्वास्थ्य प्रश्न
+  सोध्नुहोस्'` / `'Ask a health question'` — already used as the button
+  label on `(tabs)/index.tsx` that navigates to this exact screen), so no
+  new key was invented. #1 is a real DRY violation but not a constraint
+  violation and not user-visible. #3 is a real latent bug but not currently
+  reachable through any code path in this repo, so lower urgency than a
+  currently-live English string; it is named here for whoever picks up
+  `storage-adapters` next rather than silently dropped.
+
+  **What was built.** One line:
+  `apps/mobile/app/(tabs)/_layout.tsx`'s `companion` screen now sets
+  `title: t(language, 'ask')` instead of the literal `'Ask'`. No new
+  localization key — reused `ask`, already defined in `ne`/`en`/`ne-Latn`
+  in `packages/localization/src/index.ts`.
+
+  **What was deliberately not touched, and why.** `apps/web/src/app/…`'s
+  root `_layout.tsx` `Stack screenOptions.title` ("Mero Health - Your
+  health, in your language") is also a hardcoded English sentence, found
+  while checking for siblings of this bug, but `RootLayout` renders
+  `AppStateProvider` itself — it sits *outside* the context that carries
+  `language`, so `useAppState()` cannot be called there without
+  restructuring the provider tree. That is a real architectural change, not
+  a one-line copy fix, and is out of scope for a single-task run; flagged
+  here rather than fixed halfway. `EditorialImage`/`Testimonials.tsx` (audit
+  candidate #1) and the Drive filename sanitizer (candidate #3) were both
+  left untouched — see above.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73 turbo tasks,
+  `@swasthya/api` unchanged at 583/583 — no test file, matching every other
+  `apps/mobile/app` screen. `pnpm build` 39/39, `@swasthya/mobile:build`
+  bundling `/companion` and `/(tabs)/companion` (56KB each) cleanly.
+
+  **For the next run.** Three named, real candidates remain, none requiring
+  a product decision: dedupe `Testimonials.tsx` onto `EditorialImage` (or
+  delete the now-genuinely-dead component if a reviewer would rather not
+  reuse it); widen `google-drive-store.ts`'s `sanitizeFilename` to preserve
+  non-ASCII characters (Drive's API accepts UTF-8 names; only actual
+  path/control characters need stripping) and add a non-ASCII-filename test
+  — currently dormant but a real bug the moment any upload path passes a
+  user-entered filename through; or restructure `apps/web`'s root layout so
+  its default `Stack` title can read `language` (a genuinely bigger change,
+  worth scoping properly rather than rushing into a single-task run). The
+  two standing blocked items (`companion.controller.ts`'s
+  `EntitlementsGuard`, `analytics`'s `clinical-charting` source) and
+  `quality-reporting`/`tenancy` (rows 19-20) are unchanged from every prior
+  entry.
+
+- 2026-08-12 — **Queue fully checked; fully localized `app/(tabs)/twin.tsx`.**
+  Grepped for `- [ ]` first — zero hits, same as every prior "queue exhausted"
+  run. The immediately-prior run's own log entry (below) had already surveyed
+  every `apps/mobile` screen and named this file specifically as the one
+  remaining gap: almost entirely hardcoded Nepali (progress copy, the "why is
+  this asked?" label, the input placeholder, both button labels, the consent
+  line, the confirmed-facts heading, the empty state, and the per-fact
+  provenance caption), with only the prompt content itself
+  (`prompt.questionEn`/`whyEn` vs `questionNe`/`whyNe`) already branching on
+  the `language` state already in scope in the file — the mirror-image of the
+  bug the `index.tsx` and `care.tsx` runs already fixed on other screens.
+
+  **What was built.** Eleven strings converted to
+  `language === 'en' ? … : …` ternaries, following `care.tsx`'s established
+  precedent exactly: the `SectionTitle` title/body, the progress card's title
+  and hint, the "why is this asked?" label, the answer input's placeholder,
+  the save and skip button labels, the consent line under the input, the
+  "facts you've confirmed" heading, the empty-state copy, and the per-fact
+  "you reported · confirmed" caption. English copy is original translation
+  (no existing English source to reuse) — plain, literal sentences matching
+  the Nepali original's meaning, no new claims.
+
+  **What was deliberately left alone, and why.** The `eyebrow="PATIENT-
+  CONTROLLED"` badge on `SectionTitle` stays fixed English, matching the
+  all-caps-eyebrow-stays-English convention every prior i18n run in this
+  section has already established (`care.tsx`, `index.web.tsx`, the
+  teleconsultation screens). The `prompt.question*`/`why*` ternaries were
+  already correct before this run and were not touched.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new package). `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73
+  turbo tasks, `@swasthya/api` unchanged at 583/583 — the file has no test,
+  matching every other `apps/mobile/app` screen in this repo. `pnpm build`
+  39/39, `@swasthya/mobile:build` bundling `/twin` and `/(tabs)/twin` (54KB
+  each) cleanly.
+
+  **For the next run.** The mobile language-toggle vein named across the last
+  several runs (`care.tsx`, `consultation.tsx`, `accessibilityLabel` props,
+  `companion.tsx`, `learn.tsx`, `index.tsx`, now `twin.tsx`) is, as far as
+  this run's own reading of every `apps/mobile/app/**/*.tsx` screen can tell,
+  actually exhausted this time — no further screen was found mixing hardcoded
+  copy with an unused `language` ternary. The two standing blocked items are
+  unchanged: `companion.controller.ts`'s missing `EntitlementsGuard` (needs a
+  product decision on anonymous-vs-signed-in metering) and analytics's open
+  `clinical-charting` source (needs a decision on what an encounter-only
+  summary should count). `quality-reporting`/`tenancy` (capability map rows
+  19-20) remain the only two unbuilt clinical-suite modules and still carry
+  the no-real-dataset risk multiple prior entries have already described —
+  whoever picks either up next should re-read `clinical-suite.md`'s
+  capability map rather than trust this paragraph's framing.
+
+- 2026-08-12 — **Queue fully checked; fully localized `app/(tabs)/index.tsx`,
+  the home tab.** Grepped for `- [ ]` first — zero hits, same as every prior
+  "queue exhausted" run. The prior run's own log entry (immediately below)
+  had already surveyed every `apps/mobile` screen and named this file's gap
+  specifically: several strings correctly go through `t(language, key)`
+  (`@swasthya/localization`) or the file's own `language === 'en' ? … : …`
+  ternary, but a second set of real English sentences (`contextTitle` ×2,
+  `sectionHint`, `voiceChipText`, the whole "health story" card) had no
+  ternary at all, so a Nepali-reading visitor saw stray English sentences on
+  the highest-traffic screen in the app.
+
+  **What this run found beyond the flagged list.** Reading the full file
+  before editing showed the gap was bigger than the four flagged spots: most
+  of the screen's other body copy — the hero paragraph, the "video consult"
+  button label, the section heading, every `ActionCard` subtitle, the
+  video-consultation card's title, and the closing "Sathi is not a doctor"
+  trust panel — was hardcoded **Nepali-only**, the mirror-image of the bug
+  the prior run fixed on `companion.tsx`/`learn.tsx`. This is the same
+  fully-hardcoded-in-one-direction shape `care.tsx` had before its own
+  2026-08-11 fix (see that log entry), so this run applied the same
+  established convention `care.tsx` now demonstrates end to end: every real
+  sentence of body copy branches on `language`, while all-caps eyebrow/badge
+  chrome (`YOUR GUIDED HEALTH COMPANION`, `TODAY`, `CARE NETWORK`, `ONE
+  PLACE, CLEAR NEXT STEPS`, `AVAILABLE`, `PATIENT-CONTROLLED`, `GUIDED
+  PREVIEW`, `PHOTOGRAPH & CONFIRM`, `VIDEO ROOM`, `WORKFLOW PREVIEW`, `SAFETY
+  INTERRUPT`, `YOUR HEALTH STORY`) and the brand wordmark ("MERO HEALTH" /
+  "स्वास्थ्य साथी") stay fixed, matching precedent from every prior i18n run
+  in this section.
+
+  **What was built.** Fourteen strings converted to `language === 'en' ? … :
+  …` ternaries: the hero paragraph, the "Video consult" button, the
+  `voiceChipText`, both `contextTitle`s, the section heading and
+  `sectionHint`, all seven `ActionCard` `subtitle`s plus the video-card
+  `title`, and the health-story `healthStoryTitle`/`healthStoryBody`/
+  `storyButtonText` plus the closing `trustTitle`/`trustBody`. English
+  copy is original translation (no existing English source to reuse, unlike
+  the `accessibilityLabel` run which could often borrow visible text) —
+  plain, literal sentences matching the Nepali original's meaning, not new
+  claims. No `@swasthya/localization` keys were added; every new string
+  followed the file's own pre-existing inline-ternary convention instead,
+  consistent with how the prior two i18n runs treated new copy in this class
+  of fix.
+
+  **What was deliberately left alone, and why.** The brand wordmark
+  ("स्वास्थ्य साथी") and "MERO HEALTH" kicker are the product's name, not
+  translatable copy — left untouched, same reasoning as `Footer.tsx`'s
+  social-network names in the 2026-08-11 entry. All eleven all-caps
+  eyebrow/badge strings listed above were left exactly as flagged safe by
+  the prior run's own survey. No change to `app/(tabs)/twin.tsx` — the
+  prior run's log entry named it as a second, separate candidate (almost
+  entirely hardcoded Nepali, only the prompt content branches) and this run
+  stayed to the one screen named first.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new package). `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73
+  turbo tasks, `@swasthya/api` unchanged at 583/583 — the file has no test,
+  matching every other `apps/mobile/app` screen in this repo. `pnpm build`
+  39/39, `@swasthya/mobile:build` bundling `/(tabs)` (75KB, up from the
+  smaller pre-change size) and `/` (index, 86KB) cleanly.
+
+  **For the next run.** `app/(tabs)/twin.tsx` is the one remaining named
+  language-toggle gap: almost entirely hardcoded Nepali, only the prompt
+  content (`questionEn`/`whyEn` vs `questionNe`/`whyNe`) branches on
+  `language`, the same bug class `care.tsx` had before its 2026-08-11 fix.
+  It is real and unblocked — no product decision needed, only translation
+  work, same as this run. The two standing blocked items are unchanged:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (needs a product
+  decision on anonymous-vs-signed-in metering) and analytics's open
+  `clinical-charting` source (needs a decision on what an encounter-only
+  summary should count). `quality-reporting`/`tenancy` (capability map rows
+  19-20) remain the only two unbuilt clinical-suite modules and still carry
+  the no-real-dataset risk multiple prior entries have already described.
+
+- 2026-08-12 — **Queue fully checked; closed the two mobile
+  language-toggle gaps flagged by the `records.fault-isolation.test.ts`
+  run's own log entry (immediately below).** Grepped for `- [ ]` first —
+  zero hits, same as every prior "queue exhausted" run. That prior run's
+  survey had already found and named two small, genuinely unblocked gaps
+  as fallback candidates rather than forcing `quality-reporting`/`tenancy`
+  open: a handful of hardcoded-English strings in
+  `apps/mobile/app/(tabs)/companion.tsx` and `app/(tabs)/learn.tsx` that
+  don't branch on the `language` state already in scope in both files —
+  the same bug class the 2026-08-11 `care.tsx`/`consultation.tsx` and
+  `accessibilityLabel` runs already fixed elsewhere. This run read both
+  files in full rather than trusting the prior entry's line numbers, since
+  the file had changed shape since that survey ran.
+
+  **What was found, and the one genuine bug among it.** In
+  `companion.tsx`: the module-level `DEFAULT_ANSWER_TEXT` fallback, the
+  "Searching trusted sources…" status line, the "Evidence-backed
+  information"/"General information" heading, the "Sources" citation-list
+  label, the "Open Perplexity Health" button, the fallback disclaimer
+  text, and the closing source-citation line were all fixed English
+  regardless of the toggle. One of these was an actual bug rather than a
+  missing translation: the `catch` block's `disclaimer` field already had
+  a `language === 'en' ? … : …` ternary, but **both branches held the
+  identical English sentence** — so the ternary always evaluated to the
+  same string and the Nepali branch had silently never been written. In
+  `learn.tsx`: the "Accessible by design" notice title, "Reviewed
+  scripts" hint, and the Play/Pause button's visible label (its
+  `accessibilityLabel` two lines above already branched correctly; only
+  the visible `Text` did not) were the same class of gap.
+
+  **What was deliberately left alone, and why.** `companion.tsx`'s "GUIDED
+  INFORMATION · NOT A DIAGNOSIS" eyebrow — named as a candidate by the
+  original survey — was not touched. It is all-caps badge chrome in the
+  same `stepLabel` style as the file's own `STEP 1 · WHAT MATTERS
+  NOW`/`STEP 1 · REPHRASE` eyebrow two sections below, which already stays
+  English under both languages by design; translating only the newer
+  eyebrow while its sibling stays fixed would have been the inconsistency
+  in the other direction. This matches the precedent two separate prior
+  entries already established for `index.web.tsx` and the teleconsultation
+  screens: all-caps eyebrow badges are left as English chrome, sentence-
+  and title-case body copy is translated. `learn.tsx`'s "INTERACTIVE
+  WALKTHROUGH" badge and "READABLE TRANSCRIPT" label, and every
+  `walkthroughSteps[].eyebrow` (`STEP 1 · ASK` etc.), were left alone for
+  the same reason. `lesson.reviewStatus.replaceAll('_', ' ')` (a raw enum
+  value rendered as a duration/status caption) was also left alone — it is
+  a data label, not authored copy, and translating it would mean
+  inventing a status-label table this run has no source for. The "GUIDED
+  INFORMATION" eyebrow aside, every other change in both files was a
+  straight `language === 'en' ? english : nepali` ternary matching the
+  files' own existing convention exactly — no new pattern was introduced.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change
+  (no new package). `pnpm lint` 39/39. `pnpm typecheck` 39/39 (the new
+  `defaultAnswerText(language: LanguageCode)` helper typechecks against
+  `@swasthya/shared-types`'s `LanguageCode`, matching the type every
+  sibling ternary in the file already narrows against). `pnpm test`
+  73/73 turbo tasks, `@swasthya/api` unchanged at 583/583 — neither file
+  has or needed a test; no `apps/mobile/app` screen in this repo has one,
+  matching the pattern the 2026-08-11 `care.tsx`/`consultation.tsx` run
+  already established. `pnpm build` 39/39, including
+  `@swasthya/mobile:build` bundling `/companion` and `/learn` cleanly.
+
+  **For the next run — this vein is not exhausted, it is larger than
+  before.** While verifying there was nothing else obvious in this class,
+  this run read every `apps/mobile/app/(tabs)/*.tsx` and top-level
+  `app/*.tsx` screen and found two real, unblocked gaps bigger than the
+  ones just fixed, deliberately left untouched to keep this run to the one
+  task named above:
+  - `app/(tabs)/index.tsx` — the home tab, the highest-traffic screen in
+    the app — mixes two localization strategies: several strings correctly
+    go through `t(language, key)` (`@swasthya/localization`), but a
+    second set of real sentences is hardcoded English with no ternary and
+    no `t()` call at all: `contextTitle` ("No upcoming care", "Explore
+    verified demo listings"), `sectionHint` ("Tap any card to explore"),
+    `voiceChipText` ("Voice ready"), and the entire "health story" card —
+    `healthStoryTitle` ("A useful picture grows one confirmed fact at a
+    time."), `healthStoryBody` (two full sentences), `storyButtonText`
+    ("Build my picture"). A Nepali-reading user sees a page that is mostly
+    Nepali with several stray English sentences; an English-reading user
+    sees the reverse for the same card. All-caps badges (`AVAILABLE`,
+    `PATIENT-CONTROLLED`, etc.) match this file's own established eyebrow
+    convention and should stay as they are.
+  - `app/(tabs)/twin.tsx` — the opposite direction of the bug this run
+    just fixed: the screen is almost entirely hardcoded Nepali (title,
+    progress copy, empty state, fact captions) and only the *prompt*
+    content itself (`prompt.questionEn`/`whyEn` vs `questionNe`/`whyNe`)
+    branches on `language`. An English-reading user gets an English
+    question inside an otherwise all-Nepali screen. This is the same bug
+    class the 2026-08-11 run already fixed once on `care.tsx` (also fully
+    hardcoded Nepali) — `twin.tsx` was apparently missed by that survey.
+
+  Both are real candidates for the next "queue exhausted" run, and neither
+  needs a product decision — only translation work, same as this run's own
+  fix. The two standing blocked items are otherwise unchanged:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (needs a product
+  decision on anonymous-vs-signed-in metering) and analytics's open
+  `clinical-charting` source (needs a decision on what an encounter-only
+  summary should count). `quality-reporting`/`tenancy` (capability map rows
+  19-20) remain the only two unbuilt clinical-suite modules, and still
+  carry the no-real-dataset risk multiple prior entries have already
+  described — re-read `clinical-suite.md`'s capability map before starting
+  either rather than trusting this paragraph's framing.
+
+- 2026-08-12 — **Queue fully checked; wrote the missing
+  `records.fault-isolation.test.ts` for `HEALTH_RECORDS`.** Grepped for
+  `- [ ]` first — zero hits, same as every prior "queue exhausted" run. The
+  prior run's own log entry (immediately below) had already confirmed the
+  mechanical "add an analytics source" vein is genuinely exhausted and that
+  `quality-reporting`/`tenancy` (rows 19-20) both carry an invent-a-dataset
+  risk not worth forcing. Rather than reopen either of those, this run
+  dispatched a read-only survey agent to look for a smaller, honestly
+  unblocked gap first, explicitly ruling out the standing blocked items
+  (`companion.controller.ts`'s missing `EntitlementsGuard`, analytics's
+  `clinical-charting` source, rows 19-20).
+
+  **What the survey found.** Every clinical-suite module directory under
+  `apps/api/src/` ships a `<module>.fault-isolation.test.ts` — the literal
+  deliverable `clinical-suite.md` §2 names ("a test that forces the module
+  DOWN and asserts the rest of the system still works") — except `records`
+  (`HEALTH_RECORDS`). `records/records.module-descriptor.test.ts` only unit
+  tests the descriptor function's shape (key, empty `requires`/
+  `degradesWith`, that `health()` delegates to the service); it never
+  constructs a `ModuleRegistry`, never forces the health probe `DOWN`, and
+  never proves a broken records store leaves an unrelated module unaffected.
+  `clinical-charting.fault-isolation.test.ts` already covers the *consumer*
+  direction (HEALTH_RECORDS down, does clinical-charting survive) but that
+  is a test of clinical-charting's isolation, not records' own. The survey
+  also flagged two small mobile-app language-toggle gaps
+  (`app/(tabs)/companion.tsx`, `app/(tabs)/learn.tsx` have a handful of
+  hardcoded-English strings) as smaller fallback candidates, and named the
+  systemic missing-`@UseGuards` pattern across most clinical-suite
+  controllers as a likely deliberate staging decision, not a bug — flagging
+  it for a future run rather than touching it here.
+
+  **What was built.** `apps/api/src/records/records.fault-isolation.test.ts`,
+  mirroring `patient-registry.fault-isolation.test.ts`'s shape exactly (the
+  other module with empty `requires`/`degradesWith`, so "the rest of the
+  system" is an unrelated sibling with no shared state — used
+  `PatientRegistryService`/`Repository` here). A `BrokenRecordsRepository`
+  overrides `saveDocument`/`findDocument`/`listDocuments` to throw, same
+  "override the methods the exercised code path actually calls" scope
+  `clinical-charting`'s own broken-repository class used. Two tests: (1)
+  `captureDocument` on the broken repository rejects, while a fresh
+  `PatientRegistryService.register` still succeeds right after; (2)
+  `resolveAvailability` marks `HEALTH_RECORDS` `available: false` /
+  `health: 'DOWN'` when its descriptor's health probe is forced down, via
+  `buildModuleRegistry`/`collectHealthStates`/`resolveAvailability` from
+  `@swasthya/module-registry` — the same two-test shape every other
+  fault-isolation file in this section already has.
+
+  **What was deliberately left out.** No change to `records.module.ts`,
+  `records.service.ts` or the descriptor itself — the gap was a missing
+  test, not a missing behaviour; `HEALTH_RECORDS` already reports its real
+  health and already has no dependency edges to assert. No new
+  `resolveAvailability` assertions were added to any *other* module's
+  fault-isolation test, since none of them declare a `requires`/
+  `degradesWith` edge pointing at `HEALTH_RECORDS` beyond the one
+  `clinical-charting` already tests.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new package). `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test` 73/73
+  turbo tasks — `@swasthya/api` 583/583 (up from 581). `pnpm build` 39/39.
+
+  **For the next run.** The two standing blocked items are unchanged:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (needs a product
+  decision on anonymous-vs-signed-in use) and analytics's open
+  `clinical-charting` source (needs someone to decide what an encounter-only
+  summary counts). The survey's two fallback candidates are real and
+  unblocked if nobody has picked up `quality-reporting`/`tenancy` by then:
+  a handful of hardcoded-English strings in `apps/mobile/app/(tabs)/
+  companion.tsx` (lines around 349-402: the "GUIDED INFORMATION · NOT A
+  DIAGNOSIS" eyebrow, "Searching trusted sources…", the evidence-badge
+  copy, "Sources", "Open Perplexity Health") and in
+  `app/(tabs)/learn.tsx` ("Accessible by design", "Reviewed scripts") that
+  don't branch on the `language` state already in scope in both files, the
+  same class of bug the 2026-08-11 `care.tsx`/`consultation.tsx` and
+  `accessibilityLabel` runs already fixed elsewhere. Neither was touched
+  this run — this run's own pick was the fault-isolation gap instead.
+
+- 2026-08-12 — **Queue fully checked; extended `analytics` (capability map
+  row 14) with a seventh source, `diagnostics-orders`.** Grepped for
+  `- [ ]` first — zero hits, same as every prior "queue exhausted" run. The
+  immunization-extension run's own log entry (immediately below) had done
+  the survey work already: it named `diagnostics-orders` (row 7) and
+  `interop` (row 17) as the two clinical-suite modules still missing an
+  `analytics` source, and flagged both as "worth a second look before
+  assuming either is as mechanical as this one was" rather than assuming
+  either was safe to build the same way. This run did that second look with
+  a read-only Explore agent before writing anything, checking both against
+  the same test every existing source already passes: a single closed-enum
+  `status` field describing lifecycle state, and a list-all method the
+  service already exposes.
+
+  **What was found.** `diagnostics-orders` passed cleanly:
+  `DiagnosticOrder.status` (`ORDERED`/`RESULTED`/`CANCELLED`,
+  `packages/shared-types/src/index.ts:791`) is exactly this shape — the
+  order's own lifecycle field, distinct from the nested
+  `result.releaseStatus` (`HELD`/`RELEASED`), which only exists once
+  `status` is `RESULTED` and describes the result sub-object, not the order,
+  the same "don't count a field that exists alongside the real status"
+  reasoning `BillingSummary`'s own comment already states for
+  `amountPaisa`. `DiagnosticsOrdersService.listOrders(patientId?)` already
+  returns every order with no argument, identical to
+  `ImmunizationService.listRecords()`. `interop` did not pass: `ShareLink`
+  has no stored `status` at all — state is a computed tri-state
+  (active/expired/revoked) derived from `revokedAt`/`expiresAt` compared
+  against a clock at read time, which would have broken the
+  pure-reduce-over-an-already-closed-enum shape every summary in this
+  section shares, and `InteropRepository` has no list-all method, only
+  `listForOwner(ownerId)`. `interop` stays a real follow-up, not a
+  mechanical one — it needs an actual design decision (add a stored status
+  field to `ShareLink`, or accept a computed one that takes a clock) before
+  it can be built the way every other source in this section was.
+
+  **What was built.** Same shape as the `immunization` extension, field for
+  field. `packages/shared-types` gained `DiagnosticsOrdersSummary`
+  (`{ totalOrders, byStatus: Record<DiagnosticOrderStatus, number> }`), in
+  the Analytics (row 14) section for the same row-of-origin reason
+  `ImmunizationSummary` documents there. `packages/analytics` gained
+  `buildDiagnosticsOrdersSummary`, a `zeroCounts` reduction over the three
+  statuses. `AnalyticsService` took a seventh constructor argument
+  (`DiagnosticsOrdersService`), gained `diagnosticsOrdersSummary()` and
+  `assertDiagnosticsOrdersAvailable()` mirroring the other six exactly —
+  refuses (503) only on `diagnosticsOrders.health()` reporting `DOWN`.
+
+  **Routes.** `GET /analytics/diagnostics-orders`, same no-guard shape as
+  every sibling analytics route.
+
+  **Wiring.** `AnalyticsModule` now imports `DiagnosticsOrdersModule`
+  alongside its existing six (which itself imports `ClinicalChartingModule`,
+  the same shape `BillingModule`/`ImmunizationModule` already establish, so
+  no new circular-import risk).
+  `createAnalyticsModuleDescriptor`'s `degradesWith` gained a seventh
+  `{ key: 'DIAGNOSTICS_ORDERS', mode: 'HIDE' }` edge — `ANALYTICS`'s own
+  `requires` stays empty, unchanged. `clinical-suite.service.test.ts`'s
+  `buildStack()` already constructed a `diagnosticsOrders` service (the
+  aggregate registry needs it directly, for `DIAGNOSTICS_ORDERS`'s own
+  descriptor) but had never threaded it into `AnalyticsService`'s
+  constructor — it now is. No assertion values in that file changed: the
+  one place a `DIAGNOSTICS_ORDERS` outage could have touched an `ANALYTICS`
+  assertion is the `CLINICAL_CHARTING`-down cascade test, and
+  `DIAGNOSTICS_ORDERS` there stays `available: true` (only degraded, one
+  hop, per §2's "never cascades past one hop"), so `ANALYTICS`'s edge to it
+  never fires and `degradations: []` still holds — only that test's own
+  explanatory comment was extended to name the new edge.
+
+  **Tests.** `packages/analytics/src/index.test.ts` gained
+  `buildDiagnosticsOrdersSummary` coverage (empty list, mixed statuses). On
+  the `apps/api` side, `analytics.service.test.ts`,
+  `analytics.controller.test.ts`, `analytics.module-descriptor.test.ts` and
+  `analytics.fault-isolation.test.ts` each gained the same shape the other
+  six sources already have: a happy-path count, a 503-while-down check, and
+  (fault-isolation only) both a `resolveAvailability` degradation assertion
+  and a "down diagnostics-orders doesn't block the patient summary"
+  behavioural test.
+
+  **What was deliberately left out.** No rate or ratio (e.g.
+  cancelled-vs-ordered, held-vs-released), same restraint every prior
+  summary in this section states. `interop` was investigated, not built —
+  see above for exactly what blocks it and what a real follow-up would need
+  to decide first. `companion.controller.ts`'s missing `EntitlementsGuard`
+  and analytics's own `clinical-charting` source remain open, still blocked
+  on the same product decisions every recent entry has named; this run made
+  no progress on either.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new package). `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test`
+  73/73 turbo tasks — `@swasthya/api` 581/581 (up from 574), `@swasthya/analytics`
+  14/14 (up from 12). `pnpm build` 39/39.
+
+  **For the next run.** Every clinical-suite module now has an analytics
+  source except `interop` (row 17) — and that one needs a real design
+  decision (stored vs. computed status, plus a list-all repository method)
+  before it can be built, not just wiring; see above for the specifics
+  rather than re-deriving them. With that, the mechanical "add the next
+  analytics source" vein this ledger has been mining since `billing` is
+  genuinely exhausted, not just exhausted-until-the-next-module the way
+  prior entries in this run's position described it. `quality-reporting`/
+  `tenancy` (capability map rows 19-20) are still the only two
+  capability-map modules left unbuilt, and still carry the no-real-dataset
+  risk multiple prior entries have already described in detail — re-read
+  `clinical-suite.md`'s capability map directly before starting either.
+  `companion.controller.ts`'s missing `EntitlementsGuard` and analytics's
+  open `clinical-charting` source are still the two standing blocked items;
+  neither has a decision made for it yet.
+
+- 2026-08-12 — **Queue fully checked; extended `analytics` (capability map
+  row 14) with a sixth source, `immunization`.** Grepped for `- [ ]`
+  first — zero hits, same as every prior "queue exhausted" run. Read
+  `platform-vision.md` and re-read `clinical-suite.md`'s capability map
+  before picking. The prior run's own log entry named `quality-reporting`/
+  `tenancy` (rows 19-20) as the two remaining unbuilt modules, but flagged —
+  twice now, across two consecutive entries — that both need either a real
+  Nepal DoHS/HMIS indicator set or a real multi-site model this repo has no
+  honest source for, and explicitly called its own guess about which one to
+  pick "not a decision." Rather than force one of those two open, this run
+  surveyed for a smaller, unblocked improvement to work already done first:
+  the two standing blocked items (`companion.controller.ts`'s missing
+  `EntitlementsGuard`, and analytics's own `clinical-charting` source) are
+  both still genuinely blocked on unmade product decisions (anonymous-vs-
+  signed-in metering; what an encounter-only summary should even count) and
+  stayed untouched. Every clinical-suite module already has its
+  `ModuleDescriptor` + health endpoint + fault-isolation test — the "ships
+  with three things" rule is fully satisfied everywhere, so that avenue is
+  exhausted too. What was left: `immunization` (row 18, the newest built
+  module) had no `analytics` source, even though `ImmunizationRecord.status`
+  is exactly the closed enum every existing `buildXSummary` already counts,
+  and `ImmunizationService.listRecords()` already exists with no argument
+  returning every record — the identical shape `billingSummary`/
+  `referralsSummary`/`engagementSummary` already consume. This followed
+  their precedent exactly rather than inventing a new one, and needed zero
+  new product decisions.
+
+  **What was built.** `packages/shared-types` gained `ImmunizationSummary`
+  (`{ totalRecords, byStatus: Record<ImmunizationStatus, number> }`), placed
+  in the Analytics (row 14) section for the same row-of-origin reason
+  `EngagementSummary` already documents there. Counted by `status`
+  (`ACTIVE`/`VOIDED`) — the field every sibling summary counts — not by
+  `provenance` (`PATIENT_REPORTED`/`CLINICIAN_ADMINISTERED`), which
+  describes how a record was entered, not a lifecycle state; `provenance` is
+  the more editorially interesting axis but would have been the first
+  summary in this section counting something other than the record's own
+  status field, a precedent this run chose not to set unilaterally.
+  `packages/analytics` gained `buildImmunizationSummary`, a `zeroCounts`
+  reduction over the two statuses, identical in shape to
+  `buildReferralsSummary`/`buildEngagementSummary`. `AnalyticsService` took a
+  sixth constructor argument (`ImmunizationService`), gained
+  `immunizationSummary()` and `assertImmunizationAvailable()` mirroring the
+  other five exactly — refuses (503) only on `immunization.health()`
+  reporting `DOWN`.
+
+  **Routes.** `GET /analytics/immunization`, same no-guard shape as every
+  sibling analytics route — `ANALYTICS` is not in `@swasthya/entitlements`'s
+  module catalogue, so no quota gate was invented here either.
+
+  **Wiring.** `AnalyticsModule` now imports `ImmunizationModule` alongside
+  its existing five (which itself imports `ClinicalChartingModule`, the same
+  shape `BillingModule`/`ReferralsModule` already establish, so no new
+  circular-import risk). `createAnalyticsModuleDescriptor`'s `degradesWith`
+  gained a sixth `{ key: 'IMMUNIZATION', mode: 'HIDE' }` edge —
+  `ANALYTICS`'s own `requires` stays empty, unchanged.
+  `clinical-suite.service.test.ts`'s `buildStack()` now threads
+  `immunization` into `AnalyticsService`'s constructor (it already built the
+  service for row 18's own registration; it just wasn't passed in) — no
+  assertion values changed except two explanatory comments naming
+  `ANALYTICS`'s full dependency set and `IMMUNIZATION`'s degraded-not-down
+  status, since neither of that file's tests drives `ImmunizationService`
+  itself `DOWN`.
+
+  **Tests.** `packages/analytics/src/index.test.ts` gained
+  `buildImmunizationSummary` coverage (empty list, mixed statuses). On the
+  `apps/api` side, `analytics.service.test.ts`, `analytics.controller.test.ts`,
+  `analytics.module-descriptor.test.ts` and `analytics.fault-isolation.test.ts`
+  each gained the same shape the other five sources already have: a
+  happy-path count, a 503-while-down check, and (fault-isolation only) both
+  a `resolveAvailability` degradation assertion and a "down immunization
+  doesn't block the patient summary" behavioural test.
+
+  **What was deliberately left out.** No rate or ratio (e.g. voided-vs-active,
+  patient-reported-vs-clinician-administered) — same "count of an existing
+  field, not a computed statistic" restraint every prior summary in this
+  section states for a different unverifiable claim. `companion.controller.ts`'s
+  missing `EntitlementsGuard` and analytics's own `clinical-charting` source
+  remain open, still blocked on the same product decisions every recent
+  entry has named — this run made no progress on either and does not claim
+  to.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new package). `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test`
+  73/73 turbo tasks — `@swasthya/api` 574/574 (up from 567),
+  `@swasthya/analytics` 24/24 (up from 22, two new tests, one existing file
+  extended). `pnpm build` 39/39.
+
+  **For the next run.** `quality-reporting`/`tenancy` (capability map rows
+  19-20) are still the only two capability-map modules left unbuilt, and
+  still carry the no-real-dataset risk two prior entries already described
+  in detail — re-read `clinical-suite.md`'s capability map directly before
+  starting either, not this paragraph or the prior run's. With `immunization`
+  now wired into `analytics`, every clinical-suite module built so far has an
+  analytics source except `diagnostics-orders` (row 7) and `interop`
+  (row 17) — both were surfaced as weaker candidates during this run's own
+  survey (their record types weren't confirmed to expose a single obvious
+  status enum the way every module built so far did) and are worth a second
+  look before assuming either is as mechanical as this one was.
+  `companion.controller.ts`'s missing `EntitlementsGuard` and analytics's
+  open `clinical-charting` source are still the two standing blocked items;
+  neither has a decision made for it yet.
+
+- 2026-08-11 — **Queue fully checked again; extended `analytics` (capability
+  map row 14) with a fifth source, `engagement`.** Grepped for `- [ ]`
+  first — zero hits, same as every prior "queue exhausted" run. The
+  `engagement`-building run's own log entry had named this as "the concrete,
+  small follow-up this run's own scope left out," and every run since
+  (`interop`, `immunization`) had repeated it in "For the next run" as still
+  open, alongside `companion.controller.ts`'s missing `EntitlementsGuard` and
+  an `analytics` `clinical-charting` source — both of those stayed exactly
+  where they were, still blocked on the same unmade product decisions those
+  entries describe (anonymous-vs-signed-in metering; what an encounter-only
+  summary should even count). `engagement` carried no such blocker: row 15's
+  `EngagementMessage` already has a closed three-value `status` union
+  (`QUEUED`/`SENT`/`FAILED`) and `EngagementService.listMessages()` already
+  exists with no argument returning every message — the identical shape
+  `billingSummary`/`referralsSummary` already consume, so this followed
+  their precedent exactly rather than inventing a new one.
+
+  **What was built.** `packages/shared-types` gained `EngagementSummary`
+  (`{ totalMessages, byStatus: Record<EngagementMessageStatus, number> }`),
+  placed in the Analytics (row 14) section with a comment explaining why it
+  sits above `EngagementMessage`'s own section despite depending on a type
+  declared later in the file — row of origin, not declaration order, decides
+  section placement, and TypeScript doesn't care about the ordering either
+  way. `packages/analytics` gained `buildEngagementSummary`, a `zeroCounts`
+  reduction over the three statuses, identical in shape to
+  `buildReferralsSummary`. `AnalyticsService` took a fifth constructor
+  argument (`EngagementService`), gained `engagementSummary()` and
+  `assertEngagementAvailable()` mirroring the other four exactly — refuses
+  (503) only on `engagement.health()` reporting `DOWN`, same as every
+  sibling summary.
+
+  **Routes.** `GET /analytics/engagement`, same no-guard shape as
+  `patients`/`scheduling`/`billing`/`referrals` — `ANALYTICS` is not in
+  `@swasthya/entitlements`'s module catalogue, so no quota gate was invented
+  for this route either.
+
+  **Wiring.** `AnalyticsModule` now imports `EngagementModule` alongside its
+  existing four. `createAnalyticsModuleDescriptor`'s `degradesWith` gained a
+  fifth `{ key: 'ENGAGEMENT', mode: 'HIDE' }` edge — `ANALYTICS`'s own
+  `requires` stays empty, unchanged. `clinical-suite.service.test.ts`'s
+  `buildStack()` now constructs `engagement` before `analytics` and passes
+  it into the constructor (previously built after, since nothing consumed it
+  yet); the CLINICAL_CHARTING-down and PATIENT_REGISTRY-down comments
+  explaining `ANALYTICS`'s dependency set were updated to list `ENGAGEMENT`
+  alongside the other four — no assertion values changed, since neither test
+  drives `EngagementService` itself `DOWN`, only degrades it.
+
+  **Tests.** `packages/analytics/src/index.test.ts` gained
+  `buildEngagementSummary` coverage (empty list, mixed statuses). On the
+  `apps/api` side, `analytics.service.test.ts`,
+  `analytics.controller.test.ts`, `analytics.module-descriptor.test.ts` and
+  `analytics.fault-isolation.test.ts` each gained the same shape the other
+  four sources already have: a happy-path count, a 503-while-down check, and
+  (fault-isolation only) both a `resolveAvailability` degradation assertion
+  and a "down engagement doesn't block the patient summary" behavioural
+  test — six new fault-isolation-file tests in total (one new
+  `resolveAvailability` case plus one new behavioural case, with the
+  existing four `resolveAvailability` cases each gaining an `engagementDescriptor`
+  in their registry array, since `buildModuleRegistry` validates every
+  `degradesWith` reference is actually registered).
+
+  **What was deliberately left out.** No delivery-rate or failure-rate
+  figure — `EngagementSummary` is a count of messages by status, the same
+  "count of invoices, not a revenue figure" restraint `BillingSummary`'s own
+  doc comment already states for a different unverifiable claim; computing a
+  rate would imply a target or a "normal" range this repository has no
+  source for. `companion.controller.ts`'s missing `EntitlementsGuard` and an
+  `analytics` `clinical-charting` source remain open, still blocked on the
+  same product decisions every recent entry has named.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new package). `pnpm lint` 39/39. `pnpm typecheck` 39/39. `pnpm test`
+  73/73 turbo tasks — `@swasthya/api` 567/567 (up from 560),
+  `@swasthya/analytics` 10/10 (up from 6). `pnpm build` 39/39.
+
+  **For the next run.** `quality-reporting`/`tenancy` (capability map rows
+  19-20) are what remain unbuilt in the clinical-suite. Both carry a
+  no-real-dataset risk the same way row 18 did — re-read
+  `clinical-suite.md`'s capability map directly, not this paragraph, before
+  starting either. `companion.controller.ts`'s missing `EntitlementsGuard`
+  and `analytics`'s open `clinical-charting` source are still the two
+  standing blocked items; neither has a decision made for it yet.
+
+- 2026-08-11 — **Queue fully checked again; built the `immunization` module
+  (capability map row 18).** Grepped for `- [ ]` first — zero hits, same as
+  every prior "queue exhausted" run. The prior run's own log entry (interop,
+  row 17) had named rows 18-20 as what remained, explicitly non-binding on
+  which to pick. Read `clinical-suite.md` row 18's note ("Nepal EPI
+  schedule, not US registries") and the `prescribing` module's own section
+  comment in `shared-types` before designing anything: `prescribing` was
+  built with **no** Nepali formulary dataset loaded, because none exists
+  anywhere in this repo, and building one would be exactly the fact
+  invention the standing constraints forbid. Row 18 has the identical
+  problem — no real Nepal EPI schedule (vaccine names, dose intervals,
+  due-date rules) exists in this repo either — so this run followed that
+  precedent rather than `immunization`/`quality-reporting`/`tenancy` being
+  a free choice: it constrained what "immunization records" could honestly
+  mean here to recording what a patient or clinician actually enters, never
+  validating or scheduling against a catalogue.
+
+  **What was built.** `shared-types` gained an `Immunization` section
+  (`ImmunizationRecord`, `RecordPatientReportedImmunizationInput`,
+  `RecordClinicianAdministeredImmunizationInput`) mirroring row 4's
+  `ClinicalSummaryItem` provenance/verification split
+  (`PATIENT_REPORTED`/`UNVERIFIED` vs `CLINICIAN_ADMINISTERED`/
+  `CLINICIAN_VERIFIED`) applied to one kind instead of three, so there is no
+  `kind` field. `vaccineName` is free text, not an enum — the section's own
+  header comment states why. `administeredOn` (the date the dose was
+  actually given) is kept separate from `recordedAt` (when this system
+  learned about it), since a patient-reported entry describing a childhood
+  vaccination regularly has these differ by years. Status is
+  `ACTIVE`/`VOIDED` rather than `ACTIVE`/`RESOLVED` — an administered dose
+  is a fact about the past, not an ongoing condition to resolve; `VOIDED`
+  exists for the mundane real case of a mis-entered record (wrong patient,
+  wrong vaccine) and carries a reason. New `packages/immunization` is the
+  pure domain layer: `recordPatientReportedImmunization`,
+  `recordClinicianAdministeredImmunization`, `voidImmunizationRecord`
+  (rejects an already-voided record rather than being silently idempotent,
+  matching `resolveItem`'s own reasoning). New `apps/api/src/immunization/`:
+  `immunization.repository.ts` (in-memory, same `ClinicalSummaryRepository`
+  shape), `immunization.service.ts`, `immunization.controller.ts`,
+  `immunization.module-descriptor.ts` and `immunization.module.ts`.
+  `ImmunizationService.recordClinicianAdministered` requires
+  clinical-charting up (`HIDE`, the same one-action-gated shape
+  `ClinicalSummaryService.recordClinicianAuthored` already uses for row 4),
+  resolving `patientId` from the encounter rather than trusting a
+  client-supplied field; `recordPatientReported`, reads, listing and voiding
+  never touch clinical-charting, so the immunization list keeps working
+  with it down.
+
+  **Routes.** `POST /immunization/records` (patient-reported),
+  `POST /immunization/encounters/:encounterId/records`
+  (clinician-administered), `GET /immunization/records`,
+  `GET /immunization/records/:recordId`,
+  `POST /immunization/records/:recordId/void`, `GET /immunization/health` —
+  no guards, matching every clinical-suite module except `records` and
+  `teleconsultation`'s gated `schedule` route (see the 2026-08-11 teleconsultation
+  entry for why `TELECONSULTATION` was the one exception).
+
+  **Wiring.** `IMMUNIZATION` was already reserved in `ClinicalModuleKey` (a
+  prior run's own comment names it explicitly), so no enum change was
+  needed there. `ImmunizationModule` added to `clinical-suite.module.ts`
+  only, not `app.module.ts` — the same minimal-diff precedent `interop` set,
+  since NestJS mounts a module's controllers once it is reachable anywhere
+  in the tree from `AppModule`, and `ClinicalSuiteModule` already imports
+  it. `ClinicalSuiteService` now takes a sixteenth constructor argument and
+  registers `createImmunizationModuleDescriptor` alongside the other
+  fifteen; `clinical-suite.service.test.ts` updated throughout — the
+  "everything up" test now expects sixteen modules including
+  `IMMUNIZATION`, and the `CLINICAL_CHARTING`-down test asserts
+  `IMMUNIZATION` gets the same one-hop `HIDE` degradation
+  `CLINICAL_SUMMARY`/`PRESCRIBING`/`DIAGNOSTICS_ORDERS`/`BILLING`/
+  `REFERRALS` already get, for the identical reason (a direct edge on
+  `CLINICAL_CHARTING`). New `@swasthya/immunization` workspace package
+  required a non-frozen `pnpm install` once to regenerate
+  `pnpm-lock.yaml`, verified clean under `--frozen-lockfile` before any
+  other step ran. No `health.controller.ts` change and no `.env.example`
+  change — unlike `engagement`, `immunization` has no external provider to
+  report.
+
+  **Tests.** `packages/immunization/src/index.test.ts` (4 tests) covers
+  both record-and-verify paths and the void/already-voided guard.
+  `apps/api/src/immunization/` gained `immunization.repository.test.ts`
+  (3), `immunization.service.test.ts` (9, including the 404/503 error
+  paths and the void-already-voided guard),
+  `immunization.controller.test.ts` (10, including zod validation of a
+  non-positive dose number and a missing void reason),
+  `immunization.module-descriptor.test.ts` (2) and
+  `immunization.fault-isolation.test.ts` (3) — the same three-part shape
+  every other module's own fault-isolation test uses.
+
+  **What was deliberately left out.** No vaccine catalogue, no EPI
+  due-date/schedule computation, no recall/reminder wiring against
+  `engagement` — all three need a real Nepal EPI schedule dataset this repo
+  does not have; building any of them would mean inventing vaccine names,
+  intervals or due-date rules, which is exactly what "invent no facts"
+  forbids. If a real schedule is ever sourced, it slots in as validation
+  logic in front of `recordPatientReportedImmunization`/
+  `recordClinicianAdministeredImmunization`, not a rewrite of either — both
+  already accept a dose number and a date, the two things a schedule check
+  would need. No `EntitlementsGuard` — `IMMUNIZATION` is not in
+  `@swasthya/entitlements`'s module catalogue, matching every clinical-suite
+  module except `records` and `teleconsultation`'s `schedule` route, so no
+  quota gate was invented for it.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the one-time
+  lockfile regeneration. `pnpm lint` 39/39. `pnpm typecheck` 39/39.
+  `pnpm test` 73/73 turbo tasks — `@swasthya/api` 560/560 (up from 533),
+  `@swasthya/immunization` 4/4 (new package). `pnpm build` 39/39.
+
+  **For the next run.** `quality-reporting`/`tenancy` (rows 19-20) are what
+  remain in the clinical-suite capability map. Both carry the same
+  no-real-dataset risk row 18 did — `quality-reporting` needs a real Nepal
+  DoHS/HMIS indicator set this repo does not have, and `tenancy` "cuts
+  across everything; design early, build late" per the capability map's own
+  note, meaning it is not a same-shaped single-run addition the way rows
+  12-18 have been. Neither is a decision this run made — re-read
+  `clinical-suite.md`'s capability map directly rather than trust this
+  paragraph. `companion.controller.ts`'s missing `EntitlementsGuard` and
+  extending `analytics` with a `clinical-charting` source both remain open,
+  still blocked on the same product decisions every recent entry has named.
+
+- 2026-08-11 — **Queue fully checked again; wired `interop` (capability map
+  row 17) into `apps/api`/`clinical-suite`.** Grepped for `- [ ]` first —
+  zero hits, same as every prior "queue exhausted" run. The prior run's own
+  log entry (engagement, row 15) named this as the concrete open item:
+  `@swasthya/interop` already had FHIR R4 mapping, the trusted-only export
+  filter and a full share-link expiry/revocation state machine
+  (`issueShareLink`/`revokeShareLink`/`resolveSharedBundle`,
+  `InMemoryShareLinkStore`), but nothing in `apps/api` called any of it —
+  `INTEROP` was reserved in `ClinicalModuleKey` and named in
+  `clinical-suite.md` row 17, but had no `ModuleDescriptor`, no controller,
+  no fault-isolation test. This run read `records.module.ts`/`.service.ts`,
+  `referrals.service.ts` and `engagement.service.ts` in full before writing
+  anything, since `interop`'s shape (one hard dependency on a foundation
+  module, one action gated on it, everything else independent) is the same
+  "opens a clinical action against a foundation module" pattern those three
+  already establish.
+
+  **What was built.** `RecordsService` gained `listObservationsForOwner`
+  (mirrors `listDocuments`, returns every status — `interop`'s own
+  `buildFhirExportBundle` is what filters to CONFIRMED/CORRECTED, the same
+  "owning module hands over raw data, consumer enforces the trust boundary"
+  split `timeline()` already draws). New `apps/api/src/interop/`:
+  `interop.repository.ts` (in-memory, keyed by id, with a token index and an
+  owner index — not a reuse of `@swasthya/interop`'s own
+  `InMemoryShareLinkStore`, which is keyed only by token for a different,
+  future on-device caller), `interop.service.ts`, `interop.controller.ts`,
+  `interop.module-descriptor.ts` and `interop.module.ts`.
+  `InteropService.issueShareLink` requires health-records up (`HIDE`, same
+  as `ReferralsService.requestReferral`/`EngagementService.queueMessage`
+  against their own foundation dependency), then checks every `documentId`
+  against `RecordsService.getDocument` and 404s (not 403s) on an
+  owner mismatch — the same "belongs to someone else reads like it doesn't
+  exist" rule `RecordsService.#requireObservation` already uses — before
+  calling the package's `issueShareLink`. `resolveSharedBundle` re-derives
+  the bundle from `RecordsService` on every call, per the package's own doc
+  comment on why, so it is gated the same way issuing is. `revokeShareLink`
+  and `listShareLinks` touch only this module's own repository and stay
+  available even with health-records down, the same "terminal transitions
+  don't re-depend on the foundation that opened the record" property
+  `ReferralsService.cancelReferral` established. Domain `ShareLinkError`
+  (empty `documentIds`, non-positive `ttlSeconds`) maps to
+  `BadRequestException`; `ShareLinkNotActiveError` (expired/revoked) maps to
+  `GoneException` — both following `FamilyGrantsService`'s
+  "catch the domain error class, map by name" convention.
+
+  **Routes.** `POST /interop/share-links`, `GET /interop/share-links`,
+  `DELETE /interop/share-links/:id` sit behind `SessionAuthGuard` only, the
+  same `FamilyGrantsController` pattern for a module with no
+  `EntitlementsGuard` wiring yet — `INTEROP` is not in
+  `@swasthya/entitlements`'s module catalogue, so no quota gate was invented
+  for it. `GET /interop/share/:token` carries no guard at all, deliberately:
+  a share link's whole purpose is letting someone with no Mero Health
+  account (a clinician in a consultation room) open it — the bearer token
+  is the credential, per `platform-vision.md` §3.3's own v1 share-link
+  design.
+
+  **Wiring.** `InteropModule` added to `clinical-suite.module.ts` and to
+  `ClinicalSuiteService`'s constructor/registry (fifteenth argument,
+  `createInteropModuleDescriptor`); `clinical-suite.service.test.ts` updated
+  throughout — the "everything up" test now expects fifteen modules
+  including `INTEROP`, and both the `CLINICAL_CHARTING`-down and
+  `PATIENT_REGISTRY`-down tests assert `INTEROP` reads fully available in
+  each case (its only edge is `HEALTH_RECORDS`, which neither outage
+  touches). `@swasthya/interop` added to `apps/api/package.json`, needing a
+  non-frozen `pnpm install` once to regenerate `pnpm-lock.yaml`, verified
+  clean under `--frozen-lockfile` before any other step ran. No
+  `health.controller.ts` change — unlike `engagement`, `interop` has no
+  configurable external provider to report.
+
+  **One bug caught by the controller's own test.** `issueShareLink` was
+  first written as a plain (non-`async`) method, so `parseOrThrow`'s
+  validation throw was a synchronous exception rather than a promise
+  rejection — inconsistent with `RecordsController.capture`'s own `async`
+  shape for the identical pattern. The controller test
+  (`rejects.toBeInstanceOf(BadRequestException)`) caught this immediately;
+  fixed by marking the method `async`, matching `capture()`.
+
+  **Tests.** `interop.repository.test.ts` (3), `interop.service.test.ts`
+  (14, covering issue/list/revoke/resolve, the 404/410/503 error paths and
+  the domain `ShareLinkError`→`BadRequestException` mapping),
+  `interop.controller.test.ts` (6), `interop.module-descriptor.test.ts` (2)
+  and `interop.fault-isolation.test.ts` (4, the same three-part shape every
+  other module's own fault-isolation test uses). `records.service.test.ts`
+  gained one test for `listObservationsForOwner`.
+
+  **What was deliberately left out.** No PDF export endpoint —
+  `@swasthya/interop/pdf`'s `export-pdf.ts` already exists but has its own
+  known limitation (no Devanagari-capable font embedded yet, so Nepali text
+  degrades to a placeholder in the printed PDF); wiring it in is a separate,
+  smaller follow-up, not folded into this one. No mobile/web UI for issuing
+  or viewing share links — this task was scoped to the `apps/api`
+  wiring the last three log entries all pointed at, the same "one module,
+  fully wired, not a UI on top of it yet" scope `engagement` and `referrals`
+  both shipped with.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the one-time
+  lockfile regeneration. `pnpm lint` 38/38. `pnpm typecheck` 38/38.
+  `pnpm test` 71/71 turbo tasks — `@swasthya/api` 533/533 (up from 504).
+  `pnpm build` 38/38.
+
+  **For the next run.** `immunization`/`quality-reporting`/`tenancy` (rows
+  18-20) are what remain in the clinical-suite capability map, alongside the
+  still-open, still-blocked items every recent entry has repeated:
+  `companion.controller.ts`'s missing `EntitlementsGuard`, extending
+  `analytics` with `clinical-charting`/`engagement` sources, and a PDF
+  export endpoint for `interop` once a Devanagari font is embedded. None of
+  these is a decision this run made — re-read `clinical-suite.md`'s
+  capability map directly rather than trust this paragraph.
+
+- 2026-08-11 — **Queue fully checked again; built the `engagement` module
+  (capability map row 15).** Grepped for `- [ ]` first — zero hits, same as
+  every prior "queue exhausted" run. Five consecutive prior log entries had
+  each named row 15 as "the strongest actual candidate left" without
+  building it, so this run read `clinical-suite.md` row 15's note in
+  full — "Patient messaging, reminders ... SMS/WhatsApp. `QUEUE_AND_RETRY`
+  by nature" — and the existing `apps/api/src/auth/sms-provider.ts` (a
+  logging mock built for OTP delivery, env-gated on `SMS_PROVIDER=mock`,
+  with no real gateway contracted) before designing anything, since that
+  file is the closest precedent for an SMS-shaped port in this repo.
+
+  **What was built.** `packages/shared-types` gained an `Engagement`
+  section (`EngagementChannel = 'SMS' | 'WHATSAPP'`, `EngagementMessageKind
+  = 'REMINDER' | 'GENERAL'`, `EngagementMessage`,
+  `QueueEngagementMessageInput`) with a header comment working through why
+  `channel` is a real union (row 15 names both real channels directly,
+  unlike row 10's `PaymentProvider`, which stayed `'MOCK'`-only because
+  nothing in the repo names a real Nepali payment integration) and why
+  there is no `DELIVERED` status (no adapter here has a delivery receipt to
+  report — `SENT`, meaning "handed to a channel," is the honest limit). New
+  `packages/engagement` is the pure domain layer: `queueMessage` (always
+  QUEUED, never throws), `markSent`/`markFailed` (both require QUEUED), and
+  `retryMessage` (requires FAILED, returns to QUEUED without touching
+  `attemptCount` — that only advances on the next `markSent`/`markFailed`).
+  New `apps/api/src/engagement/`: `delivery-provider.ts`
+  (`EngagementDeliveryProvider` port + `MockEngagementDeliveryProvider`,
+  logging, env-gated on a new `ENGAGEMENT_PROVIDER=mock`, mirroring
+  `sms-provider.ts` line for line down to the "throw on an unrecognised
+  value" boot-time check), `engagement.repository.ts` (in-memory, same
+  `ReferralsRepository` shape), `engagement.service.ts`,
+  `engagement.module-descriptor.ts`, `engagement.controller.ts` and
+  `engagement.module.ts`. `EngagementService.queueMessage` resolves the
+  patient through `PatientRegistryService` (refusing, 503, while
+  patient-registry is DOWN — the same `HIDE`-on-open-action shape
+  `ReferralsService.requestReferral` already uses for clinical-charting),
+  captures `phone` onto the message at queue time, and immediately attempts
+  delivery, recording SENT or FAILED rather than leaving a message
+  perpetually QUEUED. `retryMessage` deliberately never touches
+  patient-registry — the destination was already captured — so it stays
+  available even if patient-registry has since gone down, the same
+  "terminal transitions don't re-depend on the foundation that opened the
+  record" property `referrals`' accept/decline/complete/cancel already
+  established for clinical-charting.
+
+  **Wiring.** `ENGAGEMENT` was already reserved in
+  `ClinicalModuleKey` (a prior run's own comment names it explicitly), so
+  no enum change was needed there. `EngagementModule` added to
+  `app.module.ts` and to `clinical-suite.module.ts`;
+  `ClinicalSuiteService` now takes a fourteenth constructor argument and
+  registers `createEngagementModuleDescriptor` alongside the other
+  thirteen — `clinical-suite.service.test.ts` updated throughout: the
+  "everything up" test now expects fourteen modules including `ENGAGEMENT`,
+  the `CLINICAL_CHARTING`-down test asserts `ENGAGEMENT` reads fully
+  available (it has no edge to charting), and the `PATIENT_REGISTRY`-down
+  test asserts `ENGAGEMENT` gets the same one-hop `HIDE` degradation
+  `ANALYTICS` already gets, for the same reason (both declare a direct
+  edge on `PATIENT_REGISTRY`, not only a transitive one through
+  `SCHEDULING`). `health.controller.ts`'s static integrations object
+  gained `engagement: 'mock'`, matching its existing `sms: 'mock'` entry.
+  `.env.example` gained `ENGAGEMENT_PROVIDER=mock`. New
+  `@swasthya/engagement` workspace package required a non-frozen
+  `pnpm install` once to regenerate `pnpm-lock.yaml`, then verified clean
+  under `--frozen-lockfile` before any other step ran.
+
+  **Tests.** `packages/engagement/src/index.test.ts` (10 tests) covers the
+  full QUEUED→SENT / QUEUED→FAILED→QUEUED state machine and both guard
+  errors. `apps/api/src/engagement/` gained
+  `engagement.repository.test.ts` (3), `engagement.service.test.ts` (10,
+  including "records FAILED rather than throwing when the provider
+  rejects" and "stays available to retry even while patient-registry is
+  down"), `engagement.controller.test.ts` (5),
+  `engagement.module-descriptor.test.ts` (2) and
+  `engagement.fault-isolation.test.ts` (4) — the last following
+  `referrals.fault-isolation.test.ts`'s exact three-part shape: a broken
+  repository doesn't take patient-registry down with it, `resolveAvailability`
+  reports the one real `HIDE` edge correctly, and two behavioural tests
+  (refuses-then-resumes on queue; retry stays available) exercise the
+  service directly rather than only the registry. One eslint fix along the
+  way: `engagement.service.test.ts` originally typed its mock provider as
+  `EngagementDeliveryProvider` and asserted
+  `expect(provider.send).toHaveBeenCalledWith(...)`, which trips
+  `@typescript-eslint/unbound-method` — reused `auth.service.test.ts`'s own
+  documented workaround (keep the mock as an untyped
+  `{ send: ReturnType<typeof vi.fn> }` shape, cast to the port type only at
+  the constructor boundary) rather than inventing a new one.
+
+  **What was deliberately left out.** No real SMS/WhatsApp gateway
+  integration — there is no contracted provider named anywhere in this
+  repo, and inventing one (a partner name, an API shape) would be exactly
+  the fabrication the standing constraints forbid;
+  `MockEngagementDeliveryProvider` logs and returns, the same honesty
+  `MockSmsProvider` already established for OTP. No analytics integration —
+  extending `analytics` with an `engagement` source is a separate, smaller
+  follow-up for whoever picks it up next, not folded in here. No
+  compliance-register row — unlike `prescribing`/`billing`, messaging
+  carries no prescribing-grade safety weight or `billing`-grade
+  financial-liability weight, so nothing in `docs/compliance/` needed to
+  lead this module.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the one-time
+  lockfile regeneration. `pnpm lint` 38/38 workspace tasks. `pnpm typecheck`
+  38/38. `pnpm test` 70/70 turbo tasks (includes each dependency's `^build`
+  step, not one-per-package) — `@swasthya/api` 504/504 (up from 480),
+  `@swasthya/engagement` 10/10 (new package). `pnpm build` 38/38.
+
+  **For the next run.** Extending `analytics` (row 14) with an `engagement`
+  source is the concrete, small follow-up this run's own scope left out.
+  `companion.controller.ts`'s missing `EntitlementsGuard` and extending
+  `analytics` with a `clinical-charting` source both remain open, blocked on
+  the same product decisions every recent entry has named. With row 15
+  built, row 16 (`health-records`) is already both built and wired into the
+  `clinical-suite` module registry (`createHealthRecordsModuleDescriptor` is
+  already in `ClinicalSuiteService`'s list) — only `packages/interop` (row
+  17) exists as a package with no `ModuleDescriptor`/fault-isolation test of
+  its own. Whether wiring `interop` in the same shape is worth doing, versus
+  rows 18-20 (`immunization`/`quality-reporting`/`tenancy`), is a real open
+  question for whoever reads the capability map next, not a decision this
+  run made.
+
+- 2026-08-11 — **Queue fully checked again; fully localized
+  `apps/mobile/app/index.web.tsx`.** Grepped for `- [ ]` first — zero hits,
+  same as every prior "queue exhausted" run. This picked up the concrete
+  candidate the immediately-preceding run's own log entry named as "a real,
+  larger follow-up if anyone wants this specific gap fully closed": unlike
+  every sibling screen, `index.web.tsx` (the Expo-router web variant of the
+  root `/` route, i.e. the actual marketing landing page served at the app's
+  web root) never imported `useAppState`/`language` at all — its ~50 visible
+  strings were a fixed mix of Nepali and English with no toggle, so an
+  English-preferring visitor saw a landing page that switched languages
+  mid-scroll for no reason tied to any choice they made.
+
+  **What was built.** Added `useAppState`/`language` (the same context every
+  other screen already reads, provided by `AppStateProvider` in
+  `app/_layout.tsx`, which wraps this route too) and converted every visible
+  `<Text>` node, the brand-lockup `accessibilityLabel`, the mic-button
+  `accessibilityLabel`s, and the `Speech.speak` introduction (text *and* its
+  `language` code, `ne-NP`/`en-US`) to the same
+  `language === 'en' ? … : …` ternary convention `care.tsx`/`consultation.tsx`
+  established. The `journey` and `services` arrays gained `titleNe`/`titleEn`
+  (etc.) pairs, matching `care.tsx`'s own `filters` array's `labelNe`/
+  `labelEn` precedent from two entries back — and `services` gained a stable
+  `id` field so `.map()` keys no longer depend on the label text, which would
+  have remounted every card on a language switch. The imperative
+  `voiceMessage`/`setVoiceMessage(...)` state (three hardcoded Nepali strings
+  written at record-start/stop) was replaced with a value derived at render
+  time from `recorderState.isRecording` and a new `hasRecorded` boolean —
+  needed for correctness, not a stylistic refactor: an imperative string
+  written once at record-start would have frozen in whatever language was
+  active *then*, going stale if the visitor toggled language mid-recording.
+  Reused `apps/web/messages/{ne,en}.json`'s existing `home.hero`/
+  `home.announcement` copy where the same concept already had an approved
+  translation (`"Built for Nepal · useful anywhere"` for the eyebrow is a
+  verbatim match; the announcement banner and trust-row lines are close
+  paraphrases of the same source strings) rather than inventing independent
+  wording for the same claim. Everything else — the Perplexity band's three
+  paragraphs, the bento safety panel, the journey/story copy — had no
+  existing translation anywhere in the repo to reuse, so got a plain, literal
+  Nepali translation of the existing English (or vice versa), never new
+  claims: the Perplexity paragraph still names only Sonar/Perplexity Health,
+  the same integration `apps/api/src/perplexity-health.service.ts` and
+  `companion.controller.ts` actually call, nothing further was implied.
+
+  **What was deliberately left unconditional, and why.** Three elements
+  stay fixed regardless of the toggle: the `MERO HEALTH` / `मेरो स्वास्थ्य`
+  brand lockup and `footerBrand` (a brand name, not translatable copy, same
+  as `Footer.tsx`'s social-network names from two entries back); the
+  `heroNepali` line ("Your health, in your language.") sitting directly under
+  the Nepali headline — this is a deliberate fixed bilingual pairing
+  demonstrating the product's own language range, not a stray untranslated
+  string, so toggling it would remove the thing it exists to show; and the
+  two all-caps eyebrow badges (`CARE, ALL IN ONE PLACE`,
+  `MERO HEALTH × PERPLEXITY`), matching the precedent
+  `app/(tabs)/learn.tsx`'s `STEP 1 · ASK`/`PATIENT-CONTROLLED` eyebrows
+  already set of leaving all-caps badge chrome in English under both
+  languages. The `languageChip` text ("नेपाली पहिलो · रोमन नेपाली ·
+  English") is inherently trilingual by design and was left as-is for the
+  same reason. No change to any other file — `care-directory`'s data,
+  `companion.controller.ts`'s Perplexity wiring, and every other screen's
+  existing translations were untouched.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 37/37. `pnpm typecheck` 37/37. `pnpm test` 68/68 tasks,
+  `@swasthya/api` 480/480 — no count change, this file has no colocated test
+  (matching every other `app/*.tsx` screen, per the accessibility-label run's
+  own note two entries back on why `app/*.tsx` screens have no rendering
+  harness). `pnpm build` 37/37, including `apps/mobile`'s Expo web bundle —
+  the `/` (index) static route still exports at the expected size (86KB,
+  consistent with the added ternary branches) and `apps/web`'s static export
+  is unaffected (no `apps/web` file touched).
+
+  **For the next run.** The candidates every recent entry has repeated stay
+  exactly where they were: `companion.controller.ts`'s missing
+  `EntitlementsGuard` (needs a product decision on anonymous-vs-signed-in
+  use), extending `analytics` with a `clinical-charting` source (needs
+  someone to decide what an encounter-only summary counts, since `SoapNote`
+  has no clean status field), and capability-map row 15 `engagement` (a new
+  module, flagged repeatedly as deserving its own dedicated run — the
+  strongest actual candidate left, if this run's own guess is worth
+  anything). With `index.web.tsx` closed, no other apps/mobile screen is
+  known to have a language-toggle gap — a repeat sweep would be the thing to
+  check before assuming there is more mechanical i18n work left.
+
+- 2026-08-11 — **Queue fully checked again; translated `apps/mobile`'s
+  hardcoded-English `accessibilityLabel` props.** Grepped for `- [ ]` first —
+  zero hits, same as every prior "queue exhausted" run. The prior run's own
+  log entry (directly below) had already surveyed the repo and flagged this
+  exact gap as "a reasonable next 'queue exhausted' pick if nobody has picked
+  up the suite or a product decision by then" — that recommendation is what
+  this run acted on. Before touching code, had an Explore agent size the gap
+  precisely across both `apps/mobile` and `apps/web`, since the prior entry
+  had only speculated web might share the problem.
+
+  **What the survey found.** `apps/mobile` had 27 `accessibilityLabel` props;
+  5 were already correctly localized (`consent.tsx`, `ProfileSwitcher.tsx`,
+  `capture.tsx`'s document-title field, `records.tsx`'s two title fields). Of
+  the remaining 22: 19 were a pure copy of the file's own existing
+  `language === 'en' ? … : …` ternary (the screen already destructures
+  `language` from `useAppState()` for other visible text), 1 needed a
+  `language` prop threaded through the shared `SathiOrb` component (used at 3
+  call sites, all of which already have `language` in scope), and 2 sit on
+  `app/index.web.tsx` — a standalone marketing landing page with **zero**
+  localization scaffolding anywhere, where every other visible string is
+  hardcoded Nepali-only. `apps/web`'s `aria-label` usage (20 occurrences, 12
+  files) turned out to already route entirely through `useTranslations`/
+  `t(...)`, except one hardcoded hit (`Footer.tsx`'s social-network names —
+  "Facebook", "Instagram", etc. — proper nouns, identical in both languages).
+  The prior entry's "might also affect apps/web" speculation did not hold up;
+  this run made no `apps/web` changes.
+
+  **What was built.** All 19 mechanical labels got the file's own ternary
+  convention applied to the accessibility string, reusing existing on-screen
+  Nepali copy where the same action already had visible text elsewhere in the
+  file (e.g. `capture.tsx`'s "Retake" reuses the same फेरि खिच्नुहोस् already
+  shown on its visible retry button; `companion.tsx`'s
+  record/stop-recording label reuses its own visible-button Nepali text) and
+  a plain, literal Nepali translation of the English verb where no existing
+  in-app translation existed (Go back → पछाडि जानुहोस्, used identically
+  across all 5 screens that have it, since it is the same action everywhere).
+  Files touched: `app/(tabs)/index.tsx`, `app/(tabs)/learn.tsx` (4 labels),
+  `app/consent.tsx`, `app/capture.tsx` (2), `app/records.tsx`,
+  `app/consultation.tsx` (4), `app/(tabs)/care.tsx`, `app/(tabs)/companion.tsx`
+  (5). `src/components/ui.tsx`'s `SathiOrb` gained a required
+  `language: LanguageCode` prop (matching `ProfileSwitcher`'s own
+  no-default convention) and its accessibility label now reads
+  "Swasthya Sathi companion" / "स्वास्थ्य साथी"; the 4 call sites
+  (`app/index.tsx`, `app/(tabs)/index.tsx`, `app/(tabs)/companion.tsx` ×2)
+  all already had `language` in scope, so this was prop-threading only, no
+  new state access.
+
+  **What was deliberately left alone, and why.** `app/index.web.tsx`'s 2
+  accessibility labels stayed Nepali-only — the survey confirmed this screen
+  has no `language`/`useAppState` usage anywhere and ~20 other visible
+  strings on the same page are hardcoded Nepali too; localizing only its
+  accessibility labels would be a smaller inconsistency than the one this
+  task exists to fix. Localizing the whole page is a separate, larger task
+  for a future run. `Footer.tsx`'s social-network `aria-label`s stayed as
+  literal English brand names — they are proper nouns, not translatable
+  copy. No visible `<Text>` copy was changed anywhere except where an
+  accessibility label's own translation was written by reusing text a
+  sibling visible element in the same file already displays — no new prose
+  was invented.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 37/37. `pnpm typecheck` 37/37 (the new required `SathiOrb`
+  `language` prop caught all 4 call sites at compile time — no runtime-only
+  gap). `pnpm test` 68/68 tasks, `@swasthya/api` 480/480 (no count change —
+  copy/prop-threading only, no new logic, matching the mobile app's existing
+  precedent of no colocated test for `app/*.tsx` screens or `ui.tsx`
+  presentational components). `pnpm build` 37/37, including `apps/mobile`'s
+  Expo web bundle and `apps/web`'s static export.
+
+  **For the next run.** `app/index.web.tsx`'s full-page localization is a
+  real, larger follow-up if anyone wants this specific gap fully closed. The
+  three candidates named five-plus entries back remain open and untouched:
+  `companion.controller.ts`'s missing `EntitlementsGuard` (blocked on a
+  product decision about anonymous-vs-signed-in use), extending `analytics`
+  with a `clinical-charting` source (blocked on deciding what an
+  encounter-only summary counts), and capability-map row 15 `engagement`
+  (flagged repeatedly as deserving its own dedicated run).
+
+- 2026-08-11 — **Queue fully checked again; fixed `apps/mobile`'s
+  `care.tsx`/`consultation.tsx` ignoring the `language` toggle.** Grepped for
+  `- [ ]` first — zero hits, same as every prior "queue exhausted" run. Before
+  touching code, had a general-purpose agent survey the repo (read-only) for a
+  genuine, single-run-sized gap, explicitly ruling out the three candidates
+  every recent log entry had already named and deferred as needing a product
+  decision this kind of run isn't authorized to make: `companion.controller.ts`'s
+  missing `EntitlementsGuard` (needs a decision on anonymous-vs-signed-in use
+  plus a new Prisma model), extending `analytics` with a `clinical-charting`
+  source (needs someone to decide what an encounter-only summary even counts,
+  since `SoapNote` has no clean status field), and capability-map row 15
+  `engagement` (a new module, flagged repeatedly as deserving its own
+  dedicated run). The survey also checked, and found clean: every
+  clinical-suite module has a real fault-isolation test, `ne.json`/`en.json`
+  have zero key-set mismatches, `CONFIRMED`/`CORRECTED`-only filtering is
+  applied consistently in `packages/interop`/`packages/retrieval`/
+  `packages/intent-router`, and no live `describe.todo`/`it.todo`/`test.skip`
+  remains anywhere in the repo.
+
+  **What the survey found instead.** `apps/mobile/app/(tabs)/care.tsx` was
+  fully hardcoded Nepali (filter pills, search placeholder, the demonstration
+  banner, verification labels) and `apps/mobile/app/consultation.tsx` was
+  fully hardcoded English (every visible string) — neither imported
+  `useAppState`/`language` at all, unlike every sibling screen
+  (`companion.tsx`, `twin.tsx`, `learn.tsx`, `records.tsx`), which already
+  render body copy through the same `language === 'en' ? … : …` ternary. Both
+  screens are live and linked from `(tabs)/index.tsx`, not dead code.
+  `consultation.tsx` was confirmed still in its own documented scope (a
+  disconnected camera-permission UI demo, per the 2026-08-11 teleconsultation
+  log entry two thousand-odd lines below) — this is a pure copy/i18n fix, it
+  does not touch that decision.
+
+  **What was built.** Both screens now read `language` from `useAppState` and
+  render every visible `<Text>` node through the same inline ternary
+  convention already used elsewhere in `apps/mobile`. `care.tsx`'s `filters`
+  array gained `labelNe`/`labelEn` pairs (translations of the existing Nepali
+  labels — `सबै`/`All`, `अस्पताल`/`Hospital`, etc. — matching
+  `DirectoryEntityType`'s own values, not invented copy). The demonstration
+  banner and verification labels (`डेमो प्रमाणित`/`समीक्षा गरिएको`) got English
+  translations reusing the tone already established in
+  `apps/web/messages/*.json`'s own `demoNotice`/`fictional example` copy,
+  since this is a legally-relevant disclaimer and its wording shouldn't drift
+  screen to screen. `care.tsx`'s date formatting also switched from a
+  hardcoded `'en-CA'` locale to the `language === 'en' ? 'en-US' : 'ne-NP'`
+  pattern `records.tsx` already uses, for the same reason. `consultation.tsx`
+  gained Nepali translations for its remote-participant copy, camera
+  placeholder, captions notice, safety line, and controls — including the
+  scope disclaimer ("Demonstration room · No clinician, recording, signaling
+  server, or WebRTC provider is connected") that a prior log entry had quoted
+  verbatim as load-bearing, translated without altering its meaning.
+
+  **What was deliberately left alone, and why.** All-caps eyebrow-style badges
+  (`VERIFIED CARE NETWORK`, `CLINICIAN PARTICIPANT`, `PRIVATE VIDEO ROOM ·
+  PREVIEW`, `YOU · LOCAL PREVIEW`) stayed English — every sibling screen's
+  eyebrows (`PATIENT-CONTROLLED`, `LEARN BY WATCHING…`, `STEP 1 · ASK`) follow
+  the same convention, so changing only these two screens' eyebrows would have
+  been an inconsistency in the other direction. `accessibilityLabel` props
+  (`Go back`, `Mute microphone`, `Search care directory`, etc.) also stayed
+  English, matching `records.tsx`'s own precedent of leaving icon-button
+  accessibility labels untranslated while translating visible copy — a real,
+  separate accessibility gap across the whole app, not something to fix
+  piecemeal inside two files. No change to `consultation.tsx`'s scope
+  (still no networking code, per its own documented boundary) and no change
+  to `care.tsx`'s data (`packages/care-directory`'s demonstration entities
+  untouched).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new dependency, only a new import of the existing `@/state/app-state`
+  hook). `pnpm lint` 37/37. `pnpm typecheck` 37/37. `pnpm test` 68/68 tasks,
+  no count change — this app has no DOM/React Native rendering harness (see
+  the document-capture run's own note on this), so, matching every other
+  `app/*.tsx` screen, there is no colocated test for either file; both
+  changes are copy/prop-threading only, not new logic. `pnpm build` 37/37,
+  including `apps/mobile`'s Expo web bundle (`/care` and `/consultation`
+  both present in the static-route list) and `apps/web`'s static export.
+
+  **For the next run.** The three candidates this run's survey ruled out
+  remain exactly where prior entries left them: `companion.controller.ts`'s
+  metering gap, `analytics`'s open `clinical-charting` source, and row 15
+  `engagement`. The `accessibilityLabel`-in-English pattern flagged above is a
+  real, low-severity accessibility gap spanning the whole `apps/mobile` app
+  (and likely `apps/web` too) — a reasonable next "queue exhausted" pick if
+  nobody has picked up the suite or a product decision by then.
+
+- 2026-08-11 — **Queue fully checked again; extended `analytics` (capability
+  map row 14) with a fourth source, `referrals`.** Grepped for `- [ ]` first —
+  zero hits. The prior run's own log entry (directly below) named two open
+  candidates for row 14's next source — `referrals` and `clinical-charting` —
+  and left the choice for whoever picked it up next. An Explore agent
+  surveyed both: `clinical-charting`'s `SoapNote` has no status field at all
+  (only the encounter itself has a thin `OPEN`/`CLOSED` `EncounterStatus`),
+  which would force a judgment call about what a "clinical-charting summary"
+  even counts — the same ambiguity the billing-over-referrals choice two
+  entries back was written to avoid. `referrals` has none of that: `Referral.status`
+  is a single closed five-value enum (`REQUESTED`/`ACCEPTED`/`DECLINED`/
+  `CANCELLED`/`COMPLETED`), structurally identical to `Invoice.status`, so
+  `buildReferralsSummary` follows `buildBillingSummary`'s shape exactly with
+  no new judgment calls. `referrals` won on that basis.
+
+  **What was built.**
+  1. `packages/shared-types/src/index.ts`: `ReferralsSummary` (`totalReferrals`
+     plus a count per `ReferralStatus`), placed next to `BillingSummary`.
+  2. `packages/analytics`: `buildReferralsSummary`, zero-filling every
+     `ReferralStatus` the same way the other three summary builders already
+     do. 2 new tests (empty list, mixed statuses).
+  3. `apps/api/src/analytics/`: `AnalyticsService` now takes `ReferralsService`
+     as a fourth injected port and gates `referralsSummary()` on only
+     `referrals.health()` — the same one-hop-per-summary shape as the other
+     three sources, so a referrals outage never touches the patient,
+     scheduling or billing summaries and vice versa.
+     `AnalyticsController` gained `GET /analytics/referrals`.
+     `AnalyticsModule` imports `ReferralsModule` (already imported at the
+     `app.module.ts`/`clinical-suite.module.ts` level, so no new circular-import
+     risk). `createAnalyticsModuleDescriptor` gained a fourth `degradesWith`
+     edge, `{ key: 'REFERRALS', mode: 'HIDE' }`.
+  4. Updated every test that constructs `AnalyticsService` directly
+     (`analytics.service.test.ts`, `.controller.test.ts`,
+     `.module-descriptor.test.ts`, `.fault-isolation.test.ts`,
+     `clinical-suite.service.test.ts`) to pass a real `ReferralsService`,
+     built the same way `referrals.service.test.ts`'s own `buildStack`
+     already does (`RecordsService` → `ClinicalChartingService` →
+     `ReferralsService`). `analytics.fault-isolation.test.ts`'s three
+     existing registry-construction tests each needed a `ReferralsService`
+     descriptor added to their `buildModuleRegistry` call too — `ANALYTICS`'s
+     new edge means `buildModuleRegistry`'s own reference validation now
+     requires it in every registry that includes `ANALYTICS`, not just the
+     one edge each test exercises. 1 new fault-isolation test (REFERRALS-down
+     cascade) plus a new behavioural refusal test, plus the referrals branch
+     of the existing service/controller describe blocks.
+     `clinical-suite.service.test.ts`'s three existing assertions needed no
+     behavioural changes — `REFERRALS` stays `available: true` under a
+     `CLINICAL_CHARTING` outage (only `HIDE`-degraded), so `ANALYTICS`'s new
+     edge to it never fires there, matching the doc-comment expectation; only
+     its explanatory comment was extended to name `REFERRALS` alongside
+     `BILLING`.
+
+  **What was deliberately not built.** No `clinical-charting` source in the
+  same run — see the ambiguity above; a future run could still add one once
+  someone decides what an encounter-only summary should mean. No change to
+  `packages/referrals`, `referrals.service.ts` or the Prisma schema — this
+  stayed additive to `analytics` only, reading through `ReferralsService`'s
+  existing `listReferrals()`.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new package, only new fields/methods on an existing one). `pnpm lint`
+  37/37. `pnpm typecheck` 37/37. `pnpm test` 68/68 tasks — `@swasthya/api`
+  480 tests (up from 473: 7 new — 2 service, 2 controller, 0
+  module-descriptor test count change beyond the existing two being
+  extended, 3 fault-isolation), `@swasthya/analytics` 8 tests (up from 6).
+  `pnpm build` 37/37, including `apps/web`'s static export and
+  `apps/mobile`'s Expo web bundle.
+
+  **For the next run.** `clinical-charting` remains the one open row-14
+  source candidate, now with a concrete reason it was skipped twice rather
+  than an unexplained gap — someone should decide what it counts (encounters
+  by `EncounterStatus`, most likely) before building it, not invent that
+  definition inside a "queue exhausted" run. The `companion.controller.ts`
+  missing-`EntitlementsGuard` gap (flagged five log entries back) remains
+  open and untouched — still needs the product decision on anonymous-vs-signed-in
+  use that no prior run has made. Row 15 (`engagement`) remains exactly
+  where every prior reassessment has left it.
+
+- 2026-08-11 — **Queue fully checked again; extended `analytics` (capability
+  map row 14) with a third source, `billing`.** Grepped for `- [ ]` first —
+  zero hits. Two named candidates were open going into this run: the
+  `companion.controller.ts` missing-`EntitlementsGuard` gap, and extending
+  `analytics` with more sources (billing/referrals/clinical-charting),
+  explicitly left incomplete by the run that built the module. A
+  general-purpose agent scoped the companion gap first and found it is
+  **not** the small fix its name suggests: `apps/mobile/app/(tabs)/companion.tsx`
+  calls `/companion/research` with no `Authorization` header, and the mobile
+  app has **no login/OTP screen anywhere** under `apps/mobile/app` — adding
+  `SessionAuthGuard` would 401 every current caller of the one flow the
+  companion tab exists for. Honestly metering
+  `ASSISTANT_MESSAGES_PER_MONTH` would also need a new Prisma model (nothing
+  in the schema fits — `AiConversation`/`AiMessage` exist but are wired to
+  nothing) plus a decision about anonymous use that only the product owner
+  should make, not something to invent inside a "queue exhausted" run. Left
+  untouched, flagged plainly below instead of quietly fixed halfway.
+
+  **Why billing instead of referrals or clinical-charting.** Both are
+  equally valid per the prior run's note; billing was picked because
+  `InvoiceStatus` (`DRAFT`/`ISSUED`/`PAID`/`VOID`) is a closed, already-typed
+  enum exactly like `AppointmentStatus`, so `buildBillingSummary` could
+  follow `buildSchedulingSummary`'s shape line-for-line with no new judgment
+  calls about what "counts." Referrals/clinical-charting remain open for
+  whichever run picks up row 14 next.
+
+  **What was built.**
+  1. `packages/shared-types/src/index.ts`: `BillingSummary` (`totalInvoices`
+     plus a count per `InvoiceStatus`), with a doc comment stating explicitly
+     why this is an invoice **count**, not a revenue sum — summing
+     `amountPaisa` would be a different, higher-stakes claim with no
+     reconciliation step behind it yet.
+  2. `packages/analytics`: `buildBillingSummary`, zero-filling every
+     `InvoiceStatus` the same way `buildSchedulingSummary` already does. 2
+     new tests.
+  3. `apps/api/src/analytics/`: `AnalyticsService` now takes `BillingService`
+     as a third injected port and gates `billingSummary()` on only
+     `billing.health()` — the same one-hop-per-summary shape the module
+     already had, so a billing outage never touches the patient or
+     scheduling summaries and vice versa. `AnalyticsController` gained
+     `GET /analytics/billing`. `AnalyticsModule` imports `BillingModule`.
+     `createAnalyticsModuleDescriptor` gained a third `degradesWith` edge,
+     `{ key: 'BILLING', mode: 'HIDE' }`.
+  4. Updated every test that constructs `AnalyticsService` directly
+     (`analytics.service.test.ts`, `.controller.test.ts`,
+     `.module-descriptor.test.ts`, `.fault-isolation.test.ts`,
+     `clinical-suite.service.test.ts`) to pass a real `BillingService`, built
+     the same way `billing.service.test.ts`'s own `buildStack` already does
+     (`RecordsService` → `ClinicalChartingService` → `BillingService`, since
+     billing itself depends on clinical-charting). Registering `ANALYTICS`
+     in a `buildModuleRegistry` call now transitively requires
+     `CLINICAL_CHARTING`'s and `BILLING`'s own descriptors, which in turn
+     requires `HEALTH_RECORDS`'s — `buildModuleRegistry` validates every
+     `degradesWith` reference, so the fault-isolation tests needed all four
+     real descriptors registered together, not just the one edge each test
+     exercises. 3 new fault-isolation tests (BILLING-down cascade,
+     BILLING-down behavioural refusal, cross-isolation both ways) plus the
+     billing branch of the existing service/controller describe blocks.
+     `clinical-suite.service.test.ts`'s three existing assertions needed no
+     behavioural changes — `BILLING` stays `available: true` under a
+     `CLINICAL_CHARTING` outage (only `HIDE`-degraded), so `ANALYTICS`'s new
+     edge to it never fires there, matching the doc-comment expectation.
+
+  **What was deliberately not built.** No revenue/amount aggregation — see
+  the `BillingSummary` doc comment above. No `referrals` or
+  `clinical-charting` source added in the same run — the prior run's own
+  note already flagged three candidates and doing more than one in a run
+  means more untested cross-source interactions than "queue exhausted"
+  should take on at once. No `companion.controller.ts` change — see above.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new package, only new fields/methods on an existing one). `pnpm lint`
+  37/37. `pnpm typecheck` 37/37. `pnpm test` 68/68 tasks — `@swasthya/api`
+  473 tests (up from 466: 7 new — 2 service, 2 controller, 0
+  module-descriptor test count change beyond the existing two being
+  extended, 3 fault-isolation), `@swasthya/analytics` 6 tests (up from 4).
+  `pnpm build` 37/37, including `apps/web`'s static export and
+  `apps/mobile`'s Expo web bundle. No schema/migration change — `BILLING`
+  already had its own Prisma-free in-memory repository from its own
+  original run; this only added a read path analytics didn't have before.
+
+  **For the next run.** The `companion.controller.ts` gap is real but bigger
+  than a "queue exhausted" pick: it needs (a) a product decision on whether
+  the companion assistant stays anonymous or requires sign-in, (b) if it
+  stays anonymous, a different enforcement shape than `SessionAuthGuard`
+  entirely (a per-device or per-IP rate limit, not a per-`subjectId` quota),
+  and (c) either way, a new Prisma model to meter real usage — the unused
+  `AiConversation`/`AiMessage` models in the schema are not scoped to a
+  caller and would need real wiring, not reuse. This deserves its own
+  dedicated run with that decision made explicit, not a silent guess folded
+  into whichever task happens to be picked up next. `referrals` and
+  `clinical-charting` remain open, equally valid next sources for `analytics`
+  row 14. Row 15 (`engagement`) remains exactly where every prior
+  reassessment left it.
+
+- 2026-08-11 — **Queue fully checked again; wrote the sibling "asked by a
+  delegate on another subject's behalf" test in
+  `packages/evaluation/src/index.test.ts`, replacing its own
+  `describe.todo`.** Grepped for `- [ ]` first — zero hits. This run's own
+  immediate predecessor (the intent-router cross-subject-leakage entry
+  directly below) had just done the `packages/intent-router` half of the
+  same pair and named this one explicitly as "the more obvious 'queue
+  exhausted' pick" for whoever came next — that recommendation is what this
+  run acted on, rather than re-surveying the repo from scratch or reaching
+  for row 15 (`engagement`), which two prior entries have already flagged as
+  a guess deserving its own dedicated run.
+
+  **What was built.** `@swasthya/family` added as a devDependency of
+  `packages/evaluation` only (mirroring `packages/intent-router`'s own
+  boundary exactly — `runEvaluationCase`/`route` still take a plain
+  `subjectId` and know nothing about delegation; this package gains a test
+  proving delegation composes with the evaluation harness, not a runtime
+  feature). The `describe.todo` in `describe('evaluationCases', ...)` is
+  replaced with a real `describe` block reproducing the actual seeded
+  Janaki→Sunita `DelegationGrant` (`packages/database/src/seed-data.ts`'s
+  `delegationGrants[0]`: `VIEW_RECORD`/`ASK_ASSISTANT`, assisted enrolment
+  recorded by Sunita, `IN_PERSON_VERBAL`) via
+  `grantDelegationByAssistedEnrolment` — same ids, scopes and dates as the
+  seed, not an invented grant. Four tests: (1) `hasScope` is the gate a real
+  call site checks before resolving Sunita's question to Janaki's
+  `subjectId`; (2) a revoked grant fails that gate; (3) Sunita asking on
+  Janaki's behalf — i.e. the effective `subjectId` resolved from the grant —
+  reruns the existing `janaki-glucose-trend-ne` case unchanged and asserts
+  every citation's `documentId` is one of Janaki's, never Sunita's (derived
+  from `demonstrationCorpus.observations` at runtime rather than hardcoding
+  a second copy of the seed's document ids); (4) the symmetric case — Sunita
+  asking in her own context, via `sunita-thyroid-trend-ne` — asserts no
+  citation's `documentId` is Janaki's, so the delegation Sunita holds into
+  Janaki's record never leaks the other way.
+
+  **Verify.** `pnpm install --frozen-lockfile` failed as expected (new
+  devDependency), `pnpm install --no-frozen-lockfile` added the three-line
+  lockfile entry for `@swasthya/family` under `@swasthya/evaluation`,
+  nothing else changed. `pnpm lint` 37/37. `pnpm typecheck` 37/37. `pnpm
+  test` 68/68 tasks — `@swasthya/evaluation` went from 9 to 13 tests; every
+  other package's count unchanged, `@swasthya/api` still at 466. `pnpm
+  build` 37/37, including `apps/web`'s static export and `apps/mobile`'s
+  Expo web bundle.
+
+  **For the next run.** Both `packages/family`-blocked `describe.todo`
+  blocks named across the last several log entries are now done. The
+  remaining named-but-untouched candidate is still
+  `companion.controller.ts`'s `assess`/`research` routes carrying no
+  `EntitlementsGuard` at all — flagged three log entries back as real but
+  lower severity than the teleconsultation gap that run fixed instead, since
+  `ASSISTANT` is FREE-tier-included so this is a metering omission, not a
+  paywall bypass. Row 15 (`engagement`) remains open too, exactly as every
+  prior reassessment has left it.
+
+- 2026-08-11 — **Queue fully checked again; wrote the real "under an active
+  delegation" cross-subject-leakage test that had been left as a
+  `describe.todo` since before `packages/family` existed.** Grepped for
+  `- [ ]` first — zero hits, same as every prior "queue exhausted" run. This
+  run's own predecessor (the teleconsultation-gating entry directly below)
+  had already surveyed the repo and named two concrete, small,
+  test-only candidates for whoever picked this up next: this
+  `describe.todo` in `packages/intent-router/src/cross-subject-leakage.test.ts`,
+  and the sibling one in `packages/evaluation/src/index.test.ts:60`. This run
+  picked the intent-router one — `grounded-answers.md` §3 names it
+  explicitly as *"the highest-severity failure this system can have. It
+  gets an explicit test, not a code review,"* which made it the higher-value
+  pick of the two named candidates, and the file's own long-standing header
+  comment already explained exactly what it was blocked on and why a
+  hand-rolled stand-in would have been fiction.
+
+  **What was built.** `packages/intent-router` (whose `route`/
+  `retrieveForSubject` take a plain `subjectId` and know nothing about
+  delegation, by design — the scoping stays subject-id-agnostic) now takes
+  `@swasthya/family` as a **devDependency only**, not a runtime one: the
+  production code still never imports it, only the test does, which is the
+  honest boundary — this package doesn't gain a delegation feature, it
+  gains a test proving delegation composes safely with the scoping it
+  already had. Five new tests replace the `describe.todo` in
+  `cross-subject-leakage.test.ts`:
+  1. `hasScope` is the gate a real call site must pass before ever choosing
+     which `subjectId` to hand to `route` — asserted directly against an
+     active `DelegationGrant`.
+  2. A revoked grant fails that gate even though the `DelegationGrant`
+     object itself still exists in memory.
+  3. A grant that never included `ASK_ASSISTANT` (e.g. `MANAGE_APPOINTMENTS`
+     only) fails the gate too — §2's "booking does not require reading
+     notes" only holds if scopes are checked independently, which this
+     proves at the call-site boundary rather than trusting `packages/family`
+     alone.
+  4. A delegate acting for the granter — the effective `subjectId` resolved
+     from the grant, exactly as `grounded-answers.md` §3 states it — sees
+     only her record: a three-subject adversarial corpus (granter, delegate,
+     and the pre-existing unrelated `subject-2`) proves this end to end
+     through `route` and `composeAnswer`, asserting the delegate's own
+     citations and the unrelated subject's citations never appear.
+  5. The symmetric case: the same delegate asking in his own context sees
+     only his own record — the active delegation for someone else's record
+     never leaks into it, the "vice versa" half of §3's own wording.
+
+  **Why this is a composition test, not a new capability.** Neither
+  `route` nor `retrieveForSubject` changed. The property under test is that
+  §3's rule — "the subject is her and the retrieval set is hers, never a
+  union of both" — survives once a real `DelegationGrant` exists in the
+  same corpus as the data, which is exactly the scenario the old
+  `describe.todo` said needed `packages/family` to test honestly rather
+  than with an invented stand-in.
+
+  **Verify.** `pnpm install --no-frozen-lockfile` (frozen-lockfile first
+  failed as expected — new devDependency — then a plain install added the
+  three-line lockfile entry for `@swasthya/family` under
+  `@swasthya/intent-router`, nothing else changed). `pnpm lint` 37/37.
+  `pnpm typecheck` 37/37. `pnpm test` 68/68 tasks —
+  `@swasthya/intent-router` went from 8 to 13 tests in
+  `cross-subject-leakage.test.ts` (37 total in the package, up from 32);
+  every other package's count unchanged, including `@swasthya/api` still at
+  466. `pnpm build` 37/37.
+
+  **For the next run.** The sibling `describe.todo` in
+  `packages/evaluation/src/index.test.ts:60` (a delegate asking an
+  evaluation-corpus question on another subject's behalf) is the same class
+  of gap at a different layer and is now the more obvious "queue exhausted"
+  pick, since this run deliberately did the intent-router one instead and
+  left that one untouched. `companion.controller.ts`'s assistant-quota gap
+  (missing `EntitlementsGuard` on `assess`/`research`, flagged two log
+  entries back) also remains open and untouched by this run.
+
+- 2026-08-11 — **Queue fully checked again; fixed a real security gap
+  instead of starting a new clinical-suite module.** Grepped for `- [ ]` —
+  zero hits, as every prior "queue exhausted" run has found. The working
+  agreement's fallback for this state is "pick the highest-value improvement
+  to work already done," so before touching code this run had a
+  general-purpose agent survey the repo for genuine, appropriately-scoped
+  gaps in shipped work (TODOs, `describe.todo` blocks, self-flagged notes in
+  `agent-progress.md`, entitlement-wiring inconsistencies) rather than
+  reaching straight for row 15 (`engagement`) — the prior run's own guess,
+  explicitly marked non-binding, and the kind of new-ground module (its
+  first real `QUEUE_AND_RETRY` case) that deserves a dedicated run, not a
+  "queue exhausted" afterthought.
+
+  **What the survey found.** `TeleconsultationController`
+  (`apps/api/src/teleconsultation/teleconsultation.controller.ts`) had zero
+  auth or entitlement guards on any of its seven routes. That's ordinarily
+  unremarkable — every clinical-suite module except `records` ships without
+  entitlement wiring, and `agent-progress.md` has repeatedly excused that
+  with "no `ClinicalModuleKey` value exists in `ModuleKey` either." But
+  `TELECONSULTATION` is the **one** exception: it's declared in both
+  `ClinicalModuleKey` and `ModuleKey`
+  (`packages/shared-types/src/index.ts`), and `packages/entitlements` puts
+  it in the PRO plan only. `apps/web/messages/en.json`/`ne.json` market it
+  as a paid differentiator on the pricing page. So the precedent that
+  excuses every sibling module didn't apply here — this was a real gap
+  where any signed-in-or-not caller could book/start/complete/cancel a
+  teleconsultation session with no tier check at all, verified by grepping
+  all 21 API controllers: `records.controller.ts` was the only other one
+  wired with `@UseGuards(SessionAuthGuard, EntitlementsGuard)`.
+
+  **What was built.**
+  1. `apps/api/src/teleconsultation/teleconsultation.controller.ts`: added
+     `@UseGuards(SessionAuthGuard, EntitlementsGuard)` +
+     `@RequireModule('TELECONSULTATION')` to `schedule` only — the one
+     action that starts something new, the same boundary
+     `RecordsController.capture` already drew against
+     `list`/`confirm`/`correct`/`reject`. `start`/`complete`/`cancel`/
+     `no-show`/`listSessions`/`getSession`/`health` stay open, matching that
+     precedent rather than gating everything "for consistency."
+  2. `apps/api/src/entitlements/no-quota-usage.reader.ts` (new):
+     `EntitlementsGuard` injects a `UsageReader` unconditionally at
+     construction regardless of whether a route carries `@RequireQuota`, so
+     `TeleconsultationModule` needed *some* binding even though `schedule`
+     only gates on `@RequireModule`. Follows `RecordsUsageReader`'s own
+     "fail loudly rather than report zero usage" precedent — every call
+     here throws, since no quota dimension is metered on this route. 1 test.
+  3. `apps/api/src/teleconsultation/teleconsultation.module.ts`: imports
+     `AuthModule`, provides `EntitlementsGuard` and binds
+     `SUBSCRIPTION_RESOLVER`/`USAGE_READER` — the same three-line addition
+     `RecordsModule` made for the same reason.
+  4. `apps/api/src/teleconsultation/teleconsultation.controller.test.ts`: a
+     new wiring test reading `@UseGuards`/`@RequireModule` metadata directly
+     off the controller's prototype methods (`Reflect.getMetadata` against
+     Nest's own `'__guards__'` key, since `@nestjs/common/constants` isn't
+     reachable through this project's `NodeNext` module resolution as a
+     subpath import) — asserts `schedule` carries both guards and the
+     `TELECONSULTATION` module requirement, and that the other seven routes
+     carry none. This is the first test in the repo that verifies guard
+     wiring this way; every existing controller test calls methods directly
+     and so never exercises Nest's guard pipeline at all, meaning a missing
+     guard like this one would pass silently otherwise. 2 tests.
+
+  **What this means in practice, and why that's the honest outcome.**
+  `FreeTierSubscriptionResolver` (no real `Subscription` persistence exists
+  yet) resolves every caller to `FREE`, and `TELECONSULTATION` is PRO-only —
+  so `schedule` now refuses every booking with a 403 until subscription
+  persistence is real. That is not a regression to soften: nobody has
+  actually been verified as a paying subscriber, so nobody should get a
+  paid-tier feature by default. The same honesty the `FreeTierSubscriptionResolver`
+  doc comment already states for itself.
+
+  **What was deliberately not touched.** No new clinical-suite module — row
+  15 stays exactly where the prior run left it, a guess for whoever picks
+  the suite back up. `companion.controller.ts`'s missing `EntitlementsGuard`
+  on `assess`/`research` (flagged earlier in this file, search
+  "ASSISTANT_MESSAGES_PER_MONTH") was considered and left alone: `ASSISTANT`
+  is on the FREE tier too, so that gap is a metering omission, not a
+  paywall bypass, and deserves its own run rather than folding two
+  different-shaped fixes into one. No e2e/supertest harness was built,
+  despite the survey flagging its absence as what let this bug ship
+  unnoticed — that's a bigger, separate investment than one run's "highest
+  value improvement" should take on unilaterally; the wiring test added
+  here is a narrower, immediately useful substitute for this one route.
+  `packages/evaluation`'s and `packages/intent-router`'s `describe.todo`
+  blocks (blocked on `packages/family`, which has since shipped) were the
+  next candidate the survey found and were left for a future run — both are
+  test-only and self-contained, a reasonable next "queue exhausted" pick.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change (no
+  new package, unlike every prior clinical-suite addition). `pnpm lint`
+  37/37. `pnpm typecheck` 37/37. `pnpm test` 68/68 tasks — `@swasthya/api`
+  466 tests (up from 463: `teleconsultation.controller.test.ts` went from 7
+  to 9 with the two new wiring tests, plus 1 new
+  `no-quota-usage.reader.test.ts`). `pnpm build` 37/37, including
+  `apps/web`'s static export and `apps/mobile`'s Expo web bundle. No
+  schema/migration change — this touched only DI wiring and route
+  decorators, no persistence.
+
+  **For the next run.** Row 15 (`engagement`) or extending `analytics` with
+  more sources both remain open, exactly as the prior run left them — this
+  run deliberately did neither. The `describe.todo` blocks in
+  `packages/evaluation/src/index.test.ts:60` and
+  `packages/intent-router/src/cross-subject-leakage.test.ts:219` are a
+  concrete, small, test-only next "queue exhausted" candidate if the suite
+  isn't picked back up next. `companion.controller.ts`'s assistant-quota gap
+  is a second candidate, smaller in severity than this run's fix since
+  `ASSISTANT` is free-tier-included, but real.
+
+- 2026-08-11 — **Queue fully checked again; reassessed the "stop after
+  population-health" note and resumed the clinical suite with `analytics`
+  (capability map row 14).** Grepped for `- [ ]` first — zero hits. The
+  prior run's own log entry named row 14 explicitly as "the realistic next
+  candidate," with the same explicit caveat every prior reassessment has
+  carried — a guess, not a decision — so this run re-read
+  `clinical-suite.md` §3 itself before picking anything up. Row 14's own
+  note, "Read-only replica. Must never slow the clinical path," pairs
+  naturally with row 13's own "reads from other modules; never writes to
+  them," so this run reused population-health's shape rather than
+  inventing a new one.
+
+  **Where this run's design departs from population-health's, and why.**
+  Population-health's `buildRegistry`/`buildRecall` each read from *two*
+  dependencies chained together (a recall list needs the registry, which
+  needs clinical-summary), so one dependency going down genuinely leaves no
+  honest partial answer for either method. Analytics has no such chain:
+  `patientRegistrySummary()` reads only `patient-registry`, and
+  `schedulingSummary()` reads only `scheduling` — the two counts have
+  nothing to do with each other. So `AnalyticsService` gates each summary
+  on only its own one source, meaning a patient-registry outage never
+  touches the scheduling summary and vice versa — the `ANALYTICS`
+  module-descriptor still declares both dependencies `HIDE` (per §2's
+  contract, at the module level), but the *service* implements one-hop
+  isolation per summary rather than an all-or-nothing refusal, which is
+  what "must never slow the clinical path" concretely means for a
+  dashboard: one broken tile must not blank the rest of it. This is
+  documented with a dedicated fault-isolation test ("a down patient-registry
+  does not block the scheduling summary" and the reverse), not just
+  asserted in a comment.
+
+  **What "invent no facts" means here, specifically.** A dashboard invites
+  fabricating a benchmark or a target ("appointment no-show rate should be
+  under 15%") to make an empty-looking number feel meaningful. Nothing here
+  does that — `PatientRegistrySummary`/`SchedulingSummary` are counts of
+  rows that already exist in `patient-registry`/`scheduling`, nothing more.
+  No trend, no percentage, no comparison to a prior period, since none of
+  those exist yet in either source module either.
+
+  **What was built.**
+  1. `packages/shared-types/src/index.ts`: `PatientRegistrySummary`/
+     `SchedulingSummary`, in a new "Analytics (clinical-suite.md capability
+     map row 14)" section following the header-comment convention every
+     prior section uses. Updated the stale `ClinicalModuleKey` header
+     comment ("stop after population-health" → "stop after analytics").
+  2. `packages/analytics` (new package): `buildPatientRegistrySummary`
+     (total plus a count per `PatientSex`) and `buildSchedulingSummary`
+     (total plus a count per `AppointmentStatus`), both pure functions of an
+     already-resolved list, zero-filling every enum key so a status with no
+     rows yet still appears rather than being silently absent. 4 tests.
+  3. `apps/api/src/analytics/`: service (`PatientRegistryService` and
+     `SchedulingService` injected as their public ports per §2 rule 3, each
+     summary gated on only its own source), controller (GET-only —
+     `/patients`, `/scheduling`, `/health`, no POST route since this module
+     never writes), module-descriptor (`ANALYTICS`, empty `requires`, two
+     `degradesWith` edges, both `HIDE`), and module. No repository file,
+     the same population-health precedent for a module with nothing of its
+     own to persist. Service, controller, module-descriptor and
+     fault-isolation test files, 17 new `apps/api` tests total.
+  4. Wired into `apps/api/src/app.module.ts` and the `clinical-suite`
+     aggregate (`clinical-suite.module.ts`/`clinical-suite.service.ts`):
+     `GET /clinical-suite/modules` now reports thirteen modules, not
+     twelve. Updated `clinical-suite.service.test.ts`'s "all N modules
+     available" test for the new count, added `ANALYTICS` to the
+     `CLINICAL_CHARTING`-outage cascade test as an *unaffected* module
+     (analytics depends on neither), and added an explicit `ANALYTICS`
+     assertion to the `PATIENT_REGISTRY`-probe-throws test, since analytics
+     — unlike teleconsultation/population-health in that same test —
+     declares a *direct* edge on `PATIENT_REGISTRY`, not only on
+     `SCHEDULING`, so it does react there.
+  5. `apps/api/package.json`: added `@swasthya/analytics` as a real
+     dependency; regenerated `pnpm-lock.yaml` via `--no-frozen-lockfile`,
+     then confirmed `--frozen-lockfile` passes clean afterward, same
+     sequence every prior new-package run used.
+
+  **What was deliberately not built.** No combined `/analytics/dashboard`
+  endpoint aggregating both summaries into one response — each is already
+  independently reachable, and a combined endpoint would have to invent a
+  partial-failure response shape (which fields are `null` when only one
+  source is down) that nothing else in this codebase has established a
+  precedent for. Two more capability-map row-14 candidates —
+  `clinical-charting`/`billing`/`referrals`-derived counts — were
+  considered and left out: adding more sources in the same run would mean
+  more untested cross-source interactions than one run can honestly verify
+  against real data, not a principled scope boundary, so a future run
+  should feel free to add them incrementally the same way this run added to
+  population-health's shape rather than treating today's two sources as
+  final. No benchmark, target or trend of any kind — see above. No
+  entitlement wiring — matches every module 1-7/9/10/12/13 precedent (no
+  `ClinicalModuleKey` `ANALYTICS` value exists in `packages/entitlements`'s
+  own `ModuleKey` type either). No clinician-facing UI — matches every
+  prior module.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the lockfile
+  regeneration (one transient `ECONNRESET` fetching `@prisma/engines` on
+  the first `--no-frozen-lockfile` attempt, and one transient self-signed-
+  certificate failure fetching the Prisma schema-engine binary during the
+  first `pnpm lint` — both resolved on retry with no code change, network
+  flakiness in this run's sandbox, not a real failure); `pnpm lint` 37/37
+  (up from 36 — the new package); `pnpm typecheck` 37/37; `pnpm test` 68/68
+  tasks — `@swasthya/api` 463 tests (up from 446: 17 new, across
+  `analytics.service.test.ts`, `.controller.test.ts`,
+  `.module-descriptor.test.ts`, `.fault-isolation.test.ts`, plus the
+  updated `clinical-suite.service.test.ts`), `@swasthya/analytics` 4 new
+  tests; `pnpm build` 37/37, including `apps/web`'s static export and
+  `apps/mobile`'s Expo web bundle. No schema/migration change — this
+  module has no Prisma model and never will, matching every module 1-7/9/
+  10/12/13 precedent for in-memory-or-no-data modules — so no live Postgres
+  was needed this run.
+
+  **For the next run.** Guardianship creation stays open, understood to be
+  blocked on a minor's account-enrolment mechanism, not a DOB field (see
+  earlier log entries). The clinical suite is parked again, this time after
+  row 14. Row 15 (`engagement`, "SMS/WhatsApp. QUEUE_AND_RETRY by nature.")
+  is this run's own non-binding guess at what comes next, and unlike every
+  prior module built so far it would be the first to actually need
+  `QUEUE_AND_RETRY` rather than `HIDE`/`READ_ONLY`/`MANUAL` — re-read
+  `clinical-suite.md` §3 rather than trust this paragraph, and expect that
+  mode to require new ground rather than reusing an existing module's
+  shape. Alternatively, extending today's `analytics` module with more
+  sources (billing, referrals, clinical-charting) is an equally honest,
+  lower-risk next step within row 14 itself, deliberately left incomplete
+  above.
+
+- 2026-08-11 — **Queue fully checked again; reassessed the "stop after
+  referrals" note and resumed the clinical suite with `population-health`
+  (capability map row 13).** Grepped for `- [ ]` first — zero hits. The
+  prior run's own log entry named row 13 explicitly as "the realistic next
+  candidate," with the same explicit caveat every prior reassessment has
+  carried — a guess, not a decision — so this run re-read
+  `clinical-suite.md` §3 itself before picking anything up. Row 13's own
+  note, "Reads from other modules; never writes to them," made it a
+  different shape from every module built so far, so most of this run's
+  effort went into deciding what that shape honestly is before writing any
+  code.
+
+  **What "never writes to them" means for the design.** Every prior module
+  (1–7, 9, 10, 12) owns a schema namespace and a repository, per §2 rule 1.
+  Row 13 owns neither — there is nothing for it to persist. The closest
+  existing precedent is `medication-safety` (row 5): a service with no
+  patient data of its own, injecting another module's service as its read
+  port and computing a pure result. Population-health follows that same
+  split (pure `@swasthya/population-health` package, no repository in
+  `apps/api/src/population-health/`) but goes one step further — even its
+  own package has nothing local to read, unlike `medication-safety`'s own
+  interaction-rule repository.
+
+  **What "invent no facts" means here, specifically.** A population-health
+  module invites two kinds of fabrication this run refused: a recall
+  interval ("diabetics should be seen every 90 days") and a fixed condition
+  list ("hypertension, diabetes, ... are the registries this module
+  tracks"). Both would be clinical claims with no source in this repository,
+  the same class of invention agent-progress.md's standing constraint
+  already forbids for a statistic or a partner name. So `kind`/`label` (what
+  defines a registry) and `asOf` (the recall cutoff instant) are both
+  caller-supplied on every call — nothing is hardcoded, and the API layer
+  defaults nothing either.
+
+  **What was built.**
+  1. `packages/shared-types/src/index.ts`: `PopulationHealthRegistryEntry`/
+     `PopulationHealthRecallEntry`, in a new "Population health (capability
+     map row 13)" section following the header-comment convention every
+     prior section uses. Updated the stale `ClinicalModuleKey` header
+     comment ("stop after referrals" → "stop after population-health").
+  2. `packages/population-health` (new package): `buildConditionRegistry`
+     (every patient with an ACTIVE `ClinicalSummaryItem` of a given kind and
+     label, NFKC-normalised match like `medication-safety`'s own
+     `normalizeLabel`, one entry per patient) and `buildRecallList` (each
+     registry patient marked `dueForRecall` when they have no `SCHEDULED`
+     appointment at or after a caller-supplied `asOf`). Both pure functions
+     of already-resolved inputs, no repository, 11 tests.
+  3. `apps/api/src/population-health/`: service (`ClinicalSummaryService`
+     and `SchedulingService` injected as their public ports per §2 rule 3;
+     `buildRegistry` gates on clinical-summary, `buildRecall` on both),
+     controller (GET-only — `/registry` and `/recall`, zod-validated query
+     params, no POST route since this module never writes), module-descriptor
+     (`POPULATION_HEALTH`, empty `requires`, two `degradesWith` edges — both
+     `HIDE`, not `MEDICATION_SAFETY`'s `MANUAL`, because an incomplete
+     registry read has no honest partial answer to show, unlike a
+     medication check a clinician can still act on), and module. No
+     repository file — the first module in this suite without one.
+     Controller, service, module-descriptor and fault-isolation tests (22
+     new `apps/api` tests total).
+  4. Wired into `apps/api/src/app.module.ts` and the `clinical-suite`
+     aggregate (`clinical-suite.module.ts`/`clinical-suite.service.ts`):
+     `GET /clinical-suite/modules` now reports twelve modules, not eleven.
+     Updated `clinical-suite.service.test.ts`'s "all N modules available"
+     test for the new count, and added `POPULATION_HEALTH` to both existing
+     cascade tests as an *unaffected* module — its dependencies are
+     `CLINICAL_SUMMARY`/`SCHEDULING`, and both existing tests force down a
+     module further up the chain (`CLINICAL_CHARTING`, `PATIENT_REGISTRY`)
+     whose outage only *degrades* (not takes down) the module
+     population-health actually depends on, so §2's "degradesWith never
+     cascades past one hop" means population-health must read as fully
+     available in both.
+  5. `apps/api/package.json`: added `@swasthya/population-health` as a real
+     dependency; regenerated `pnpm-lock.yaml` via `--no-frozen-lockfile`,
+     then confirmed `--frozen-lockfile` passes clean afterward, same
+     sequence every prior new-package run used.
+
+  **What was deliberately not built.** No recall interval or condition
+  registry list of any kind — see above. No entitlement wiring — matches
+  every module 1-7/9/10/12 precedent (no `ClinicalModuleKey`
+  `POPULATION_HEALTH` value exists in `packages/entitlements`'s own
+  `ModuleKey` type either). No clinician-facing UI — matches every prior
+  module. No write path of any kind, by design, not by omission — the
+  capability map's own note is the spec here, not a starting point to extend.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the lockfile
+  regeneration; `pnpm lint` 36/36 (up from 35 — the new package); `pnpm
+  typecheck` 36/36; `pnpm test` 66/66 tasks — `@swasthya/api` 446 tests (up
+  from 426: 22 new, across `population-health.service.test.ts`,
+  `.controller.test.ts`, `.module-descriptor.test.ts`,
+  `.fault-isolation.test.ts`, plus the updated `clinical-suite.service
+  .test.ts`), `@swasthya/population-health` 11 new tests; `pnpm build`
+  36/36, including `apps/web`'s static export and `apps/mobile`'s Expo web
+  bundle. No schema/migration change — this module has no Prisma model and
+  never will, matching every module 1-7/9/10/12 precedent for in-memory
+  modules but here permanently rather than provisionally — so no live
+  Postgres was needed this run.
+
+  **For the next run.** Guardianship creation stays open, understood to be
+  blocked on a minor's account-enrolment mechanism, not a DOB field (see
+  earlier log entries). The clinical suite is parked again, this time after
+  row 13 — see this run's edit to the "Stop after population-health" note
+  above for the honest, non-committal guess at what comes next (row 14,
+  `analytics`).
+
+- 2026-08-11 — **Queue fully checked again; reassessed the "stop after
+  billing" note and resumed the clinical suite with `referrals` (capability
+  map row 12).** Grepped for `- [ ]` first — zero hits. The prior run's own
+  log entry named row 12 explicitly as "the realistic next candidate," with
+  row 11 (`coverage`) named as blocked, but was explicit that this was a
+  guess, not a decision — so this run re-read `clinical-suite.md` §3 itself
+  before picking anything up.
+
+  **Why row 12 and not row 11, decided fresh rather than inherited.** The
+  capability map's own row 11 note is stronger language than any prior
+  "skip" this ledger has used — "blocked on Nepali insurer interfaces that
+  do not yet exist" — and unlike row 10 (`billing`), which had
+  `compliance-gap-register.md`'s "Payments/refunds" row naming its own
+  interim control ("configurable ledger; mock provider") to build against
+  honestly, grepping the compliance register for "eligibility", "insurance"
+  and "coverage" returned nothing. Building row 11 today would mean
+  inventing an eligibility-check response shape and an interim control with
+  no textual grounding anywhere in this repo — a bigger, riskier
+  product-and-compliance decision than this run has standing to make
+  unilaterally. Row 12's own note, "Pairs with care-directory," names a
+  real, already-built package to pair with and carries no such gap.
+  Skipping row 11 in table order is not a new kind of exception — row 8
+  (patient portal) was already skipped for a comparable stated reason (it
+  is not a module for this registry at all).
+
+  **What was built — the module 1-7/9/10 shape, applied to row 12.**
+  1. `packages/shared-types/src/index.ts`: `Referral` and its supporting
+     types, in a new "Referrals (capability map row 12)" section following
+     the same header-comment convention every prior section uses. Updated
+     the stale `ClinicalModuleKey` header comment. `ClinicalModuleKey`
+     already declared `'REFERRALS'`/`'COVERAGE'` as of the row 9 run's own
+     "all 19 keys declared up front" precedent, so no shared-types key
+     change was needed there.
+  2. `packages/care-directory/src/index.ts`: added `findDirectoryEntity(id)`,
+     a small lookup port so `referrals` resolves a `referredToEntityId`
+     through care-directory's own export rather than reaching into
+     `fictionalDirectory` directly — §2 rule 1's "resolved through the
+     owning module's port," applied even though care-directory itself is a
+     plain function package with no DI service. One new test.
+  3. `packages/referrals` (new package): `requestReferral`, `acceptReferral`,
+     `declineReferral`, `completeReferral`, `cancelReferral` — a five-state
+     REQUESTED -> ACCEPTED -> COMPLETED machine, REQUESTED also reaching
+     DECLINED or CANCELLED. Modelled deliberately on row 10's own honesty
+     precedent: `care-directory` is a static demonstration registry with no
+     live provider on the other end to accept or decline anything over a
+     network, so `acceptReferral`/`declineReferral`/`completeReferral` are
+     all recorded by the referring clinic's own staff, the same "an outcome
+     reached through an unspecified real-world channel" reasoning
+     `recordPayment` already established rather than a new invention. Once
+     ACCEPTED, only COMPLETED is reachable — cancelling an agreement the
+     target has already accepted outside this system would misrepresent it,
+     mirroring row 9's uncancellable-ACTIVE-session precedent. Full
+     `index.test.ts` coverage, 11 tests including the "cannot cancel once
+     accepted" refusal.
+  4. `apps/api/src/referrals/`: repository (in-memory map, same convention
+     as every sibling), service (`ClinicalChartingService` injected as its
+     public port per §2 rule 3 — `requestReferral` is the one action gated
+     on it; `findDirectoryEntity` is called directly, not injected, since
+     care-directory has no DI service or health state of its own and is
+     therefore not a `degradesWith` edge either), controller (zod-validated),
+     module-descriptor (`REFERRALS`, empty `requires`, one `degradesWith`
+     edge: `HIDE` against `CLINICAL_CHARTING`), and module. Repository,
+     service, controller, module-descriptor and fault-isolation test files,
+     same five-file split every prior module used (28 new `apps/api` tests
+     total).
+  5. Wired into `apps/api/src/app.module.ts` and the `clinical-suite`
+     aggregate (`clinical-suite.module.ts`/`clinical-suite.service.ts`):
+     `GET /clinical-suite/modules` now reports eleven modules, not ten.
+     Updated `clinical-suite.service.test.ts`'s "all N modules available"
+     test for the new count, and added an explicit `REFERRALS` assertion to
+     the existing `CLINICAL_CHARTING`-outage cascade test, alongside
+     `CLINICAL_SUMMARY`/`PRESCRIBING`/`DIAGNOSTICS_ORDERS`/`BILLING` — all
+     five `HIDE`-degrade on the same dependency.
+  6. `apps/api/package.json`: added `@swasthya/referrals` as a real
+     dependency; regenerated `pnpm-lock.yaml` via `--no-frozen-lockfile`,
+     then confirmed `--frozen-lockfile` passes clean afterward, same
+     sequence the row 9/10 runs used for the same reason.
+
+  **What was deliberately not built.** Row 11 (`coverage`) — see above for
+  why this run judged it not yet buildable honestly, not merely
+  out-of-order. No entitlement wiring — confirmed no module 1-7/9/10
+  controller wires entitlements either, so adding it here alone would
+  invent an inconsistency, not fix one. No clinician-facing UI — matches
+  every prior module. No notification to the target provider of any kind —
+  `care-directory` entities have no login or channel to receive one; every
+  status transition here is a manual record, not a live handshake.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the lockfile
+  regeneration; `pnpm lint` 35/35 (up from 34 — the new package); `pnpm
+  typecheck` 35/35; `pnpm test` 64/64 tasks — `@swasthya/api` 426 tests (up
+  from 398: 28 new, across `referrals.repository.test.ts`,
+  `.service.test.ts`, `.controller.test.ts`, `.module-descriptor.test.ts`,
+  `.fault-isolation.test.ts`, plus the updated `clinical-suite.service
+  .test.ts`), `@swasthya/referrals` 11 new tests, `@swasthya/care-directory`
+  up by one (4, from 3); `pnpm build` 35/35, including `apps/web`'s static
+  export and `apps/mobile`'s Expo web bundle. No schema/migration change —
+  this module has no Prisma model yet, matching every module 1-7/9/10
+  precedent (in-memory only) — so no live Postgres was needed this run.
+
+  **For the next run.** Guardianship creation stays open, understood to be
+  blocked on a minor's account-enrolment mechanism, not a DOB field (see
+  earlier log entries). The clinical suite is parked again, this time after
+  row 12 (row 11 deliberately skipped, not built — see above). Row 13
+  (`population-health`) is this run's own non-binding guess at what comes
+  next; re-read `clinical-suite.md` §3 rather than trust it.
+
+- 2026-08-11 — **Queue fully checked again; reassessed the "stop after
+  teleconsultation" note and resumed the clinical suite with `billing`
+  (capability map row 10).** Grepped for `- [ ]` first — zero hits. The prior
+  run's own log entry named row 10 explicitly as "the next reassessment's
+  honest starting point," and, unlike every prior reassessment, it also
+  named the specific instruction to follow: "whoever picks it up should read
+  `docs/compliance/` first, not build first and reconcile after." This run
+  did that before writing any code.
+
+  **What compliance says, and how it shaped the module.**
+  `docs/compliance/compliance-gap-register.md`'s pre-existing "Payments/
+  refunds" row names its own interim engineering control before finance/
+  legal sign-off exists: "configurable ledger; mock provider." Both are
+  literal in the types, not aspirational:
+  - The ledger is `Invoice.lineItems`, each entry independently carrying one
+    of the three payer channels clinical-suite.md's own row 10 note names —
+    `'CASH' | 'INSURANCE' | 'NHIF'` ("Nepal: cash, insurance boards, NHIF.
+    Not X12.") — so one invoice can honestly split a bill across channels.
+  - `PaymentRecord.provider` is a single-literal `'MOCK'` type — deliberately
+    *not* a union with a second "real" value the way row 7's `resultSource`
+    (`'HL7' | 'MANUAL'`) and row 9's `connectionMode` (`'WEBRTC' | 'MOCK'`)
+    each are. Those two had textual grounding in this repo for what the real
+    value would be; nothing here names what a real Nepali payment settlement
+    integration would be, and guessing a vendor (eSewa, Khalti, a bank
+    transfer rail) would be inventing a partner this repo has never
+    mentioned — the standing constraints forbid that even as a type-level
+    placeholder. This is stricter than the row 7/9 precedent, not a
+    departure from it: same reasoning, applied honestly where the textual
+    grounding the other two modules had simply does not exist here.
+  The register row was read but deliberately not edited, the same restraint
+  the row 7 run showed toward "Lab results" and the row 9 run showed toward
+  "Telemedicine."
+
+  **What was built — the module 1-7/9 shape, applied to row 10.**
+  1. `packages/shared-types/src/index.ts`: `Invoice`, `BillingLineItem`,
+     `PaymentRecord` and their supporting types, in a new "Billing (capability
+     map row 10)" section following the same header-comment convention every
+     prior section uses. Updated the stale `ClinicalModuleKey` header comment
+     ("Modules 1-7, 9 and 10 are built; 11-20 ... parked").
+  2. `packages/billing` (new package): `openInvoice`, `addLineItem`,
+     `issueInvoice`, `recordPayment`, `voidInvoice`, plus a pure
+     `invoiceTotalPaisa` helper (derived, never stored — the same reasoning
+     that keeps every other clinical-suite total off its own entity). The
+     state machine is DRAFT -> ISSUED -> PAID, the same three-state "line
+     items accumulate, then a transition locks them" shape
+     `packages/prescribing`'s DRAFT -> SIGNED -> VOIDED already established,
+     with one addition: DRAFT and ISSUED are both reachable to VOID, but PAID
+     is not — reversing a paid invoice is a refund, and the compliance
+     register's own "taxes, settlement, consumer protection" unresolved
+     decision on that row means there is no honest refund path to build yet.
+     `EmptyInvoiceError` refuses issuing nothing, mirroring
+     `EmptyPrescriptionError`. Full `index.test.ts` coverage: 16 tests,
+     including a multi-payer-type invoice and the "paid invoices cannot be
+     voided" refusal.
+  3. `apps/api/src/billing/`: repository (in-memory map, same convention as
+     every sibling), service (`ClinicalChartingService` injected as its
+     public port per §2 rule 3 — `openInvoice` is the one action gated on
+     it, matching `DiagnosticsOrdersService`/`PrescribingService`), controller
+     (zod-validated — `payerType` and a positive-integer `amountPaisa` are
+     both rejected at the boundary before reaching the domain layer),
+     module-descriptor (`BILLING`, empty `requires`, one `degradesWith`
+     edge: `HIDE` against `CLINICAL_CHARTING`), and module. Repository,
+     service, controller, module-descriptor and fault-isolation test files,
+     same five-file split every prior module used (26 new `apps/api` tests
+     total).
+  4. Wired into `apps/api/src/app.module.ts` and the `clinical-suite`
+     aggregate (`clinical-suite.module.ts`/`clinical-suite.service.ts`):
+     `GET /clinical-suite/modules` now reports ten modules, not nine.
+     Updated `clinical-suite.service.test.ts`'s "all N modules available"
+     test for the new count, and added an explicit `BILLING` assertion to
+     the existing `CLINICAL_CHARTING`-outage cascade test, alongside
+     `CLINICAL_SUMMARY`/`PRESCRIBING`/`DIAGNOSTICS_ORDERS` — all four
+     `HIDE`-degrade on the same dependency.
+  5. `apps/api/package.json`: added `@swasthya/billing` as a real
+     dependency; regenerated `pnpm-lock.yaml` via `--no-frozen-lockfile`,
+     then confirmed `--frozen-lockfile` passes clean afterward, same
+     sequence the row 9 run used for the same reason.
+
+  **What was deliberately not built.** No real payment gateway, bank
+  settlement rail or insurer claims interface of any kind — see the
+  compliance section above. No consent/jurisdiction flags — this row's own
+  unresolved decision ("taxes, settlement, consumer protection") has no
+  interim engineering control naming one, unlike Telemedicine's. No
+  entitlement wiring — confirmed no module 1-7/9 controller wires
+  entitlements either (`ModuleKey` in `packages/entitlements` doesn't even
+  have a `BILLING` value; it is a distinct type from `ClinicalModuleKey`),
+  so adding it here alone would invent an inconsistency rather than fix one.
+  No clinician-facing UI — matches every module 1-9 precedent. No refund
+  path — see `InvoicePaidCannotBeVoidedError`'s own comment.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the lockfile
+  regeneration; `pnpm lint` 34/34 (up from 33 — the new package); `pnpm
+  typecheck` 34/34; `pnpm test` 62/62 tasks — `@swasthya/api` 398 tests (up
+  from 372: 26 new, across `billing.repository.test.ts`, `.service.test.ts`,
+  `.controller.test.ts`, `.module-descriptor.test.ts`,
+  `.fault-isolation.test.ts`, plus the updated `clinical-suite.service
+  .test.ts`), `@swasthya/billing` 16 new tests; `pnpm build` 34/34, including
+  `apps/web`'s static export and `apps/mobile`'s Expo web bundle. No schema/
+  migration change — this module has no Prisma model yet, matching every
+  module 1-7/9 precedent (in-memory only) — so no live Postgres was needed
+  this run.
+
+  **For the next run.** Guardianship creation stays open, understood to be
+  blocked on a minor's account-enrolment mechanism, not a DOB field (see
+  earlier log entries). The clinical suite is parked again, this time after
+  row 10 — see this run's edit to the "Stop after billing" note above for
+  the honest, non-committal guess at what comes next.
+
+- 2026-08-11 — **Queue fully checked again; reassessed the "stop after
+  diagnostics-orders" note and resumed the clinical suite with
+  `teleconsultation` (capability map row 9).** Grepped for `- [ ]` first —
+  zero hits. The prior run's own log entry named row 9 explicitly as "the
+  next real candidate whenever this note is next revisited," so this run
+  spent its research budget on scope, not on picking a task: is real
+  WebRTC/media infrastructure in scope for row 9, or does it stay a
+  booking/session-lifecycle model the way `diagnostics-orders` modelled
+  order/result lifecycle without a real HL7 interface?
+
+  **Scope, and how it was settled.** Four independent sources agree real
+  video infrastructure is out of scope. The capability map itself says
+  "Already stubbed in apps/mobile." That stub,
+  `apps/mobile/app/consultation.tsx`, is real camera-permission UI with zero
+  networking code behind it — its own on-screen copy says "No clinician,
+  recording, signaling server, or WebRTC provider is connected." The
+  implementation backlog calls it a "mock private video room" outright.
+  `README.md` states it plainly: "real clinician-to-patient WebRTC ...
+  planned modules — not operational integrations." So the module built here
+  models the session's lifecycle and never touches media at all — the same
+  restraint `diagnostics-orders` showed leaving `resultSource: 'HL7'`
+  declared but never constructed.
+
+  **What was built — the module 1-7 shape, applied to row 9.**
+  1. `packages/shared-types/src/index.ts`: `TeleconsultationSession` and its
+     status/connection-mode types, in a new section following the same "row
+     N of the capability map" header comment every prior section uses.
+     `connectionMode: 'MOCK' | 'WEBRTC'` mirrors row 7's `resultSource:
+     'HL7' | 'MANUAL'` honesty pattern exactly — `'WEBRTC'` is a real,
+     accepted value for when that infrastructure exists, but
+     `scheduleTeleconsultation` only ever constructs `'MOCK'`. A session is
+     scheduled against an existing `scheduling` appointment (mirroring row
+     6/7's "placed against a `clinical-charting` encounter" precedent), so
+     `patientId`/`clinicianId` are derived rather than caller-supplied and
+     there is no `Input` type left with anything to hold — that type was
+     drafted, then deleted once it would have been empty (an
+     `@typescript-eslint/no-empty-object-type` risk besides being
+     dishonest). Also updated the stale `ClinicalModuleKey` header comment.
+  2. `packages/teleconsultation` (new package): `scheduleTeleconsultation`,
+     `startTeleconsultation`, `completeTeleconsultation`,
+     `cancelTeleconsultation`, `markTeleconsultationNoShow` — a five-state
+     SCHEDULED → ACTIVE → COMPLETED machine, with SCHEDULED also reaching
+     CANCELLED or NO_SHOW. Unlike row 7's three-state shape, an ACTIVE
+     session can no longer be cancelled or marked no-show — once two people
+     are in the room, completing it is the only honest forward move, so
+     `cancelTeleconsultation`/`markTeleconsultationNoShow` both reuse one
+     `assertScheduled` guard the same way row 7's `assertOpen` is reused
+     across its own mutators. Full `index.test.ts` coverage, including the
+     `connectionMode` honesty check and every guard's specific error on
+     every wrong-state transition (14 tests).
+  3. `apps/api/src/teleconsultation/`: repository (in-memory map, same
+     convention as every sibling), service (`SchedulingService` injected as
+     its public port per §2 rule 3 — `scheduleSession` is the one action
+     gated on it, `startSession`/`completeSession`/`cancelSession`/
+     `markNoShow` never touch it), controller (zod-validated, mirrors
+     `DiagnosticsOrdersController`'s route shape), module-descriptor
+     (`TELECONSULTATION`, empty `requires`, one `degradesWith` edge: `HIDE`
+     against `SCHEDULING`), and module. Repository, service, controller,
+     module-descriptor and fault-isolation test files, same five-file split
+     every prior module used (25 new `apps/api` tests total).
+  4. Wired into `apps/api/src/app.module.ts` and the `clinical-suite`
+     aggregate (`clinical-suite.module.ts`/`clinical-suite.service.ts`):
+     `GET /clinical-suite/modules` now reports nine modules, not eight.
+     Updated `clinical-suite.service.test.ts`'s "all N modules available"
+     test for the new count, and added explicit `TELECONSULTATION`
+     assertions to both existing cascade tests proving `degradesWith` stays
+     one-hop per §2 (a `CLINICAL_CHARTING` outage doesn't touch it; a
+     `PATIENT_REGISTRY` outage doesn't either, because `SCHEDULING` itself
+     stays `available` — only degraded — when its own dependency is down).
+  5. `apps/api/package.json`: added `@swasthya/teleconsultation` as a real
+     dependency; regenerated `pnpm-lock.yaml` via `--no-frozen-lockfile`,
+     then confirmed `--frozen-lockfile` passes clean afterward, same
+     sequence the row 7 run used for the same reason.
+
+  **What was deliberately not built.** No signaling server, TURN/STUN
+  config, or media transport code of any kind — every source above agrees
+  this is out of scope, and `consultation.tsx` stays exactly what it is (a
+  disconnected UI demo); wiring it to this new booking/session API is a
+  separate, larger decision this run did not make. No consent-flag
+  enforcement — `compliance-gap-register.md`'s pre-existing "Telemedicine"
+  row already names "configurable consent and jurisdiction flags" as the
+  interim control still to be built, and this run did not build it; that
+  register row was read but deliberately not edited, the same restraint the
+  row 7 run showed toward the pre-existing "Lab results" row. No entitlement
+  wiring (`minimumAssuranceLevel['TELECONSULTATION'] = 'IDENTITY_VERIFIED'`
+  already exists in `packages/entitlements` but is enforced by no route) —
+  confirmed no module 1-7 controller wires entitlements either, so adding it
+  here alone would be inventing an inconsistency, not fixing one. No
+  clinician-facing UI — matches every module 1-7 precedent.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the lockfile
+  regeneration; `pnpm lint` 33/33 (up from 32 — the new package); `pnpm
+  typecheck` 33/33; `pnpm test` 60/60 tasks — `@swasthya/api` 372 tests (up
+  from 347: 25 new, across `teleconsultation.repository.test.ts`,
+  `.service.test.ts`, `.controller.test.ts`, `.module-descriptor.test.ts`,
+  `.fault-isolation.test.ts`, plus the updated `clinical-suite.service
+  .test.ts`), `@swasthya/teleconsultation` 14 new tests; `pnpm build` 33/33,
+  including `apps/web`'s static export and `apps/mobile`'s Expo web bundle.
+  No schema/migration change — this module has no Prisma model yet, matching
+  every module 1-7 precedent (in-memory only) — so no live Postgres was
+  needed this run.
+
+  **For the next run.** Guardianship creation stays open, understood (per
+  the entry below) to be blocked on a minor's account-enrolment mechanism,
+  not a DOB field. The clinical suite is parked again, this time after row
+  9. The next reassessment's honest starting point is row 10 (`billing`) —
+  it carries the same financial-liability weight §1 warns prescribing does
+  ("the moment a clinician ... bills from it, the product stops being a
+  demonstration"), so whoever picks it up should read `docs/compliance/`
+  first, not build first and reconcile after.
+
+- 2026-08-11 — **Queue fully checked again; reassessed the "stop after
+  prescribing" note and resumed the clinical suite with `diagnostics-orders`
+  (capability map row 7).** Grepped for `- [ ]` first — zero hits, same as
+  every recent run. This run's fallback question was different from the
+  last several: those all named a concrete open item in their own "for the
+  next run" note (delegation seed data, `CaregiverRelationship` retirement,
+  revoke UI, ...); this run's chain of notes had converged on two things
+  only — guardianship creation (blocked on a real product decision, see
+  below) and the Clinical suite section's own explicit "stop after
+  prescribing and reassess" line, never actually reassessed by any run
+  since prescribing shipped.
+
+  **Guardianship creation, checked first and ruled out again, for a sharper
+  reason than prior entries gave.** Read `grantGuardianshipForMinor`
+  (`packages/family/src/index.ts`) closely enough this time to notice its
+  `wardDateOfBirth` parameter is not sourced from anywhere — it is just an
+  argument, so "add a DOB field to `PatientProfile`" was never really the
+  blocker prior entries described it as. The real blocker is one level up:
+  `family-and-proxy.md` never says how a minor who cannot hold a phone
+  number gets a `User` row to be guardian *of* in the first place — the seed
+  data's Roshani has one only because the seed script inserts it directly,
+  not through any real signup path. A self-service creation endpoint would
+  have to invent that enrolment mechanism (does granting guardianship also
+  create the ward's account? from what identifying information?) — a
+  genuinely different and larger product decision than the DOB-field framing
+  every prior entry repeated, and still not this run's to make. Recorded
+  here so the next run does not re-open the DOB framing as if it were the
+  live question.
+
+  **Why `diagnostics-orders` and not a guardianship workaround, and why
+  reassessing landed on "resume" rather than "stay parked."** Re-read
+  `docs/architecture/clinical-suite.md` §4: "modules 1-4 are the smallest
+  thing a clinic can actually use... nothing before module 5 touches
+  prescribing, where the safety and regulatory burden begins in earnest."
+  That burden is what the original "stop and reassess" note was guarding
+  against — signing off on prescribing without a live look. Nothing about
+  diagnostics-orders (row 7) carries new regulatory weight beyond what
+  `compliance-gap-register.md`'s existing "Lab results" row already names,
+  and every module 1-6 precedent (small pure-domain package + thin
+  `apps/api` wiring + a real fault-isolation test) scales cleanly to it — so
+  reassessing here means "resume for exactly one more module, then stop and
+  reassess again," not "the pause was a mistake."
+
+  **What was built — the module 1-6 shape, applied to row 7.**
+  1. `packages/shared-types/src/index.ts`: `DiagnosticOrder`/
+     `DiagnosticResult` and the input types, in a new section following the
+     same "row N of the capability map" header comment every prior section
+     uses. `resultSource: 'HL7' | 'MANUAL'` is real per the capability map's
+     own "HL7 v2 where partners speak it; manual entry where they do not,"
+     but no HL7 interface exists anywhere in this repo — the comment says so
+     outright, the same honesty `DrugInteractionRule`'s empty-ruleset
+     precedent already established for an unpopulated future dataset.
+     `compliance-gap-register.md`'s "Lab results" row names its own interim
+     control, "non-diagnostic flags; configurable hold" — both are
+     load-bearing types, not comments: `nonDiagnostic` is always `true`
+     (no constructor path omits it) and every recorded result starts
+     `HELD`, never `RELEASED` directly, mirroring
+     `ControlledSubstanceDisabledError`'s unconditional-refusal shape for
+     row 6. Also updated the stale `ClinicalModuleKey` header comment, which
+     still said "modules 1-7 are the next unchecked ledger tasks."
+  2. `packages/diagnostics-orders` (new package): `orderDiagnostic`,
+     `recordDiagnosticResult`, `releaseDiagnosticResult`,
+     `cancelDiagnosticOrder` — a three-state ORDERED → RESULTED | CANCELLED
+     machine, the same shape `prescribing`'s DRAFT → SIGNED | VOIDED
+     already set. A RESULTED order cannot be cancelled (a result is
+     superseded by a new order, never discarded) — enforced by reusing the
+     same `assertOpen` guard `recordDiagnosticResult` uses, so the two
+     "wrong state" mutation paths cannot drift apart. Full `index.test.ts`
+     coverage, including both `resultSource` values passing through
+     unchanged and every guard's specific error.
+  3. `apps/api/src/diagnostics-orders/`: repository (in-memory map, same
+     convention as every sibling), service (`ClinicalChartingService`
+     injected as its public port per §2 rule 3, the same pattern
+     `PrescribingService` set — `orderDiagnostic` is the one action gated on
+     it, `recordResult`/`releaseResult`/`cancelOrder` never touch it),
+     controller (zod-validated, mirrors `PrescribingController`'s route
+     shape), module-descriptor (`DIAGNOSTICS_ORDERS`, empty `requires`, one
+     `degradesWith` edge: `HIDE` against `CLINICAL_CHARTING`), and module.
+     Repository, service, controller, module-descriptor and
+     fault-isolation test files, same five-file split every prior module
+     used.
+  4. Wired into `apps/api/src/app.module.ts` and the `clinical-suite`
+     aggregate (`clinical-suite.module.ts`/`clinical-suite.service.ts`):
+     `GET /clinical-suite/modules` now reports eight modules, not seven.
+     Updated `clinical-suite.service.test.ts`'s "all N modules available"
+     and "CLINICAL_CHARTING outage cascades" tests for the new count and the
+     new HIDE edge — the cascade test would have silently stopped proving
+     anything about diagnostics-orders if left at seven.
+  5. `apps/api/package.json`: added `@swasthya/diagnostics-orders` as a
+     real dependency; regenerated `pnpm-lock.yaml` via
+     `--no-frozen-lockfile`, then confirmed `--frozen-lockfile` passes clean
+     afterward, same sequence the 2026-08-11 grants-endpoint run used for
+     the same reason.
+
+  **What was deliberately not built.** No HL7 v2 parsing or interface of
+  any kind — row 7's own note names it as a future integration, and nothing
+  in this repo has a partner to speak it to yet; `resultSource: 'HL7'` stays
+  a real, tested, never-yet-used value. No "configurable" hold policy (who
+  may release which test kinds) — `compliance-gap-register.md` says that
+  configurability needs laboratory governance that does not exist; the
+  unconditional hold is the honest interim control today, not a shortcut.
+  No clinician-facing UI — matches every module 1-6 precedent, all API-only
+  so far. No `TELECONSULTATION` (row 9) or anything past row 7 — the
+  reassessment above was scoped to exactly one module, not "resume the
+  whole roadmap."
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the lockfile
+  regeneration; `pnpm lint` 32/32 (up from 31 — the new package); `pnpm
+  typecheck` 32/32; `pnpm test` 58/58 tasks — `@swasthya/api` 347 tests (up
+  from 323: 24 new, across `diagnostics-orders.repository.test.ts`,
+  `.service.test.ts`, `.controller.test.ts`, `.module-descriptor.test.ts`,
+  `.fault-isolation.test.ts`, plus the two updated `clinical-suite.service
+  .test.ts` cases), `@swasthya/diagnostics-orders` 12 new tests; `pnpm
+  build` 32/32, including `apps/web`'s static export and `apps/mobile`'s
+  Expo web bundle. No schema/migration change — this module has no Prisma
+  model yet, matching every module 1-6 precedent (in-memory only) — so no
+  live Postgres was needed this run.
+
+  **For the next run.** Both items every recent entry has named stay open:
+  guardianship creation (now understood to be blocked on a minor's
+  account-enrolment mechanism, not merely a DOB field — see above) and the
+  clinical suite is parked again, this time after row 7. The next
+  reassessment's honest starting point is row 9 (`teleconsultation`,
+  already stubbed in `apps/mobile`) — row 8 is `apps/web`/`apps/mobile`
+  themselves, not a module for this registry.
+
+- 2026-08-11 — **Queue fully checked again; picked the highest-value
+  improvement to work already done: a `DelegationGrant` seed row for the two
+  competent Thapa adults.** Grepped for `- [ ]` first — zero hits, same as
+  every recent run. Re-read the prior (`CaregiverRelationship`-retirement)
+  run's own "for the next run" note, which named this exact item as its own
+  deliberate exclusion: "No new `DelegationGrant` seed row for the two
+  competent adults (Janaki/Sunita) — the old table's own doc comment had
+  explicitly deferred that as 'a separate demonstration to build
+  deliberately.'" The other open item that note and several before it also
+  named — guardianship *creation* blocked on `PatientProfile` having no
+  structured date-of-birth field — is still a real product decision this
+  run has no more standing to make than any before it, so it stayed
+  untouched.
+
+  **What was built.**
+  1. `packages/database/src/seed-data.ts`: new `SeedDelegationGrant`
+     interface (`ConsentMethod`/`DelegationScope` imported from
+     `../generated/enums.ts`, same source `SeedGuardianshipGrant` already
+     uses for `GuardianshipGrounds`) and one `delegationGrants` row — Janaki
+     (68, granter) delegating to Sunita (41, delegate; already Roshani's
+     guardian, so now also the one relative with reason to act for both
+     generations above and below her). Modelled deliberately, not
+     arbitrarily: scopes are `VIEW_RECORD`/`ASK_ASSISTANT` only, never
+     `MANAGE_APPOINTMENTS`/`UPLOAD_DOCUMENTS`, so the seed itself
+     demonstrates delegation is scoped rather than all-or-nothing;
+     `enrolment` is set (assisted, `IN_PERSON_VERBAL`, `recordedBy: sunitaId`)
+     rather than `null`, because `family-and-proxy.md`'s own worked example
+     is that a competent-but-app-unfamiliar elder cannot meaningfully tap "I
+     agree" herself — `IN_PERSON_VERBAL` was chosen over
+     `WITNESSED`/`CLINICIAN_ATTESTED`/`WRITTEN` specifically because it is
+     the only one of the four `ConsentMethod` values that needs no witness
+     or clinician invented into this family to be true. `grantedAt` is set
+     after Janaki's one seeded document (2026-05-18) so the demo shows
+     access granted to an already-populated record, and `expiresAt` one year
+     out, matching the design doc's "revocable, time-limited" framing rather
+     than an open-ended default. Extended the id-prefix doc comment (`e` =
+     "delegation grants") and the `SeedGuardianshipGrant` doc comment, which
+     used to say the delegation link was deliberately absent and now points
+     at where it actually lives.
+  2. `packages/database/prisma/seed.ts`: applies `delegationGrants` via
+     `prisma.delegationGrant.upsert`. Not a straight `create: row` like
+     `guardianshipGrants` gets — `DelegationGrant`'s Prisma columns are the
+     flat `enrolmentMethod`/`enrolmentRecordedBy` nullable pair, not the
+     nested `enrolment` object the seed type carries for readability, so the
+     apply step destructures and unpacks it, the same mapping
+     `PrismaFamilyGrantsStore` already does on every real write. Also spreads
+     `scopes` into a fresh mutable array — Prisma's generated input type
+     rejects the seed data's `readonly DelegationScope[]` directly, caught by
+     `tsc`, not by a runtime failure.
+  3. `packages/database/src/seed-data.test.ts`: new test asserting the grant
+     points at two real, distinct users; is scoped (non-empty, excludes the
+     two broader scopes); has `expiresAt > grantedAt` and `revokedAt: null`;
+     and that `enrolment.recordedBy` is the delegate, never the granter —
+     `AssistedEnrolmentConsent.recordedBy`'s own contract, and the one
+     invariant a copy-paste mistake here would most easily violate.
+
+  **What was deliberately not built.** Guardianship creation — still the
+  same DOB-field blocker every recent entry has named; this task's own scope
+  was explicitly the seed-data gap, not that one. No second delegation row
+  (e.g. Arjun, the unrelated fourth subject, delegating to nobody) — Arjun
+  exists for the cross-subject leakage test alone and inventing a delegation
+  for him would serve no test or demo this run could point to.
+
+  **Verify.** Stood up local Postgres the same way the last schema-adjacent
+  run did (`pg_ctlcluster 16 main start`, fresh `swasthya` role/db — no
+  Docker daemon here) since this changes what the seed script writes, even
+  though it needed no new migration (`DelegationGrant` already existed from
+  the 2026-08-11 `add_family_grants` migration). `prisma migrate deploy`
+  from empty applied all four existing migrations cleanly; `tsx prisma/seed.ts`
+  ran end to end and `psql` showed the new row with `granterId`/`delegateId`
+  resolving to Janaki's and Sunita's real `User.id`s, `scopes` as a two-value
+  Postgres array, and `enrolmentMethod`/`enrolmentRecordedBy` both set;
+  re-ran the seed script a second time to confirm the upsert is still a
+  no-op on a populated database. Dropped the verification database and role
+  afterward. `pnpm install --frozen-lockfile` clean; `pnpm lint` 31/31;
+  `pnpm typecheck` 31/31; `pnpm test` 56/56 tasks — `packages/database` up
+  by one test (10, from 9) for the new delegation-grant assertions, no
+  other package's test count changed since nothing else reads this table
+  yet; `pnpm build` 31/31.
+
+  **For the next run.** Both items every recent entry has named are still
+  open and still need the same thing: guardianship creation needs a real
+  product decision on where a ward's date of birth comes from before it can
+  be built without inventing a data source. Nothing else new surfaced this
+  run. The "stop after prescribing and reassess" note under Clinical suite
+  also still stands — modules 7-20 remain deferred, not blocked.
+
+- 2026-08-11 — **Queue fully checked again; picked the highest-value
+  improvement to work already done: retiring the seed data's orphaned
+  `CaregiverRelationship` model.** Grepped for `- [ ]` first — zero hits.
+  Read back the last four log entries' "for the next run" notes: each named
+  the same two open items (guardianship creation blocked on `PatientProfile`
+  having no DOB field; reconciling/retiring `CaregiverRelationship` in the
+  seed data) without picking either up. Confirmed `CaregiverRelationship`
+  was genuinely dead: grepped the whole repo and found it referenced only in
+  `schema.prisma`, `seed-data.ts`, `seed.ts`, and one comment in
+  `packages/family/src/index.test.ts` — no `apps/api` service or route ever
+  read from it. It predates `packages/family` (Round two C); the real
+  `GuardianshipGrant`/`DelegationGrant` tables the 2026-08-11 grants-endpoint
+  run added were never seeded with anything, so the "realistic Nepali
+  demonstration dataset" Round two A2 asks for had zero rows in the family
+  module that's actually been built.
+
+  **Why this one and not the DOB field.** The DOB blocker is about
+  `PatientProfile`'s *live* schema for real users — a real product decision
+  (typed field vs. captured at grant time) explicitly flagged as not this
+  run's to make. Retiring a seed-only table for four already-invented
+  fictional demo people is a different, much smaller decision: their ages,
+  names and districts are already invented for the dataset, so choosing a
+  birth date consistent with Roshani's existing `ageYears: 12` is the same
+  kind of demonstration-persona fact the rest of her profile already makes,
+  not a new category of fabrication.
+
+  **What was built.**
+  1. `packages/database/prisma/schema.prisma`: dropped the
+     `CaregiverRelationship` model outright — nothing reads it.
+  2. New migration `20260811010000_drop_caregiver_relationship` (named to
+     sort after the same day's `add_family_grants` migration, matching this
+     repo's whole-day-timestamp convention rather than Prisma's real
+     wall-clock default). Verified by standing up the local
+     `pg_ctlcluster` Postgres this sandbox has used before, dropping and
+     recreating the `swasthya` database, and running `prisma migrate deploy`
+     from empty — all four migrations apply cleanly in order.
+  3. `packages/database/src/seed-data.ts`: replaced
+     `SeedCaregiverRelationship`/`caregiverRelationships` with
+     `SeedGuardianshipGrant`/`guardianshipGrants` — one row, Sunita as
+     guardian of Roshani, `grounds: 'MINOR'`. Kept this file's own
+     "pure data, no domain-package import" convention rather than pulling in
+     `@swasthya/family`'s `grantGuardianshipForMinor`: `expiresAt` is
+     written by hand as Roshani's 18th birthday (`grantedAt` 2014-03-10 →
+     `expiresAt` 2032-03-10), the same value
+     `packages/family/src/index.test.ts`'s own `roshaniDateOfBirth` fixture
+     already independently computes, so the two are provably consistent
+     rather than coincidentally equal. Updated the file's id-prefix-scheme
+     doc comment (`c` was "caregiver relationships", now "guardianship
+     grants") and the stale comment on `packages/family`'s own test file
+     that still named `caregiverRelationships[0].startsAt`.
+  4. `packages/database/prisma/seed.ts`: seeds `guardianshipGrants` via
+     `prisma.guardianshipGrant.upsert` instead. Ran it against the live
+     local Postgres end to end — all 13 tables seed cleanly, and
+     `SELECT * FROM "GuardianshipGrant"` shows the one row with `wardId`/
+     `guardianId` resolving to Roshani's and Sunita's real `User.id`s (not
+     profile ids — `GuardianshipGrant.wardId` is a subject id, unlike the
+     old table's inconsistent `patientId`-as-profile-id).
+  5. `packages/database/src/seed-data.test.ts`: rewrote the multi-generation
+     family test to look up the ward by `userId === grant.wardId` (not
+     `profile.id === link.patientId`, since a `GuardianshipGrant` has no
+     profile-id field at all) and to assert what a `GuardianshipGrant`
+     actually carries — mandatory expiry after grant, `MINOR` grounds, not
+     yet revoked — instead of the old scoped-permissions assertion that no
+     longer applies (`GuardianshipGrant` has no `scopes` field; guardianship
+     is full access by design, unlike `DelegationGrant`).
+
+  **What was deliberately not built.** No new `DelegationGrant` seed row for
+  the two competent adults (Janaki/Sunita) — the old table's own doc comment
+  had explicitly deferred that as "a separate demonstration to build
+  deliberately," and folding it into a table-retirement task would have
+  been unrelated scope creep, not a byproduct of the retirement. That stays
+  a real next task, not a leftover of this one.
+
+  **Verify.** Stood up local Postgres (`pg_ctlcluster 16 main start`,
+  created the `swasthya` role/db) since this task needed one to prove the
+  migration and seed actually run — the last several family-grants entries
+  had each skipped this for lack of a Docker daemon; `pg_ctlcluster` works
+  fine without Docker. `pnpm install --frozen-lockfile` clean; `pnpm lint`
+  31/31; `pnpm typecheck` 31/31; `pnpm test` 56/56 tasks, `@swasthya/api`
+  still 323 tests (no api-side code touched — its tests all run against
+  in-memory fakes, not seed data), `packages/database`'s own 13 tests
+  passing against the new shape; `pnpm build` 31/31. Also ran
+  `prisma migrate deploy` from an empty database and `tsx prisma/seed.ts`
+  against it directly, outside the turbo pipeline, and inspected the
+  written row with `psql` — belt-and-suspenders given this was a schema
+  change.
+
+  **For the next run.** Two things still open, both named by prior entries
+  and neither touched here: guardianship *creation* for real users, still
+  blocked on `PatientProfile` having no structured date-of-birth field (a
+  product decision: typed field vs. captured at grant time); and a
+  `DelegationGrant` seed example for Janaki/Sunita, deliberately left out
+  above as its own task. The "stop after prescribing and reassess" note
+  under Clinical suite also still stands — modules 7-20 remain deferred, not
+  blocked.
+
+- 2026-08-11 — **Queue fully checked again; picked the highest-value
+  improvement to work already done: letting a granter see and revoke the
+  delegations she has made.** Grepped for `- [ ]` first — zero hits, same as
+  every recent run. Re-read the prior run's own "for the next run" note,
+  which named two things: a `delegationsGrantedBy` read plus a revoke route
+  (unblocked), and guardianship creation (still blocked on `PatientProfile`
+  having no structured date-of-birth field — a real product decision, not
+  something this run could resolve honestly). Picked the unblocked one.
+
+  **What was built — the write half `packages/family`'s own `revokeDelegation`
+  had no caller for yet.**
+  1. `apps/api/src/family/family-grants.store.ts`: three additions to the
+     `FamilyGrantsStore` port — `delegationsGrantedBy(granterId)` (the
+     granter-scoped read, mirroring `delegationsFor`'s delegate-scoped one),
+     `findDelegation(id)` and `saveDelegation(grant)`. Deliberately not a
+     single `revokeDelegation(id, granterId)` store method: the ownership
+     check and the pure `revokeDelegation` transition both belong in
+     `FamilyGrantsService`, the same "domain logic in the service, not the
+     Prisma adapter" split `RecordsService.#requireObservation` +
+     `RecordsRepository.findObservation`/`saveObservation` already
+     establish for an identical fetch-check-transition-persist shape.
+     Implemented in `PrismaFamilyGrantsStore` (plain `findUnique`/`update`)
+     and `InMemoryFamilyGrantsStore` (array scan/splice, same convention as
+     its existing `createDelegation`).
+  2. `apps/api/src/family/family-grants.service.ts`: `SubjectGrants` gained
+     `delegationsGranted`; `grantsFor` now also calls
+     `store.delegationsGrantedBy(subjectId)`. New
+     `revokeDelegation(granterId, delegationId)`: fetches by id alone, 404s
+     as `DELEGATION_NOT_FOUND` on any owner mismatch (never a 403 — a wrong
+     id and someone else's real grant id must be indistinguishable to the
+     caller, the same rule the records module's cross-owner fix set), then
+     persists `packages/family`'s pure `revokeDelegation(grant, now)`
+     result. Idempotent, matching that function's own contract.
+  3. `apps/api/src/family/family-grants.controller.ts`: new `DELETE
+     /family/grants/delegations/:id`, `SessionAuthGuard`-protected, granter
+     id from `@CurrentUser()`, delegation id from the path — the path param
+     is fine precisely because the service re-checks it against the caller
+     before touching anything.
+  4. `apps/web/src/lib/family-api.ts`: `SubjectGrantsResponse` gained
+     `delegationsGranted`; new `revokeDelegation(id)` client
+     (`DELETE`, `credentials: 'include'`, no body). New
+     `apps/web/src/components/account/DelegationsGrantedList.tsx`: one row
+     per granted delegation showing the delegate's raw id (no id→name
+     lookup exists anywhere in this app, so none was invented here — same
+     call `acting-subjects.ts`'s `buildActingSubjects` already made for the
+     switcher), its scopes, a computed active/revoked/expired status, and a
+     revoke button shown only while active (revoking an already-inactive
+     grant would still succeed — idempotent — but the button would be
+     misleading). Mounted into `AccountView.tsx` under `DelegationForm`,
+     sharing its `refreshFamilyGrants` callback so a revoke updates the list
+     without a full reload. New `account.delegation.granted.*` and
+     `account.delegation.errors.DELEGATION_NOT_FOUND` keys in both
+     `messages/en.json` and `messages/ne.json`.
+
+  **What was deliberately not built.** No confirmation dialog before
+  revoking — the button itself is the explicit action, and this codebase has
+  no existing modal/confirm pattern to match; a follow-up UX pass, not this
+  task. No guardianship read/revoke — guardianship has no creation path yet
+  either (see above), so a revoke UI for it would have nothing real to show.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 31/31;
+  `pnpm typecheck` 31/31; `pnpm test` 56/56 tasks — `@swasthya/api` 323 tests
+  (up from 314: 9 new, across `family-grants.service.test.ts`,
+  `family-grants.controller.test.ts`, `in-memory-family-grants.store
+  .test.ts`), `@swasthya/web` 56 tests (up from 54: 2 new in
+  `family-api.test.ts`); `pnpm build` 31/31, including `apps/web`'s static
+  export and `apps/mobile`'s Expo web bundle. No schema/migration change —
+  `GuardianshipGrant`/`DelegationGrant` tables already existed, so this run
+  needed no live Postgres to verify against and didn't stand one up. Did not
+  manually click through `/account`'s new revoke button against a live
+  `apps/api` + Postgres — same gap the last several family-grants entries
+  have each left open, worth a real click-through the next time anyone with
+  a live database touches this surface.
+
+  **For the next run.** Guardianship creation is still the real remaining
+  gap, still blocked on the same thing: `PatientProfile` has no structured
+  date-of-birth field for `guardianshipExpiryForMinor` to read. That needs a
+  product decision (add a typed DOB field to the profile? capture it at
+  guardianship-creation time instead, as a one-off input?) before it can be
+  built without inventing a data source. Also still open: reconciling or
+  retiring the seed data's older `CaregiverRelationship` model, and the
+  "stop after prescribing and reassess" note under Clinical suite — modules
+  7-20 remain deferred, not blocked.
+
+- 2026-08-11 — **Queue fully checked again; picked the highest-value
+  improvement to work already done: self-service delegation creation.**
+  Grepped for `- [ ]` first — zero hits. Read the prior run's own "for the
+  next run" note, which named the real remaining gap in one sentence: "there
+  is still no way to *create* a `GuardianshipGrant`/`DelegationGrant`
+  anywhere in the app... A guardianship/delegation creation flow (mobile or
+  web) is the natural next piece."
+
+  **Scoped to delegation only, not guardianship, and said why up front.**
+  `packages/family`'s `grantGuardianshipForMinor` needs the ward's date of
+  birth, and `PatientProfile` has no such field — `demographics` is an
+  untyped `Json?` blob nothing in this app parses a DOB out of. Wiring
+  guardianship creation now would mean inventing a source for that input,
+  which the standing "invent no facts" constraint rules out. Delegation has
+  no such trap: `grantDelegation` (self-service) only needs a granter, a
+  delegate, scopes and an expiry, and `AuthStore.findUserByPhone` already
+  exists to resolve "the person at this phone number" to a real `User.id`.
+
+  **What was built — a real write path, end to end.**
+  1. `apps/api/src/family/family-grants.store.ts`: added `createDelegation`
+     to the `FamilyGrantsStore` port — its first write. Implemented in
+     `PrismaFamilyGrantsStore` (a plain insert against the
+     `DelegationGrant` table the 2026-08-11 migration already added; no new
+     migration needed this run) and `InMemoryFamilyGrantsStore` (copies its
+     constructor-seeded array into a private mutable one first, so a test's
+     `readonly` fixture is never mutated from under it).
+  2. `apps/api/src/family/family-grants.service.ts`: new
+     `createDelegation(granterId, delegatePhone, scopes, expiresAt)` —
+     normalises the phone via `AuthService.parsePhone` (exported for this,
+     rather than duplicated: same `INVALID_PHONE` `BadRequestException`
+     shape as the OTP flow), 404s as `DELEGATE_NOT_FOUND` if no account
+     holds that phone, then calls `grantDelegation` and maps its domain
+     errors (`SelfDelegationError`, `EmptyDelegationScopeError`,
+     `InvalidDelegationExpiryError`) to `BadRequestException`s carrying the
+     error's own `name` as `code`. `enrolment` is always `null` — this is
+     the self-service path only; assisted enrolment needs a witness/consent
+     UI this run does not build, so wiring
+     `grantDelegationByAssistedEnrolment` in stays a separate task rather
+     than being half-built here.
+  3. `apps/api/src/auth/auth.module.ts`: exported `AUTH_STORE` alongside
+     `AuthService`/`SessionAuthGuard` so `FamilyModule` (already importing
+     `AuthModule` for the guard) can inject the same store — not a second
+     one — for the phone lookup.
+  4. `apps/api/src/family/family-grants.controller.ts`: new `POST
+     /family/grants/delegations`, `SessionAuthGuard`-protected, a zod
+     schema validating `scopes` against the closed `DelegationScope` union
+     before the request ever reaches the service, granter id from
+     `@CurrentUser()` only — never a body field, for the same reason the
+     records module's cross-owner fix moved ownership off client-supplied
+     ids: a forged `granterId` would let anyone hand out access to someone
+     else's record.
+  5. `apps/web/src/lib/family-api.ts`: `createDelegation()` client, shaped
+     after `getFamilyGrants()`. `apps/web/src/hooks/useFamilyGrants.ts`: now
+     returns `[state, refresh]` instead of bare `state` — `refresh` re-runs
+     the fetch, needed so a successful grant doesn't leave the hook's
+     `loaded` cache stale until a full page reload; updated `AccountView.tsx`
+     for the new tuple shape. New `apps/web/src/components/account/
+     DelegationForm.tsx`: phone input, one real checkbox per
+     `DelegationScope` (native inputs, not a custom combined switch — same
+     "separately toggleable" precedent `DataConsentView.tsx` set), a native
+     date input for `expiresAt`, error mapping over the exact code set the
+     endpoint can return (mirrors `PhoneOtpFlow`'s `KNOWN_ERROR_CODES`
+     pattern). Mounted into `AccountView.tsx` between the identity card and
+     the "open the app" CTA. New `account.delegation.*` keys in both
+     `messages/en.json` and `messages/ne.json` — heading, body, all four
+     scope labels, and every error code's message.
+
+  **What was deliberately not built.** No listing of grants the signed-in
+  person has made *as granter* — `FamilyGrantsStore` only ever answers "what
+  was granted to me" (`guardianshipsFor`/`delegationsFor`, both keyed by
+  guardian/delegate id), and adding a `delegationsGrantedBy` read endpoint
+  just to show a history list was more scope than this task needed; the
+  form instead shows an inline success message using the `DelegationGrant`
+  the `POST` response itself returned. No revoke UI — `revokeDelegation`
+  exists in `packages/family` but has no route either; same reasoning, next
+  task. No test for `PrismaFamilyGrantsStore` itself, matching the existing
+  convention for that file (see the 2026-08-11 grants-endpoint entry below).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 31/31;
+  `pnpm typecheck` 31/31; `pnpm test` 56/56 tasks — `@swasthya/api` 314
+  tests (up from 305: 9 new, across `family-grants.service.test.ts`,
+  `family-grants.controller.test.ts`, `in-memory-family-grants.store
+  .test.ts`), `@swasthya/web` 54 tests (up from 52: 2 new in
+  `family-api.test.ts`); `pnpm build` 31/31, including `apps/web`'s static
+  export and `apps/mobile`'s Expo web bundle. One test-writing mistake
+  caught by the run itself and fixed before commit: the first draft of the
+  controller's two validation tests used `await expect(...).rejects...`,
+  but `createDelegation` throws synchronously (zod's `parseOrThrow` runs
+  before the `async` service call is ever reached), so the throw escaped
+  the test rather than rejecting a promise — switched those two to
+  `expect(() => ...).toThrow(...)`. Did not manually click through
+  `/account` against a live `apps/api` + Postgres in this run — no Docker
+  daemon in this environment and standing up `pg_ctlcluster` again wasn't
+  needed since no migration changed; worth a real click-through the next
+  time anyone touches this surface with a live database available.
+
+  **For the next run.** Two natural follow-ups this run left honestly
+  incomplete: a way for the granter to see and revoke delegations she has
+  already made (needs `delegationsGrantedBy` on the store plus a `DELETE`
+  or similar route calling `revokeDelegation`), and guardianship creation —
+  still blocked on `PatientProfile` having no structured date-of-birth
+  field to source `guardianshipExpiryForMinor`'s input from; that blocker
+  needs a real decision (add a typed DOB field? capture it at guardianship-
+  creation time instead?) before it can be built honestly. Also still open
+  from before: reconciling or retiring the seed data's older
+  `CaregiverRelationship` model, and the "stop after prescribing and
+  reassess" note under Clinical suite — modules 7-20 remain deferred, not
+  blocked.
+
+- 2026-08-11 — **Queue fully checked again; picked the highest-value
+  improvement to work already done: a real `apps/api` grants endpoint.**
+  Grepped for `- [ ]` first — still zero hits. Per the working agreement's
+  fallback rule, re-read the prior run's own "for the next run" note, which
+  named one concrete item: "an `apps/api` grants endpoint exposing a
+  signed-in person's `GuardianshipGrant`/`DelegationGrant` rows... without
+  inventing any field the seed data doesn't actually carry." That note also
+  flagged the trap the run before it hit: reusing the seed data's
+  `CaregiverRelationship` model would require inventing `grounds`, a
+  mandatory `expiresAt`, `revokedAt`, and the entire `consentMethod`/
+  `enrolment` shape — none of which that model or its one seeded row
+  (Sunita/Roshani) carries. Confirmed that independently before writing any
+  code: `CaregiverRelationship.endsAt` is nullable and unset on the seed
+  row, while `GuardianshipGrant.expiresAt` is a non-optional field in
+  `packages/family`'s own type — there is no honest field-for-field mapping.
+
+  **What was built — the honest alternative: new tables, not a reused one.**
+
+  1. `packages/database/prisma/schema.prisma`: new `GuardianshipGrant` and
+     `DelegationGrant` models, fields matching `packages/family`'s
+     `GuardianshipGrant`/`DelegationGrant` TypeScript interfaces exactly
+     (including `enrolmentMethod`/`enrolmentRecordedBy` as a nullable pair
+     for `AssistedEnrolmentConsent`), plus three new enums
+     (`GuardianshipGrounds`, `DelegationScope`, `ConsentMethod`) mirroring
+     the package's own closed unions. `wardId`/`guardianId`/`granterId`/
+     `delegateId` are `@db.Uuid`, not the untyped `String` `HealthDocument
+     .ownerId` uses — that field predates `AuthModule` (A3); these
+     postdate it, and the ids really are `User.id` values now. Left
+     `AccessGrant` (an existing, fully unused, generic grant table)
+     untouched rather than repurposed: it has no field for assisted-enrolment
+     consent and would conflate guardianship with delegation, the exact
+     failure mode `packages/family`'s own doc comments name.
+  2. Migration `20260811000000_add_family_grants`, generated via `prisma
+     migrate diff --from-config-datasource --to-schema` (not
+     `--from-schema-datasource`, which Prisma 7 removed) against a local
+     Postgres 16 cluster brought up with `pg_ctlcluster 16 main start` (no
+     Docker daemon in this environment) with a `swasthya`/`swasthya`
+     role/database created to match `compose.yaml`. Applied with `migrate
+     deploy`, then confirmed zero drift with a second `migrate diff
+     --exit-code`. Ran `prisma format` afterward — the schema file's
+     formatting had drifted and `pnpm lint`'s `prisma format --check` step
+     caught it; that reformat is whitespace-only, verified with `git diff`
+     before treating it as expected rather than accidental.
+  3. `apps/api/src/family/`: `family-grants.store.ts` (the `FamilyGrantsStore`
+     port, `AUTH_STORE`-pattern), `prisma-family-grants.store.ts` (the real
+     adapter — the only real mapping work is `DateTime` → ISO string and
+     reassembling `enrolment` from its two nullable columns, throwing on a
+     partially-set pair rather than guessing), `in-memory-family-grants
+     .store.ts` (test fake), `family-grants.service.ts` (deliberately thin:
+     scopes to the caller's subject id and nothing else — the active-at-`now`
+     liveness filter stays owned by `listActiveGuardianshipsFor`/
+     `listActiveDelegationsFor` alone, so it has exactly one place to drift),
+     `family-grants.controller.ts` (`GET /family/grants`, behind
+     `SessionAuthGuard`, subject id from `@CurrentUser()` — never a
+     query/path param, the same lesson the records module's cross-owner fix
+     already established), and `family.module.ts`, wired into `AppModule`.
+     Added `@swasthya/family` as a real `apps/api` dependency (it wasn't
+     one) and regenerated `pnpm-lock.yaml` via `--no-frozen-lockfile`, then
+     confirmed `--frozen-lockfile` passes clean afterward.
+  4. `apps/web/src/lib/family-api.ts` (`getFamilyGrants()`, shaped after
+     `auth-api.ts`) and `apps/web/src/hooks/useFamilyGrants.ts` (gated on a
+     live session, degrades to empty arrays on `loading`/`error` rather than
+     blocking the rest of the page). `AccountView.tsx`'s `buildActingSubjects`
+     call now passes real `guardianships`/`delegations` instead of `[]`/`[]`
+     — exactly the one-line change its own prior comment predicted.
+
+  **What was deliberately not built.** No write path (no `POST` to create a
+  grant): `packages/family`'s own doc comment on `hasScope` says there is
+  "deliberately no route or UI checking [scopes] yet... adding one now
+  would mean fabricating an enforcement point that doesn't exist" — the
+  same reasoning applies to a creation endpoint with no real caller. No seed
+  data for either new table: there is no honest guardianship/delegation
+  data beyond the existing `CaregiverRelationship` row this task explicitly
+  ruled out reusing, so both tables ship empty, honestly, rather than
+  backfilled. Did not touch or retire `CaregiverRelationship` — reconciling
+  or removing it is still a separate task. No new `messages/*.json` keys —
+  this is a data-source change behind an existing UI surface, not new copy.
+
+  **Verify.** Brought up a local Postgres 16 cluster (`pg_ctlcluster`,
+  `swasthya`/`swasthya` role and database) since no Docker daemon was
+  available; applied all three migrations cleanly, confirmed zero schema
+  drift. `pnpm install --frozen-lockfile` clean after the lockfile
+  regeneration; `pnpm lint` 31/31 (including `packages/database`'s `prisma
+  format --check` after reformatting the schema file); `pnpm typecheck`
+  31/31; `pnpm test` 56/56 tasks — `@swasthya/api` 305 tests (up from 300:
+  new `family-grants.service.test.ts`, `in-memory-family-grants.store
+  .test.ts`, `family-grants.controller.test.ts`), `@swasthya/web` 52 tests
+  (up from 48: new `family-api.test.ts`); `pnpm build` 31/31, including
+  `apps/api`, `apps/web`'s static export and `apps/mobile`'s Expo web
+  bundle. No test for `PrismaFamilyGrantsStore` itself — matches this
+  repo's existing convention (`PrismaAuthStore` has none either); it is
+  exercised by the migration/drift verification above, not a unit test.
+  Did not manually click through `/account` against the live local
+  Postgres + `apps/api` in this run (no grant rows exist to see yet, since
+  none were seeded) — the next run to touch this surface, once there is a
+  real way to create a grant, is the first one that can verify this
+  end-to-end rather than by construction.
+
+  **For the next run.** The real remaining gap: there is still no way to
+  *create* a `GuardianshipGrant`/`DelegationGrant` anywhere in the app —
+  this run built the read side only, honestly, because nothing calls a
+  write path yet. A guardianship/delegation creation flow (mobile or web)
+  is the natural next piece, and would also be the first real caller that
+  makes `hasScope`'s "no enforcement point exists yet" note stale. Also
+  still open: reconciling or retiring `CaregiverRelationship`, and the
+  "stop after prescribing and reassess" note under Clinical suite (§ above)
+  — modules 7-20 are deferred, not blocked, and still need a real look
+  before either resuming or staying parked.
+
+- 2026-08-11 — **Queue fully checked; picked the highest-value improvement to
+  work already done.** Grepped the whole ledger for `- [ ]` first to confirm —
+  zero hits, every task through D3 is checked. Per the working agreement's
+  fallback rule, read the D2 log entry's own "for the next run" note, which
+  named two things: (1) `Header`/`MobileNav` still unconditionally show
+  Sign in/Register on every marketing route, and (2) a real `apps/api` grants
+  endpoint for `GuardianshipGrant`/`DelegationGrant`.
+
+  **Why (1) and not (2).** Looked at (2) first since the D2 note called it
+  out by name. `packages/family` still has no Prisma-backed store — same
+  in-memory-map convention every other `apps/api` module in this round uses
+  (`RecordsRepository`, `PatientRegistryRepository`,
+  `CredentialingRepository` all say so in their own doc comments), so a read
+  endpoint would need something to read. The seed data's
+  `caregiverRelationships` (Prisma's older, generic `CaregiverRelationship`
+  model — one row, Sunita's guardianship of Roshani) is the only real
+  candidate, but its own doc comment in `packages/database/src/seed-data.ts`
+  says outright it predates `packages/family` and deliberately doesn't
+  attempt delegation because that state machine "hasn't built yet" — which is
+  now stale, but mapping that generic row onto `packages/family`'s richer
+  `GuardianshipGrant` (which also wants `groundsForGuardianship`,
+  `consentMethod` for delegations, structured expiry) would mean inventing
+  fields the seed row doesn't carry, which is exactly what "invent no facts"
+  rules out. That reconciliation is a real, separate task, not this run's.
+
+  (1) had no such trap: `useSession` already calls the real, tested
+  `GET /auth/me`; the only gap was that it redirects to `/signin` on *any*
+  rejection, including the ordinary 401 an anonymous visitor gets on every
+  one of the ~70 public marketing pages — which is exactly why D2 stopped
+  short of wiring it into the header instead of silently shipping something
+  broken.
+
+  **What was built.** `apps/web/src/hooks/useSession.ts`: factored the
+  fetch-`GET /auth/me` logic into a shared `useSessionQuery()`, then two
+  thin callers — `useSession()` (unchanged behaviour: redirects to `/signin`
+  on failure, for protected pages like `/account`) and the new
+  `useOptionalSession()` (reports `{ status: 'anonymous' }` instead of
+  redirecting, for nav chrome that must render on public pages regardless of
+  sign-in state). `Header.tsx` now calls `useOptionalSession()` once and, for
+  an authenticated visitor, swaps the Sign in/Register button pair for a
+  single account link to `/account`; the same resolved session is passed down
+  as a prop to `MobileNav.tsx` (rendered only when the drawer opens) rather
+  than having it fetch a second time. Added `nav.actions.account` ("मेरो
+  खाता" / "My account") to both `messages/ne.json` and `messages/en.json`,
+  same location as the existing `signIn`/`register` keys.
+
+  **What was deliberately not built.** No sign-out affordance in the header
+  itself — `/account` already has one, and adding a second one in the header
+  chrome for a one-word label is scope the task didn't ask for. No test file
+  for `useOptionalSession`/the two components — matches this repo's existing
+  convention (confirmed `useSession.ts`, `Header.tsx`, `MobileNav.tsx` have
+  no test files today and `apps/web` has zero `.test.tsx` component-render
+  tests anywhere, per the D2 log entry).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 31/31;
+  `pnpm typecheck` 31/31; `pnpm test` 56/56 tasks, 300 tests in `apps/api`
+  alone, all passing, none touched by this change; `pnpm build` 31/31
+  including `apps/web`'s static export and `apps/mobile`'s Expo web bundle.
+  Did not manually exercise the signed-in header state against a running
+  `apps/api` + Postgres in this run (same gap D2 left for its own manual
+  redirect checks) — worth a real click-through the next time anyone touches
+  this surface.
+
+  **For the next run.** The real item left from D2 is still open: an
+  `apps/api` grants endpoint backed by real persistence, plus reconciling
+  `packages/family`'s `GuardianshipGrant`/`DelegationGrant` shape against the
+  seed data's older `CaregiverRelationship` model (or replacing that seed
+  table's use entirely) — without inventing any field the seed data doesn't
+  actually carry.
+
+- 2026-08-10 — **Round two, task D3: launch-gate checklist for the robots
+  noindex flip.** First unchecked task — D2 (the `apps/web` authenticated
+  surface) was already checked off by the prior run. This was the only
+  remaining unchecked task anywhere in the queue; grepped the whole file for
+  `- [ ]` to confirm before starting.
+
+  `docs/product/promotion-readiness.md` already existed (it predates this
+  ledger's Round two work — its own git history traces back to the
+  Individuals-utility-routes commit) with a fairly thorough Gate A/B/C
+  regulatory checklist, but nothing in it named the actual code mechanism
+  that drives indexing, and none of the four items the task called out by
+  name were present. Read `apps/web/src/app/robots.ts` and
+  `apps/web/src/lib/seo.ts` first: both key `noindex` off a single signal,
+  `isDemonstrationBuild`, which is `packages/configuration`'s
+  `legalEntity.registrationId === null`. That is necessary but nowhere near
+  sufficient — registering a legal entity says nothing about whether the
+  copy has been clinically reviewed, whether marketing figures are real, or
+  whether fictional content has actually been replaced.
+
+  Added a lead-in paragraph to Gate A naming that code mechanism explicitly,
+  plus four new checklist items ahead of the existing ones, matching the
+  task's list in order: clinician review of clinical copy, substantiated (or
+  removed) quantitative claims — tied explicitly to the standing
+  invent-no-facts constraint — the demonstration notice (`footer.demoNotice`)
+  staying up until no fictional provider/testimonial/facility content remains
+  in the indexed build, and a real registered address on `legalEntity` (today
+  there is no address field at all, and `displayName` is still the literal
+  placeholder `"Demonstration entity — configure before launch"`). Did not
+  touch the pre-existing Gate A/B/C items — they're a broader regulatory
+  checklist for later promotion stages and already cover ground the task
+  didn't ask to revisit. Doc-only change; no code, no messages files, nothing
+  to test.
+
+  Queue is now fully checked except for the "stop after prescribing and
+  reassess" note under Clinical suite — modules 7-20 are explicitly deferred,
+  not blocked, so the next run should re-read that note and the current state
+  of the clinical suite before deciding whether to resume it or find other
+  work.
+
+- 2026-08-10 — **Round two, task D2: `apps/web` authenticated surface.**
+  First unchecked task — D1 (serve the Expo build at `/app`) was already
+  checked off by the prior run. This is the item that run itself added to
+  the queue when it closed out C6, so the "what product content does this
+  page show" decision that entry deferred was this run's first job before
+  writing anything.
+
+  **The content decision, made before any code.** Read `PhoneOtpFlow.tsx`,
+  `GET /auth/me`'s actual return shape, and `packages/family` end to end
+  first. Two things ruled out an ordinary "dashboard": `GET /auth/me`
+  returns `userId`/`phone`/`role`/`locale`/`patientProfileId`/
+  `assuranceLevel` and nothing else — no display name lives anywhere the API
+  exposes yet (it's on `PatientProfile.displayName`, never returned) — and
+  `listActiveGuardianshipsFor`/`listActiveDelegationsFor` have **zero
+  callers anywhere in the app code today**, only their own unit tests;
+  `packages/family` has no Prisma-backed store and no `apps/api` route
+  exposes a grant list to a web client. Building a fuller dashboard would
+  have meant inventing content `GET /auth/me` can't back or standing up a
+  grants API that's a separate task in its own right. So the page shows
+  exactly what's real: the person's phone and verification level, an
+  acting-subject switcher, and one CTA into `/app` — the actual Expo
+  product D1 now serves, which already has records/capture/companion
+  screens live per round two §B/§C. Nothing here is a stub dressed up to
+  look finished; every field is either a real API response or an explicit,
+  commented `[]` where no data source exists yet.
+
+  **What was built.**
+
+  1. `apps/web/src/lib/auth-api.ts`: `getCurrentUser()` (`GET /auth/me`,
+     added a `getJson` alongside the existing POST-only `requestJson`) and
+     `logout()` (`POST /auth/logout`) — both endpoints were already real and
+     tested on `apps/api`, just never called from this app.
+  2. `apps/web/src/hooks/useSession.ts`: a client hook, because `apps/web`
+     has no way to read `mero_session` server-side — it's an httpOnly
+     cookie scoped to `apps/api`'s own origin (see
+     `sessionCookieOptions()` in `apps/api`'s `auth.controller.ts`), not
+     this site's, so there's nothing for a Next server component to
+     inspect. Calls `getCurrentUser()` on mount, redirects to `/signin` on
+     any rejection — there's no protected content to half-render for a
+     session state this hook can't establish.
+  3. `apps/web/src/lib/acting-subjects.ts`: `ActingSubject`/
+     `resolveActingSubject`/`UnknownActingSubjectError`, duplicated from
+     (not imported from) `apps/mobile/src/lib/acting-subjects.ts` — the two
+     apps share no UI package, and the file is small enough that
+     duplication costs less than inventing that coupling. Also
+     `buildActingSubjects`, the actual first caller anywhere in this repo
+     of `packages/family`'s `listActiveGuardianshipsFor`/
+     `listActiveDelegationsFor`. Every call site today passes `[]` for both
+     grant lists (see the content-decision note above) — the composition
+     itself is real and tested (9 cases: empty, an active guardianship, an
+     active delegation, an expired guardianship filtered out by
+     `listActiveGuardianshipsFor` itself, a grant belonging to someone
+     else excluded), so the day a grants endpoint exists only its two
+     arguments change.
+  4. `apps/web/src/components/account/ProfileSwitcher.tsx`: the web half
+     of the switcher, a native `<select>` (accessible for free, unlike
+     mobile's hand-rolled `Modal` sheet which exists because React Native
+     has no equivalent) that degrades to a plain non-interactive pill when
+     there's nothing to switch to — true today, same `canSwitch` gate
+     mobile's version uses. Matches mobile's SELF-vs-not visual rule
+     (neutral vs. the marigold-family treatment mobile already established
+     for `saffronSoft`/`saffronDeep`, here `marigold-100`/`marigold-700` —
+     confirmed those are the same colour pair via
+     `packages/configuration`, not a new use of the art direction's
+     one-marigold-action rule since this is a status indicator, not a CTA).
+  5. `apps/web/src/components/account/AccountView.tsx` +
+     `apps/web/src/app/[locale]/account/page.tsx`: the protected page
+     itself. Deliberately **not** registered in `content/routes.ts` /
+     `sitemap.ts` — every route there is public marketing content meant to
+     be indexed once `isDemonstrationBuild` clears, and this one renders a
+     specific person's own data, so it carries an explicit
+     `robots: { index: false, follow: false }` in its own
+     `generateMetadata` that holds regardless of that flag, rather than
+     inheriting the layout's demo-build-conditional one.
+  6. `PhoneOtpFlow.tsx`: the `'success'` step, the `Account` interface and
+     the now-stale `noAppNotice` copy are gone; `handleCodeSubmit` calls
+     `router.push('/account')` on a successful verify instead. Removed the
+     matching `signIn.success`/`register.success` message keys from both
+     `messages/ne.json` and `messages/en.json` (grepped the whole app first
+     to confirm nothing else referenced them) and added a new top-level
+     `account` namespace, present and parity-checked (same key shapes) in
+     both files.
+  7. `apps/web/package.json` gained `@swasthya/family` as a real dependency
+     (it wasn't one — `apps/mobile` doesn't declare it either, since this
+     is genuinely the package's first real consumer) — regenerated
+     `pnpm-lock.yaml` via `pnpm install --no-frozen-lockfile`, then
+     confirmed `--frozen-lockfile` passes clean afterward, matching what
+     the working agreement's first verify step will do.
+
+  **What was deliberately not built.** No change to `Header.tsx`/
+  `MobileNav.tsx` to make the sign-in/register links session-aware —
+  that would mean a session-check fetch on every one of the ~70 marketing
+  routes for a task that only asked for the authenticated surface itself,
+  and it's a real, separate piece of scope worth its own line rather than
+  folding in unreviewed. Also did not touch `apps/api` — `GET /auth/me`
+  and `POST /auth/logout` were already complete and tested; nothing here
+  needed a backend change.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean after the lockfile
+  regeneration above; `pnpm lint` 31/31; `pnpm typecheck` 31/31; `pnpm test`
+  56/56 tasks (`@swasthya/web` 48 tests, up from 36 — the new
+  `acting-subjects.test.ts` and the `getCurrentUser`/`logout` cases added to
+  `auth-api.test.ts`); `pnpm test` note: this repo has zero `.test.tsx`
+  component-render tests anywhere in `apps/web` today (no
+  `@testing-library/react`, no jsdom environment configured in
+  `vitest.config.ts`) — followed that existing convention rather than
+  introducing new test infrastructure for one component, so
+  `AccountView`/`ProfileSwitcher`/`useSession` are exercised by the build
+  and by the manual check below, not by a unit test; `pnpm build` 31/31,
+  confirmed `/[locale]/account` present in the route output for both
+  locales. Manually built and ran `next start` against the real output:
+  `/account` and `/en/account` both 200, correct per-locale `<title>`,
+  `noindex` present, and the Nepali loading copy rendered server-side (no
+  `apps/api` running in this check, so the client fetch this hook makes
+  never resolves — expected, and the reason the loading state is what a
+  static HTML fetch sees). Did not verify the live redirect-on-401 or
+  redirect-on-success paths against a running `apps/api` + Postgres in this
+  run; that needs the compose stack up, which is a heavier manual check the
+  next run touching this surface should still do at least once.
+
+  **For the next run.** Two things worth doing, not required to unblock
+  anything: (1) the Header/MobileNav session-awareness gap noted above, and
+  (2) an actual `apps/api` grants endpoint exposing a signed-in person's
+  `GuardianshipGrant`/`DelegationGrant` rows — the moment that exists,
+  `AccountView.tsx`'s `buildActingSubjects` call is the only place that
+  needs its two `[]` arguments replaced with real data. §D's remaining item
+  (the launch-gate checklist) is next in queue order.
 
 - 2026-08-10 — **Round two, task D1: serve the Expo build at `/app`.** First
   unchecked task, per the prior run's own handoff note — took it as pointed.

@@ -106,7 +106,13 @@ const NEPAL_MOBILE_PATTERN = /^9\d{9}$/;
  */
 export function normalizeNepaliPhone(input: string): string {
   const digitsOnly = input.replace(/[\s-]/g, '');
-  const withoutCountryCode = digitsOnly.replace(/^\+?977/, '');
+  // A bare (no leading "+") 10-digit number that itself starts with the
+  // digits "977" is indistinguishable from a country-code prefix by prefix
+  // alone — "9771234567" already matches NEPAL_MOBILE_PATTERN on its own.
+  // Only strip "977" when a literal "+" makes the intent unambiguous, or
+  // when the string is too long to be a bare 10-digit number.
+  const hasCountryCode = digitsOnly.startsWith('+') || digitsOnly.length > 10;
+  const withoutCountryCode = hasCountryCode ? digitsOnly.replace(/^\+?977/, '') : digitsOnly;
   if (!NEPAL_MOBILE_PATTERN.test(withoutCountryCode)) {
     throw new InvalidPhoneError(input);
   }
@@ -159,7 +165,15 @@ export function parseCookieHeader(header: string | undefined | null): Record<str
     const name = pair.slice(0, separatorIndex).trim();
     const value = pair.slice(separatorIndex + 1).trim();
     if (!name) continue;
-    entries[name] = decodeURIComponent(value);
+    // The cookie header is attacker-controlled and reaches this guard on
+    // every request; an invalid percent-encoding (e.g. a bare "%") must
+    // drop that one pair rather than throw `URIError` out of `SessionAuthGuard`,
+    // which would turn a clean 401 into an unhandled 500 for the whole request.
+    try {
+      entries[name] = decodeURIComponent(value);
+    } catch {
+      continue;
+    }
   }
   return entries;
 }

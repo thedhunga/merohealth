@@ -32,6 +32,7 @@ import {
 } from 'expo-audio';
 import * as Speech from 'expo-speech';
 import { colors } from '@swasthya/configuration';
+import { useAppState } from '@/state/app-state';
 
 // Three journey steps, three brand tiers — forest, jade, marigold — instead
 // of the arbitrary blue/violet accents this screen used before. `saffronDeep`
@@ -42,24 +43,30 @@ const journey = [
   {
     number: '01',
     icon: Mic,
-    title: 'आफ्नै भाषामा भन्नुहोस्',
-    body: 'नेपाली, रोमन नेपाली, अंग्रेजी वा मिसाएर—आवाज वा अक्षरमा आफ्नो कुरा भन्नुहोस्।',
+    titleNe: 'आफ्नै भाषामा भन्नुहोस्',
+    titleEn: 'Say it in your own language',
+    bodyNe: 'नेपाली, रोमन नेपाली, अंग्रेजी वा मिसाएर—आवाज वा अक्षरमा आफ्नो कुरा भन्नुहोस्।',
+    bodyEn: "Nepali, Romanized Nepali, English, or a mix — speak or type, whichever feels natural.",
     color: colors.mint,
     accent: colors.primary,
   },
   {
     number: '02',
     icon: BrainCircuit,
-    title: 'स्वास्थ्य चित्र बनाउनुहोस्',
-    body: 'साथीले तपाईंको सहमतिमा आवश्यक कुरा मात्र एक–एक स्पष्ट कदममा जोड्छ।',
+    titleNe: 'स्वास्थ्य चित्र बनाउनुहोस्',
+    titleEn: 'Build your health picture',
+    bodyNe: 'साथीले तपाईंको सहमतिमा आवश्यक कुरा मात्र एक–एक स्पष्ट कदममा जोड्छ।',
+    bodyEn: "With your consent, Sathi adds only what's needed, one clear step at a time.",
     color: colors.mintFaint,
     accent: colors.info,
   },
   {
     number: '03',
     icon: Stethoscope,
-    title: 'सही सेवासम्म पुग्नुहोस्',
-    body: 'उपयुक्त सेवा खोज्नुहोस्, भेटघाटको तयारी गर्नुहोस् र आफूले चाहेको कुरा मात्र बाँड्नुहोस्।',
+    titleNe: 'सही सेवासम्म पुग्नुहोस्',
+    titleEn: 'Reach the right care',
+    bodyNe: 'उपयुक्त सेवा खोज्नुहोस्, भेटघाटको तयारी गर्नुहोस् र आफूले चाहेको कुरा मात्र बाँड्नुहोस्।',
+    bodyEn: 'Find the right service, prepare for the visit, and share only what you choose to.',
     color: colors.saffronSoft,
     accent: colors.saffronDeep,
   },
@@ -67,68 +74,99 @@ const journey = [
 
 const services = [
   {
+    id: 'clinicians',
     icon: Stethoscope,
-    label: 'डाक्टर र विशेषज्ञ',
-    detail: 'खोज्नुहोस्, बुझ्नुहोस् र तयारी गर्नुहोस्',
+    labelNe: 'डाक्टर र विशेषज्ञ',
+    labelEn: 'Doctors & specialists',
+    detailNe: 'खोज्नुहोस्, बुझ्नुहोस् र तयारी गर्नुहोस्',
+    detailEn: 'Search, understand, and prepare',
     tone: colors.mint,
   },
   {
+    id: 'directory',
     icon: Building2,
-    label: 'नजिकको स्वास्थ्य सेवा',
-    detail: 'अस्पताल, क्लिनिक र घरमै सेवा',
+    labelNe: 'नजिकको स्वास्थ्य सेवा',
+    labelEn: 'Nearby health services',
+    detailNe: 'अस्पताल, क्लिनिक र घरमै सेवा',
+    detailEn: 'Hospitals, clinics, and home visits',
     tone: colors.mintFaint,
   },
   {
+    id: 'twin',
     icon: FileHeart,
-    label: 'तपाईंको स्वास्थ्य कथा',
-    detail: 'आफैले बुझ्न सक्ने विवरण',
+    labelNe: 'तपाईंको स्वास्थ्य कथा',
+    labelEn: 'Your health story',
+    detailNe: 'आफैले बुझ्न सक्ने विवरण',
+    detailEn: 'A record you can actually understand',
     tone: colors.canvas,
   },
   {
+    id: 'consultation',
     icon: Video,
-    label: 'भिडियो परामर्श',
-    detail: 'निजी कक्षको नमुना',
+    labelNe: 'भिडियो परामर्श',
+    labelEn: 'Video consultation',
+    detailNe: 'निजी कक्षको नमुना',
+    detailEn: 'A private room, demonstrated',
     tone: colors.saffronSoft,
   },
 ];
 
 export default function WebWelcomeScreen() {
   const { width } = useWindowDimensions();
+  const { language } = useAppState();
+  const en = language === 'en';
   const wide = width >= 900;
   const compact = width < 620;
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 200);
-  const [voiceMessage, setVoiceMessage] = useState('निजी आवाज नोट प्रयोग गर्न थिच्नुहोस्');
+  // Derived from recorder state rather than set imperatively, so the
+  // displayed message always tracks the current `language` toggle instead of
+  // freezing whatever string was written into state at record-start time.
+  const [hasRecorded, setHasRecorded] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const voiceMessage = recorderState.isRecording
+    ? en
+      ? 'Listening… tap again when done'
+      : 'सुन्दैछु… सकिएपछि फेरि थिच्नुहोस्'
+    : hasRecorded
+      ? en
+        ? 'Saved on this device · not uploaded'
+        : 'आवाज यही उपकरणमा सुरक्षित भयो · अपलोड गरिएको छैन'
+      : en
+        ? 'Tap to record a private voice note'
+        : 'निजी आवाज नोट प्रयोग गर्न थिच्नुहोस्';
 
   const toggleRecording = async () => {
     setVoiceError(null);
     try {
       if (recorderState.isRecording) {
         await recorder.stop();
-        setVoiceMessage('आवाज यही उपकरणमा सुरक्षित भयो · अपलोड गरिएको छैन');
+        setHasRecorded(true);
         return;
       }
 
       const permission = await requestRecordingPermissionsAsync();
       if (!permission.granted) {
-        setVoiceError('आवाज नोटका लागि माइक्रोफोन अनुमति चाहिन्छ।');
+        setVoiceError(
+          en ? 'Voice notes need microphone permission.' : 'आवाज नोटका लागि माइक्रोफोन अनुमति चाहिन्छ।',
+        );
         return;
       }
 
       await recorder.prepareToRecordAsync();
       recorder.record();
-      setVoiceMessage('सुन्दैछु… सकिएपछि फेरि थिच्नुहोस्');
     } catch {
-      setVoiceError('यो ब्राउजरमा आवाज रेकर्ड उपलब्ध छैन।');
+      setVoiceError(en ? 'Voice recording is not available in this browser.' : 'यो ब्राउजरमा आवाज रेकर्ड उपलब्ध छैन।');
     }
   };
 
   const speakIntroduction = () => {
     void Speech.stop();
     Speech.speak(
-      'नमस्ते। म स्वास्थ्य साथी हुँ। तपाईंको कुरा बुझेर सुरक्षित अर्को कदम खोज्न मद्दत गर्छु।',
-      { language: 'ne-NP', rate: 0.88, pitch: 1 },
+      en
+        ? "Hello. I'm Sathi, your health companion. I understand what you say and help you find a safe next step."
+        : 'नमस्ते। म स्वास्थ्य साथी हुँ। तपाईंको कुरा बुझेर सुरक्षित अर्को कदम खोज्न मद्दत गर्छु।',
+      { language: en ? 'en-US' : 'ne-NP', rate: 0.88, pitch: 1 },
     );
   };
 
@@ -143,17 +181,19 @@ export default function WebWelcomeScreen() {
 
       <View style={styles.announcement}>
         <Text style={styles.announcementText}>
-          New: Evidence-backed health research is now available in Mero Health
+          {en
+            ? 'New: Evidence-backed health research is now available in Mero Health'
+            : 'नयाँ: मेरो स्वास्थ्यमा अब प्रमाणमा आधारित स्वास्थ्य खोज उपलब्ध छ'}
         </Text>
         <Pressable onPress={() => router.push('/(tabs)/companion')} style={styles.announcementLink}>
-          <Text style={styles.announcementLinkText}>Try it now</Text>
+          <Text style={styles.announcementLinkText}>{en ? 'Try it now' : 'अहिले प्रयोग गर्नुहोस्'}</Text>
           <ArrowRight color={colors.primaryDark} size={15} />
         </Pressable>
       </View>
 
       <View style={styles.nav}>
         <Pressable
-          accessibilityLabel="मेरो स्वास्थ्य गृहपृष्ठ"
+          accessibilityLabel={en ? 'Mero Health home' : 'मेरो स्वास्थ्य गृहपृष्ठ'}
           onPress={() => router.replace('/')}
           style={styles.brandLockup}
         >
@@ -169,24 +209,30 @@ export default function WebWelcomeScreen() {
         {wide ? (
           <View style={styles.navLinks}>
             <Pressable onPress={() => router.push('/(tabs)/learn')}>
-              <Text style={styles.navLink}>कसरी चलाउने</Text>
+              <Text style={styles.navLink}>{en ? 'How it works' : 'कसरी चलाउने'}</Text>
             </Pressable>
             <Pressable onPress={() => router.push('/(tabs)/care')}>
-              <Text style={styles.navLink}>स्वास्थ्य सेवा</Text>
+              <Text style={styles.navLink}>{en ? 'Care' : 'स्वास्थ्य सेवा'}</Text>
             </Pressable>
             <Pressable
               onPress={() =>
                 router.push({ pathname: '/(tabs)/companion', params: { demo: 'emergency' } })
               }
             >
-              <Text style={styles.navLink}>सुरक्षा</Text>
+              <Text style={styles.navLink}>{en ? 'Safety' : 'सुरक्षा'}</Text>
             </Pressable>
           </View>
         ) : null}
 
         <Pressable onPress={() => router.push('/(tabs)')} style={styles.navButton}>
           <Text style={styles.navButtonText}>
-            {compact ? 'खोल्नुहोस्' : 'मेरो स्वास्थ्य खोल्नुहोस्'}
+            {en
+              ? compact
+                ? 'Open'
+                : 'Open Mero Health'
+              : compact
+                ? 'खोल्नुहोस्'
+                : 'मेरो स्वास्थ्य खोल्नुहोस्'}
           </Text>
           <ArrowRight color="white" size={16} />
         </Pressable>
@@ -196,38 +242,61 @@ export default function WebWelcomeScreen() {
         <View style={styles.heroCopy}>
           <View style={styles.eyebrow}>
             <View style={styles.liveDot} />
-            <Text style={styles.eyebrowText}>नेपालका लागि · संसारभर उपयोगी</Text>
+            <Text style={styles.eyebrowText}>
+              {en ? 'Built for Nepal · useful anywhere' : 'नेपालका लागि · संसारभर उपयोगी'}
+            </Text>
           </View>
           <Text style={[styles.heroTitle, compact && styles.heroTitleCompact]}>
-            तपाईंको स्वास्थ्य,{'\n'}
-            <Text style={styles.heroAccent}>अब बुझ्ने गरी।</Text>
+            {en ? (
+              <>
+                Your health,{'\n'}
+                <Text style={styles.heroAccent}>now, understandable.</Text>
+              </>
+            ) : (
+              <>
+                तपाईंको स्वास्थ्य,{'\n'}
+                <Text style={styles.heroAccent}>अब बुझ्ने गरी।</Text>
+              </>
+            )}
           </Text>
+          {/* Fixed bilingual pairing, like the MERO HEALTH / मेरो स्वास्थ्य brand
+              lockup below — demonstrates the product's language range rather
+              than restating the headline in the other toggled language. */}
           <Text style={styles.heroNepali}>Your health, in your language.</Text>
           <Text style={styles.heroBody}>
-            सोध्न, बुझ्न, तयारी गर्न र सही सेवासँग जोडिन सकिने एउटै शान्त ठाउँ—आफ्नो स्वास्थ्य
-            जानकारीमाथिको नियन्त्रण नगुमाई।
+            {en
+              ? 'One calm place to ask, understand, prepare, and connect to the right care — without losing control of your own health information.'
+              : 'सोध्न, बुझ्न, तयारी गर्न र सही सेवासँग जोडिन सकिने एउटै शान्त ठाउँ—आफ्नो स्वास्थ्य जानकारीमाथिको नियन्त्रण नगुमाई।'}
           </Text>
 
           <View style={[styles.heroActions, compact && styles.heroActionsCompact]}>
             <Pressable onPress={() => router.push('/(tabs)/companion')} style={styles.primaryCta}>
               <Sparkles color={colors.primaryDark} size={18} />
-              <Text style={styles.primaryCtaText}>स्वास्थ्य साथीसँग कुरा गर्नुहोस्</Text>
+              <Text style={styles.primaryCtaText}>
+                {en ? 'Talk to your health companion' : 'स्वास्थ्य साथीसँग कुरा गर्नुहोस्'}
+              </Text>
               <ArrowRight color={colors.primaryDark} size={17} />
             </Pressable>
             <Pressable onPress={() => router.push('/consultation')} style={styles.secondaryCta}>
               <Camera color={colors.primaryDark} size={18} />
-              <Text style={styles.secondaryCtaText}>भिडियो कक्ष हेर्नुहोस्</Text>
+              <Text style={styles.secondaryCtaText}>
+                {en ? 'See the video room' : 'भिडियो कक्ष हेर्नुहोस्'}
+              </Text>
             </Pressable>
           </View>
 
           <View style={styles.trustRow}>
             <View style={styles.trustItem}>
               <ShieldCheck color={colors.primary} size={17} />
-              <Text style={styles.trustText}>जवाफअघि सुरक्षा</Text>
+              <Text style={styles.trustText}>
+                {en ? 'Safety checks before any answer' : 'जवाफअघि सुरक्षा'}
+              </Text>
             </View>
             <View style={styles.trustItem}>
               <LockKeyhole color={colors.primary} size={17} />
-              <Text style={styles.trustText}>बाँड्नुअघि सहमति</Text>
+              <Text style={styles.trustText}>
+                {en ? 'Consent before anything is shared' : 'बाँड्नुअघि सहमति'}
+              </Text>
             </View>
           </View>
         </View>
@@ -249,13 +318,21 @@ export default function WebWelcomeScreen() {
 
             <View style={styles.aiBadge}>
               <Sparkles color={colors.primaryDark} size={16} />
-              <Text style={styles.aiBadgeText}>एआई स्वास्थ्य साथी · निर्णय तपाईंको</Text>
+              <Text style={styles.aiBadgeText}>
+                {en ? 'AI health companion · decisions stay yours' : 'एआई स्वास्थ्य साथी · निर्णय तपाईंको'}
+              </Text>
             </View>
 
             <View style={styles.voiceCard}>
               <Pressable
                 accessibilityLabel={
-                  recorderState.isRecording ? 'रेकर्ड रोक्नुहोस्' : 'आवाज नोट रेकर्ड गर्नुहोस्'
+                  recorderState.isRecording
+                    ? en
+                      ? 'Stop recording'
+                      : 'रेकर्ड रोक्नुहोस्'
+                    : en
+                      ? 'Record a voice note'
+                      : 'आवाज नोट रेकर्ड गर्नुहोस्'
                 }
                 onPress={() => {
                   void toggleRecording();
@@ -271,8 +348,12 @@ export default function WebWelcomeScreen() {
               <View style={styles.voiceCopy}>
                 <Text style={styles.voiceLabel}>
                   {recorderState.isRecording
-                    ? 'आवाज नोट · रेकर्ड हुँदैछ'
-                    : 'आवाजमै चल्ने स्वास्थ्य साथी'}
+                    ? en
+                      ? 'Voice note · recording'
+                      : 'आवाज नोट · रेकर्ड हुँदैछ'
+                    : en
+                      ? 'A voice-first health companion'
+                      : 'आवाजमै चल्ने स्वास्थ्य साथी'}
                 </Text>
                 <Text style={styles.voiceTitle}>{voiceMessage}</Text>
                 {voiceError ? <Text style={styles.voiceError}>{voiceError}</Text> : null}
@@ -298,8 +379,12 @@ export default function WebWelcomeScreen() {
                 <Stethoscope color={colors.primaryDark} size={20} />
               </View>
               <View style={styles.doctorCopy}>
-                <Text style={styles.doctorStatus}>स्वास्थ्य सेवासँग जोडिँदै</Text>
-                <Text style={styles.doctorTitle}>आवश्यक पर्दा सही स्वास्थ्यकर्मी</Text>
+                <Text style={styles.doctorStatus}>
+                  {en ? 'Connecting to a care provider' : 'स्वास्थ्य सेवासँग जोडिँदै'}
+                </Text>
+                <Text style={styles.doctorTitle}>
+                  {en ? 'The right provider, when you need one' : 'आवश्यक पर्दा सही स्वास्थ्यकर्मी'}
+                </Text>
               </View>
               <BadgeCheck color={colors.irisBright} size={21} />
             </View>
@@ -309,26 +394,34 @@ export default function WebWelcomeScreen() {
       <View style={styles.signalStrip}>
         <View style={styles.signalItem}>
           <Text style={styles.signalValue}>3</Text>
-          <Text style={styles.signalLabel}>भाषाका विकल्प</Text>
+          <Text style={styles.signalLabel}>{en ? 'Language options' : 'भाषाका विकल्प'}</Text>
         </View>
         <View style={styles.signalDivider} />
         <View style={styles.signalItem}>
           <Text style={styles.signalValue}>1</Text>
-          <Text style={styles.signalLabel}>तपाईंको नियन्त्रणमा स्वास्थ्य कथा</Text>
+          <Text style={styles.signalLabel}>
+            {en ? 'Health story, kept in your control' : 'तपाईंको नियन्त्रणमा स्वास्थ्य कथा'}
+          </Text>
         </View>
         <View style={styles.signalDivider} />
         <View style={styles.signalItem}>
           <Text style={styles.signalValue}>0</Text>
-          <Text style={styles.signalLabel}>स्वचालित निदान</Text>
+          <Text style={styles.signalLabel}>{en ? 'Automated diagnoses' : 'स्वचालित निदान'}</Text>
         </View>
       </View>
       <View style={styles.careOverview}>
         <View style={styles.careOverviewHead}>
+          {/* All-caps eyebrow — stays English regardless of toggle, matching
+              the STEP 1 · ASK / PATIENT-CONTROLLED badge convention already
+              established in app/(tabs)/learn.tsx. */}
           <Text style={styles.careKicker}>CARE, ALL IN ONE PLACE</Text>
-          <Text style={styles.careTitle}>The care you need, all in one place.</Text>
+          <Text style={styles.careTitle}>
+            {en ? 'The care you need, all in one place.' : 'तपाईंलाई चाहिने सेवा, एउटै ठाउँमा।'}
+          </Text>
           <Text style={styles.careBody}>
-            From a health question to finding the right care, every step stays clear, safe, and
-            under your control.
+            {en
+              ? 'From a health question to finding the right care, every step stays clear, safe, and under your control.'
+              : 'स्वास्थ्य प्रश्नदेखि सही सेवा भेट्टाउनेसम्म, हरेक कदम स्पष्ट, सुरक्षित र तपाईंको नियन्त्रणमा रहन्छ।'}
           </Text>
         </View>
         <View style={[styles.careGrid, !wide && styles.stack]}>
@@ -336,7 +429,7 @@ export default function WebWelcomeScreen() {
             const Icon = service.icon;
             return (
               <Pressable
-                key={service.label}
+                key={service.id}
                 onPress={() =>
                   router.push(
                     index === 0
@@ -359,9 +452,9 @@ export default function WebWelcomeScreen() {
                   </View>
                   <ArrowRight color={colors.primaryDark} size={19} />
                 </View>
-                <Text style={styles.careCardTitle}>{service.label}</Text>
-                <Text style={styles.careCardBody}>{service.detail}</Text>
-                <Text style={styles.careCardLink}>Get started</Text>
+                <Text style={styles.careCardTitle}>{en ? service.labelEn : service.labelNe}</Text>
+                <Text style={styles.careCardBody}>{en ? service.detailEn : service.detailNe}</Text>
+                <Text style={styles.careCardLink}>{en ? 'Get started' : 'सुरु गर्नुहोस्'}</Text>
               </Pressable>
             );
           })}
@@ -370,10 +463,16 @@ export default function WebWelcomeScreen() {
 
       <View style={styles.section}>
         <View style={styles.sectionHeading}>
-          <Text style={styles.sectionEyebrow}>स्वास्थ्य सेवाको स्पष्ट बाटो</Text>
-          <Text style={styles.sectionTitle}>अनिश्चितताबाट उपयोगी अर्को कदमसम्म।</Text>
+          <Text style={styles.sectionEyebrow}>
+            {en ? 'A clear path to care' : 'स्वास्थ्य सेवाको स्पष्ट बाटो'}
+          </Text>
+          <Text style={styles.sectionTitle}>
+            {en ? 'From uncertainty to a clear next step.' : 'अनिश्चितताबाट उपयोगी अर्को कदमसम्म।'}
+          </Text>
           <Text style={styles.sectionBody}>
-            प्रविधि तपाईंअनुसार बदलिन्छ—तपाईं प्रविधिअनुसार होइन।
+            {en
+              ? "Technology adapts to you — you don't adapt to technology."
+              : 'प्रविधि तपाईंअनुसार बदलिन्छ—तपाईं प्रविधिअनुसार होइन।'}
           </Text>
         </View>
 
@@ -388,8 +487,8 @@ export default function WebWelcomeScreen() {
                   </View>
                   <Text style={[styles.journeyNumber, { color: item.accent }]}>{item.number}</Text>
                 </View>
-                <Text style={styles.journeyTitle}>{item.title}</Text>
-                <Text style={styles.journeyBody}>{item.body}</Text>
+                <Text style={styles.journeyTitle}>{en ? item.titleEn : item.titleNe}</Text>
+                <Text style={styles.journeyBody}>{en ? item.bodyEn : item.bodyNe}</Text>
               </View>
             );
           })}
@@ -410,10 +509,16 @@ export default function WebWelcomeScreen() {
             style={styles.storyBackdrop}
           />
           <View style={styles.storyCopy}>
-            <Text style={styles.storyKicker}>तपाईंको डिजिटल स्वास्थ्य चित्र</Text>
-            <Text style={styles.storyTitle}>शरीरलाई बुझ्ने, एक–एक तथ्यबाट।</Text>
+            <Text style={styles.storyKicker}>
+              {en ? 'Your digital health picture' : 'तपाईंको डिजिटल स्वास्थ्य चित्र'}
+            </Text>
+            <Text style={styles.storyTitle}>
+              {en ? 'Understanding your body, one fact at a time.' : 'शरीरलाई बुझ्ने, एक–एक तथ्यबाट।'}
+            </Text>
             <Text style={styles.storyBody}>
-              अंग, लक्षण, औषधि र स्वास्थ्य इतिहास—तपाईंले पुष्टि गरेको जानकारी मात्र।
+              {en
+                ? "Organs, symptoms, medicines, and history — only what you've confirmed."
+                : 'अंग, लक्षण, औषधि र स्वास्थ्य इतिहास—तपाईंले पुष्टि गरेको जानकारी मात्र।'}
             </Text>
           </View>
         </View>
@@ -431,52 +536,73 @@ export default function WebWelcomeScreen() {
             style={styles.storyBackdrop}
           />
           <View style={styles.storyCopy}>
-            <Text style={styles.storyKicker}>मानिससँग जोडिएको सेवा</Text>
-            <Text style={styles.storyTitle}>एआईले तयारी गर्छ, स्वास्थ्यकर्मीले निर्णय गर्छन्।</Text>
+            <Text style={styles.storyKicker}>{en ? 'Care connected to people' : 'मानिससँग जोडिएको सेवा'}</Text>
+            <Text style={styles.storyTitle}>
+              {en
+                ? 'AI prepares, care providers decide.'
+                : 'एआईले तयारी गर्छ, स्वास्थ्यकर्मीले निर्णय गर्छन्।'}
+            </Text>
             <Text style={styles.storyBody}>
-              साथीले तपाईंको कुरा मिलाउँछ र सही सेवासम्म पुग्न मद्दत गर्छ—उपचारको ठाउँ लिँदैन।
+              {en
+                ? 'Sathi organizes what you share and helps you reach the right service — it does not replace care.'
+                : 'साथीले तपाईंको कुरा मिलाउँछ र सही सेवासम्म पुग्न मद्दत गर्छ—उपचारको ठाउँ लिँदैन।'}
             </Text>
           </View>
         </View>
       </View>
       <View style={[styles.bento, !wide && styles.stack]}>
         <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.bentoLead}>
-          <Text style={styles.bentoKicker}>सामान्य जवाफ होइन, मार्गदर्शन</Text>
+          <Text style={styles.bentoKicker}>
+            {en ? 'Not a generic answer — guidance' : 'सामान्य जवाफ होइन, मार्गदर्शन'}
+          </Text>
           <Text style={styles.bentoTitle}>
-            कहिले रोकिएर स्वास्थ्यकर्मी खोज्नुपर्छ भन्ने बुझ्ने साथी।
+            {en
+              ? 'A companion that knows when to pause and point you to a care provider.'
+              : 'कहिले रोकिएर स्वास्थ्यकर्मी खोज्नुपर्छ भन्ने बुझ्ने साथी।'}
           </Text>
           <Text style={styles.bentoBody}>
-            गम्भीर संकेत देखिए सामान्य प्रक्रिया रोकिन्छ। उपचारसम्बन्धी निर्णय योग्य
-            स्वास्थ्यकर्मीमै रहन्छ। स्रोत र अनिश्चितता सधैँ स्पष्ट देखाइन्छ।
+            {en
+              ? 'The normal flow stops when a serious sign appears. Treatment decisions stay with a qualified care provider. Sources and uncertainty are always shown clearly.'
+              : 'गम्भीर संकेत देखिए सामान्य प्रक्रिया रोकिन्छ। उपचारसम्बन्धी निर्णय योग्य स्वास्थ्यकर्मीमै रहन्छ। स्रोत र अनिश्चितता सधैँ स्पष्ट देखाइन्छ।'}
           </Text>
           <Pressable onPress={speakIntroduction} style={styles.listenButton}>
             <Volume2 color={colors.primaryDark} size={18} />
-            <Text style={styles.listenButtonText}>साथीको परिचय सुन्नुहोस्</Text>
+            <Text style={styles.listenButtonText}>
+              {en ? "Listen to the companion's introduction" : 'साथीको परिचय सुन्नुहोस्'}
+            </Text>
           </Pressable>
           <View style={styles.safetyLine}>
             <Check color={colors.mintStrong} size={17} />
-            <Text style={styles.safetyLineText}>अनुमानलाई निश्चित निदान बनाइँदैन</Text>
+            <Text style={styles.safetyLineText}>
+              {en ? 'A guess is never turned into a firm diagnosis' : 'अनुमानलाई निश्चित निदान बनाइँदैन'}
+            </Text>
           </View>
           <View style={styles.safetyLine}>
             <Check color={colors.mintStrong} size={17} />
-            <Text style={styles.safetyLineText}>स्पष्ट उद्देश्यबिना जानकारी बाँडिँदैन</Text>
+            <Text style={styles.safetyLineText}>
+              {en ? 'Nothing is shared without a clear purpose' : 'स्पष्ट उद्देश्यबिना जानकारी बाँडिँदैन'}
+            </Text>
           </View>
         </LinearGradient>
 
         <View style={styles.servicesPanel}>
-          <Text style={styles.servicesEyebrow}>एउटै जोडिएको अनुभव</Text>
-          <Text style={styles.servicesTitle}>स्वास्थ्य सेवा टुक्रिएको जस्तो हुनु हुँदैन।</Text>
+          <Text style={styles.servicesEyebrow}>{en ? 'One connected experience' : 'एउटै जोडिएको अनुभव'}</Text>
+          <Text style={styles.servicesTitle}>
+            {en
+              ? "Health care shouldn't feel fragmented."
+              : 'स्वास्थ्य सेवा टुक्रिएको जस्तो हुनु हुँदैन।'}
+          </Text>
           <View style={styles.servicesGrid}>
             {services.map((service) => {
               const Icon = service.icon;
               return (
                 <View
-                  key={service.label}
+                  key={service.id}
                   style={[styles.serviceCard, { backgroundColor: service.tone }]}
                 >
                   <Icon color={colors.primaryDark} size={21} />
-                  <Text style={styles.serviceLabel}>{service.label}</Text>
-                  <Text style={styles.serviceDetail}>{service.detail}</Text>
+                  <Text style={styles.serviceLabel}>{en ? service.labelEn : service.labelNe}</Text>
+                  <Text style={styles.serviceDetail}>{en ? service.detailEn : service.detailNe}</Text>
                 </View>
               );
             })}
@@ -488,17 +614,25 @@ export default function WebWelcomeScreen() {
         <View style={styles.perplexityCopy}>
           <View style={styles.perplexityBadge}>
             <Sparkles color={colors.mintStrong} size={16} />
+            {/* All-caps badge — stays fixed regardless of toggle, same
+                convention as careKicker above. */}
             <Text style={styles.perplexityBadgeText}>MERO HEALTH × PERPLEXITY</Text>
           </View>
-          <Text style={styles.perplexityTitle}>Not just search. Health answers with sources.</Text>
+          <Text style={styles.perplexityTitle}>
+            {en
+              ? 'Not just search. Health answers with sources.'
+              : 'खोजी मात्र होइन। स्रोतसहितको स्वास्थ्य जवाफ।'}
+          </Text>
           <Text style={styles.perplexityBody}>
-            Mero Health screens urgent warning signs first. For safe questions, Perplexity Sonar
-            finds current sources and returns an answer with citations. Records, wearables, and
-            personal health trends hand off to Perplexity Health.
+            {en
+              ? 'Mero Health screens urgent warning signs first. For safe questions, Perplexity Sonar finds current sources and returns an answer with citations. Records, wearables, and personal health trends hand off to Perplexity Health.'
+              : 'मेरो स्वास्थ्यले पहिले आपतकालीन चेतावनी संकेत जाँच्छ। सुरक्षित प्रश्नका लागि, Perplexity Sonar ले हालका स्रोत खोजेर उद्धरणसहित जवाफ दिन्छ। रेकर्ड, वियरेबल र व्यक्तिगत स्वास्थ्य प्रवृत्ति Perplexity Health मा जोडिन्छ।'}
           </Text>
           <Pressable onPress={() => router.push('/(tabs)/companion')} style={styles.perplexityCta}>
             <Sparkles color={colors.primaryDark} size={18} />
-            <Text style={styles.perplexityCtaText}>Ask with cited research</Text>
+            <Text style={styles.perplexityCtaText}>
+              {en ? 'Ask with cited research' : 'उद्धृत अनुसन्धानसहित सोध्नुहोस्'}
+            </Text>
             <ArrowRight color={colors.primaryDark} size={17} />
           </Pressable>
         </View>
@@ -506,25 +640,35 @@ export default function WebWelcomeScreen() {
           <View style={styles.perplexityFeature}>
             <ShieldCheck color={colors.mintStrong} size={22} />
             <View style={styles.perplexityFeatureCopy}>
-              <Text style={styles.perplexityFeatureTitle}>Safety before AI</Text>
+              <Text style={styles.perplexityFeatureTitle}>
+                {en ? 'Safety before AI' : 'एआईभन्दा पहिले सुरक्षा'}
+              </Text>
               <Text style={styles.perplexityFeatureBody}>
-                Urgent signals stop the normal answer flow.
+                {en ? 'Urgent signals stop the normal answer flow.' : 'आपतकालीन संकेतले सामान्य जवाफ प्रक्रिया रोक्छ।'}
               </Text>
             </View>
           </View>
           <View style={styles.perplexityFeature}>
             <BookOpen color={colors.mintStrong} size={22} />
             <View style={styles.perplexityFeatureCopy}>
-              <Text style={styles.perplexityFeatureTitle}>Citations you can open</Text>
-              <Text style={styles.perplexityFeatureBody}>Inspect every source for yourself.</Text>
+              <Text style={styles.perplexityFeatureTitle}>
+                {en ? 'Citations you can open' : 'खोल्न मिल्ने उद्धरण'}
+              </Text>
+              <Text style={styles.perplexityFeatureBody}>
+                {en ? 'Inspect every source for yourself.' : 'हरेक स्रोत आफैं जाँच्नुहोस्।'}
+              </Text>
             </View>
           </View>
           <View style={styles.perplexityFeature}>
             <FileHeart color={colors.mintStrong} size={22} />
             <View style={styles.perplexityFeatureCopy}>
-              <Text style={styles.perplexityFeatureTitle}>Personal health handoff</Text>
+              <Text style={styles.perplexityFeatureTitle}>
+                {en ? 'Personal health handoff' : 'व्यक्तिगत स्वास्थ्य हस्तान्तरण'}
+              </Text>
               <Text style={styles.perplexityFeatureBody}>
-                Records and wearables continue in Perplexity Health.
+                {en
+                  ? 'Records and wearables continue in Perplexity Health.'
+                  : 'रेकर्ड र वियरेबल Perplexity Health मा जारी रहन्छ।'}
               </Text>
             </View>
           </View>
@@ -536,14 +680,18 @@ export default function WebWelcomeScreen() {
           <HeartPulse color="white" size={31} />
         </View>
         <View style={styles.finalCopy}>
-          <Text style={styles.finalTitle}>एउटा प्रश्नबाट सुरु गर्नुहोस्।</Text>
+          <Text style={styles.finalTitle}>{en ? 'Start with one question.' : 'एउटा प्रश्नबाट सुरु गर्नुहोस्।'}</Text>
           <Text style={styles.finalBody}>
-            नमुना जानकारी मात्र प्रयोग गरेर कार्यरत प्रदर्शन हेर्नुहोस्।
+            {en
+              ? 'See a working demonstration, using sample data only.'
+              : 'नमुना जानकारी मात्र प्रयोग गरेर कार्यरत प्रदर्शन हेर्नुहोस्।'}
           </Text>
         </View>
         <Pressable onPress={() => router.push('/(tabs)')} style={styles.finalButton}>
           <Play color={colors.primaryDark} fill={colors.primaryDark} size={16} />
-          <Text style={styles.finalButtonText}>मेरो स्वास्थ्यमा प्रवेश गर्नुहोस्</Text>
+          <Text style={styles.finalButtonText}>
+            {en ? 'Enter Mero Health' : 'मेरो स्वास्थ्यमा प्रवेश गर्नुहोस्'}
+          </Text>
         </Pressable>
       </View>
 
@@ -555,10 +703,14 @@ export default function WebWelcomeScreen() {
           <Text style={styles.footerBrand}>मेरो स्वास्थ्य</Text>
         </View>
         <Text style={styles.footerNote}>
-          प्रदर्शन मात्र · आपतकालीन सेवा होइन · वास्तविक बिरामीको जानकारी नदिनुहोस्
+          {en
+            ? 'Demonstration only · not an emergency service · do not enter real patient information'
+            : 'प्रदर्शन मात्र · आपतकालीन सेवा होइन · वास्तविक बिरामीको जानकारी नदिनुहोस्'}
         </Text>
         <Text style={styles.footerLegal}>
-          सावधानीपूर्वक प्रगतिका लागि—लापरवाह वाचाका लागि होइन।
+          {en
+            ? 'For careful progress — not for reckless promises.'
+            : 'सावधानीपूर्वक प्रगतिका लागि—लापरवाह वाचाका लागि होइन।'}
         </Text>
       </View>
     </ScrollView>

@@ -92,10 +92,10 @@ describe('captureDocument', () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, []));
     vi.stubGlobal('fetch', fetchMock);
 
-    await listDocuments('owner-1');
+    await listDocuments();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.example.invalid/v1/records/documents?ownerId=owner-1',
+      'https://api.example.invalid/v1/records/documents',
       expect.anything(),
     );
   });
@@ -132,7 +132,7 @@ describe('listPendingConfirmations', () => {
     const confirmed = makeObservation({ id: 'obs-confirmed', documentId: 'doc-2', status: 'CONFIRMED' });
 
     const fetchMock = vi.fn((url: string) => {
-      if (url.includes('/documents?')) return Promise.resolve(jsonResponse(200, { items: documents }));
+      if (url.endsWith('/documents')) return Promise.resolve(jsonResponse(200, { items: documents }));
       if (url.includes('doc-1/observations'))
         return Promise.resolve(jsonResponse(200, { items: [lowConfidence] }));
       if (url.includes('doc-2/observations'))
@@ -141,24 +141,24 @@ describe('listPendingConfirmations', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const result = await listPendingConfirmations('owner-1');
+    const result = await listPendingConfirmations();
 
     expect(result.map((observation) => observation.id)).toEqual(['obs-low', 'obs-high']);
   });
 });
 
 describe('confirmObservation', () => {
-  it('posts the owner id to the confirm endpoint for the given observation id', async () => {
+  it('posts to the confirm endpoint for the given observation id, with no body', async () => {
     const confirmed = makeObservation({ status: 'CONFIRMED' });
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, confirmed));
     vi.stubGlobal('fetch', fetchMock);
 
-    const result = await confirmObservation('obs-1', 'owner-1');
+    const result = await confirmObservation('obs-1');
 
     expect(result.status).toBe('CONFIRMED');
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/records/observations/obs-1/confirm',
-      expect.objectContaining({ method: 'POST', body: JSON.stringify({ ownerId: 'owner-1' }) }),
+      expect.objectContaining({ method: 'POST', body: undefined }),
     );
   });
 });

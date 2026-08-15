@@ -1,5 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
-import { EmptyPrescriptionError } from '@swasthya/prescribing';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
@@ -106,12 +105,66 @@ describe('PrescribingService.signPrescription', () => {
     expect(signed.safetyFindings).toEqual([]);
   });
 
-  it('propagates the domain error refusing to sign an empty prescription', async () => {
+  it('refuses to sign an empty prescription, as a 400 with a code, not an uncaught 500', async () => {
     const { charting, prescribing } = buildStack();
     const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
     const prescription = await prescribing.openPrescription(encounter.id, { clinicianId: 'clinician-1' });
 
-    await expect(prescribing.signPrescription(prescription.id, 'Dr. Shrestha')).rejects.toThrow(EmptyPrescriptionError);
+    try {
+      await prescribing.signPrescription(prescription.id, 'Dr. Shrestha');
+      expect.unreachable('expected signPrescription to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'EmptyPrescriptionError' });
+    }
+  });
+
+  it('refuses to sign an already-signed prescription, as a 400 with a code', async () => {
+    const { charting, prescribing } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const prescription = await prescribing.openPrescription(encounter.id, { clinicianId: 'clinician-1' });
+    prescribing.addLine(prescription.id, lineInput);
+    await prescribing.signPrescription(prescription.id, 'Dr. Shrestha');
+
+    try {
+      await prescribing.signPrescription(prescription.id, 'Dr. Shrestha');
+      expect.unreachable('expected signPrescription to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'PrescriptionNotDraftError' });
+    }
+  });
+});
+
+describe('PrescribingService.addLine', () => {
+  it('refuses a controlled-substance line, as a 400 with a code — interim control per compliance-gap-register.md', async () => {
+    const { charting, prescribing } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const prescription = await prescribing.openPrescription(encounter.id, { clinicianId: 'clinician-1' });
+
+    try {
+      prescribing.addLine(prescription.id, { ...lineInput, isControlledSubstance: true });
+      expect.unreachable('expected addLine to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'ControlledSubstanceDisabledError' });
+    }
+  });
+
+  it('refuses a line on an already-signed prescription, as a 400 with a code', async () => {
+    const { charting, prescribing } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const prescription = await prescribing.openPrescription(encounter.id, { clinicianId: 'clinician-1' });
+    prescribing.addLine(prescription.id, lineInput);
+    await prescribing.signPrescription(prescription.id, 'Dr. Shrestha');
+
+    try {
+      prescribing.addLine(prescription.id, lineInput);
+      expect.unreachable('expected addLine to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'PrescriptionNotDraftError' });
+    }
   });
 });
 
@@ -127,6 +180,37 @@ describe('PrescribingService.voidPrescription', () => {
 
     expect(voided.status).toBe('VOIDED');
     expect(voided.voidReason).toBe('Wrong dosage entered');
+  });
+
+  it('refuses to void a draft prescription, as a 400 with a code — void a signed one instead', async () => {
+    const { charting, prescribing } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const prescription = await prescribing.openPrescription(encounter.id, { clinicianId: 'clinician-1' });
+
+    try {
+      prescribing.voidPrescription(prescription.id, 'Wrong dosage entered');
+      expect.unreachable('expected voidPrescription to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'PrescriptionNotSignedError' });
+    }
+  });
+
+  it('refuses to void an already-voided prescription, as a 400 with a code', async () => {
+    const { charting, prescribing } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const prescription = await prescribing.openPrescription(encounter.id, { clinicianId: 'clinician-1' });
+    prescribing.addLine(prescription.id, lineInput);
+    await prescribing.signPrescription(prescription.id, 'Dr. Shrestha');
+    prescribing.voidPrescription(prescription.id, 'Wrong dosage entered');
+
+    try {
+      prescribing.voidPrescription(prescription.id, 'Voiding again');
+      expect.unreachable('expected voidPrescription to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'PrescriptionAlreadyVoidedError' });
+    }
   });
 });
 

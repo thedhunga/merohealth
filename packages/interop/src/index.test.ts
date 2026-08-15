@@ -3,6 +3,7 @@ import type { HealthDocument, HealthObservation } from '@swasthya/shared-types';
 
 import {
   InMemoryShareLinkStore,
+  MAX_SHARE_LINK_TTL_SECONDS,
   ShareLinkError,
   ShareLinkNotActiveError,
   UntrustedObservationError,
@@ -110,6 +111,14 @@ describe('toFhirObservation', () => {
     expect(resource.valueString).toBe('Trace');
   });
 
+  it('falls back to a string value for a range accidentally entered as the value, rather than exporting its leading digits as a Quantity', () => {
+    // `Number.parseFloat` would read "70-99" as 70 — a leading-prefix parse,
+    // not a full-string one — and export a wrong valueQuantity.
+    const resource = toFhirObservation(makeObservation({ value: '70-99', unit: null, referenceRange: null }));
+    expect(resource.valueQuantity).toBeUndefined();
+    expect(resource.valueString).toBe('70-99');
+  });
+
   it('maps a local code system to a URN, never a borrowed real one', () => {
     const resource = toFhirObservation(makeObservation({ codeSystem: 'LOCAL', code: 'haemoglobin' }));
     expect(resource.code.coding?.[0]?.system).toBe('urn:mero-health:local-code');
@@ -206,6 +215,31 @@ describe('issueShareLink', () => {
         ttlSeconds: 0,
       }),
     ).toThrow(ShareLinkError);
+  });
+
+  it('refuses a time limit past the 30-day ceiling, so a "time-limited" link cannot become permanent', () => {
+    expect(() =>
+      issueShareLink({
+        id: 'link-1',
+        token: 'tok-1',
+        ownerId: 'user-1',
+        documentIds: ['doc-1'],
+        createdAt: '2026-04-01T00:00:00.000Z',
+        ttlSeconds: MAX_SHARE_LINK_TTL_SECONDS + 1,
+      }),
+    ).toThrow(ShareLinkError);
+  });
+
+  it('accepts a time limit exactly at the ceiling', () => {
+    const link = issueShareLink({
+      id: 'link-1',
+      token: 'tok-1',
+      ownerId: 'user-1',
+      documentIds: ['doc-1'],
+      createdAt: '2026-04-01T00:00:00.000Z',
+      ttlSeconds: MAX_SHARE_LINK_TTL_SECONDS,
+    });
+    expect(link.expiresAt).toBe('2026-05-01T00:00:00.000Z');
   });
 });
 

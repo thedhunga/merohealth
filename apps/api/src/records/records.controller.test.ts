@@ -2,6 +2,8 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
 import type { CurrentUserResult } from '../auth/auth.service.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
+import { EntitlementsGuard } from '../entitlements/entitlements.guard.js';
 import { RecordsController } from './records.controller.js';
 import { RecordsRepository } from './records.repository.js';
 import { RecordsService } from './records.service.js';
@@ -11,13 +13,48 @@ function buildController(store = new InMemoryDocumentStore('HOSTED')) {
   return new RecordsController(service);
 }
 
+// Nest's own `@UseGuards` metadata key — see `teleconsultation.controller.test.ts`
+// and `interop.controller.test.ts` for the same pattern applied to their own
+// controllers. A plain method call (every other test in this file) bypasses
+// Nest's guard pipeline entirely, so this is the only way to prove the
+// decorator is actually attached to the compiled method.
+const GUARDS_METADATA = '__guards__';
+const controllerProto = RecordsController.prototype as unknown as Record<string, () => unknown>;
+function guardsFor(method: string): unknown {
+  return Reflect.getMetadata(GUARDS_METADATA, controllerProto[method]!);
+}
+
+describe('RecordsController auth wiring', () => {
+  // `capture` alone also carries `EntitlementsGuard` — it is the one route
+  // that creates new usage against a quota, the same "gate only the action
+  // that creates usage" split `InteropController`/`TeleconsultationController`
+  // apply to their own routes. Every other route below reads or mutates a
+  // document the caller already owns, so `SessionAuthGuard` alone is enough:
+  // it establishes who the caller is, and `RecordsService` enforces that they
+  // may only touch their own records.
+  it('gates capture behind SessionAuthGuard and EntitlementsGuard', () => {
+    expect(guardsFor('capture')).toEqual([SessionAuthGuard, EntitlementsGuard]);
+  });
+
+  it('gates every read and mutation route behind SessionAuthGuard', () => {
+    const gated = ['list', 'observationsForDocument', 'timeline', 'confirm', 'correct', 'reject'];
+    for (const method of gated) {
+      expect(guardsFor(method)).toEqual([SessionAuthGuard]);
+    }
+  });
+
+  it('leaves only the health check ungated', () => {
+    expect(guardsFor('health')).toBeUndefined();
+  });
+});
+
 // `capture()` reads its owner from `@CurrentUser()`, populated by
 // `SessionAuthGuard` on a real request — this is that same shape, stood up
 // directly the way `auth.controller.test.ts`'s `me()` test does, since a
 // plain method call bypasses Nest's guard/decorator pipeline entirely.
 const currentUser: CurrentUserResult = {
   subjectId: 'owner-1',
-  user: { id: 'owner-1', phone: '9812345678', role: 'PATIENT', locale: 'ne' },
+  user: { id: 'owner-1', phone: '9812345678', role: 'PATIENT', locale: 'ne', assuranceLevel: 'REGISTERED' },
   patientProfileId: null,
   assuranceLevel: 'REGISTERED',
 };
@@ -66,65 +103,88 @@ describe('RecordsController capture', () => {
       controller.capture(currentUser, { ...validCapture, kind: 'NOT_A_REAL_KIND' }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it('rejects a documentDate that is not an ISO 8601 UTC instant', async () => {
+    const controller = buildController();
+    await expect(
+      controller.capture(currentUser, { ...validCapture, documentDate: 'not-a-date' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a bare YYYY-MM-DD documentDate — buildTimeline/toFhirDocumentReference expect the same instant shape as capturedAt', async () => {
+    const controller = buildController();
+    await expect(
+      controller.capture(currentUser, { ...validCapture, documentDate: '2026-05-18' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('accepts a well-formed ISO 8601 UTC instant documentDate', async () => {
+    const controller = buildController();
+    const document = await controller.capture(currentUser, { ...validCapture, documentDate: '2026-05-18T00:00:00Z' });
+    expect(document.documentDate).toBe('2026-05-18T00:00:00Z');
+  });
+
+  it('accepts a null documentDate — it is optional', async () => {
+    const controller = buildController();
+    const document = await controller.capture(currentUser, { ...validCapture, documentDate: null });
+    expect(document.documentDate).toBeNull();
+  });
 });
 
 describe('RecordsController reads', () => {
-  it('requires ownerId on the list endpoint', () => {
-    const controller = buildController();
-    expect(() => controller.list(undefined)).toThrow(BadRequestException);
-  });
-
-  it('lists documents captured for the given owner', async () => {
+  it('lists documents captured for the signed-in caller', async () => {
     const controller = buildController();
     await controller.capture(currentUser, validCapture);
 
-    const result = controller.list('owner-1');
+    const result = controller.list(currentUser);
     expect(result.total).toBe(1);
   });
 
-  it('requires ownerId on the timeline endpoint', () => {
+  it('never lists another owner\'s documents, no matter who calls', async () => {
     const controller = buildController();
-    expect(() => controller.timeline(undefined)).toThrow(BadRequestException);
+    await controller.capture(currentUser, validCapture);
+
+    const someoneElse: CurrentUserResult = { ...currentUser, subjectId: 'owner-2' };
+    const result = controller.list(someoneElse);
+    expect(result.total).toBe(0);
   });
 
   it('returns a timeline entry per captured document', async () => {
     const controller = buildController();
     await controller.capture(currentUser, validCapture);
 
-    const result = controller.timeline('owner-1');
+    const result = controller.timeline(currentUser);
     expect(result.total).toBe(1);
   });
 
   it('404s for observations of an unknown document', () => {
     const controller = buildController();
-    expect(() => controller.observationsForDocument('missing', 'owner-1')).toThrow(NotFoundException);
-  });
-
-  it('requires ownerId on the document-observations endpoint', () => {
-    const controller = buildController();
-    expect(() => controller.observationsForDocument('missing', undefined)).toThrow(BadRequestException);
+    expect(() => controller.observationsForDocument(currentUser, 'missing')).toThrow(NotFoundException);
   });
 });
 
 describe('RecordsController observation actions', () => {
   it('confirm/correct/reject 404 for an unknown observation', () => {
     const controller = buildController();
-    expect(() => controller.confirm('missing', { ownerId: 'owner-1' })).toThrow(NotFoundException);
-    expect(() => controller.correct('missing', { ownerId: 'owner-1', value: '1' })).toThrow(
-      NotFoundException,
-    );
-    expect(() => controller.reject('missing', { ownerId: 'owner-1' })).toThrow(NotFoundException);
+    expect(() => controller.confirm(currentUser, 'missing')).toThrow(NotFoundException);
+    expect(() => controller.correct(currentUser, 'missing', { value: '1' })).toThrow(NotFoundException);
+    expect(() => controller.reject(currentUser, 'missing')).toThrow(NotFoundException);
   });
 
   it('rejects a correct body with no value', () => {
     const controller = buildController();
-    expect(() => controller.correct('any-id', { ownerId: 'owner-1' })).toThrow(BadRequestException);
+    expect(() => controller.correct(currentUser, 'any-id', {})).toThrow(BadRequestException);
   });
 
-  it('rejects confirm/correct/reject bodies with no ownerId', () => {
+  it('never confirms, corrects or rejects another owner\'s observation', async () => {
     const controller = buildController();
-    expect(() => controller.confirm('any-id', {})).toThrow(BadRequestException);
-    expect(() => controller.correct('any-id', { value: '1' })).toThrow(BadRequestException);
-    expect(() => controller.reject('any-id', {})).toThrow(BadRequestException);
+    const document = await controller.capture(currentUser, validCapture);
+    // No extraction pipeline runs in this test setup, so there is no real
+    // observation id to target — the point is only that a forged owner on
+    // the session can't reach a document it doesn't own, proven the same way
+    // `observationsForDocument`'s 404 test does: `#requireObservation` and
+    // `listDocumentObservations` both compare against `document.ownerId`.
+    const someoneElse: CurrentUserResult = { ...currentUser, subjectId: 'owner-2' };
+    expect(() => controller.observationsForDocument(someoneElse, document.id)).toThrow(NotFoundException);
   });
 });

@@ -1,5 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
-import { ApplicationTransitionError } from '@swasthya/credentialing';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { CredentialingRepository } from './credentialing.repository.js';
 import { CredentialingService } from './credentialing.service.js';
@@ -25,13 +24,52 @@ describe('CredentialingService submission', () => {
     expect(application.registrationNumber).toBe('NMC-12345');
   });
 
-  it('refuses a second submission from the same applicant while the first is still pending, rather than forking a duplicate', () => {
+  it('refuses a second submission from the same applicant while the first is still pending, rather than forking a duplicate — as a 400 with a code, not an uncaught 500', () => {
     const service = buildService();
     service.submit(validSubmission);
 
     expect(() => service.submit({ ...validSubmission, registrationNumber: 'NMC-99999' })).toThrow(
-      ApplicationTransitionError,
+      BadRequestException,
     );
+    try {
+      service.submit({ ...validSubmission, registrationNumber: 'NMC-99999' });
+      expect.unreachable('expected submit to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'ApplicationTransitionError' });
+    }
+  });
+
+  it('refuses a resubmission once the application is already APPROVED, the terminal state `submitApplication` can never leave', () => {
+    const service = buildService();
+    const application = service.submit(validSubmission);
+    service.beginReview(application.id, 'reviewer-1');
+    service.approve(application.id, 'reviewer-1');
+
+    expect(() => service.submit(validSubmission)).toThrow(BadRequestException);
+  });
+});
+
+describe('CredentialingService findMine', () => {
+  it('returns null for an applicant who has never submitted', () => {
+    const service = buildService();
+    expect(service.findMine('applicant-1')).toBeNull();
+  });
+
+  it("returns the applicant's own application, whatever its status", () => {
+    const service = buildService();
+    const application = service.submit(validSubmission);
+    service.beginReview(application.id, 'reviewer-1');
+    const approved = service.approve(application.id, 'reviewer-1');
+
+    expect(service.findMine('applicant-1')).toEqual(approved);
+  });
+
+  it("never returns another applicant's application", () => {
+    const service = buildService();
+    service.submit(validSubmission);
+
+    expect(service.findMine('applicant-2')).toBeNull();
   });
 });
 
@@ -110,5 +148,50 @@ describe('CredentialingService reviewer actions', () => {
     expect(() => service.approve('missing', 'reviewer-1')).toThrow(NotFoundException);
     expect(() => service.reject('missing', 'reviewer-1', 'reason')).toThrow(NotFoundException);
     expect(() => service.auditLog('missing')).toThrow(NotFoundException);
+  });
+
+  it('refuses an approve that arrives before beginReview, as a 400 with a code rather than an uncaught 500', () => {
+    const service = buildService();
+    const application = service.submit(validSubmission); // EVIDENCE_SUBMITTED, no beginReview yet
+
+    expect(() => service.approve(application.id, 'reviewer-1')).toThrow(BadRequestException);
+    try {
+      service.approve(application.id, 'reviewer-1');
+      expect.unreachable('expected approve to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'ApplicationTransitionError' });
+    }
+  });
+
+  it('refuses a second beginReview on the same application, as a 400 with a code rather than an uncaught 500', () => {
+    const service = buildService();
+    const application = service.submit(validSubmission);
+    service.beginReview(application.id, 'reviewer-1'); // now UNDER_REVIEW
+
+    expect(() => service.beginReview(application.id, 'reviewer-2')).toThrow(BadRequestException);
+    try {
+      service.beginReview(application.id, 'reviewer-2');
+      expect.unreachable('expected beginReview to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'ApplicationTransitionError' });
+    }
+  });
+
+  it('refuses a reject on an already-decided application, as a 400 with a code rather than an uncaught 500', () => {
+    const service = buildService();
+    const application = service.submit(validSubmission);
+    service.beginReview(application.id, 'reviewer-1');
+    service.approve(application.id, 'reviewer-1'); // now APPROVED, a terminal status
+
+    expect(() => service.reject(application.id, 'reviewer-1', 'too late')).toThrow(BadRequestException);
+    try {
+      service.reject(application.id, 'reviewer-1', 'too late');
+      expect.unreachable('expected reject to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'ApplicationTransitionError' });
+    }
   });
 });

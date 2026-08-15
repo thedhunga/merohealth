@@ -6,5 +6,5 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 export class HealthController {
   @Get()
   @ApiOperation({ summary: 'Readiness-independent service health' })
-  health() { return { status: 'ok', service: 'api', integrations: { ai: 'mock', video: 'mock', payment: 'mock', sms: 'mock', maps: 'mock' } }; }
+  health() { return { status: 'ok', service: 'api', integrations: { ai: 'mock', video: 'mock', payment: 'mock', sms: 'mock', engagement: 'mock', maps: 'mock' } }; }
 }

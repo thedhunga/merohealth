@@ -4,6 +4,7 @@ import type {
   MedicationSafetyCheckResult,
   MedicationSafetyFinding,
 } from '@swasthya/shared-types';
+import { normalizeLabel } from '@swasthya/text-normalization';
 
 /* ------------------------------------------------------------------ *
  * Medication safety
@@ -15,18 +16,6 @@ import type {
  * `ClinicalSummaryItem` lists an API-boundary caller fetched for one
  * patient (see apps/api/src/medication-safety/medication-safety.service.ts).
  * ------------------------------------------------------------------ */
-
-/**
- * NFKC + case-fold, the same normalisation `packages/clinical-safety` uses
- * before matching Nepali/English phrases — two labels for the same
- * substance should match regardless of capitalisation or Unicode
- * composition. Deliberately *not* a drug-name synonym or brand/generic
- * matcher: that would mean this codebase asserting which names refer to the
- * same substance, a clinical claim it has no source for.
- */
-function normalizeLabel(label: string): string {
-  return label.normalize('NFKC').trim().toLowerCase();
-}
 
 /**
  * Checks a proposed medication label against a patient's currently active

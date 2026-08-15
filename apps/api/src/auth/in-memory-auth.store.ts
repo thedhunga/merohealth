@@ -54,7 +54,13 @@ export class InMemoryAuthStore implements AuthStore {
   }
 
   createPatientUser(input: { phone: string; locale: string }): Promise<AuthUserRecord> {
-    const user: AuthUserRecord = { id: randomUUID(), phone: input.phone, role: 'PATIENT', locale: input.locale };
+    const user: AuthUserRecord = {
+      id: randomUUID(),
+      phone: input.phone,
+      role: 'PATIENT',
+      locale: input.locale,
+      assuranceLevel: 'REGISTERED',
+    };
     this.usersByPhone.set(input.phone, user);
     this.usersById.set(user.id, user);
     return Promise.resolve(user);
@@ -84,6 +90,15 @@ export class InMemoryAuthStore implements AuthStore {
     for (const session of this.sessionsByTokenHash.values()) {
       if (session.id === id) session.revokedAt = revokedAt;
     }
+    return Promise.resolve();
+  }
+
+  markIdentityVerified(userId: string): Promise<void> {
+    // `usersByPhone`/`usersById` hold the same object per user, same as
+    // `recordFailedOtpAttempt`'s in-place mutation above — one write reaches
+    // both maps.
+    const user = this.usersById.get(userId);
+    if (user) user.assuranceLevel = 'IDENTITY_VERIFIED';
     return Promise.resolve();
   }
 }

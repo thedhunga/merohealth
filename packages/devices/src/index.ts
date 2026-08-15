@@ -108,6 +108,29 @@ function assertFinite(value: number, field: string): void {
   }
 }
 
+/**
+ * Steps, heart rate, oxygen saturation, glucose, blood pressure, body weight,
+ * body temperature and respiratory rate have no physiologically valid
+ * negative reading. A malformed bridge payload that slips a negative value
+ * past `assertFinite` (still a finite number, just impossible) would
+ * otherwise normalize silently and flow downstream into trends and
+ * `digital-twin`.
+ *
+ * Every call site checks the value in its *canonical* (post-conversion)
+ * unit, not the raw source-unit reading, and body temperature is the one
+ * metric where that distinction is load-bearing rather than cosmetic:
+ * glucose's and weight's conversions are positive scale factors, so a
+ * non-negative source value can never produce a negative canonical one, but
+ * Fahrenheit-to-Celsius subtracts 32 before scaling — a non-negative
+ * Fahrenheit reading below freezing (0-31.9°F) converts to a negative
+ * Celsius value, exactly the impossible reading this guard exists to catch.
+ */
+function assertNonNegative(value: number, field: string): void {
+  if (value < 0) {
+    throw new InvalidDeviceRecordError(`Negative ${field}: ${value}`);
+  }
+}
+
 /* ------------------------------------------------------------------ *
  * Health Connect (androidx.health.connect.client.records)
  *
@@ -248,6 +271,7 @@ export function normalizeHealthConnectRecord(
   switch (record.recordType) {
     case 'StepsRecord': {
       assertFinite(record.count, 'count');
+      assertNonNegative(record.count, 'count');
       return [
         sample({
           sourceRecordId: record.metadata.id,
@@ -265,6 +289,7 @@ export function normalizeHealthConnectRecord(
     case 'HeartRateRecord': {
       return record.samples.map((s, index) => {
         assertFinite(s.beatsPerMinute, 'beatsPerMinute');
+        assertNonNegative(s.beatsPerMinute, 'beatsPerMinute');
         return sample({
           sourceRecordId: `${record.metadata.id}:${index}`,
           ownerId,
@@ -280,6 +305,7 @@ export function normalizeHealthConnectRecord(
 
     case 'RestingHeartRateRecord': {
       assertFinite(record.beatsPerMinute, 'beatsPerMinute');
+      assertNonNegative(record.beatsPerMinute, 'beatsPerMinute');
       return [
         sample({
           sourceRecordId: record.metadata.id,
@@ -328,6 +354,7 @@ export function normalizeHealthConnectRecord(
 
     case 'OxygenSaturationRecord': {
       assertFinite(record.percentage, 'percentage');
+      assertNonNegative(record.percentage, 'percentage');
       return [
         sample({
           sourceRecordId: record.metadata.id,
@@ -344,6 +371,7 @@ export function normalizeHealthConnectRecord(
 
     case 'BloodGlucoseRecord': {
       assertFinite(record.level, 'level');
+      assertNonNegative(record.level, 'level');
       return [
         sample({
           sourceRecordId: record.metadata.id,
@@ -361,6 +389,8 @@ export function normalizeHealthConnectRecord(
     case 'BloodPressureRecord': {
       assertFinite(record.systolic, 'systolic');
       assertFinite(record.diastolic, 'diastolic');
+      assertNonNegative(record.systolic, 'systolic');
+      assertNonNegative(record.diastolic, 'diastolic');
       return [
         sample({
           sourceRecordId: `${record.metadata.id}:systolic`,
@@ -387,6 +417,7 @@ export function normalizeHealthConnectRecord(
 
     case 'WeightRecord': {
       assertFinite(record.weight, 'weight');
+      assertNonNegative(record.weight, 'weight');
       return [
         sample({
           sourceRecordId: record.metadata.id,
@@ -403,6 +434,11 @@ export function normalizeHealthConnectRecord(
 
     case 'BodyTemperatureRecord': {
       assertFinite(record.temperature, 'temperature');
+      // Checked on the *converted* Celsius value, not `record.temperature`
+      // as reported — see `assertNonNegative`'s own doc comment for why
+      // temperature is the one metric here where that distinction matters.
+      const celsius = temperatureToCelsius(record.temperature, record.unit);
+      assertNonNegative(celsius, 'temperature');
       return [
         sample({
           sourceRecordId: record.metadata.id,
@@ -410,7 +446,7 @@ export function normalizeHealthConnectRecord(
           kind: 'BODY_TEMPERATURE',
           source,
           deviceLabel,
-          value: temperatureToCelsius(record.temperature, record.unit),
+          value: celsius,
           recordedAt: record.time,
           recordedUntil: null,
         }),
@@ -419,6 +455,7 @@ export function normalizeHealthConnectRecord(
 
     case 'RespiratoryRateRecord': {
       assertFinite(record.rate, 'rate');
+      assertNonNegative(record.rate, 'rate');
       return [
         sample({
           sourceRecordId: record.metadata.id,
@@ -554,6 +591,7 @@ export function normalizeHealthKitSample(
   switch (raw.identifier) {
     case 'HKQuantityTypeIdentifierStepCount': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,
@@ -570,6 +608,7 @@ export function normalizeHealthKitSample(
 
     case 'HKQuantityTypeIdentifierHeartRate': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,
@@ -586,6 +625,7 @@ export function normalizeHealthKitSample(
 
     case 'HKQuantityTypeIdentifierRestingHeartRate': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,
@@ -602,6 +642,7 @@ export function normalizeHealthKitSample(
 
     case 'HKQuantityTypeIdentifierOxygenSaturation': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,
@@ -618,6 +659,7 @@ export function normalizeHealthKitSample(
 
     case 'HKQuantityTypeIdentifierBloodGlucose': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,
@@ -634,6 +676,7 @@ export function normalizeHealthKitSample(
 
     case 'HKQuantityTypeIdentifierBloodPressureSystolic': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,
@@ -650,6 +693,7 @@ export function normalizeHealthKitSample(
 
     case 'HKQuantityTypeIdentifierBloodPressureDiastolic': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,
@@ -666,6 +710,7 @@ export function normalizeHealthKitSample(
 
     case 'HKQuantityTypeIdentifierBodyMass': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,
@@ -682,6 +727,11 @@ export function normalizeHealthKitSample(
 
     case 'HKQuantityTypeIdentifierBodyTemperature': {
       assertFinite(raw.value, 'value');
+      // Checked on the *converted* Celsius value, not `raw.value` as
+      // reported — see `assertNonNegative`'s own doc comment for why
+      // temperature is the one metric here where that distinction matters.
+      const celsius = temperatureToCelsius(raw.value, raw.unit === 'degC' ? 'celsius' : 'fahrenheit');
+      assertNonNegative(celsius, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,
@@ -689,7 +739,7 @@ export function normalizeHealthKitSample(
           kind: 'BODY_TEMPERATURE',
           source,
           deviceLabel,
-          value: temperatureToCelsius(raw.value, raw.unit === 'degC' ? 'celsius' : 'fahrenheit'),
+          value: celsius,
           recordedAt: raw.startDate,
           recordedUntil: null,
         }),
@@ -698,6 +748,7 @@ export function normalizeHealthKitSample(
 
     case 'HKQuantityTypeIdentifierRespiratoryRate': {
       assertFinite(raw.value, 'value');
+      assertNonNegative(raw.value, 'value');
       return [
         sample({
           sourceRecordId: raw.uuid,

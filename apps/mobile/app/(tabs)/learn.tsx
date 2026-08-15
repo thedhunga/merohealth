@@ -21,20 +21,26 @@ import { useAppState } from '@/state/app-state';
 const walkthroughSteps = [
   {
     eyebrow: 'STEP 1 · ASK',
-    title: 'आफ्नो कुरा आवाज वा शब्दमा भन्नुहोस्',
-    body: 'मुख्य कुरा मात्र सुरुमा भन्नुहोस्। साथीले आवश्यक परे एक–एक छोटो प्रश्न सोध्छ।',
+    titleNe: 'आफ्नो कुरा आवाज वा शब्दमा भन्नुहोस्',
+    titleEn: "Say what's on your mind, by voice or in words",
+    bodyNe: 'मुख्य कुरा मात्र सुरुमा भन्नुहोस्। साथीले आवश्यक परे एक–एक छोटो प्रश्न सोध्छ।',
+    bodyEn: 'Start with just the main thing. Sathi will ask one short question at a time if needed.',
     accent: colors.irisBright,
   },
   {
     eyebrow: 'STEP 2 · UNDERSTAND',
-    title: 'सुरक्षा संकेत पहिले हेरिन्छ',
-    body: 'गम्भीर संकेत भेटिए सामान्य कुराकानी रोकिन्छ र तुरुन्त सहायता खोज्ने बाटो देखाइन्छ।',
+    titleNe: 'सुरक्षा संकेत पहिले हेरिन्छ',
+    titleEn: 'Safety signals are checked first',
+    bodyNe: 'गम्भीर संकेत भेटिए सामान्य कुराकानी रोकिन्छ र तुरुन्त सहायता खोज्ने बाटो देखाइन्छ।',
+    bodyEn: "If a serious signal is found, the normal conversation stops and you're shown how to get help right away.",
     accent: colors.saffron,
   },
   {
     eyebrow: 'STEP 3 · CONNECT',
-    title: 'उपयुक्त सेवा रोज्नुहोस्',
-    body: 'डाक्टर, अस्पताल, ल्याब वा घरमै सेवा—स्रोत र ताजापन देखिने गरी खोज्नुहोस्।',
+    titleNe: 'उपयुक्त सेवा रोज्नुहोस्',
+    titleEn: 'Choose the right service',
+    bodyNe: 'डाक्टर, अस्पताल, ल्याब वा घरमै सेवा—स्रोत र ताजापन देखिने गरी खोज्नुहोस्।',
+    bodyEn: 'Doctor, hospital, lab or at-home service — search with the source and freshness visible.',
     accent: colors.mintStrong,
   },
 ];
@@ -64,7 +70,10 @@ export default function LearnScreen() {
 
   const speakCurrentStep = () => {
     void Speech.stop();
-    Speech.speak(`${currentStep.title}। ${currentStep.body}`, {
+    const title = language === 'en' ? currentStep.titleEn : currentStep.titleNe;
+    const body = language === 'en' ? currentStep.bodyEn : currentStep.bodyNe;
+    const separator = language === 'en' ? '. ' : '। ';
+    Speech.speak(`${title}${separator}${body}`, {
       language: language === 'en' ? 'en-US' : 'ne-NP',
       rate: 0.88,
     });
@@ -79,9 +88,13 @@ export default function LearnScreen() {
   return (
     <Screen>
       <SectionTitle
-        body="छोटो दृश्य, आवाज र पढ्न मिल्ने ट्रान्सक्रिप्ट—कम डेटा हुँदा पनि उपयोगी।"
+        body={
+          language === 'en'
+            ? 'A short video, audio, and a readable transcript — useful even on low data.'
+            : 'छोटो दृश्य, आवाज र पढ्न मिल्ने ट्रान्सक्रिप्ट—कम डेटा हुँदा पनि उपयोगी।'
+        }
         eyebrow="LEARN BY WATCHING, LISTENING OR READING"
-        title="एप कसरी चलाउने"
+        title={language === 'en' ? 'How to use the app' : 'एप कसरी चलाउने'}
       />
 
       <LinearGradient
@@ -107,8 +120,12 @@ export default function LearnScreen() {
           <Text style={[styles.stepEyebrow, { color: currentStep.accent }]}>
             {currentStep.eyebrow}
           </Text>
-          <Text style={styles.stepTitle}>{currentStep.title}</Text>
-          <Text style={styles.stepBody}>{currentStep.body}</Text>
+          <Text style={styles.stepTitle}>
+            {language === 'en' ? currentStep.titleEn : currentStep.titleNe}
+          </Text>
+          <Text style={styles.stepBody}>
+            {language === 'en' ? currentStep.bodyEn : currentStep.bodyNe}
+          </Text>
         </View>
 
         <View style={styles.progressTrack}>
@@ -117,7 +134,15 @@ export default function LearnScreen() {
 
         <View style={styles.playerControls}>
           <Pressable
-            accessibilityLabel={playing ? 'Pause walkthrough' : 'Play walkthrough'}
+            accessibilityLabel={
+              playing
+                ? language === 'en'
+                  ? 'Pause walkthrough'
+                  : 'वाकथ्रु रोक्नुहोस्'
+                : language === 'en'
+                  ? 'Play walkthrough'
+                  : 'वाकथ्रु चलाउनुहोस्'
+            }
             onPress={() => setPlaying((current) => !current)}
             style={styles.playButton}
           >
@@ -126,17 +151,25 @@ export default function LearnScreen() {
             ) : (
               <Play color={colors.primaryDark} fill={colors.primaryDark} size={17} />
             )}
-            <Text style={styles.playButtonText}>{playing ? 'Pause' : 'Play guide'}</Text>
+            <Text style={styles.playButtonText}>
+              {playing
+                ? language === 'en'
+                  ? 'Pause'
+                  : 'रोक्नुहोस्'
+                : language === 'en'
+                  ? 'Play guide'
+                  : 'गाइड चलाउनुहोस्'}
+            </Text>
           </Pressable>
           <Pressable
-            accessibilityLabel="Listen to this step"
+            accessibilityLabel={language === 'en' ? 'Listen to this step' : 'यो चरण सुन्नुहोस्'}
             onPress={speakCurrentStep}
             style={styles.roundControl}
           >
             <Volume2 color="white" size={19} />
           </Pressable>
           <Pressable
-            accessibilityLabel="Restart walkthrough"
+            accessibilityLabel={language === 'en' ? 'Restart walkthrough' : 'वाकथ्रु फेरि सुरु गर्नुहोस्'}
             onPress={restart}
             style={styles.roundControl}
           >
@@ -153,8 +186,14 @@ export default function LearnScreen() {
       >
         <WifiOff color={colors.primary} />
         <View style={styles.bandwidthCopy}>
-          <Text style={styles.bandwidthTitle}>कम डेटा मोड</Text>
-          <Text style={styles.meta}>भिडियोको सट्टा ट्रान्सक्रिप्ट र आवाज रोज्नुहोस्</Text>
+          <Text style={styles.bandwidthTitle}>
+            {language === 'en' ? 'Low data mode' : 'कम डेटा मोड'}
+          </Text>
+          <Text style={styles.meta}>
+            {language === 'en'
+              ? 'Choose transcript and audio instead of video'
+              : 'भिडियोको सट्टा ट्रान्सक्रिप्ट र आवाज रोज्नुहोस्'}
+          </Text>
         </View>
         <View style={[styles.switch, lowBandwidth && styles.switchOn]}>
           <View style={[styles.knob, lowBandwidth && styles.knobOn]} />
@@ -164,17 +203,24 @@ export default function LearnScreen() {
       <View style={styles.notice}>
         <Captions color={colors.info} />
         <View style={styles.noticeCopy}>
-          <Text style={styles.noticeTitle}>Accessible by design</Text>
+          <Text style={styles.noticeTitle}>
+            {language === 'en' ? 'Accessible by design' : 'सुगम्य बनाइएको'}
+          </Text>
           <Text style={styles.noticeText}>
-            यो walkthrough काम गर्छ। उत्पादन MP4 प्रशिक्षण भिडियो, मानवीय narration र चिकित्सा
-            समीक्षा अझै प्रकाशन gate भित्र छन्।
+            {language === 'en'
+              ? 'This walkthrough works today. Production MP4 training videos, human narration, and clinical review are still behind the publish gate.'
+              : 'यो walkthrough काम गर्छ। उत्पादन MP4 प्रशिक्षण भिडियो, मानवीय narration र चिकित्सा समीक्षा अझै प्रकाशन gate भित्र छन्।'}
           </Text>
         </View>
       </View>
 
       <View style={styles.lessonHead}>
-        <Text style={styles.lessonHeading}>पढेर सिक्ने पाठ</Text>
-        <Text style={styles.lessonHint}>Reviewed scripts</Text>
+        <Text style={styles.lessonHeading}>
+          {language === 'en' ? 'Lessons you can read' : 'पढेर सिक्ने पाठ'}
+        </Text>
+        <Text style={styles.lessonHint}>
+          {language === 'en' ? 'Reviewed scripts' : 'समीक्षा गरिएका स्क्रिप्ट'}
+        </Text>
       </View>
 
       <View style={styles.lessons}>
@@ -204,7 +250,10 @@ export default function LearnScreen() {
                   <View style={styles.row}>
                     <Clock3 color={colors.muted} size={13} />
                     <Text style={styles.meta}>
-                      {lesson.durationSeconds} सेकेन्ड · {lesson.reviewStatus.replaceAll('_', ' ')}
+                      {language === 'en'
+                        ? `${lesson.durationSeconds}s`
+                        : `${lesson.durationSeconds} सेकेन्ड`}{' '}
+                      · {lesson.reviewStatus.replaceAll('_', ' ')}
                     </Text>
                   </View>
                 </View>
@@ -215,7 +264,9 @@ export default function LearnScreen() {
                   <View style={styles.transcriptHead}>
                     <Text style={styles.transcriptLabel}>READABLE TRANSCRIPT</Text>
                     <Pressable
-                      accessibilityLabel="Listen to this lesson"
+                      accessibilityLabel={
+                        language === 'en' ? 'Listen to this lesson' : 'यो पाठ सुन्नुहोस्'
+                      }
                       onPress={() =>
                         Speech.speak(
                           language === 'en' ? lesson.transcriptEn : lesson.transcriptNe,
@@ -228,7 +279,9 @@ export default function LearnScreen() {
                       style={styles.transcriptListen}
                     >
                       <Volume2 color={colors.primary} size={17} />
-                      <Text style={styles.transcriptListenText}>सुन्नुहोस्</Text>
+                      <Text style={styles.transcriptListenText}>
+                        {language === 'en' ? 'Listen' : 'सुन्नुहोस्'}
+                      </Text>
                     </Pressable>
                   </View>
                   <Text style={styles.transcriptText}>

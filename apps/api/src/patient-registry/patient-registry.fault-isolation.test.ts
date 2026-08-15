@@ -1,5 +1,6 @@
 import { buildModuleRegistry, collectHealthStates, resolveAvailability } from '@swasthya/module-registry';
 import { describe, expect, it } from 'vitest';
+import type { CurrentUserResult } from '../auth/auth.service.js';
 import { CredentialingController } from '../credentialing/credentialing.controller.js';
 import { CredentialingRepository } from '../credentialing/credentialing.repository.js';
 import { CredentialingService } from '../credentialing/credentialing.service.js';
@@ -43,11 +44,17 @@ const validDemographics = {
 };
 
 const validCredentialingSubmission = {
-  applicantId: 'applicant-1',
   council: 'NMC' as const,
   registrationNumber: 'NMC-12345',
   certificateImageRef: 'ref:certificate',
   identityImageRef: 'ref:identity',
+};
+
+const credentialingApplicant: CurrentUserResult = {
+  subjectId: 'applicant-1',
+  user: { id: 'applicant-1', phone: '9811111111', role: 'PATIENT', locale: 'ne', assuranceLevel: 'REGISTERED' },
+  patientProfileId: null,
+  assuranceLevel: 'REGISTERED',
 };
 
 describe('patient-registry fault isolation', () => {
@@ -56,7 +63,7 @@ describe('patient-registry fault isolation', () => {
     expect(() => brokenPatients.register(validDemographics)).toThrow('simulated store outage');
 
     const credentialing = new CredentialingController(new CredentialingService(new CredentialingRepository()));
-    const application = credentialing.submit(validCredentialingSubmission);
+    const application = credentialing.submit(credentialingApplicant, validCredentialingSubmission);
 
     expect(application.status).toBe('EVIDENCE_SUBMITTED');
   });
