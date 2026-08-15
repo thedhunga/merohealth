@@ -14,8 +14,14 @@ import { cn } from '@/lib/cn';
  * load — the rest sit behind "Show more" so a 375px visitor isn't scrolling
  * past all six. At `lg`+ every card always shows: the 12-col layout below
  * assumes all six are present, and desktop height was never the problem.
+ *
+ * 0, not 1: with the featured card's own floor already cut to `min-h-72`,
+ * ServiceCards became the single largest homepage block again (task B1's
+ * 2026-08-15 log) — a second visible card was the next-heaviest fixed cost
+ * still on by default, so it now sits behind the same "Show more" toggle as
+ * the rest instead of loading for free.
  */
-const COLLAPSED_COUNT = 1;
+const COLLAPSED_COUNT = 0;
 
 export function ServiceCards() {
   const t = useTranslations('home.services');

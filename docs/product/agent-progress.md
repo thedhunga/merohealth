@@ -1332,6 +1332,76 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-15 — **Round three, task B1 continued: `ServiceCards` collapses to
+  just the featured card by default on mobile, not featured + 1.** Still left
+  unchecked — real progress, target still not met, and this is exactly the
+  lever the immediately preceding (`Footer`) B1 entry named as next
+  ("`ServiceCards` … is now the single largest homepage block again … a
+  harder look at whether `ServiceCards`' five non-featured cards … can drop
+  to four below `lg`, the reorder-free lever B1's own task text hasn't
+  authorized yet").
+
+  **What changed.** `ServiceCards.tsx` already had a `COLLAPSED_COUNT`
+  constant driving its existing "Show N more services" toggle — mobile only
+  ever rendered the featured card plus `COLLAPSED_COUNT` follow-on cards
+  before this run, with the rest sitting behind `hidden lg:block` until
+  expanded. `COLLAPSED_COUNT` was `1` (featured + one regular card visible on
+  load); dropped to `0` (featured card only, all five regular cards behind
+  the toggle). This is a one-line change to an existing mechanism, not new
+  UI: no card, link, or piece of copy was deleted — everything still reaches
+  the visitor one tap away via the same button that already existed for the
+  other four cards, so nothing described in `home.services.items` in either
+  message file becomes unreachable. Verified with Playwright at 375px that
+  the collapsed state shows exactly 1 of 6 `<li>` cards and the show-more
+  button reads "थप ५ सेवा हेर्नुहोस्" / "Show 5 more services" (was "थप ४ …" /
+  "Show 4 more"), and that clicking it reveals all 6. At `lg`+ (1280px) nothing
+  changed: the toggle button carries `lg:hidden` and was already invisible
+  there, so all 6 cards render unconditionally exactly as before — confirmed
+  by both a Playwright visibility check (`visible: 6`, button
+  `display: none`) and a screenshot.
+
+  **Measured at 375×812** (`document.body.scrollHeight / innerHeight`,
+  production build via `next start`, fresh server per build — killed and
+  confirmed dead before every rebuild — Playwright at
+  `/opt/pw-browsers/chromium`): Nepali **6.90 → 6.44 screens** (5603px →
+  5229px, **-374px**). English **7.39 → 6.90 screens** (6000px → 5599px,
+  **-401px**). Target is still four to five screens (3248–4060px); today's
+  5229px needs roughly 1170–1980px more. This is the largest single-lever cut
+  since the run that hid `OrganizationTabs`/trimmed `Testimonials`/shortened
+  `ServiceCards` copy in one pass — bigger than any of the five subsequent
+  narrower cuts (144–210px each) — because it removes an entire card's
+  `min-h-72` (288px) floor plus its `gap-5` (20px) from the default load,
+  where those five prior runs were each trimming padding or hiding a single
+  decorative sub-element.
+
+  **`ServiceCards` section height:** Nepali 1149px → 774.5px (-374.5px),
+  English 1164.25px → 763.75px (-400.5px) — `ServiceCards` is no longer the
+  largest homepage block. Tap targets: 58 → 57 visible, 43 → 42 under 44px
+  (one card's "learn more" link left the default-visible set along with the
+  card itself; the button and every other target kept its existing size).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks; `pnpm build` 40/40 (no new
+  test file — matches every existing file under `apps/web/src/components`,
+  which unit-tests logic only, never markup for `apps/web`). Production
+  build checked with `next start` at 375px, 768px and 1280px in both locales:
+  no horizontal overflow, no new console errors beyond the two
+  already-documented pre-existing ones (missing story video source, `apps/api`
+  connection-refused with no local API running), collapsed/expanded states
+  both screenshot-verified at 375px.
+
+  **For the next run.** `Hero`/record-story (1101px Nepali / 1178px English)
+  is now the single largest homepage block, followed by `Footer` (1028px /
+  1070px) and `Testimonials` (1005px / 1199px, still full-bleed dark, still
+  against task B2's WebMD-not-editorial direction, and still ~200px taller in
+  English than Nepali — unexplored). `ServiceCards` (774.5px / 763.75px) is
+  no longer a priority target. `Hero`'s text column (eyebrow, heading, body,
+  three-step list, one CTA) and its `py-20 lg:py-28` section padding — never
+  given the `sm:` mobile tier `Footer` already has — are both unexplored
+  levers. Otherwise B3 (`/app` 404 in production) is next in queue order, or
+  task C's tap-target backlog (42 elements still under 44px on the homepage
+  alone).
+
 - 2026-08-15 — **Round three, task B1 continued: `Footer` trimmed to a mobile
   spacing scale.** Still left unchecked — real progress, target still not
   met, and this is exactly the lever the immediately preceding B1 entry named
