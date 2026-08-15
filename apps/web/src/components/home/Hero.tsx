@@ -38,7 +38,12 @@ export function Hero() {
             </span>
           </div>
 
-          <div className="relative -mt-12 ml-auto w-[88%] rounded-[1.5rem] border border-line bg-white p-4 shadow-menu sm:-mt-16 sm:w-[76%] sm:p-5">
+          {/* The floating record-preview card restates the three-step list beside
+              it in visual form — a nice-to-have next to the text column, not
+              load-bearing on a phone where it's pure height with no extra
+              information, so it only renders once there is room beside the
+              text. */}
+          <div className="relative -mt-12 ml-auto hidden w-[88%] rounded-[1.5rem] border border-line bg-white p-4 shadow-menu sm:-mt-16 sm:w-[76%] sm:p-5 lg:block">
             <div className="flex items-center gap-3 border-b border-line pb-3">
               <span className="grid size-10 place-items-center rounded-xl bg-indigo-100 text-indigo-800">
                 <FileCheck2 aria-hidden className="size-5" />

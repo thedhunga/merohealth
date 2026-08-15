@@ -1332,6 +1332,78 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-15 — **Round three, task B1 continued: `Hero`'s floating
+  record-preview card is now `lg`-and-up only.** Still left unchecked — real
+  progress, target still not met, and this is exactly the lever the
+  immediately preceding B1 entry named ("`Hero`/record-story … is arguably
+  more load-bearing than `Testimonials` … look hard at whether any of its
+  three elements … can drop or shrink on mobile").
+
+  **What changed.** `Hero.tsx`'s floating card (the white panel that overlaps
+  the hero photograph, containing the `RecordTransform` SVG under an
+  eyebrow/caption header) restates the same idea as the three-step list
+  beside it in the text column — the eyebrow label it repeats
+  (`recordEyebrow`) is already shown once in that text column, and the SVG
+  is aria-hidden artwork illustrating "photo → structured record", which the
+  step list right next to it already states as text ("photograph it" →
+  "read in Nepali/English" → "trends over time"). On a phone the two columns
+  stack, so the card is pure duplicate height with nothing the step list
+  doesn't already say. Wrapped it in `hidden lg:block`, the identical pattern
+  this task already used for `Testimonials`' video and `OrganizationTabs`.
+  The photograph above it — the actual "show, don't tell" artwork the art
+  direction calls for — is untouched and still renders at every width. No
+  copy changed, so no message-file edits; the `artCaption` string simply
+  isn't read below `lg`, same as `Testimonials`' `watchVideo` string after
+  that cut.
+
+  **Verify methodology note.** Confirmed via `getComputedStyle` at 375px,
+  768px (`display: none`, below `lg` = 1024px) and 1280px (`display: block`,
+  restored). Baseline re-measured with `git stash` against the exact same
+  build → fresh-`next start` → Playwright pipeline the last two entries used
+  (server killed and restarted per build this time, after the prior entry's
+  stale-server pitfall), and it reproduced the prior entry's own numbers
+  exactly (6129px / 1274.9px hero height for Nepali, 6562px / 1388.2px for
+  English) before re-applying the change — so the delta below is against a
+  verified, not assumed, baseline.
+
+  **Measured at 375×812** (`document.body.scrollHeight / innerHeight`,
+  production build via `next start`, fresh server per build, Playwright at
+  `/opt/pw-browsers/chromium`): Nepali **7.55 → 7.33 screens** (6129px →
+  5955px, **-174px**). English **8.08 → 7.82 screens** (6562px → 6352px,
+  **-210px** — larger than Nepali because English's longer heading/body text
+  pushes the text column, and therefore the whole grid row via
+  `items-center`, slightly taller, so the card's removal interacts with a
+  taller row in that locale). Target is still four to five screens
+  (3248–4060px); today's 5955px needs roughly 1900–2700px more.
+
+  **`Hero`/record-story section height:** Nepali 1274.9px → 1101px (-174px),
+  English 1388.2px → 1178.3px (-210px). Tap targets: 58 visible / 43 under
+  44px, unchanged in both locales — the card and its SVG were non-interactive,
+  so this cut doesn't move task C's backlog either direction.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks; `pnpm build` 40/40 (no new
+  test file — matches every existing file under `apps/web/src/components`,
+  which unit-tests logic only, never markup for `apps/web`). Production
+  build checked with `next start` at 375px (both locales), 768px and 1280px:
+  no horizontal overflow, card correctly absent below `lg` and present at
+  `lg`+, no new console errors beyond the two already-documented pre-existing
+  ones (missing story video source, `apps/api` connection-refused with no
+  local API running).
+
+  **For the next run.** `ServiceCards` (1357px) is now the single largest
+  section and hasn't been touched since the run that declared "no more
+  cards to drop without losing the featured card" — but nothing has yet
+  tried the featured card's own fixed floor: `min-h-[31rem]` (496px) on
+  mobile, well above what its content (badge + title + body + one CTA) needs
+  at 375px width. Shrinking that minimum height on mobile only (leaving
+  `sm:min-h-[35rem]` or larger for `lg`+ untouched) is an unexplored lever
+  that doesn't touch card count. `Testimonials` (1005px, still full-bleed
+  dark, still against the WebMD-not-editorial direction in task B2) is the
+  other remaining large block. Otherwise B3 (`/app` 404 in production) is
+  next in queue order, or task C's tap-target backlog (43 elements still
+  under 44px on the homepage alone, unchanged for four runs now).
+
 - 2026-08-15 — **Round three, task B1 continued: `Testimonials`' video player
   and its "watch the video" pill are now `lg`-and-up only.** Still left
   unchecked — real progress, target still not met, and this is exactly the
