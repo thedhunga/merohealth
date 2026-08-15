@@ -1,13 +1,27 @@
+'use client';
+
+import { useState } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, ChevronDown } from 'lucide-react';
 
 import { serviceCards } from '@/content/home';
 import { Link } from '@/i18n/navigation';
+import { cn } from '@/lib/cn';
+
+/**
+ * Below `lg`, only the featured card plus this many follow-on cards render on
+ * load — the rest sit behind "Show more" so a 375px visitor isn't scrolling
+ * past all six. At `lg`+ every card always shows: the 12-col layout below
+ * assumes all six are present, and desktop height was never the problem.
+ */
+const COLLAPSED_COUNT = 2;
 
 export function ServiceCards() {
   const t = useTranslations('home.services');
   const nav = useTranslations('nav.items');
+  const [expanded, setExpanded] = useState(false);
+  const hiddenCount = serviceCards.length - 1 - COLLAPSED_COUNT;
 
   return (
     <section aria-labelledby="services-heading" className="bg-paper py-20 md:py-28">
@@ -24,16 +38,18 @@ export function ServiceCards() {
         <ul className="reveal-stagger mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-12">
           {serviceCards.map(({ key, href, Art, links }, index) => {
             const isFeatured = index === 0;
+            const collapsible = !isFeatured && index > COLLAPSED_COUNT;
 
             return (
               <li
-                className={
+                className={cn(
                   isFeatured
                     ? 'md:col-span-2 lg:col-span-7 lg:row-span-2'
                     : index < 3
                       ? 'lg:col-span-5'
-                      : 'lg:col-span-4'
-                }
+                      : 'lg:col-span-4',
+                  collapsible && !expanded && 'hidden lg:block',
+                )}
                 key={key}
               >
                 <article
@@ -123,6 +139,23 @@ export function ServiceCards() {
             );
           })}
         </ul>
+
+        {hiddenCount > 0 ? (
+          <button
+            aria-expanded={expanded}
+            className="mx-auto mt-8 flex min-h-11 items-center gap-2 rounded-pill border border-line px-5 text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 lg:hidden"
+            onClick={() => {
+              setExpanded((value) => !value);
+            }}
+            type="button"
+          >
+            {expanded ? t('showFewer') : t('showMore', { count: hiddenCount })}
+            <ChevronDown
+              aria-hidden
+              className={cn('size-4 transition-transform', expanded && 'rotate-180')}
+            />
+          </button>
+        ) : null}
       </div>
     </section>
   );

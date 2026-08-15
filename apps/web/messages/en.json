@@ -140,6 +140,8 @@
       "heading": "The care you need, when you need it",
       "body": "Start from one place, whether it is an everyday complaint or a long-term condition.",
       "learnMore": "Learn more",
+      "showMore": "Show {count} more services",
+      "showFewer": "Show fewer services",
       "items": {
         "care247": {
           "title": "24/7 Care",

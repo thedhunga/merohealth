@@ -1332,6 +1332,71 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-15 — **Round three, task B1 continued: `ServiceCards` collapses to
+  three on mobile.** Still left unchecked — real progress, target still not
+  met, and the previous entry's own log already named the concrete next
+  lever taken here: "reducing `ServiceCards` to fewer or smaller cards on
+  mobile specifically."
+
+  **What changed.** `ServiceCards` follows the exact pattern the prior run
+  built for `Testimonials`: below `lg`, only the featured card plus the next
+  two (`primaryCare`, `mentalHealth` — the two without sub-link pills) render
+  on load; the remaining three (`conditionManagement`, `specialtyCare`,
+  `healthyHabits`, all of which carry 2-3 sub-link pills and are the tallest
+  cards) sit behind a "Show 3 more services" button (`home.services.showMore`/
+  `showFewer`, both locales) that expands them in place. Unlike
+  `TestimonialsGrid`, no client/server split was needed — `ServiceCards`
+  doesn't touch `EditorialImage`/`hasAsset()`, so the whole component is
+  simply `'use client'`. The collapse is CSS-only (`hidden lg:block` on the
+  collapsible `<li>`s, driven by `expanded` state), not a viewport check, so
+  the grid's existing `lg:col-span-*` classes stay correct in both states —
+  no JS media-query logic. At `lg`+ all six cards always render (verified:
+  the desktop 12-column layout assumes six items, and desktop height was
+  never the complaint) and the button is `lg:hidden`.
+
+  **Measured at 375×812** (`document.body.scrollHeight / innerHeight`,
+  production build via `next start`, collapsed state — i.e. what a visitor
+  actually sees on load): Nepali **11.06 → 9.49 screens** (8978px → 7703px,
+  -1275px). English **11.82 → 10.05 screens** (9595px → 8161px, -1434px).
+  Expanding the button adds back ~1350px in both locales, as expected (three
+  cards' worth). No new console errors beyond the two already-documented
+  pre-existing ones (missing story video, `apps/api` connection-refused);
+  no horizontal overflow in either locale; desktop (1280px) confirmed
+  unchanged — all cards visible, button hidden, via
+  `getComputedStyle().display`.
+
+  **Still not four or five screens, with numbers.** Per the prior entry's
+  breakdown, the footer alone is 2116px (2.6 screens) and is shared across
+  all ~45 routes, not just this one — it was deliberately left for task B2
+  ("push the light treatment everywhere") rather than touched here, per that
+  entry's own recommendation. `Hero`/record-story (1275px) and the
+  full-bleed `SymptomEntry` first screen (778px) together are another ~2.5
+  screens and haven't been touched by either B1 run. Reaching four or five
+  screens honestly needs the footer compacted and probably the hero
+  shortened, both bigger changes than "cut a section" and both arguably
+  belong to B2's "push the light treatment through `PageTemplate`" work
+  rather than a third B1 pass.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks (686 tests in `apps/api`,
+  71 in `apps/web`); `pnpm build` 40/40. Production build checked with
+  `next start` (not dev) at 375px in both locales via Playwright (global
+  install at `/opt/node22/lib/node_modules/playwright`, repo has no
+  Playwright dependency of its own): collapse/expand verified by scripted
+  click, screenshots checked visually, no horizontal overflow, tap-target
+  count re-measured but not remediated (59 elements on screen when
+  collapsed, 44 under 44px — task C's territory, untouched here; the total
+  differs from the prior entry's 78 because three cards' worth of links are
+  off-screen by default now, which is expected).
+
+  **For the next run.** If continuing B1 a third time, there's nothing left
+  to cut without either compacting the footer or shortening the hero — both
+  belong with B2's routing of the light treatment through `PageTemplate`.
+  Recommend taking B2 next rather than a third narrow B1 pass: it's next in
+  queue order anyway, and it's the honest way to attack the footer/hero
+  weight that's now the dominant remaining cost on every route, not just the
+  homepage.
+
 - 2026-08-15 — **Round three, task B1: cut the homepage, but not down to
   four or five screens.** Left unchecked — the three specified cuts are done
   and measured, but the numeric target isn't met, and the reason is worth
