@@ -1179,10 +1179,80 @@ re-read the table itself rather than trust this paragraph.
       run) for the repro and why the sort-only `localeCompare` uses in the
       same file were deliberately left alone.
 
+- [x] Fixed `packages/credentialing`'s `isBadgeCurrent` comparing `now` and
+      `badge.recheckDueAt` as raw ISO-instant strings instead of via
+      `Date.parse` — the same variable-fractional-precision bug class already
+      fixed in `packages/scheduling`, `packages/population-health` and
+      `packages/family`. This run was the named follow-up survey the
+      `packages/family` run's own log entry asked for, scoped to the seven
+      domain packages that survey had not yet checked. See the 2026-08-15
+      log entry below for the survey's full results (six of seven already
+      clean) and the fix.
+
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-15 — **Queue fully checked; `packages/credentialing`'s
+  `isBadgeCurrent` had the same string-vs-`Date.parse` instant-comparison bug
+  already fixed in `packages/scheduling`, `packages/population-health` and
+  `packages/family`.** Grepped for `- [ ]` first — zero hits. The 2026-08-14
+  `packages/family` run's own log entry named seven domain packages its
+  survey had not yet checked for this pattern
+  (`interop`, `immunization`, `referrals`, `teleconsultation`,
+  `credentialing`, `identity`, `language-corpus`) and explicitly warned not to
+  assume they were clean. This run commissioned exactly that survey.
+
+  **What the survey found.** Six of the seven packages are clean:
+  `packages/interop`'s `isShareLinkActive` and `packages/language-corpus`'s
+  `isLive` already parse both sides with `Date.parse` before comparing;
+  `packages/immunization`, `packages/referrals` and `packages/teleconsultation`
+  contain no instant comparisons at all (state-machine mutations and
+  status-equality checks only); `packages/identity`'s one `>=` compares
+  enum array positions (`assuranceOrder.indexOf(...)`), not date strings, and
+  its one sort uses `localeCompare` (display-only, correctly left alone by
+  precedent). The seventh, `packages/credentialing/src/index.ts:250`, had it:
+  `isBadgeCurrent(badge, now)` returned `now < badge.recheckDueAt` — a raw
+  string comparison feeding `badgeRenderStatus`'s `VERIFIED`/`UNVERIFIED`
+  decision, the same active/inactive-guard severity as the already-fixed
+  cases, not a sort.
+
+  **Live-triggerability, honestly stated.** Unlike the three prior fixes in
+  this series, this one is currently dormant: no route in `apps/api` calls
+  `issueBadge`/`recheckBadge` yet (`VerifiedBadge.tsx`'s own doc comment says
+  so), so there is no live client-supplied `recheckDueAt` to exploit today.
+  Fixed anyway, on the same "before the wiring lands, not after" reasoning
+  the standing constraints imply — waiting for it to become live first would
+  mean shipping the bug to production at least once.
+
+  **The fix.** `Date.parse(now) < Date.parse(badge.recheckDueAt)`, matching
+  the `packages/family`/`packages/scheduling` precedent exactly, plus a doc
+  comment pointing at `packages/family`'s `isDelegationActive` for the fuller
+  explanation rather than repeating it.
+
+  **Tests.** `packages/credentialing/src/index.test.ts`: one new case —
+  `recheckDueAt` at 900ms, checked against a `now` of 950ms (chronologically
+  50ms *after* the recheck date, so the badge should already read stale).
+  The raw-string comparison sorts `"...00.950Z" < "...00.9Z"` as strings
+  (950ms's string sorts before 900ms's), which would have kept reporting this
+  already-expired badge as `VERIFIED`; the fix correctly reports `false`.
+  First written with the assertion backwards (`toBe(true)`) — caught by
+  `pnpm test` failing, not by review — corrected once the actual chronology
+  was worked through by hand.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/credentialing` 18/18 (17 baseline + 1 new), `@swasthya/api`
+  666/666 unchanged. `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** The string-vs-`Date.parse` instant-comparison series
+  is now closed across every domain package in the repo as far as two
+  independent surveys have found — `packages/family`'s run covered
+  `scheduling`/`population-health`/`family` itself, and this run covered the
+  remaining seven. No further instance is known, but as the family run's own
+  entry cautioned, that is not the same as proof; a package added later
+  should be checked against this pattern before it is assumed clean.
 
 - 2026-08-14 — **Queue fully checked; `packages/family` had the same
   string-vs-`Date.parse` instant-comparison bug already fixed once in

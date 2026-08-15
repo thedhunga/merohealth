@@ -245,9 +245,15 @@ export function recheckBadge(
   return { ...badge, lastCheckedAt, recheckDueAt };
 }
 
-/** True until `recheckDueAt` passes. */
+/**
+ * True until `recheckDueAt` passes. Compared via `Date.parse`, not string
+ * `<`: both are ISO instants and a client-supplied one can carry 1, 2 or 3
+ * fractional-second digits, which sorts wrong as a string (see
+ * `packages/family`'s `isDelegationActive` for the same fix and the exact
+ * failure case).
+ */
 export function isBadgeCurrent(badge: CredentialingBadge, now: string): boolean {
-  return now < badge.recheckDueAt;
+  return Date.parse(now) < Date.parse(badge.recheckDueAt);
 }
 
 export type CredentialingBadgeRenderStatus = 'VERIFIED' | 'UNVERIFIED';

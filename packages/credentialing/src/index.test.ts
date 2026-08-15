@@ -221,6 +221,18 @@ describe('badge rules', () => {
     expect(isBadgeCurrent(badge, '2027-09-01T00:00:00.000Z')).toBe(false);
   });
 
+  it('compares recheckDueAt by parsed instant, not string order, across differing fractional-second precision', () => {
+    const badge = issueBadge(
+      makeApplication({ status: 'APPROVED', reviewerId: 'reviewer-1', decidedAt: '2026-08-02T00:00:00.000Z' }),
+      '2027-08-02T00:00:00.9Z',
+    );
+
+    // '2027-08-02T00:00:00.950Z' < '2027-08-02T00:00:00.9Z' as strings, even
+    // though 950ms is chronologically 50ms after recheckDueAt's 900ms — a raw
+    // `<` would report this already-stale badge as still current.
+    expect(isBadgeCurrent(badge, '2027-08-02T00:00:00.950Z')).toBe(false);
+  });
+
   it('badgeRenderStatus degrades to UNVERIFIED past the recheck date rather than staying VERIFIED', () => {
     const badge = issueBadge(
       makeApplication({ status: 'APPROVED', reviewerId: 'reviewer-1', decidedAt: '2026-08-02T00:00:00.000Z' }),
