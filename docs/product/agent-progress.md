@@ -1208,6 +1208,67 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-15 — **Queue fully checked; `packages/devices`'s negative-reading
+  guard on body temperature checked the wrong unit.** Grepped for `- [ ]`
+  first — zero hits. The two most recent runs (immediately below) had just
+  closed the wrong-state-500 series and the string-vs-`Date.parse` series
+  across the whole repo, so this run commissioned a survey scoped explicitly
+  away from both, and away from every other category the log already
+  documents as exhaustively mined (ISO-date validation on controllers,
+  cross-owner auth, forgeable reviewer headers, mobile i18n, filename
+  mangling, clinical-safety regex gaps, negative-reading validation as a
+  *category*) — pointed instead at the less-explored packages
+  (`devices`, `digital-twin`, `care-directory`, `localization`,
+  `entitlements`, `module-registry`, `interop`, `evaluation`, `retrieval`,
+  `intent-router`) and at `apps/web`'s message catalogues.
+
+  **What was found.** `normalizeHealthConnectRecord`'s `BodyTemperatureRecord`
+  case and `normalizeHealthKitSample`'s
+  `HKQuantityTypeIdentifierBodyTemperature` case (`packages/devices/src/
+  index.ts`) both ran `assertNonNegative` on the *raw source-unit* reading
+  before converting it to Celsius, not on the converted value. That guard was
+  added on 2026-08-14 specifically to stop a physiologically impossible
+  temperature from reaching `DeviceSample.value`, reasoning by analogy with
+  `weight`/`glucose` — checked before their unit conversion, same as this.
+  The analogy doesn't hold for temperature: `massToKg`/glucose conversions
+  are positive scale factors, so a non-negative input can never go negative,
+  but Fahrenheit→Celsius subtracts 32 before scaling. A device reporting
+  `20°F` — non-negative, so it passed the guard — converts to `-6.7°C`
+  (`(20 − 32) × 5 / 9`) and would have reached `DeviceSample.value`,
+  `digital-twin` and any trend built on it as an impossible negative body
+  temperature. The existing regression test for this guard only covered
+  `unit: 'celsius'`, so nothing exercised the Fahrenheit path.
+
+  **The fix.** Both call sites now compute the canonical Celsius value first
+  (`temperatureToCelsius(...)`) and run `assertNonNegative` on that, reusing
+  the already-computed value for the sample instead of converting twice.
+  `assertNonNegative`'s doc comment now explains why this ordering is
+  load-bearing for temperature specifically and not for the other metrics
+  that share the same guard.
+
+  **Tests.** `packages/devices/src/index.test.ts`: one new case per platform
+  — `20°F` (Health Connect) and `20 degF` (HealthKit) — each asserting
+  `InvalidDeviceRecordError`. Both fail without the fix (the raw reading is
+  non-negative) and pass with it.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/devices` 33/33 (31 baseline + 2 new), `@swasthya/api` 667/667
+  unchanged. `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** Two weaker candidates were found and set aside as too
+  cosmetic to justify a run on their own: `packages/evaluation/src/index.ts`'s
+  section comment (~line 172) still claims "two cases carry `idealNote`"
+  after both were fixed to zero — a stale doc comment, not a behavioural bug,
+  and the test file already asserts the current (correct) state directly.
+  `packages/care-directory`'s `searchDirectory` doesn't index `municipality`
+  in its text search (only name/nameNe/district/specialties) — a feature gap
+  the mobile UI's search placeholder doesn't promise either. Neither is worth
+  a dedicated run by itself, but either is a legitimate small next pick if
+  nothing better turns up. `apps/web`'s message catalogues were not yet
+  audited for missing/mismatched keys between `ne.json` and `en.json` — that
+  remains open.
+
 - 2026-08-15 — **Queue fully checked; `PatientRegistryService` had a live,
   previously-missed instance of the wrong-state-domain-error-reaches-the-
   client-as-a-bare-500 gap the ledger had twice logged as already closed for

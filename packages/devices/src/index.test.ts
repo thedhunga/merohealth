@@ -215,6 +215,20 @@ describe('normalizeHealthConnectRecord', () => {
     expect(() => normalizeHealthConnectRecord(record, OWNER)).toThrow(InvalidDeviceRecordError);
   });
 
+  it('rejects a non-negative fahrenheit reading below freezing that converts to a negative celsius value', () => {
+    // 20°F is >= 0 and would pass a check on the raw reading, but it is
+    // below freezing: ((20 - 32) * 5) / 9 = -6.7°C, a physiologically
+    // impossible body temperature that must still be rejected.
+    const record: HealthConnectRecord = {
+      recordType: 'BodyTemperatureRecord',
+      metadata: { id: 'hc-18' },
+      time: '2026-06-01T07:00:00.000Z',
+      temperature: 20,
+      unit: 'fahrenheit',
+    };
+    expect(() => normalizeHealthConnectRecord(record, OWNER)).toThrow(InvalidDeviceRecordError);
+  });
+
   it('rejects a session whose end precedes its start', () => {
     const record: HealthConnectRecord = {
       recordType: 'SleepSessionRecord',
@@ -393,6 +407,21 @@ describe('normalizeHealthKitSample', () => {
       endDate: '2026-06-01T07:00:00.000Z',
       value: -1,
       unit: 'degC',
+    };
+    expect(() => normalizeHealthKitSample(raw, OWNER)).toThrow(InvalidDeviceRecordError);
+  });
+
+  it('rejects a non-negative fahrenheit reading below freezing that converts to a negative celsius value', () => {
+    // 20°F is >= 0 and would pass a check on the raw reading, but it is
+    // below freezing: ((20 - 32) * 5) / 9 = -6.7°C, a physiologically
+    // impossible body temperature that must still be rejected.
+    const raw: HealthKitSample = {
+      identifier: 'HKQuantityTypeIdentifierBodyTemperature',
+      uuid: 'hk-15',
+      startDate: '2026-06-01T07:00:00.000Z',
+      endDate: '2026-06-01T07:00:00.000Z',
+      value: 20,
+      unit: 'degF',
     };
     expect(() => normalizeHealthKitSample(raw, OWNER)).toThrow(InvalidDeviceRecordError);
   });
