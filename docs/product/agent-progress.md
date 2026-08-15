@@ -1212,6 +1212,73 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-15 — **Queue fully checked; `IdentityService`'s `beginReview`,
+  `approve` and `reject` had a live instance of the wrong-state-domain-error-
+  reaches-the-client-as-a-bare-500 gap — the ledger listed `identity` as
+  already checked clean, but that was inferred, not read directly.** Grepped
+  for `- [ ]` first — zero hits.
+
+  **Why this task.** With the queue exhausted, commissioned a survey agent
+  scoped away from every category the log already documents as exhaustively
+  mined (the wrong-state-500 series across ten modules, the string-vs-
+  `Date.parse` series across every domain package, ISO-date validation,
+  cross-owner auth, forgeable headers, mobile i18n, filename mangling,
+  negative-reading validation, the just-fixed care-directory/devices bugs,
+  the message-catalogue audit) and pointed instead at the less-explored
+  packages and the ledger's own standing hard constraints (DRAFT leakage,
+  clinical-safety bypass, cross-subject leakage, client-encryption boundary).
+  It reported those three invariants genuinely well-defended on direct
+  reading, but found this gap in `apps/api/src/identity/identity.service.ts`.
+
+  **What was wrong.** `submit` (the only method in the file) wrapped its
+  domain call in try/catch and converted `VerificationTransitionError` to a
+  `BadRequestException({code, message})`. `beginReview`, `approve` and
+  `reject` called `@swasthya/identity`'s `beginReview`/`approveVerification`/
+  `rejectVerification` with no such handling, so an illegal transition —
+  approving a request still `EVIDENCE_SUBMITTED` (reviewer skips or races
+  "begin review"), double-clicking "begin review" itself
+  (`UNDER_REVIEW → UNDER_REVIEW` is not a legal edge per
+  `packages/identity`'s `verificationTransitions`), or rejecting an
+  already-decided request — reached the client as an unstructured 500
+  instead of an explainable 400. `identity.service.test.ts` only exercised
+  the happy path for these three methods and only asserted the
+  `BadRequestException` conversion for `submit` — the exact "test itself
+  never covered the failing path" tell that has preceded every fix in this
+  series, and the concrete evidence that the "identity checked clean" claim
+  in an earlier `patient-registry` entry was never verified against this
+  file.
+
+  **The fix.** Added a private `#transition` helper on `IdentityService`
+  sharing `submit`'s exact try/catch shape, and routed `beginReview`,
+  `approve` and `reject` through it instead of calling the domain functions
+  directly.
+
+  **Tests.** `identity.service.test.ts`: three new cases — approve before
+  `beginReview`, a second `beginReview` on an already-`UNDER_REVIEW` request,
+  and reject on an already-`APPROVED` request — each asserting
+  `BadRequestException` with `code: 'VerificationTransitionError'`. All three
+  fail without the fix (uncaught `VerificationTransitionError`) and pass with
+  it.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 670/670 (667 baseline + 3 new). `pnpm build` 40/40 (35
+  cached, 5 rebuilt).
+
+  **For the next run.** The survey's own report names a closely related,
+  unfixed sibling: `apps/api/src/credentialing/credentialing.service.ts` has
+  the identical shape — `submit` wrapped, `beginReview`/`approve`/`reject`
+  not — per its own doc comment lineage ("mirrors identity's state machine
+  exactly"), very likely the same bug copy-pasted into a second file. Ruled
+  out of *this* run only to keep to one task; it is the natural next pick.
+  The survey also re-confirmed (by reading source, not inferring) that
+  `packages/retrieval`/`packages/intent-router`/`packages/interop`'s
+  DRAFT-filtering is correct everywhere and that neither package is wired
+  into `apps/api` yet, and that `packages/devices`'s other unit conversions
+  (glucose, weight, oxygen, BP) have no sign-flip risk like the Fahrenheit
+  bug did. `packages/evaluation/src/index.ts`'s stale "two cases carry
+  `idealNote`" comment (now zero cases) remains open and cosmetic.
+
 - 2026-08-15 — **Queue fully checked; widened `packages/care-directory`'s
   `searchDirectory` to match on `municipality`.** Grepped for `- [ ]` first —
   zero hits. The prior run (immediately below) had just closed the

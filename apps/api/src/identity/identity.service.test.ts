@@ -148,4 +148,49 @@ describe('IdentityService reviewer actions', () => {
     expect(() => service.reject('missing', 'reviewer-1', 'reason')).toThrow(NotFoundException);
     expect(() => service.auditLog('missing')).toThrow(NotFoundException);
   });
+
+  it('refuses an approve that arrives before beginReview, as a 400 with a code rather than an uncaught 500', async () => {
+    const { service } = await buildService();
+    const request = service.submit(validSubmission); // EVIDENCE_SUBMITTED, no beginReview yet
+
+    await expect(service.approve(request.id, 'reviewer-1')).rejects.toThrow(BadRequestException);
+    try {
+      await service.approve(request.id, 'reviewer-1');
+      expect.unreachable('expected approve to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'VerificationTransitionError' });
+    }
+  });
+
+  it('refuses a second beginReview on the same request, as a 400 with a code rather than an uncaught 500', async () => {
+    const { service } = await buildService();
+    const request = service.submit(validSubmission);
+    service.beginReview(request.id, 'reviewer-1'); // now UNDER_REVIEW
+
+    expect(() => service.beginReview(request.id, 'reviewer-2')).toThrow(BadRequestException);
+    try {
+      service.beginReview(request.id, 'reviewer-2');
+      expect.unreachable('expected beginReview to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'VerificationTransitionError' });
+    }
+  });
+
+  it('refuses a reject on an already-decided request, as a 400 with a code rather than an uncaught 500', async () => {
+    const { service, owner } = await buildService();
+    const request = service.submit({ ...validSubmission, ownerId: owner.id });
+    service.beginReview(request.id, 'reviewer-1');
+    await service.approve(request.id, 'reviewer-1'); // now APPROVED, a terminal status
+
+    expect(() => service.reject(request.id, 'reviewer-1', 'too late')).toThrow(BadRequestException);
+    try {
+      service.reject(request.id, 'reviewer-1', 'too late');
+      expect.unreachable('expected reject to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'VerificationTransitionError' });
+    }
+  });
 });

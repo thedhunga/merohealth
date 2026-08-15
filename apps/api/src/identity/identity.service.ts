@@ -74,8 +74,14 @@ export class IdentityService {
     return request;
   }
 
+  /**
+   * Same transition-error-to-400 convention as `submit` above — a reviewer
+   * double-clicking "begin review", or a second tab racing the first, hits
+   * `UNDER_REVIEW → UNDER_REVIEW`, which is not a legal edge and must not
+   * surface as an uncaught 500.
+   */
   beginReview(verificationId: string, reviewerId: string): VerificationRequest {
-    const reviewed = this.repository.save(beginReview(this.#require(verificationId)));
+    const reviewed = this.repository.save(this.#transition(verificationId, beginReview));
     this.#audit(verificationId, reviewerId, 'REVIEW_STARTED');
     return reviewed;
   }
@@ -89,19 +95,25 @@ export class IdentityService {
    * session. `approveVerification` above already guarantees this fires at
    * most once per owner — its state machine has no edge back into `APPROVED`
    * — so there is no double-elevation risk to guard against here.
+   *
+   * Wrapped in the same transition-error-to-400 convention as `submit`: an
+   * approve arriving before `beginReview` (e.g. a client that skips the
+   * "begin review" step) is `EVIDENCE_SUBMITTED → APPROVED`, not a legal
+   * edge, and must not surface as an uncaught 500.
    */
   async approve(verificationId: string, reviewerId: string): Promise<VerificationRequest> {
     const decided = this.repository.save(
-      approveVerification(this.#require(verificationId), new Date().toISOString()),
+      this.#transition(verificationId, (request) => approveVerification(request, new Date().toISOString())),
     );
     this.#audit(verificationId, reviewerId, 'VERIFICATION_APPROVED');
     await this.authStore.markIdentityVerified(decided.ownerId);
     return decided;
   }
 
+  /** Same transition-error-to-400 convention as `submit`/`beginReview`/`approve` — see `beginReview`'s doc comment. */
   reject(verificationId: string, reviewerId: string, reason: string): VerificationRequest {
     const decided = this.repository.save(
-      rejectVerification(this.#require(verificationId), reason, new Date().toISOString()),
+      this.#transition(verificationId, (request) => rejectVerification(request, reason, new Date().toISOString())),
     );
     this.#audit(verificationId, reviewerId, 'VERIFICATION_REJECTED');
     return decided;
@@ -128,6 +140,21 @@ export class IdentityService {
     const request = this.repository.find(verificationId);
     if (!request) throw new NotFoundException(`No verification request ${verificationId}`);
     return request;
+  }
+
+  /** `submit`'s transition-error-to-400 conversion, shared by every state-changing reviewer action. */
+  #transition(
+    verificationId: string,
+    apply: (request: VerificationRequest) => VerificationRequest,
+  ): VerificationRequest {
+    try {
+      return apply(this.#require(verificationId));
+    } catch (error) {
+      if (error instanceof VerificationTransitionError) {
+        throw new BadRequestException({ code: error.name, message: error.message });
+      }
+      throw error;
+    }
   }
 }
 
