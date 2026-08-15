@@ -125,12 +125,14 @@ branch's work never reached the live site. **Resolved 2026-08-15 — see the
 log entry below.** Work now happens directly on `main`; the branch is no
 longer the integration point.
 
-- [ ] Wire the four new scene photographs into their pages with
+- [x] Wire the four new scene photographs into their pages with
       EditorialImage over the existing SVG-artwork fallback: care-247.webp on
       /individuals/24-7-care, primary-care.webp on /individuals/primary-care,
       healthy-habits.webp on the nutrition page, clinicians.webp on
       /clinicians/our-providers. The files are in apps/web/public/imagery.
       Keep the artwork as the fallback exactly as Testimonials does.
+      **Done 2026-08-15 — see the log entry below for why the mechanism isn't
+      literally `EditorialImage` inside `SectionIntro`.**
 - [ ] Two testimonial portraits are still missing (portrait-raju.webp,
       portrait-mina.webp) — the Higgsfield account ran out of free credits
       mid-batch. The avatar fallback covers them; generate via the asset
@@ -1343,6 +1345,78 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-15 — **Round three, preamble task: wired the four new scene
+  photographs (`care-247.webp`, `primary-care.webp`, `healthy-habits.webp`,
+  `clinicians.webp`) into `/individuals/24-7-care`, `/individuals/primary-care`,
+  the nutrition page, and `/clinicians/our-providers`.** Done. Checked and
+  verified in-browser, English and Nepali, 375px and 1280px.
+
+  **What changed.** `content/individuals.ts`: `care247` and `primaryCare`
+  now point at their own photographs instead of both sharing
+  `mero-community-care.webp`; the `nutrition` condition-page entry gained an
+  `image` field it never had. `OurProvidersView.tsx` gained a hero `image`
+  (it previously rendered `Art` alone, no photo slot at all). New,
+  non-fabricated `imageAlt` copy was added/updated in both `en.json` and
+  `ne.json` for all four — describing only what's actually visible in each
+  photograph (e.g. "a young man checking his phone late at night at home"
+  for `care-247.webp`, which is a night bedroom scene, not a clinician
+  photo — the old shared alt text was wrong for it and needed rewriting, not
+  reuse).
+
+  **The task asked for "EditorialImage over the existing SVG-artwork
+  fallback," and the initial attempt did exactly that — routed
+  `SectionIntro`'s photo slot through `EditorialImage`, which reads
+  `hasAsset()` (`node:fs`) to decide whether to render the photo or the `Art`
+  fallback. `pnpm build` caught the mistake before it shipped**: Turbopack
+  fatally errored on `/[locale]/account/page` — `AccountView.tsx` is `'use
+  client'` and renders `PageTemplate` → `SectionIntro` for its own hero
+  (no photo, just `Art`), and `node:fs` has no browser build, so any
+  `SectionIntro` import of `hasAsset`/`EditorialImage` breaks that page's
+  client bundle regardless of whether an `image` prop is ever passed at
+  runtime — import graphs are static, conditionals inside the component
+  don't help. `EditorialImage`'s own docstring already flags this as
+  intentional ("Server-only: importing this from a client component will
+  fail the build, which is the intended guard rather than an inconvenience")
+  — I'd just put that import somewhere more widely shared than intended.
+
+  **Fix:** reverted `SectionIntro.tsx` and `EditorialImage.tsx` to their
+  original content (zero diff on `EditorialImage.tsx`) and moved the
+  `hasAsset` check up to the two *server*-component callers instead —
+  `IndividualsPageView.tsx` and `OurProvidersView.tsx`, neither of which is
+  ever imported by a client component. Each now only includes the `image`
+  field in the hero it hands to `PageTemplate` when `hasAsset(src)` is true;
+  `SectionIntro` itself stays filesystem-ignorant and renders whatever it's
+  given, falling back to `Art` alone when `image` is absent — same "never a
+  broken image" contract `EditorialImage` gives `Testimonials`, same
+  fallback-is-the-default behavior the task asked for, just resolved one
+  layer up so the shared shell component stays safe to import from both
+  server and client trees. **For the next run touching `SectionIntro` or
+  `PageTemplate`: neither may import anything that pulls in `node:fs`
+  (`@/lib/assets`, `EditorialImage`) — `AccountView` is the one client
+  consumer today, but the constraint is general.**
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40 (needed one fix mid-way: `EditorialImageProps.
+  objectPosition` had to be typed `string | undefined` rather than `string`
+  to satisfy `exactOptionalPropertyTypes` — moot once the `EditorialImage`
+  edit was reverted, noted here only because it's exactly the kind of error
+  `pnpm typecheck` exists to catch before `pnpm build` has to); `pnpm test`
+  75/75 tasks (no new test file — matches every other markup-only component
+  in `apps/web`, none of which have colocated tests); `pnpm build` 40/40,
+  including the previously-failing `/account` route. Browser-checked all
+  four target routes plus `/account` (the client component that broke) and
+  `/individuals/mental-health` (an untouched photo route, to confirm the
+  revert didn't regress it) at 375px and 1280px, English and Nepali: photos
+  render with the floating `Art` card and gradient scrim exactly as before,
+  no horizontal overflow, no console errors beyond the already-documented
+  `apps/api` connection-refused (no local API running). Screenshots taken
+  but not retained past this run.
+
+  Inner-page heights are not part of this task (that's homepage-only B1,
+  still open below) but recorded in passing since they were on-screen
+  anyway: the four routes measured 3099–3266px (3.82–4.02 screens) at 375px
+  — already inside the 4–5 screen target the homepage is being cut toward.
 
 - 2026-08-15 — **Round three, task B1 continued: `Testimonials`/
   `TestimonialsGrid` given a mobile spacing tier.** Still left unchecked —

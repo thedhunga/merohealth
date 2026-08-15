@@ -278,7 +278,7 @@
       "hero": {
         "title": "Care whenever you need it",
         "body": "Reach a Nepali-speaking clinician by voice or video call, day or night, without scheduling a clinic visit first.",
-        "imageAlt": "Illustrative scene of a clinician reviewing health information with an older patient"
+        "imageAlt": "Illustrative scene of a young man checking his phone late at night at home"
       },
       "highlights": {
         "items": {
@@ -301,7 +301,7 @@
       "hero": {
         "title": "One clinician, over time",
         "body": "Book routine check-ups and follow-ups with a provider who gets to know your history, instead of starting over with someone new each visit.",
-        "imageAlt": "Illustrative scene of a clinician reviewing health information with an older patient"
+        "imageAlt": "Illustrative scene of a clinician talking with an older patient in a clinic room"
       },
       "highlights": {
         "items": {
@@ -421,7 +421,8 @@
     "nutrition": {
       "hero": {
         "title": "Eating that fits your life",
-        "body": "Guidance built around Nepali meals and your actual routine, from a provider who adjusts the plan as your life changes."
+        "body": "Guidance built around Nepali meals and your actual routine, from a provider who adjusts the plan as your life changes.",
+        "imageAlt": "Illustrative scene of a Nepali meal being prepared with lentils, greens and fresh spices"
       },
       "highlights": {
         "items": {
@@ -783,7 +784,8 @@
     "ourProviders": {
       "hero": {
         "title": "The clinicians behind Mero Health",
-        "body": "Board-certified providers and licensed therapists and psychiatrists, reachable in Nepali by voice or video — the same clinician, visit after visit, whenever possible."
+        "body": "Board-certified providers and licensed therapists and psychiatrists, reachable in Nepali by voice or video — the same clinician, visit after visit, whenever possible.",
+        "imageAlt": "Illustrative scene of a clinician in a white coat consulting with an older patient"
       },
       "highlightsHeading": "What our clinicians provide",
       "highlights": {

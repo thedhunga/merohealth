@@ -21,7 +21,14 @@ interface SectionIntroProps {
    * wall of text, and an optional prop would let that slip.
    */
   Art: ComponentType<{ className?: string }>;
-  /** Optional original illustrative photograph; the branded Art remains as a product cue. */
+  /**
+   * Optional original illustrative photograph; the branded Art remains as a
+   * product cue. Callers must resolve `hasAsset` themselves and omit this
+   * prop entirely when the file isn't there yet — `SectionIntro` is shared
+   * with client components (`AccountView`), so it cannot import the
+   * filesystem-backed `hasAsset`/`EditorialImage` check itself without
+   * breaking their bundle (`node:fs` has no browser build).
+   */
   image?: { src: string; alt: string; objectPosition?: string };
   artCaption?: string;
   cta?: SectionIntroCta;

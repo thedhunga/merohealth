@@ -5,6 +5,7 @@ import { Section, SectionHeading } from '@/components/ui/Section';
 import { FeatureGrid } from '@/components/ui/FeatureGrid';
 import { Highlights } from '@/components/ui/Highlights';
 import type { IndividualsPage } from '@/content/individuals';
+import { hasAsset } from '@/lib/assets';
 
 /**
  * Renders any Individuals route from its `content/individuals.ts` entry —
@@ -25,7 +26,14 @@ export function IndividualsPageView({ page }: { page: IndividualsPage }) {
     body: t(`${page.key}.hero.body`),
     Art: page.Art,
     artPosition: page.artPosition,
-    ...(page.image
+    // Photography lands one file at a time; `SectionIntro` renders whatever
+    // it's handed with no existence check of its own (it's shared with
+    // client components, so it can't import the filesystem-backed
+    // `hasAsset`), so this server component resolves presence and falls back
+    // to the branded `Art` by omitting `image` entirely when the file isn't
+    // there yet — the same "never a broken image" contract `EditorialImage`
+    // gives `Testimonials`.
+    ...(page.image && hasAsset(page.image.src)
       ? {
           image: {
             ...page.image,
