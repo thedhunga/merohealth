@@ -125,6 +125,18 @@ branch's work never reached the live site. **Resolved 2026-08-15 — see the
 log entry below.** Work now happens directly on `main`; the branch is no
 longer the integration point.
 
+- [ ] Wire the four new scene photographs into their pages with
+      EditorialImage over the existing SVG-artwork fallback: care-247.webp on
+      /individuals/24-7-care, primary-care.webp on /individuals/primary-care,
+      healthy-habits.webp on the nutrition page, clinicians.webp on
+      /clinicians/our-providers. The files are in apps/web/public/imagery.
+      Keep the artwork as the fallback exactly as Testimonials does.
+- [ ] Two testimonial portraits are still missing (portrait-raju.webp,
+      portrait-mina.webp) — the Higgsfield account ran out of free credits
+      mid-batch. The avatar fallback covers them; generate via the asset
+      brief when credits reset, matching portrait-sabina and
+      portrait-prakash in style.
+
 ### A · Unblock
 
 - [x] **Merge `origin/main` into this branch, resolve the conflicts, verify,
