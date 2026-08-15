@@ -1,6 +1,7 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { describe, expect, it } from 'vitest';
+import type { CurrentUserResult } from '../auth/auth.service.js';
 import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { EntitlementsGuard } from '../entitlements/entitlements.guard.js';
 import { REQUIRED_MODULE_KEY } from '../entitlements/require-entitlement.decorator.js';
@@ -26,6 +27,15 @@ function buildController() {
   const teleconsultation = new TeleconsultationService(new TeleconsultationRepository(), scheduling);
   const controller = new TeleconsultationController(teleconsultation);
   return { controller, patients, scheduling };
+}
+
+function currentUserFor(subjectId: string): CurrentUserResult {
+  return {
+    subjectId,
+    user: { id: subjectId, phone: '9800000000', role: 'PATIENT', locale: 'ne', assuranceLevel: 'REGISTERED' },
+    patientProfileId: null,
+    assuranceLevel: 'REGISTERED',
+  };
 }
 
 async function bookAppointment(scheduling: SchedulingService, patientId: string) {
@@ -62,15 +72,22 @@ describe('TeleconsultationController entitlement wiring', () => {
     );
   });
 
-  // Booking is the one action that starts something new; reading or
-  // transitioning a session that already exists follows RecordsController's
-  // precedent of staying open, so this locks that boundary in rather than
-  // letting a future run gate everything "for consistency".
-  it('leaves every other route ungated', () => {
-    const ungatedMethods = ['health', 'listSessions', 'getSession', 'start', 'complete', 'cancel', 'noShow'];
-    for (const method of ungatedMethods) {
-      expect(guardsFor(method)).toBeUndefined();
+  // A previous version of this suite locked in the opposite of this: every
+  // route below was ungated, reasoning by a misreading of RecordsController's
+  // precedent (only `capture` there carries `EntitlementsGuard` — but every
+  // read/mutate route on it, including `list`/`confirm`/`correct`/`reject`,
+  // still carries `SessionAuthGuard`). That let any unauthenticated caller
+  // list or read every patient's teleconsultation sessions system-wide, and
+  // cancel or mark no-show on a session that was not theirs.
+  it('gates every read and mutation route behind SessionAuthGuard', () => {
+    const gated = ['listSessions', 'getSession', 'start', 'complete', 'cancel', 'noShow'];
+    for (const method of gated) {
+      expect(guardsFor(method)).toEqual([SessionAuthGuard]);
     }
+  });
+
+  it('leaves only the health check ungated', () => {
+    expect(guardsFor('health')).toBeUndefined();
   });
 });
 
@@ -92,13 +109,14 @@ describe('TeleconsultationController start, complete, cancel and no-show endpoin
     const patient = patients.register(validDemographics);
     const appointment = await bookAppointment(scheduling, patient.id);
     const session = await controller.schedule(appointment.id);
+    const user = currentUserFor(patient.id);
 
-    const started = controller.start(session.id);
+    const started = controller.start(user, session.id);
     expect(started.status).toBe('ACTIVE');
 
-    const completed = controller.complete(session.id);
+    const completed = controller.complete(user, session.id);
     expect(completed.status).toBe('COMPLETED');
-    expect(controller.getSession(session.id).status).toBe('COMPLETED');
+    expect(controller.getSession(user, session.id).status).toBe('COMPLETED');
   });
 
   it('rejects a cancel body missing reason', async () => {
@@ -106,8 +124,9 @@ describe('TeleconsultationController start, complete, cancel and no-show endpoin
     const patient = patients.register(validDemographics);
     const appointment = await bookAppointment(scheduling, patient.id);
     const session = await controller.schedule(appointment.id);
+    const user = currentUserFor(patient.id);
 
-    expect(() => controller.cancel(session.id, {})).toThrow(BadRequestException);
+    expect(() => controller.cancel(user, session.id, {})).toThrow(BadRequestException);
   });
 
   it('cancels a SCHEDULED session', async () => {
@@ -115,8 +134,9 @@ describe('TeleconsultationController start, complete, cancel and no-show endpoin
     const patient = patients.register(validDemographics);
     const appointment = await bookAppointment(scheduling, patient.id);
     const session = await controller.schedule(appointment.id);
+    const user = currentUserFor(patient.id);
 
-    const cancelled = controller.cancel(session.id, { reason: 'Patient rescheduled' });
+    const cancelled = controller.cancel(user, session.id, { reason: 'Patient rescheduled' });
 
     expect(cancelled.status).toBe('CANCELLED');
   });
@@ -126,23 +146,42 @@ describe('TeleconsultationController start, complete, cancel and no-show endpoin
     const patient = patients.register(validDemographics);
     const appointment = await bookAppointment(scheduling, patient.id);
     const session = await controller.schedule(appointment.id);
+    const user = currentUserFor(patient.id);
 
-    const noShow = controller.noShow(session.id);
+    const noShow = controller.noShow(user, session.id);
 
     expect(noShow.status).toBe('NO_SHOW');
   });
 });
 
 describe('TeleconsultationController.listSessions and getSession', () => {
-  it('lists sessions filtered by patientId and reads one by id', async () => {
+  it("lists only the signed-in caller's own sessions and reads one by id", async () => {
     const { controller, patients, scheduling } = buildController();
     const patient = patients.register(validDemographics);
     const appointment = await bookAppointment(scheduling, patient.id);
     const session = await controller.schedule(appointment.id);
+    const user = currentUserFor(patient.id);
 
-    const listed = controller.listSessions(patient.id);
+    const listed = controller.listSessions(user);
     expect(listed).toEqual({ sessions: [session], total: 1 });
-    expect(controller.getSession(session.id)).toEqual(session);
+    expect(controller.getSession(user, session.id)).toEqual(session);
+  });
+
+  it("404s a real session id that belongs to a different caller, on every read and mutation route", async () => {
+    const { controller, patients, scheduling } = buildController();
+    const patient = patients.register(validDemographics);
+    const appointment = await bookAppointment(scheduling, patient.id);
+    const session = await controller.schedule(appointment.id);
+    const stranger = currentUserFor('someone-else');
+
+    expect(controller.listSessions(stranger)).toEqual({ sessions: [], total: 0 });
+    expect(() => controller.getSession(stranger, session.id)).toThrow(NotFoundException);
+    expect(() => controller.start(stranger, session.id)).toThrow(NotFoundException);
+    expect(() => controller.complete(stranger, session.id)).toThrow(NotFoundException);
+    expect(() => controller.cancel(stranger, session.id, { reason: 'not mine to cancel' })).toThrow(
+      NotFoundException,
+    );
+    expect(() => controller.noShow(stranger, session.id)).toThrow(NotFoundException);
   });
 });
 

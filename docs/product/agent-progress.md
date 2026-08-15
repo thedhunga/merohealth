@@ -1212,11 +1212,120 @@ re-read the table itself rather than trust this paragraph.
       as "very likely the same bug copy-pasted into a second file," per its
       doc comment lineage claiming to mirror identity's state machine
       exactly.
+- [x] Closed an unauthenticated bulk-disclosure gap on
+      `TeleconsultationController`: `listSessions`, `getSession`, `start`,
+      `complete`, `cancel` and `noShow` carried no `SessionAuthGuard` at all,
+      so any caller with no session — cookie, token or otherwise — could
+      enumerate every patient's teleconsultation sessions system-wide, read
+      one by guessing/leaking its id, or cancel/mark-no-show a session that
+      was not theirs. Found by a fresh independent survey scoped away from
+      every previously-mined category. See the 2026-08-15 log entry below
+      (the one added by this run) for the trace, why a prior version of the
+      controller's own test suite had locked the bug in as intended
+      behaviour, and the sibling gap left open in `BillingController`.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-15 — **Queue fully checked; `TeleconsultationController` left six of
+  its seven routes with no `SessionAuthGuard` at all, letting any
+  unauthenticated caller list, read or cancel any patient's teleconsultation
+  sessions system-wide.** Grepped for `- [ ]` first — zero hits.
+
+  **Why this task.** Commissioned a survey agent scoped explicitly away from
+  every category this ledger already documents as exhaustively mined
+  (wrong-state-500 across eleven modules now, string-vs-`Date.parse`,
+  ISO-date validation, cross-owner auth on records/language-corpus/
+  credentialing, forgeable reviewer headers, mobile i18n, filename mangling,
+  negative-reading validation, the message-catalogue audit, clinical-safety
+  regex gaps) and pointed instead at the less-explored packages and the
+  ledger's own standing hard constraints. It reported those constraints
+  (DRAFT leakage, clinical-safety bypass, cross-subject leakage, client-side
+  encryption) genuinely well-defended on direct reading, but found this gap
+  in `apps/api/src/teleconsultation/teleconsultation.controller.ts`.
+
+  **What was wrong.** Only `schedule` (booking) carried
+  `@UseGuards(SessionAuthGuard, EntitlementsGuard)`. `listSessions`,
+  `getSession`, `start`, `complete`, `cancel` and `noShow` had no guard at
+  all: `GET /teleconsultation/sessions` with no `patientId` query param and
+  no auth of any kind returned every session in the system — patient id,
+  clinician id, status, cancel reason, timestamps — and
+  `POST /teleconsultation/sessions/:id/cancel` let any unauthenticated caller
+  who knew or guessed a session id cancel or mark-no-show someone else's
+  booked video consultation. Confirmed live by reading the controller and
+  its repository (`TeleconsultationRepository.list`) directly, not inferred.
+  The controller's own test suite had a test, `'leaves every other route
+  ungated'`, that asserted this was intentional — its comment claimed it
+  followed "`RecordsController`'s precedent," but `RecordsController` was
+  read directly too: every one of its read/mutate routes
+  (`list`/`observationsForDocument`/`timeline`/`confirm`/`correct`/`reject`)
+  *does* carry `SessionAuthGuard`; only `capture` additionally carries
+  `EntitlementsGuard`. The locking test encoded a misreading of that
+  precedent as if it were the precedent itself — the same "test itself
+  encodes the bug" tell recurring across this ledger's fixes, just applied to
+  a whole controller's auth surface instead of one error path.
+
+  **The fix.** Added `@UseGuards(SessionAuthGuard)` to all six routes.
+  `listSessions` and `getSession` now read the owner from `@CurrentUser()`
+  instead of an optional client-supplied `patientId` query param — the
+  caller can no longer request another patient's sessions at all, not even
+  by passing their id explicitly. `TeleconsultationService.getSession` now
+  takes `ownerId` and 404s (not 403s) a session that exists but belongs to
+  someone else, the identical "belongs to someone else 404s like it doesn't
+  exist" rule `RecordsService.#requireObservation` already uses.
+  `startSession`/`completeSession`/`cancelSession`/`markNoShow` all resolve
+  through this same `getSession`, so a caller acting on someone else's
+  session id 404s before any transition is attempted. `scheduleSession`'s
+  internal conflict check still calls `this.repository.list()` unfiltered —
+  that is server-internal business logic, never a client-controlled route,
+  so it was left as-is.
+
+  **What was deliberately left out.** No clinician-side identity exists
+  anywhere in this app yet — `clinicianId` is a free-text field trusted from
+  the request body across the whole clinical suite (scheduling, referrals,
+  prescribing, clinical-charting, billing, diagnostics-orders,
+  clinical-summary, immunization all take it the same way). So the fix
+  enforces `patientId === caller` only; it does not attempt to also let "the
+  clinician on the session" through, since there is no real identity to
+  check that against — inventing one would be a materially bigger, separate
+  piece of work, not a same-shape fix.
+
+  **Tests.** `teleconsultation.controller.test.ts`: rewrote the
+  `'leaves every other route ungated'` test into
+  `'gates every read and mutation route behind SessionAuthGuard'` (the
+  correct assertion), and added a `'404s a real session id that belongs to a
+  different caller, on every read and mutation route'` case covering all six
+  routes with a stranger's `CurrentUserResult`.
+  `teleconsultation.service.test.ts`: two new cases — `getSession` 404s a
+  real session id under the wrong owner, and each of
+  `startSession`/`completeSession`/`cancelSession`/`markNoShow` does too. All
+  new cases fail against the pre-fix code (either no guard to trip, or
+  `getSession` returning the session regardless of owner) and pass with it.
+  Updated every pre-existing call site across
+  `teleconsultation.service.test.ts`/`.controller.test.ts`/
+  `.fault-isolation.test.ts` to pass the now-required `ownerId`.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 677/677 (673 baseline + 4 new). `pnpm build` 40/40 (35
+  cached, 5 rebuilt).
+
+  **For the next run.** The survey's report named the identical-shape gap in
+  `apps/api/src/billing/billing.controller.ts`: `listInvoices`/`getInvoice`
+  have no `SessionAuthGuard` either, and omitting `patientId` from
+  `GET /billing/invoices` dumps every patient's invoices, line items and
+  payments unauthenticated — the natural next pick, same severity (financial
+  PHI instead of video-consult PHI), same fix shape. The survey also flagged
+  the same missing-guard pattern as plausible in
+  `scheduling`/`referrals`/`diagnostics-orders`/`prescribing`/
+  `clinical-charting`/`immunization`'s own read routes but judged those lower
+  urgency (no financial or live-consult data) and did not verify each by
+  reading source — that verification is still owed before assuming they are
+  real instances rather than assuming they're clean. Neither
+  `apps/mobile` nor `apps/web` calls any teleconsultation route yet, so no
+  client code needed updating.
 
 - 2026-08-15 — **Queue fully checked; `CredentialingService`'s `beginReview`,
   `approve` and `reject` had the identical wrong-state-domain-error-reaches-

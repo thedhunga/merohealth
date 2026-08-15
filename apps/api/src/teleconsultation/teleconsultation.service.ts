@@ -65,14 +65,26 @@ export class TeleconsultationService {
     }
   }
 
-  getSession(id: string): TeleconsultationSession {
+  /**
+   * `ownerId` is not just a filter here — until a clinician-side identity
+   * exists in this app, it is the only access control this route has, so a
+   * session that exists but belongs to someone else must 404 exactly like
+   * one that does not exist at all, the same rule
+   * `RecordsService.listDocumentObservations` already applies to a document
+   * id. Internal callers that need every session regardless of owner (see
+   * `scheduleSession`'s conflict check below) go through
+   * `this.repository.list()` directly instead of this method.
+   */
+  getSession(id: string, ownerId: string): TeleconsultationSession {
     const session = this.repository.find(id);
-    if (!session) throw new NotFoundException(`No teleconsultation session ${id}`);
+    if (!session || session.patientId !== ownerId) {
+      throw new NotFoundException(`No teleconsultation session ${id}`);
+    }
     return session;
   }
 
-  listSessions(patientId?: string): TeleconsultationSession[] {
-    return this.repository.list(patientId);
+  listSessions(ownerId: string): TeleconsultationSession[] {
+    return this.repository.list(ownerId);
   }
 
   /**
@@ -87,29 +99,33 @@ export class TeleconsultationService {
    * reached the client as a bare, codeless 500, the same gap
    * `BillingService`/`PrescribingService`/`ClinicalChartingService`/
    * `DiagnosticsOrdersService`/`ImmunizationService`/`ReferralsService` were
-   * each already fixed for.
+   * each already fixed for. Each also resolves the session through
+   * `getSession`, so a caller acting on someone else's session id 404s
+   * before the transition is even attempted.
    */
-  startSession(id: string): TeleconsultationSession {
+  startSession(id: string, ownerId: string): TeleconsultationSession {
     return this.repository.save(
-      this.runTransition(() => startTeleconsultation(this.getSession(id), new Date().toISOString())),
+      this.runTransition(() => startTeleconsultation(this.getSession(id, ownerId), new Date().toISOString())),
     );
   }
 
-  completeSession(id: string): TeleconsultationSession {
+  completeSession(id: string, ownerId: string): TeleconsultationSession {
     return this.repository.save(
-      this.runTransition(() => completeTeleconsultation(this.getSession(id), new Date().toISOString())),
+      this.runTransition(() => completeTeleconsultation(this.getSession(id, ownerId), new Date().toISOString())),
     );
   }
 
-  cancelSession(id: string, reason: string): TeleconsultationSession {
+  cancelSession(id: string, ownerId: string, reason: string): TeleconsultationSession {
     return this.repository.save(
-      this.runTransition(() => cancelTeleconsultation(this.getSession(id), reason, new Date().toISOString())),
+      this.runTransition(() =>
+        cancelTeleconsultation(this.getSession(id, ownerId), reason, new Date().toISOString()),
+      ),
     );
   }
 
-  markNoShow(id: string): TeleconsultationSession {
+  markNoShow(id: string, ownerId: string): TeleconsultationSession {
     return this.repository.save(
-      this.runTransition(() => markTeleconsultationNoShow(this.getSession(id), new Date().toISOString())),
+      this.runTransition(() => markTeleconsultationNoShow(this.getSession(id, ownerId), new Date().toISOString())),
     );
   }
 

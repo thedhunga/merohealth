@@ -1,4 +1,4 @@
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { PatientRegistryRepository } from '../patient-registry/patient-registry.repository.js';
 import { PatientRegistryService } from '../patient-registry/patient-registry.service.js';
@@ -76,7 +76,7 @@ describe('TeleconsultationService.scheduleSession', () => {
     const patient = patients.register(validDemographics);
     const appointment = await bookAppointment(scheduling, patient.id);
     const first = await teleconsultation.scheduleSession(appointment.id);
-    teleconsultation.cancelSession(first.id, 'Patient rescheduled');
+    teleconsultation.cancelSession(first.id, patient.id, 'Patient rescheduled');
 
     const second = await teleconsultation.scheduleSession(appointment.id);
     expect(second.status).toBe('SCHEDULED');
@@ -90,12 +90,12 @@ describe('TeleconsultationService.startSession, completeSession and getSession',
     const appointment = await bookAppointment(scheduling, patient.id);
     const session = await teleconsultation.scheduleSession(appointment.id);
 
-    const started = teleconsultation.startSession(session.id);
+    const started = teleconsultation.startSession(session.id, patient.id);
     expect(started.status).toBe('ACTIVE');
 
-    const completed = teleconsultation.completeSession(session.id);
+    const completed = teleconsultation.completeSession(session.id, patient.id);
     expect(completed.status).toBe('COMPLETED');
-    expect(teleconsultation.getSession(session.id).status).toBe('COMPLETED');
+    expect(teleconsultation.getSession(session.id, patient.id).status).toBe('COMPLETED');
   });
 
   it('starting and completing a session never touches scheduling — still works while it is down', async () => {
@@ -105,7 +105,7 @@ describe('TeleconsultationService.startSession, completeSession and getSession',
     const session = await teleconsultation.scheduleSession(appointment.id);
     scheduling.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
 
-    const started = teleconsultation.startSession(session.id);
+    const started = teleconsultation.startSession(session.id, patient.id);
     expect(started.status).toBe('ACTIVE');
   });
 
@@ -115,9 +115,9 @@ describe('TeleconsultationService.startSession, completeSession and getSession',
     const appointment = await bookAppointment(scheduling, patient.id);
     const session = await teleconsultation.scheduleSession(appointment.id);
 
-    expect(() => teleconsultation.completeSession(session.id)).toThrow(BadRequestException);
+    expect(() => teleconsultation.completeSession(session.id, patient.id)).toThrow(BadRequestException);
     try {
-      teleconsultation.completeSession(session.id);
+      teleconsultation.completeSession(session.id, patient.id);
       expect.unreachable('expected completeSession to throw');
     } catch (error) {
       expect(error).toBeInstanceOf(BadRequestException);
@@ -132,10 +132,10 @@ describe('TeleconsultationService.startSession, completeSession and getSession',
     const patient = patients.register(validDemographics);
     const appointment = await bookAppointment(scheduling, patient.id);
     const session = await teleconsultation.scheduleSession(appointment.id);
-    teleconsultation.startSession(session.id);
+    teleconsultation.startSession(session.id, patient.id);
 
     try {
-      teleconsultation.startSession(session.id);
+      teleconsultation.startSession(session.id, patient.id);
       expect.unreachable('expected startSession to throw');
     } catch (error) {
       expect(error).toBeInstanceOf(BadRequestException);
@@ -153,7 +153,7 @@ describe('TeleconsultationService.cancelSession and markNoShow', () => {
     const appointment = await bookAppointment(scheduling, patient.id);
     const session = await teleconsultation.scheduleSession(appointment.id);
 
-    const cancelled = teleconsultation.cancelSession(session.id, 'Patient rescheduled');
+    const cancelled = teleconsultation.cancelSession(session.id, patient.id, 'Patient rescheduled');
 
     expect(cancelled.status).toBe('CANCELLED');
     expect(cancelled.cancelReason).toBe('Patient rescheduled');
@@ -165,7 +165,7 @@ describe('TeleconsultationService.cancelSession and markNoShow', () => {
     const appointment = await bookAppointment(scheduling, patient.id);
     const session = await teleconsultation.scheduleSession(appointment.id);
 
-    const noShow = teleconsultation.markNoShow(session.id);
+    const noShow = teleconsultation.markNoShow(session.id, patient.id);
 
     expect(noShow.status).toBe('NO_SHOW');
   });
@@ -175,10 +175,10 @@ describe('TeleconsultationService.cancelSession and markNoShow', () => {
     const patient = patients.register(validDemographics);
     const appointment = await bookAppointment(scheduling, patient.id);
     const session = await teleconsultation.scheduleSession(appointment.id);
-    teleconsultation.cancelSession(session.id, 'Patient rescheduled');
+    teleconsultation.cancelSession(session.id, patient.id, 'Patient rescheduled');
 
     try {
-      teleconsultation.cancelSession(session.id, 'Patient rescheduled again');
+      teleconsultation.cancelSession(session.id, patient.id, 'Patient rescheduled again');
       expect.unreachable('expected cancelSession to throw');
     } catch (error) {
       expect(error).toBeInstanceOf(BadRequestException);
@@ -193,10 +193,10 @@ describe('TeleconsultationService.cancelSession and markNoShow', () => {
     const patient = patients.register(validDemographics);
     const appointment = await bookAppointment(scheduling, patient.id);
     const session = await teleconsultation.scheduleSession(appointment.id);
-    teleconsultation.startSession(session.id);
+    teleconsultation.startSession(session.id, patient.id);
 
     try {
-      teleconsultation.cancelSession(session.id, 'Too late');
+      teleconsultation.cancelSession(session.id, patient.id, 'Too late');
       expect.unreachable('expected cancelSession to throw');
     } catch (error) {
       expect(error).toBeInstanceOf(BadRequestException);
@@ -211,10 +211,10 @@ describe('TeleconsultationService.cancelSession and markNoShow', () => {
     const patient = patients.register(validDemographics);
     const appointment = await bookAppointment(scheduling, patient.id);
     const session = await teleconsultation.scheduleSession(appointment.id);
-    teleconsultation.startSession(session.id);
+    teleconsultation.startSession(session.id, patient.id);
 
     try {
-      teleconsultation.markNoShow(session.id);
+      teleconsultation.markNoShow(session.id, patient.id);
       expect.unreachable('expected markNoShow to throw');
     } catch (error) {
       expect(error).toBeInstanceOf(BadRequestException);
@@ -234,6 +234,36 @@ describe('TeleconsultationService.listSessions', () => {
 
     expect(teleconsultation.listSessions(patient.id)).toEqual([session]);
     expect(teleconsultation.listSessions('someone-else')).toEqual([]);
+  });
+});
+
+// The gap a fresh survey found live: every route below `schedule` trusted a
+// bare session id with no ownership check at all, so any caller who knew or
+// guessed a session id — belonging to any patient in the system — could read,
+// start, complete, cancel or no-show it. `getSession` is now the only path
+// that resolves a session, and it 404s a real id that belongs to someone
+// else exactly like `RecordsService.#requireObservation` already does for an
+// observation id.
+describe('TeleconsultationService cross-owner access', () => {
+  it('404s getSession for a real session id when ownerId does not match', async () => {
+    const { patients, scheduling, teleconsultation } = buildStack();
+    const patient = patients.register(validDemographics);
+    const appointment = await bookAppointment(scheduling, patient.id);
+    const session = await teleconsultation.scheduleSession(appointment.id);
+
+    expect(() => teleconsultation.getSession(session.id, 'someone-else')).toThrow(NotFoundException);
+  });
+
+  it('404s startSession/completeSession/cancelSession/markNoShow for a session owned by someone else', async () => {
+    const { patients, scheduling, teleconsultation } = buildStack();
+    const patient = patients.register(validDemographics);
+    const appointment = await bookAppointment(scheduling, patient.id);
+    const session = await teleconsultation.scheduleSession(appointment.id);
+
+    expect(() => teleconsultation.startSession(session.id, 'someone-else')).toThrow(NotFoundException);
+    expect(() => teleconsultation.completeSession(session.id, 'someone-else')).toThrow(NotFoundException);
+    expect(() => teleconsultation.cancelSession(session.id, 'someone-else', 'not mine')).toThrow(NotFoundException);
+    expect(() => teleconsultation.markNoShow(session.id, 'someone-else')).toThrow(NotFoundException);
   });
 });
 

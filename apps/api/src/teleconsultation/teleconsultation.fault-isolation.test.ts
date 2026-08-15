@@ -104,10 +104,10 @@ describe('teleconsultation fault isolation', () => {
 
     scheduling.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
 
-    const started = teleconsultation.startSession(session.id);
+    const started = teleconsultation.startSession(session.id, patient.id);
     expect(started.status).toBe('ACTIVE');
 
-    const completed = teleconsultation.completeSession(session.id);
+    const completed = teleconsultation.completeSession(session.id, patient.id);
     expect(completed.status).toBe('COMPLETED');
   });
 });
