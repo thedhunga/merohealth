@@ -112,6 +112,62 @@ read that before the first task.
 
 ## Task queue
 
+# Round three — reconcile, then finish what the owner actually asked for
+
+Take these in order. Task 1 blocks everything: `main` and this branch have
+genuinely diverged (main +12, branch +105) and production deploys from `main`,
+so until they are one history the branch's work never reaches the live site.
+
+### A · Unblock
+
+- [ ] **Merge `origin/main` into this branch, resolve the conflicts, verify,
+      push.** Three files conflict. `Testimonials.tsx` and `RegisterView.tsx`
+      are competing redesigns of the same components, and
+      `docs/product/agent-progress.md` is this file. For Testimonials, main's
+      four-card grid is the newer design and wins on layout, but keep this
+      branch's `EditorialImage` fallback so a missing portrait degrades to
+      artwork rather than a broken image. Do not produce a hybrid that renders
+      both layouts.
+- [ ] Once the merge is green, fast-forward `main` to it and push, so a single
+      history feeds production.
+
+### B · The owner's open complaints — these are the point
+
+- [ ] **The homepage is still about 11.8 screens on a 375px phone.** It should
+      be four or five. Cut, do not reorder: collapse or drop `PartnerMarquee`
+      and `OrganizationTabs` below `lg`, trim `Testimonials` to two cards with
+      a link to the rest, and shorten `ServiceCards` copy. Measure with
+      `document.body.scrollHeight / innerHeight` before and after, and record
+      both numbers in the log.
+- [ ] **The clinical, light treatment exists only on the homepage.** The other
+      45 routes still open with the old dark hero. Push it through
+      `PageTemplate` and `SectionIntro` so every route inherits it. The
+      reference is WebMD: white surfaces, dense scannable type, utility over
+      atmosphere. Dark full-bleed reads editorial, not clinical.
+- [ ] **`/app` returns 404 in production.** The root `vercel.json` runs
+      `scripts/vercel-build.sh` to publish the Expo build there, but the Vercel
+      project's Root Directory is `apps/web`, so only `apps/web/vercel.json` is
+      ever read and that script never runs. Either invoke the Expo copy from
+      the app-level config or drop the footer's app-store links until it works.
+      **`apps/web/README.md` currently documents the opposite of the live
+      configuration — correct it.**
+
+### C · Gaps this inventory turned up
+
+- [ ] The four `portrait-*.webp` files were deleted while `Testimonials` still
+      requests them. Confirm the fallback renders cleanly, or restore them.
+- [ ] **No database has ever been run.** The Prisma schema, every repository
+      and the seed have never met a real Postgres — all of it is tested against
+      in-memory fakes. Bring up `compose.yaml`, migrate, seed, and fix what
+      only a real database reveals.
+- [ ] `GET /auth/me` is real and tested in `apps/api`, and nothing on the web
+      ever calls it. Add the session hook and a protected landing.
+- [ ] Launch gate in `docs/product/promotion-readiness.md`: what must be true
+      before `robots` stops saying noindex. Copy reviewed by a qualified Nepali
+      clinician, no fictional figures left anywhere, a real registered address.
+
+
+
 Tasks are ordered. Later ones assume earlier ones are done. **Everything below
 "Round one" is complete** — start at Round two.
 
