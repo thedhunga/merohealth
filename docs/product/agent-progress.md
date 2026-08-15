@@ -1202,11 +1202,63 @@ re-read the table itself rather than trust this paragraph.
       entry below (the one added by this run) for how the audit that found
       it was actually aimed at three unrelated hard constraints, and what
       else it ruled out.
+- [x] Widened `packages/care-directory`'s `searchDirectory` text search to
+      match on `municipality`, not just `name`/`nameNe`/`district`/
+      `specialties` — the feature gap the 2026-08-15 `devices` temperature run
+      named as a legitimate small next pick "if nothing better turns up."
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-15 — **Queue fully checked; widened `packages/care-directory`'s
+  `searchDirectory` to match on `municipality`.** Grepped for `- [ ]` first —
+  zero hits. The prior run (immediately below) had just closed the
+  Fahrenheit-body-temperature bug and left two named fallback candidates plus
+  one open item; this run checked all three before picking one.
+
+  **Checked and ruled out first.** `apps/web`'s message catalogues, the item
+  that run's own log entry left explicitly open ("not yet audited"): wrote a
+  script flattening both `ne.json` and `en.json` to dotted key paths and
+  diffing the sets — 664 keys each side, zero missing in either direction.
+  Then checked for the more likely real bug, a value copy-pasted identically
+  into both locales instead of translated: one pass over every key whose
+  `ne` and `en` values are byte-identical, filtered to values containing
+  alphabetic words with no Devanagari. Four hits, all legitimate
+  (`brand.nameLatin` = "MERO HEALTH", three `phonePlaceholder` keys =
+  "98XXXXXXXX") — not translation bugs. The catalogues are genuinely clean;
+  nothing to fix here.
+
+  **What was built instead.** The other named candidate,
+  `packages/care-directory/src/index.ts`'s `searchDirectory`: it filtered on
+  `[entity.name, entity.nameNe, entity.district, ...entity.specialties]`, so
+  a search for a municipality name (e.g. "Dhangadhi") matched nothing even
+  though `DirectoryEntity.municipality` is a required, populated field and
+  `apps/mobile/app/(tabs)/care.tsx` renders it right next to `district` in
+  every result row. The prior log entry had already checked the placeholder
+  copy ("Name, specialty or district…") doesn't promise municipality search,
+  so this was a quiet completeness gap rather than a broken promise. Added
+  `entity.municipality` to the matched-fields array — a one-line change,
+  since the fixed-value seed data (`fictionalDirectory`) needed no edits.
+
+  **Tests.** `packages/care-directory/src/index.test.ts`: one new case
+  searching `'Dhangadhi'` (matches only `demo-clinic-1`'s
+  `municipality: 'Dhangadhi Sub-Metropolitan'`, no other seed row's
+  name/nameNe/district/specialties contain it) and asserting the `CLINIC`
+  type comes back. Fails without the fix (empty result), passes with it.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/care-directory` 5/5 (4 baseline + 1 new), `@swasthya/api`
+  667/667 unchanged. `pnpm build` 40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** `packages/evaluation/src/index.ts`'s stale
+  "two cases carry `idealNote`" comment (still open, still cosmetic) is the
+  one named candidate left unaddressed from the prior entry. No new gap was
+  found in this run beyond the message-catalogue audit above, which came back
+  clean — a fresh independent survey is likely more productive than
+  re-checking either of those two.
 
 - 2026-08-15 — **Queue fully checked; `packages/devices`'s negative-reading
   guard on body temperature checked the wrong unit.** Grepped for `- [ ]`
