@@ -1346,6 +1346,85 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-15 — **Round three, task B1 continued: gave the shared `CtaBand`
+  (the closing call-to-action every route can end on, including the
+  homepage's `FinalCta`) a mobile spacing tier.** Still left unchecked — real
+  progress, target still not met.
+
+  **Selection.** Ran `awk '/^## Task queue/{flag=1} /^## Log/{flag=0} flag'
+  agent-progress.md | grep -n "^- \["` over the whole queue first, per the
+  2026-08-09 process-correction entry's standing instruction to re-derive the
+  first unchecked task from the raw checkbox list rather than trust the
+  previous entry's closing note. The literal first unchecked checkbox is
+  still "Two testimonial portraits are still missing (portrait-raju.webp,
+  portrait-mina.webp)." Confirmed via `ls apps/web/public/imagery/` that only
+  `portrait-sabina.webp` and `portrait-prakash.webp` exist — `git log` shows
+  those two landed in `808492d`, "first Higgsfield photography — two
+  portraits live, four scenes staged" (a run this ledger has no log entry
+  for), matching the credits-ran-out-mid-batch note already on the task.
+  `ToolSearch` found no Higgsfield tool available in this session at all, so
+  the task is genuinely blocked here too, exactly the pattern the
+  asset-brief.md gating check has hit on ~10 prior runs (see the many
+  "Skipped it again" log entries above). Not re-logged as its own blocker
+  entry since nothing changed and no attempt was made past confirming the
+  files still don't exist. Moved to the next unchecked item, B1.
+
+  **What changed.** `CtaBand.tsx` used `py-20 md:py-28` (no `sm:` step,
+  desktop padding straight through to 375px) and an unconditional `gap-6` —
+  the same shape `Hero`, `Testimonials` and `Footer` were in before their own
+  B1 passes. Matched `Testimonials`' exact section values (`py-14 sm:py-20
+  md:py-28`, the established convention for this breakpoint pair) and added
+  an `sm:` step to the content gap (`gap-4 sm:gap-6`). `sm` and up are
+  pixel-identical to before by construction — both changed classes keep
+  their original value behind the `sm:` prefix. `CtaBand` is shared
+  (`FinalCta`, `PageTemplate`, `ContactView`, `LegalIndexView`), so this also
+  shrinks the closing band on every inner route that ends on one, not only
+  the homepage — a welcome side effect, not the target of this task.
+
+  **Measured at 375×812** (`document.body.scrollHeight` /
+  `window.innerHeight`, production build via `next start`, Playwright at
+  `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` since this environment
+  has no `/opt/pw-browsers/chromium/chrome-linux` path — the binary lives one
+  directory level down from previous runs' recorded path, worth knowing if
+  that launch fails again): Nepali **6.11 → 6.04 screens** (4965px → 4901px,
+  **-64px**). English **6.57 → 6.49 screens** (5335px → 5271px, **-64px**).
+  Target is still four to five screens (3248–4060px); today's 4901px (ne) /
+  5271px (en) still needs roughly 841–1653px / 1211–2023px more. Tap targets
+  at 375px: 62 visible / 42 under 44px, unchanged — no interactive element
+  was resized, only the section padding and one gap.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 40/40 tasks; `pnpm build` 40/40. No new
+  test file — `CtaBand.tsx` has no colocated test today and this change adds
+  no branching logic, matching every other markup-only component in
+  `apps/web`. Checked the production build at 375px in both locales plus
+  `/en/contact` (a non-homepage `CtaBand` consumer): no horizontal overflow,
+  no new console errors beyond the already-documented `apps/api`
+  connection-refused (no local API running). Screenshotted the band at
+  375×812 — spacing still reads intentional, not cramped.
+
+  **For the next run.** Section-by-section breakdown of the homepage at
+  375px (ne): `SymptomEntry` 778px, `Hero`/record-story 969px, `ServiceCards`
+  774.5px, `OrganizationTabs` 0px (already hidden below `lg`), `Testimonials`
+  873px, `CtaBand` 398px (today's change), `Footer` 1027.75px. `Footer` is
+  the largest block and has already had two dedicated passes (`db8de18`
+  accordion collapse, `1298986` spacing scale-down) — this run measured it
+  directly (`document.querySelector('footer')` returns a card-level
+  `<footer>` first if you query too early in the DOM; use
+  `document.querySelectorAll('footer')` and take the last one, or query
+  `document.body`'s direct child) and confirmed 1027.75px is the genuine
+  post-both-optimizations figure, not a regression. Getting the homepage
+  into the 4-5 screen target from here needs a structural cut, not another
+  spacing pass: `Hero`, `Testimonials`, `ServiceCards`, `Footer`, and now
+  `CtaBand` have all had their easy spacing wins taken. The remaining lever
+  is probably collapsing or hiding whole sub-blocks below `sm`/`lg` (the
+  `Footer` nav-links accordion and `OrganizationTabs` hide are the only two
+  places that's been done so far) — `Footer`'s brand column (222.75px:
+  logo/tagline/HQ address/locale switcher) and its bottom row (316px:
+  download-app buttons + social icons + demo notice + copyright) are
+  candidates nobody has touched yet. Otherwise B3 (`/app` 404 in production)
+  is next in queue order.
+
 - 2026-08-15 — **Round three, preamble task: wired the four new scene
   photographs (`care-247.webp`, `primary-care.webp`, `healthy-habits.webp`,
   `clinicians.webp`) into `/individuals/24-7-care`, `/individuals/primary-care`,

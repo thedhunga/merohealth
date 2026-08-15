@@ -37,14 +37,14 @@ export function CtaBand({ id, heading, body, primaryCta, secondaryCta, className
     <section
       aria-labelledby={id}
       className={cn(
-        'relative overflow-hidden bg-linear-to-br from-indigo-700 to-indigo-900 py-20 md:py-28',
+        'relative overflow-hidden bg-linear-to-br from-indigo-700 to-indigo-900 py-14 sm:py-20 md:py-28',
         className,
       )}
     >
       <PulseLine className="absolute inset-x-0 top-10 h-24 text-white/15" />
       <PulseLine className="absolute inset-x-0 bottom-10 h-24 text-white/10" />
 
-      <div className="container-site reveal relative flex flex-col items-center gap-6 text-center">
+      <div className="container-site reveal relative flex flex-col items-center gap-4 text-center sm:gap-6">
         <h2 className="max-w-3xl text-3xl font-bold text-balance text-white md:text-5xl" id={id}>
           {heading}
         </h2>
