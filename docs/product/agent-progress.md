@@ -1332,6 +1332,69 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-15 — **Round three, task B1 continued: `Footer` trimmed to a mobile
+  spacing scale.** Still left unchecked — real progress, target still not
+  met, and this is exactly the lever the immediately preceding B1 entry named
+  ("the footer is now the single largest homepage block … and hasn't been
+  touched … none of those has been measured individually yet").
+
+  **What changed.** `Footer.tsx` used the same padding/gap values at every
+  width below `lg` (`py-16 md:py-20` outer, `gap-12` grid, `gap-6` brand
+  block, `mt-14`/`gap-8`/`pt-8` bottom section, `p-4` demo-notice card) —
+  desktop spacing carried straight down to 375px with nothing scaled for the
+  phone the product is measured at. Added an `sm:` (640px) step below each of
+  those five values, matching the breakpoint the file's own nav-link
+  accordion already uses to distinguish "the 375px phone" from everything
+  above it — `sm:` and up are untouched, so `sm`, `md`, `lg` and desktop stay
+  pixel-identical to before (confirmed by re-measuring at 768px and 1280px
+  before and after: 1641.25px/1660.75px and 780.5px/780.5px respectively,
+  unchanged). No copy changed, so no message-file edits. Caught and fixed one
+  self-inflicted inconsistency before finishing: the grid-gap edit was first
+  gated behind `lg:` (matching the column-layout breakpoint) rather than
+  `sm:` like the other four values, which would have made the 768px
+  checkpoint see a mix of already-reverted and still-reduced spacing:
+  standardised all five on `sm:` before measuring the final numbers below.
+
+  **Measured at 375×812** (`document.body.scrollHeight / innerHeight`,
+  production build via `next start`, fresh server per build — killed and
+  confirmed dead with `ps aux` before every rebuild per the standing pitfall
+  note — Playwright at `/opt/pw-browsers/chromium`): Nepali **7.08 → 6.90
+  screens** (5747px → 5603px, **-144px**). English **7.57 → 7.39 screens**
+  (6144px → 6000px, **-144px** — identical delta both locales, as expected:
+  the spacing removed doesn't scale with copy length). Target is still four
+  to five screens (3248–4060px); today's 5603px needs roughly 1350–2350px
+  more.
+
+  **`Footer` height:** Nepali 1171.75px → 1027.75px (-144px), English
+  1214px → 1070px (-144px). Tap targets: unchanged — every interactive
+  element (`min-h-11` accordion summaries, `min-h-11` app-store links,
+  `size-10` social icons) kept its own dimensions; only the padding and gaps
+  around them shrank.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks; `pnpm build` 40/40 (no new
+  test file — matches every existing file under `apps/web/src/components`,
+  which unit-tests logic only, never markup for `apps/web`). Production
+  build checked with `next start` at 375px (both locales), 768px and 1280px:
+  no horizontal overflow at any width, footer screenshot at 375px confirmed
+  legible with no cramping or overlap, no new console errors beyond the two
+  already-documented pre-existing ones (missing story video source,
+  `apps/api` connection-refused with no local API running).
+
+  **For the next run.** `ServiceCards` (1149px Nepali / 1164px English) is
+  now the single largest homepage block again, just ahead of `Footer`
+  (1028px/1070px) and `Hero`/record-story (1101px/1178px) — all three are
+  now close enough together (within ~150px) that no single further cut gets
+  most of the way to target alone; closing the remaining ~1350–2350px gap
+  likely needs a cut from more than one of them, or a harder look at whether
+  `ServiceCards`' five non-featured cards (already at their `min-h-72` floor)
+  can drop to four below `lg`, the reorder-free lever B1's own task text
+  hasn't authorized yet. `Testimonials` (1005px/1199px, still full-bleed
+  dark) remains the section most at odds with task B2's WebMD-not-editorial
+  direction. Otherwise B3 (`/app` 404 in production) is next in queue order,
+  or task C's tap-target backlog (43 elements still under 44px on the
+  homepage alone, unchanged for five runs now).
+
 - 2026-08-15 — **Round three, task B1 continued: `ServiceCards`' featured-card
   mobile floor shrunk from `min-h-[31rem]` to `min-h-72`.** Still left
   unchecked — real progress, target still not met, and this is exactly the

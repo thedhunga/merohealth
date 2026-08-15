@@ -27,9 +27,9 @@ export function Footer() {
 
   return (
     <footer className="bg-indigo-900 text-indigo-100">
-      <div className="container-site py-16 md:py-20">
-        <div className="grid gap-12 lg:grid-cols-12">
-          <div className="flex flex-col gap-6 lg:col-span-3">
+      <div className="container-site py-10 sm:py-16 md:py-20">
+        <div className="grid gap-8 sm:gap-12 lg:grid-cols-12">
+          <div className="flex flex-col gap-4 sm:gap-6 lg:col-span-3">
             <div className="flex flex-col gap-2">
               <span className="text-sm font-bold tracking-[0.14em] text-white">
                 {brand('nameLatin')}
@@ -111,7 +111,7 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-14 flex flex-col gap-8 border-t border-white/15 pt-8">
+        <div className="mt-8 flex flex-col gap-6 border-t border-white/15 pt-6 sm:mt-14 sm:gap-8 sm:pt-8">
           <div className="flex flex-wrap items-center justify-between gap-6">
             <div className="flex flex-col gap-3">
               <span className="text-xs font-bold tracking-[0.12em] text-white uppercase">
@@ -159,7 +159,7 @@ export function Footer() {
             </div>
           </div>
 
-          <p className="rounded-xl bg-white/10 p-4 text-xs leading-relaxed text-indigo-100">
+          <p className="rounded-xl bg-white/10 p-3 text-xs leading-relaxed text-indigo-100 sm:p-4">
             {t('demoNotice')}
           </p>
 
