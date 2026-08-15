@@ -1332,6 +1332,55 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-15 — **Round three, task B1 continued: `ServiceCards` collapses
+  to 2 mobile cards, not 3.** Still left unchecked — closer, target still not
+  met, and this is exactly the lever the prior B1 entry's own "for the next
+  run" note named.
+
+  **What changed.** `ServiceCards.tsx`'s `COLLAPSED_COUNT` constant
+  (featured card + this many follow-on cards render below `lg` before "Show
+  more") went from `2` to `1`, so the default mobile view is the featured
+  card plus one, not plus two. No other logic changed — the same
+  `collapsible`/`expanded` mechanism, the same `hidden lg:block` gate, so `md`
+  and `lg` are untouched (verified: 1280px still renders all 6 cards, no
+  horizontal overflow at 768px or 1280px).
+
+  **Measured at 375×812** (`document.body.scrollHeight / innerHeight`,
+  production build via `next start`, Playwright at `/opt/pw-browsers/
+  chromium`): Nepali **8.32 → 7.86 screens** (6758px → 6383px, -375px).
+  English **8.89 → 8.39 screens** (7216px → 6816px, -400px). Target is still
+  four to five screens (3248–4060px); today's 6383px needs roughly
+  2300–3100px more.
+
+  **Per-section breakdown after this change** (Nepali, 375px): header 80,
+  `Hero`/record-story 1275, `ServiceCards` **1357** (was 1732 — the whole
+  375px drop, as expected from removing exactly one card), `OrganizationTabs`
+  0 (hidden below `lg`), `Testimonials` 1259, `FinalCta` 462, footer 1172.
+  Three sections are now close in size — `ServiceCards`, `Hero`/record-story
+  and `Testimonials` — so no single one dominates the remaining budget.
+  Tap targets: 64 → 62 visible on load (removing a card removes its title
+  link and any pill links it carried), under-44px count 44 → 43 — moving in
+  the right direction but task C's backlog is effectively unchanged.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks; `pnpm build` 40/40 (no new
+  test file — matches every existing file under `apps/web/src/components`,
+  which unit-tests logic only, never markup). Production build checked with
+  `next start` at 375px (both locales), 768px and 1280px: no horizontal
+  overflow, no new console errors beyond the two already-documented
+  pre-existing ones (missing story video, `apps/api` connection-refused with
+  no local API running).
+
+  **For the next run.** Cutting one more `ServiceCards` card would drop the
+  featured card too, which the design leans on — not a reasonable next
+  lever. `Testimonials` (1259px, dark full-bleed, already renders only 2 of
+  its cards via `TestimonialsGrid`) and `Hero`/record-story (1275px) are the
+  two remaining large sections; shortening one or both, or reworking
+  `Testimonials`' video-plus-cards layout for mobile, is the only way left to
+  close a 2300px+ gap. Otherwise B3 (`/app` 404 in production) is next in
+  queue order, or task C's tap-target backlog (43 elements still under 44px
+  on the homepage alone).
+
 - 2026-08-15 — **Round three, task B1 continued: footer nav links collapse
   to a five-row accordion below `sm`.** Still left unchecked — the biggest
   single cut so far, target still not met, and this is exactly the concrete

@@ -15,7 +15,7 @@ import { cn } from '@/lib/cn';
  * past all six. At `lg`+ every card always shows: the 12-col layout below
  * assumes all six are present, and desktop height was never the problem.
  */
-const COLLAPSED_COUNT = 2;
+const COLLAPSED_COUNT = 1;
 
 export function ServiceCards() {
   const t = useTranslations('home.services');
