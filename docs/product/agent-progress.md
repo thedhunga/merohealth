@@ -1332,6 +1332,75 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-15 — **Round three, task B1 continued: footer nav links collapse
+  to a five-row accordion below `sm`.** Still left unchecked — the biggest
+  single cut so far, target still not met, and this is exactly the concrete
+  next lever the B2 entry above named ("compacting the footer... shared
+  across all ~45 routes").
+
+  **What changed.** `Footer.tsx`'s five nav-link columns
+  (`footerColumns` — individuals/organizations/clinicians/who-we-are/
+  helpful-links, 30 links total) stacked as a single column below `sm`
+  (640px) because the grid was `sm:grid-cols-2`. That's the same pattern
+  `FaqList.tsx` already solved with native `<details>`/`<summary>` — no JS,
+  expand/collapse state is free accessibility via the browser, and it's
+  already precedent in this codebase. Below `sm`, each column now renders as
+  a `<details>` with the heading as a `min-h-11` `<summary>` (closed by
+  default); the original always-open `sm:grid sm:grid-cols-2 lg:grid-cols-5`
+  layout is untouched at `sm` and up — verified by `getComputedStyle` at
+  768px and 1280px that the accordion `display: none`s and the grid renders
+  all 5 columns as before. No new translation keys needed; reuses the
+  existing `headings.*`/`nav.items.*` strings.
+
+  **Measured at 375×812** (`document.body.scrollHeight / innerHeight`,
+  production build via `next start`, Playwright at `/opt/pw-browsers/
+  chromium`): Nepali **11.06 → 8.32 screens** (8978px → 6758px, -2220px).
+  English **10.05 → 8.89 screens** (8161px → 7216px, -945px — smaller
+  because English's longer footer link labels meant less was single-column
+  before this change; the footer element itself dropped 2116px → 1172px in
+  both locales, consistent with the prior entry's per-section breakdown).
+  Note the English before-number here (8161) is B2's post-light-treatment
+  figure, not a fresh re-measurement — B2 didn't touch the homepage (its own
+  entry says so explicitly), so it's the correct baseline.
+
+  **Per-section breakdown after this change** (Nepali, 375px): header 80,
+  `SymptomEntry` 778, `Hero`/record-story 1275, `ServiceCards` 1732,
+  `OrganizationTabs` 0 (hidden below `lg`), `Testimonials` 1259, `FinalCta`
+  462, **footer 1172** (was 2116). `ServiceCards` is now the largest single
+  section, with `Hero`/record-story and `Testimonials` close behind — none
+  of the three has been touched since the B1-continued/B2 runs. Reaching
+  four or five screens (3248–4060px) from today's 6758px needs about
+  2700px more, which is bigger than one more accordion-style cut; it's
+  probably `ServiceCards` down from 3 mobile cards to 2, `Testimonials` down
+  from 2 cards to 1, or shortening `Hero`'s record-story block, and likely
+  more than one of those together.
+
+  **Verified, not assumed, that this didn't quietly move the tap-target
+  problem.** `document.querySelector('footer')` first returned the *wrong*
+  element — `Testimonials`' fallback avatar caption also uses a bare
+  `<footer>` tag (61px, unrelated to this change, pre-existing) — worth
+  remembering for any future script that queries `footer` on this homepage;
+  select `footer.bg-indigo-900` instead. Tap targets visible on load: 59 →
+  64 (the 5 new `<summary>` rows), under-44px count unchanged at 44 — the
+  summaries are `min-h-11` (44px) so none of them add to task C's backlog.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks (686 tests in `apps/api`,
+  77 in `apps/web` — no new test file: `apps/web` only unit-tests logic
+  modules, never component markup, matching every existing file under
+  `apps/web/src/components`); `pnpm build` 40/40. Production build checked
+  with `next start` at 375px (both locales), 768px and 1280px: no
+  horizontal overflow, no new console errors beyond the two already-
+  documented pre-existing ones (missing story video, `apps/api`
+  connection-refused with no local API running), accordion opens on click
+  (scripted), grid unchanged at `sm`/`lg`.
+
+  **For the next run.** If continuing B1: `ServiceCards` (1732px, now the
+  largest section) is the next concrete lever — collapsing its mobile
+  reveal from 3 cards to 2, matching `Testimonials`' pattern. Otherwise B3
+  (`/app` 404 in production) is next in queue order, or task C's tap-target
+  backlog (44 elements still under 44px on the homepage alone).
+
 - 2026-08-15 — **Round three, task B2: pushed the light, clinical treatment
   through `PageTemplate`/`SectionIntro` to every inner route.** Checked off —
   the change is a two-line default flip, but it reaches everywhere the queue
