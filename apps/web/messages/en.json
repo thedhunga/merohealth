@@ -250,7 +250,9 @@
         "chest": "Chest pain",
         "skin": "Skin"
       },
-      "disclaimer": "This is not a diagnosis. In an emergency, go to the nearest hospital immediately."
+      "disclaimer": "This is not a diagnosis. In an emergency, go to the nearest hospital immediately.",
+      "voiceListening": "Listening… tap again to stop",
+      "voiceDenied": "Microphone permission is needed. Allow it in your browser settings, or type your question instead."
     }
   },
   "common": {
@@ -1220,7 +1222,9 @@
       "voice": "Use the voice companion",
       "checking": "Checking safely…",
       "submit": "Check safely",
-      "privacy": "Your question is not placed in the URL. It is held only in this browser tab while the care page opens, then removed. Do not enter names, record numbers, or other identifying details."
+      "privacy": "Your question is not placed in the URL. It is held only in this browser tab while the care page opens, then removed. Do not enter names, record numbers, or other identifying details.",
+      "voiceListening": "Listening… tap to stop",
+      "voiceDenied": "Microphone permission is needed. Allow it in your browser settings, or type your question instead."
     },
     "idle": {
       "heading": "What happens before an answer",
@@ -1240,7 +1244,9 @@
       "eyebrow": "Cited general information",
       "heading": "What current sources say",
       "sources": "Sources you can open",
-      "related": "Related questions"
+      "related": "Related questions",
+      "listen": "Listen",
+      "listenStop": "Stop"
     },
     "setup": {
       "heading": "Cited research needs one final setup step",

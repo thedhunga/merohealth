@@ -2,11 +2,13 @@
 
 import Image from 'next/image';
 import { useState } from 'react';
-import { useTranslations } from 'next-intl';
 import { ArrowRight, HeartPulse, LockKeyhole, Mic, Search, ShieldCheck } from 'lucide-react';
 
+import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/navigation';
 import { storeCareQuestion } from '@/lib/get-care-session';
+import { useSpeechDictation } from '@/hooks/useSpeechDictation';
+import { cn } from '@/lib/cn';
 
 const QUICK_KEYS = ['fever', 'headache', 'stomach', 'cough', 'chest', 'skin'] as const;
 
@@ -15,7 +17,11 @@ export function SymptomEntry() {
   const symptom = useTranslations('home.symptom');
   const hero = useTranslations('home.hero');
   const router = useRouter();
+  const locale = useLocale();
   const [value, setValue] = useState('');
+  const dictation = useSpeechDictation(locale, (text) => {
+    setValue((current) => (current ? `${current} ${text}` : text));
+  });
 
   const submit = (text: string) => {
     const trimmed = text.trim();
@@ -109,16 +115,32 @@ export function SymptomEntry() {
                   type="search"
                   value={value}
                 />
-                <button
-                  aria-label={symptom('voiceLabel')}
-                  className="grid size-12 shrink-0 place-items-center rounded-xl text-ink-soft transition-colors hover:bg-white"
-                  onClick={() => {
-                    window.location.assign('/app/companion');
-                  }}
-                  type="button"
-                >
-                  <Mic aria-hidden className="size-5" />
-                </button>
+                {/*
+                  Dictates in place. This used to navigate to /app/companion,
+                  which 404s in production — the "microphone error" was a dead
+                  route. Rendered only where the Web Speech API exists, so no
+                  browser ever shows a control that cannot work.
+                */}
+                {dictation.supported ? (
+                  <button
+                    aria-label={
+                      dictation.status === 'listening'
+                        ? symptom('voiceListening')
+                        : symptom('voiceLabel')
+                    }
+                    aria-pressed={dictation.status === 'listening'}
+                    className={cn(
+                      'grid size-12 shrink-0 place-items-center rounded-xl transition-colors',
+                      dictation.status === 'listening'
+                        ? 'animate-pulse bg-danger-100 text-danger-500 motion-reduce:animate-none'
+                        : 'text-ink-soft hover:bg-white',
+                    )}
+                    onClick={dictation.toggle}
+                    type="button"
+                  >
+                    <Mic aria-hidden className="size-5" />
+                  </button>
+                ) : null}
                 <button
                   aria-label={symptom('submitLabel')}
                   className="grid size-12 shrink-0 place-items-center rounded-xl bg-marigold-500 text-indigo-950 transition-colors hover:bg-marigold-300"
@@ -147,7 +169,9 @@ export function SymptomEntry() {
                 </li>
               ))}
             </ul>
-            <p className="mt-3 text-xs leading-relaxed text-ink-soft">{symptom('disclaimer')}</p>
+            <p aria-live="polite" className="mt-3 text-xs leading-relaxed text-ink-soft">
+              {dictation.status === 'denied' ? symptom('voiceDenied') : symptom('disclaimer')}
+            </p>
           </div>
         </div>
       </div>

@@ -12,6 +12,7 @@ import {
   Mic,
   RotateCcw,
   Search,
+  Volume2,
   ShieldCheck,
   TriangleAlert,
 } from 'lucide-react';
@@ -22,6 +23,9 @@ import type {
   ResearchLanguage,
 } from '@/lib/companion-research';
 import { consumeCareQuestion } from '@/lib/get-care-session';
+import { useSpeechPlayback } from '@/hooks/useSpeechPlayback';
+import { useSpeechDictation } from '@/hooks/useSpeechDictation';
+import { cn } from '@/lib/cn';
 
 type Phase = 'idle' | 'loading' | 'emergency' | 'result' | 'unavailable';
 
@@ -32,6 +36,9 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
   const [question, setQuestion] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [response, setResponse] = useState<CompanionResearchResponse | null>(null);
+  const dictation = useSpeechDictation(locale, (text) => {
+    setQuestion((current) => (current ? `${current} ${text}` : text));
+  });
 
   useEffect(() => {
     const storedQuestion = consumeCareQuestion();
@@ -122,13 +129,32 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
                     value={question}
                   />
                   <div className="mt-2 flex flex-col-reverse gap-3 border-t border-line pt-3 sm:flex-row sm:items-center sm:justify-between">
-                    <a
-                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-pill px-4 text-sm font-semibold text-indigo-800 hover:bg-indigo-50"
-                      href="/app/companion"
-                    >
-                      <Mic aria-hidden className="size-4" />
-                      {t('form.voice')}
-                    </a>
+                    {/*
+                      In-place dictation. The previous version linked to
+                      /app/companion, which 404s in production — the reported
+                      "microphone error" was that dead route. Hidden entirely
+                      where the Web Speech API is absent.
+                    */}
+                    {dictation.supported ? (
+                      <button
+                        aria-pressed={dictation.status === 'listening'}
+                        className={cn(
+                          'inline-flex min-h-12 items-center justify-center gap-2 rounded-pill px-4 text-sm font-semibold transition-colors',
+                          dictation.status === 'listening'
+                            ? 'animate-pulse bg-danger-100 text-danger-500 motion-reduce:animate-none'
+                            : 'text-indigo-800 hover:bg-indigo-50',
+                        )}
+                        onClick={dictation.toggle}
+                        type="button"
+                      >
+                        <Mic aria-hidden className="size-4" />
+                        {dictation.status === 'listening'
+                          ? t('form.voiceListening')
+                          : t('form.voice')}
+                      </button>
+                    ) : (
+                      <span />
+                    )}
                     <button
                       className="inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-marigold-500 px-6 font-bold text-indigo-950 transition-colors hover:bg-marigold-300 disabled:cursor-not-allowed disabled:opacity-60"
                       disabled={question.trim().length < 3 || phase === 'loading'}
@@ -155,6 +181,7 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
                   {phase === 'result' && response?.research ? (
                     <ResearchPanel
                       key="result"
+                      locale={locale}
                       research={response.research}
                       reset={reset}
                       submitQuestion={submitQuestion}
@@ -255,12 +282,15 @@ function ResearchPanel({
   research,
   reset,
   submitQuestion,
+  locale,
 }: {
   research: HealthResearch;
   reset: () => void;
   submitQuestion: (question: string) => Promise<void>;
+  locale: ResearchLanguage;
 }) {
   const t = useTranslations('getCare');
+  const playback = useSpeechPlayback(locale);
 
   if (research.status !== 'complete' || !research.answer) {
     return <SetupPanel research={research} reset={reset} />;
@@ -268,9 +298,32 @@ function ResearchPanel({
 
   return (
     <Panel className="bg-white ring-1 ring-line">
-      <div className="flex items-center gap-3 text-success-700">
-        <CheckCircle2 aria-hidden className="size-6" />
-        <p className="text-sm font-extrabold tracking-wide uppercase">{t('result.eyebrow')}</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 text-success-700">
+          <CheckCircle2 aria-hidden className="size-6" />
+          <p className="text-sm font-extrabold tracking-wide uppercase">{t('result.eyebrow')}</p>
+        </div>
+        {/*
+          Reads the answer aloud in the interface language. Only rendered when
+          a matching voice exists on the device, so Nepali is never mangled
+          through an English voice — see useSpeechPlayback.
+        */}
+        {playback.available ? (
+          <button
+            aria-pressed={playback.speaking}
+            className={cn(
+              'inline-flex min-h-11 shrink-0 items-center gap-2 rounded-pill px-4 text-sm font-semibold transition-colors',
+              playback.speaking
+                ? 'bg-indigo-100 text-indigo-800'
+                : 'text-indigo-800 hover:bg-indigo-50',
+            )}
+            onClick={() => playback.toggle(research.answer ?? '')}
+            type="button"
+          >
+            <Volume2 aria-hidden className="size-4" />
+            {playback.speaking ? t('result.listenStop') : t('result.listen')}
+          </button>
+        ) : null}
       </div>
       <h2 className="mt-4 text-2xl">{t('result.heading')}</h2>
       <p className="mt-4 whitespace-pre-wrap text-base leading-7">{research.answer}</p>
