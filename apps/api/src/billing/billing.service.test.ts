@@ -1,4 +1,4 @@
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
@@ -166,6 +166,25 @@ describe('BillingService.listInvoices', () => {
 
     expect(billing.listInvoices('patient-1')).toEqual([invoice]);
     expect(billing.listInvoices('patient-2')).toEqual([]);
+  });
+});
+
+describe('BillingService.getInvoiceForOwner', () => {
+  it("reads back the owner's own invoice", async () => {
+    const { charting, billing } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const invoice = await billing.openInvoice(encounter.id, { clinicianId: 'clinician-1' });
+
+    expect(billing.getInvoiceForOwner(invoice.id, 'patient-1')).toEqual(invoice);
+  });
+
+  it('404s an invoice that belongs to a different patient, exactly like a missing id', async () => {
+    const { charting, billing } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const invoice = await billing.openInvoice(encounter.id, { clinicianId: 'clinician-1' });
+
+    expect(() => billing.getInvoiceForOwner(invoice.id, 'someone-else')).toThrow(NotFoundException);
+    expect(() => billing.getInvoiceForOwner('no-such-invoice', 'patient-1')).toThrow(NotFoundException);
   });
 });
 

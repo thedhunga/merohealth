@@ -1,6 +1,9 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
+import type { CurrentUserResult } from '../auth/auth.service.js';
+import { CurrentUser } from '../auth/current-user.decorator.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { BillingService } from './billing.service.js';
 
 const openInvoiceSchema = z.object({
@@ -34,7 +37,24 @@ function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
   return parsed.data;
 }
 
-/** Row 10 of clinical-suite.md's capability map: billing, claims, revenue cycle. */
+/**
+ * Row 10 of clinical-suite.md's capability map: billing, claims, revenue
+ * cycle.
+ *
+ * `listInvoices`/`getInvoice` carry `SessionAuthGuard` and are scoped to the
+ * caller — a prior version of this file left both fully unauthenticated
+ * (`GET /billing/invoices` with no `patientId` returned every patient's
+ * invoices, line items and payments system-wide; `GET
+ * /billing/invoices/:invoiceId` read any invoice by a guessed or leaked id),
+ * the identical gap `TeleconsultationController` was fixed for one run
+ * earlier — see that file's doc comment. `openInvoice`/`addLineItem`/
+ * `issueInvoice`/`recordPayment`/`voidInvoice` stay unguarded: they are
+ * clinic/billing-staff actions (`clinicianId`/`recordedBy` are free-text
+ * fields trusted from the request body, the same as across the rest of this
+ * clinical suite), and this app has no clinician-side session to check them
+ * against yet. Gating them behind a *patient* `SessionAuthGuard` would not
+ * make them correct, only unusable.
+ */
 @ApiTags('billing')
 @Controller('billing')
 export class BillingController {
@@ -57,18 +77,19 @@ export class BillingController {
   }
 
   @Get('invoices')
-  @ApiOperation({ summary: 'List invoices, optionally filtered by patientId' })
-  @ApiQuery({ name: 'patientId', required: false })
-  listInvoices(@Query('patientId') patientId?: string) {
-    const invoices = this.billing.listInvoices(patientId);
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: "List the signed-in caller's own invoices" })
+  listInvoices(@CurrentUser() user: CurrentUserResult) {
+    const invoices = this.billing.listInvoices(user.subjectId);
     return { invoices, total: invoices.length };
   }
 
   @Get('invoices/:invoiceId')
+  @UseGuards(SessionAuthGuard)
   @ApiParam({ name: 'invoiceId' })
-  @ApiOperation({ summary: 'Read one invoice by opaque id' })
-  getInvoice(@Param('invoiceId') invoiceId: string) {
-    return this.billing.getInvoice(invoiceId);
+  @ApiOperation({ summary: "Read one of the caller's own invoices by opaque id" })
+  getInvoice(@CurrentUser() user: CurrentUserResult, @Param('invoiceId') invoiceId: string) {
+    return this.billing.getInvoiceForOwner(invoiceId, user.subjectId);
   }
 
   @Post('invoices/:invoiceId/line-items')

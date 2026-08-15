@@ -274,6 +274,13 @@ Design in
       `DiagnosticsOrdersService` were each already fixed for across the four
       prior runs, and the one the most recent of those runs' own log entry
       named as the last module with this exact shape.
+- [x] Queue exhausted a ninth time — closed the same missing-`SessionAuthGuard`
+      gap in `BillingController` that the immediately preceding
+      `TeleconsultationController` fix's own log entry named as the natural
+      next pick: `listInvoices`/`getInvoice` let any unauthenticated caller
+      list or read every patient's invoices, line items and payments
+      system-wide. See the 2026-08-15 log entry below for what stayed
+      unguarded and why.
 
 ### Visual system — Round one, complete
 
@@ -1228,6 +1235,87 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-15 — **Queue fully checked; `BillingController`'s `listInvoices`
+  and `getInvoice` had no `SessionAuthGuard` at all, letting any
+  unauthenticated caller list or read every patient's invoices, line items
+  and payments system-wide.** Grepped for `- [ ]` first — zero hits.
+
+  **Why this task.** The immediately preceding run's own log entry (below)
+  named this exact gap as "the natural next pick, same severity (financial
+  PHI instead of video-consult PHI), same fix shape" as the
+  `TeleconsultationController` fix it had just made. Confirmed live by
+  reading `billing.controller.ts` directly: no `@UseGuards` anywhere on the
+  class or any of its seven routes.
+
+  **What was wrong.** `GET /billing/invoices` took an *optional* `patientId`
+  query param — omitting it returned every invoice in the system, and
+  supplying any patient's id (real or guessed) returned that patient's
+  invoices with no proof the caller was them. `GET
+  /billing/invoices/:invoiceId` read any invoice by its opaque id alone, no
+  auth of any kind.
+
+  **The fix.** Added `@UseGuards(SessionAuthGuard)` to `listInvoices` and
+  `getInvoice`. `listInvoices` now reads the owner from `@CurrentUser()`
+  instead of the client-supplied query param — a caller can no longer list
+  another patient's invoices at all, not even by passing their id
+  explicitly. `getInvoice` resolves through a new
+  `BillingService.getInvoiceForOwner(id, ownerId)`, which 404s (not 403s) an
+  invoice that exists but belongs to someone else — the same
+  "belongs-to-someone-else 404s like it doesn't exist" rule
+  `TeleconsultationService.getSession`/`RecordsService.#requireObservation`
+  already use. The existing unowned `BillingService.getInvoice(id)` was left
+  in place for the staff-side transitions (`addLineItem`/`issueInvoice`/
+  `recordPayment`/`voidInvoice`) that call it internally, and
+  `BillingService.listInvoices(patientId?)` keeps its optional signature
+  since `AnalyticsService.billingSummary` calls it unfiltered for a
+  system-wide aggregate — an internal, server-side call, never a
+  client-controlled route.
+
+  **What was deliberately left out.** `openInvoice`/`addLineItem`/
+  `issueInvoice`/`recordPayment`/`voidInvoice` stay unguarded. Unlike
+  teleconsultation's start/complete/cancel/no-show — patient-initiated
+  transitions on the patient's own session — these are clinic/billing-staff
+  actions (`clinicianId`/`recordedBy` are free-text fields trusted from the
+  request body, the same as across the rest of the clinical suite), and this
+  app has no clinician-side session to check them against yet, the same gap
+  the preceding run's log entry described for teleconsultation. Gating a
+  staff action behind a *patient* `SessionAuthGuard` would not make it
+  correct, only unusable — inventing a clinician identity to check against
+  would be a materially bigger, separate piece of work, not a same-shape fix.
+
+  **Tests.** `billing.controller.test.ts`: added an entitlement-wiring
+  `describe` block asserting `listInvoices`/`getInvoice` carry
+  `[SessionAuthGuard]` and the five staff-side mutation routes plus `health`
+  carry no guard at all (locking in the deliberate asymmetry above so a
+  future run doesn't misread it the way a prior `TeleconsultationController`
+  test suite once locked in its own missing guards as intended behaviour);
+  rewrote the `listInvoices`/`getInvoice` test to use a `CurrentUserResult`
+  instead of a raw `patientId` string, and added a case 404ing a real invoice
+  id under a different caller. `billing.service.test.ts`: two new cases for
+  `getInvoiceForOwner` — reads the owner's own invoice back, 404s both a
+  wrong-owner id and a nonexistent one. All new cases fail against the
+  pre-fix code and pass with it. No client in `apps/web` or `apps/mobile`
+  calls any billing route yet, so no client code needed updating.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 682/682 (677 baseline + 5 new). `pnpm build` 40/40 (35
+  cached, 5 rebuilt).
+
+  **For the next run.** The `TeleconsultationController` survey (named two
+  runs back now) also flagged the same missing-guard pattern as plausible in
+  `scheduling`/`referrals`/`diagnostics-orders`/`prescribing`/
+  `clinical-charting`/`immunization`'s own read routes, judged lower urgency
+  than teleconsultation/billing (no financial or live-consult data) and not
+  yet verified by reading source. That verification is still owed. Of those,
+  `clinical-charting` is worth checking first: its `GET
+  /clinical-charting/encounters/:encounterId/notes` route (confirmed by
+  reading `clinical-charting.controller.ts` to have no `@UseGuards` either)
+  returns the free-text SOAP notes recorded against an encounter — clinical
+  narrative, not just structured fields — which would make an unguarded leak
+  there comparably serious to billing's, if the same missing-guard shape
+  holds once read all the way through.
 
 - 2026-08-15 — **Queue fully checked; `TeleconsultationController` left six of
   its seven routes with no `SessionAuthGuard` at all, letting any

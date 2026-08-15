@@ -69,6 +69,24 @@ export class BillingService {
     return invoice;
   }
 
+  /**
+   * `ownerId` is not just a filter here — until a clinician-side identity
+   * exists in this app (see `TeleconsultationController`'s doc comment for
+   * why), it is the only access control `GET /billing/invoices/:invoiceId`
+   * has, so an invoice that exists but belongs to someone else must 404
+   * exactly like one that does not exist at all, the same rule
+   * `TeleconsultationService.getSession`/`RecordsService.#requireObservation`
+   * already apply. `getInvoice` above stays unowned for the staff-side
+   * transitions below (`addLineItem`/`issueInvoice`/`recordPayment`/
+   * `voidInvoice`) — those have no caller identity to check against yet,
+   * unlike a patient reading their own invoice.
+   */
+  getInvoiceForOwner(id: string, ownerId: string): Invoice {
+    const invoice = this.getInvoice(id);
+    if (invoice.patientId !== ownerId) throw new NotFoundException(`No invoice ${id}`);
+    return invoice;
+  }
+
   listInvoices(patientId?: string): Invoice[] {
     return this.repository.list(patientId);
   }
