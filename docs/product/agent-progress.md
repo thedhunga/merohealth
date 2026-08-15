@@ -1332,6 +1332,80 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-15 — **Round three, task B1 continued: `Testimonials`' video player
+  and its "watch the video" pill are now `lg`-and-up only.** Still left
+  unchecked — real progress, target still not met, and this is exactly the
+  concrete next lever the immediately preceding B1 entry named ("`Testimonials`
+  … shortening one or both [with `Hero`/record-story]").
+
+  **What changed.** On a phone, `Testimonials.tsx` stacked the video player
+  (a decorative re-statement of content the quote cards already carry — no
+  extra information, pure height) directly above the same two testimonial
+  cards it duplicates. Wrapped the video block in `hidden lg:block`, matching
+  the pattern this same task already used for `OrganizationTabs`. The
+  "Watch the short video" eyebrow pill above the heading referenced that
+  video by name, so it would have read as broken with nothing to watch below
+  it — hidden it too (`hidden lg:inline-flex`), rather than leaving a
+  dangling label. Both reappear unchanged at `lg` and up; verified by
+  `getComputedStyle` at 768px (still hidden, below `lg`) and 1280px (visible
+  again). No copy changed, so no message-file edits. This also nudges the
+  homepage a step in the direction the art-direction section already
+  committed to with task B2 (light/clinical over full-bleed-dark editorial):
+  one less full-bleed dark video block competing for a worried visitor's
+  attention on the one device that matters most.
+
+  **A rebuild pitfall worth recording:** the first "after" measurement showed
+  scroll height *increasing* to 9154px with every tap target under 44px —
+  not a regression, a stale-server artifact. `pnpm build` had run while the
+  previous `next start` process was still bound to the port; the old process
+  kept serving old HTML that referenced a *new* (post-rebuild) CSS chunk
+  hash, which 404/500'd, so the page rendered with zero Tailwind styles.
+  Confirmed via `curl` on the stylesheet URL (500) and `ss -ltnp` (the old
+  `next-server` pid still listening). Always kill the server, rebuild, then
+  start fresh before trusting a "before/after" number — don't reuse a server
+  process across a rebuild.
+
+  **Measured at 375×812** (`document.body.scrollHeight / innerHeight`,
+  production build via `next start`, fresh server per build, Playwright at
+  `/opt/pw-browsers/chromium`, baseline reconfirmed via `git stash` against
+  the same pipeline): Nepali **7.86 → 7.55 screens** (6383px → 6129px,
+  -254px). English **8.39 → 8.08 screens** (6816px → 6562px, -254px — same
+  delta both locales, as expected: the same fixed-height video block and pill
+  were removed in both). Target is still four to five screens
+  (3248–4060px); today's 6129px needs roughly 2100–2900px more.
+
+  **Per-section breakdown after this change** (Nepali, 375px): header 80,
+  `SymptomEntry` 778, `Hero`/record-story 1275 (untouched this run),
+  `ServiceCards` 1357 (untouched this run), `OrganizationTabs` 0 (hidden
+  below `lg`), `Testimonials` **1005** (was 1259), `FinalCta` 462, footer
+  1172. `ServiceCards` and `Hero`/record-story are now the two largest
+  sections and neither has been touched since the runs before this one.
+  Tap targets: 58 visible / 43 under 44px, unchanged from baseline in both
+  locales — the video and pill are non-interactive/decorative, so this cut
+  didn't move task C's backlog either direction.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks (686 tests in `apps/api`);
+  `pnpm build` 40/40 (no new test file — matches every existing file under
+  `apps/web/src/components`, which unit-tests logic only, never markup for
+  `apps/web`). Production build checked with `next start` at 375px (both
+  locales), 768px and 1280px: no horizontal overflow, video/pill correctly
+  absent below `lg` and present at `lg`+, no new console errors beyond the
+  two already-documented pre-existing ones (missing story video source,
+  `apps/api` connection-refused with no local API running).
+
+  **For the next run.** `Hero`/record-story (1275px) is the last untouched
+  large section and the next honest lever for B1 — it's arguably more
+  load-bearing than `Testimonials` (it's the core "how the record works"
+  explainer, not a duplicate), so look hard at whether any of its three
+  elements (photo, floating record-preview card, three-step list) can drop
+  or shrink on mobile before cutting content wholesale. `ServiceCards`
+  (1357px) was declared not further cuttable without dropping the featured
+  card in the immediately preceding entry — that reasoning still holds.
+  Otherwise B3 (`/app` 404 in production) is next in queue order, or task
+  C's tap-target backlog (43 elements still under 44px on the homepage
+  alone, unchanged for three runs now).
+
 - 2026-08-15 — **Round three, task B1 continued: `ServiceCards` collapses
   to 2 mobile cards, not 3.** Still left unchecked — closer, target still not
   met, and this is exactly the lever the prior B1 entry's own "for the next

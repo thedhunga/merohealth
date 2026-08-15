@@ -66,7 +66,7 @@ export function Testimonials() {
       <div className="container-site">
         <div className="grid gap-8 lg:grid-cols-[.72fr_1.28fr] lg:items-end">
           <div className="reveal">
-            <span className="inline-flex items-center gap-2 rounded-pill border border-white/15 bg-white/8 px-3 py-1.5 text-sm font-semibold text-indigo-100">
+            <span className="hidden items-center gap-2 rounded-pill border border-white/15 bg-white/8 px-3 py-1.5 text-sm font-semibold text-indigo-100 lg:inline-flex">
               <Sparkles aria-hidden className="size-4 text-marigold-300" />
               {t('watchVideo')}
             </span>
@@ -81,7 +81,11 @@ export function Testimonials() {
             </p>
           </div>
 
-          <div className="group relative aspect-video overflow-hidden rounded-[2rem] bg-indigo-900 shadow-menu ring-1 ring-white/10">
+          {/* The player is a nice-to-have next to the story copy, not load-bearing —
+              on a phone it is pure height with no extra information (the
+              testimonial cards below carry the same content), so it only
+              renders once there is room for it beside the text column. */}
+          <div className="group relative hidden aspect-video overflow-hidden rounded-[2rem] bg-indigo-900 shadow-menu ring-1 ring-white/10 lg:block">
             <video
               aria-label={t('watchVideo')}
               className="size-full object-cover"
