@@ -149,4 +149,49 @@ describe('CredentialingService reviewer actions', () => {
     expect(() => service.reject('missing', 'reviewer-1', 'reason')).toThrow(NotFoundException);
     expect(() => service.auditLog('missing')).toThrow(NotFoundException);
   });
+
+  it('refuses an approve that arrives before beginReview, as a 400 with a code rather than an uncaught 500', () => {
+    const service = buildService();
+    const application = service.submit(validSubmission); // EVIDENCE_SUBMITTED, no beginReview yet
+
+    expect(() => service.approve(application.id, 'reviewer-1')).toThrow(BadRequestException);
+    try {
+      service.approve(application.id, 'reviewer-1');
+      expect.unreachable('expected approve to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'ApplicationTransitionError' });
+    }
+  });
+
+  it('refuses a second beginReview on the same application, as a 400 with a code rather than an uncaught 500', () => {
+    const service = buildService();
+    const application = service.submit(validSubmission);
+    service.beginReview(application.id, 'reviewer-1'); // now UNDER_REVIEW
+
+    expect(() => service.beginReview(application.id, 'reviewer-2')).toThrow(BadRequestException);
+    try {
+      service.beginReview(application.id, 'reviewer-2');
+      expect.unreachable('expected beginReview to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'ApplicationTransitionError' });
+    }
+  });
+
+  it('refuses a reject on an already-decided application, as a 400 with a code rather than an uncaught 500', () => {
+    const service = buildService();
+    const application = service.submit(validSubmission);
+    service.beginReview(application.id, 'reviewer-1');
+    service.approve(application.id, 'reviewer-1'); // now APPROVED, a terminal status
+
+    expect(() => service.reject(application.id, 'reviewer-1', 'too late')).toThrow(BadRequestException);
+    try {
+      service.reject(application.id, 'reviewer-1', 'too late');
+      expect.unreachable('expected reject to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'ApplicationTransitionError' });
+    }
+  });
 });

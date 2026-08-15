@@ -1206,11 +1206,78 @@ re-read the table itself rather than trust this paragraph.
       match on `municipality`, not just `name`/`nameNe`/`district`/
       `specialties` — the feature gap the 2026-08-15 `devices` temperature run
       named as a legitimate small next pick "if nothing better turns up."
+- [x] Closed the same wrong-state-domain-error-reaches-the-client-as-a-bare-500
+      gap in `apps/api`'s `CredentialingService.beginReview`/`approve`/
+      `reject` — the sibling the `IdentityService` fix's own log entry named
+      as "very likely the same bug copy-pasted into a second file," per its
+      doc comment lineage claiming to mirror identity's state machine
+      exactly.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-15 — **Queue fully checked; `CredentialingService`'s `beginReview`,
+  `approve` and `reject` had the identical wrong-state-domain-error-reaches-
+  the-client-as-a-bare-500 gap the immediately preceding run had just fixed
+  in `IdentityService`.** Grepped for `- [ ]` first — zero hits.
+
+  **Why this task.** The prior run's own log entry named this exact file as
+  the natural next pick: `credentialing.service.ts`'s doc comments state it
+  mirrors `packages/identity`'s state machine "exactly" (submit → review →
+  decide, rejection resubmits, approval terminal), and `submit` already had
+  the transition-error-to-400 conversion identity's `submit` has, which was
+  the tell that the sibling reviewer methods were likely unguarded too.
+  Confirmed by reading both `credentialing.service.ts` and
+  `packages/credentialing/src/index.ts` directly rather than trusting the
+  analogy: `beginReview`, `approveApplication` and `rejectApplication` all
+  route through the same `transitionApplication` helper that throws
+  `ApplicationTransitionError` on an illegal edge, and none of
+  `CredentialingService`'s three matching methods caught it.
+
+  **What was wrong.** Same shape as identity: a reviewer double-clicking
+  "begin review" (`UNDER_REVIEW → UNDER_REVIEW`, not a legal edge per
+  `transitions`), an approve arriving before `beginReview`
+  (`EVIDENCE_SUBMITTED → APPROVED`), or a reject on an already-decided
+  application (`APPROVED`/`REJECTED` → `REJECTED`) would all throw
+  `ApplicationTransitionError` straight through `CredentialingController`
+  as an unstructured 500. `credentialing.service.test.ts` only exercised the
+  happy path for these three methods — the same "test itself never covered
+  the failing path" tell the whole series has shared.
+
+  **The fix.** Added a private `#transition` helper on `CredentialingService`,
+  identical in shape to `IdentityService`'s, and routed `beginReview`,
+  `approve` and `reject` through it instead of calling
+  `beginReview`/`approveApplication`/`rejectApplication` directly.
+
+  **Tests.** `credentialing.service.test.ts`: three new cases mirroring
+  identity's — approve before `beginReview`, a second `beginReview` on an
+  already-`UNDER_REVIEW` application, and reject on an already-`APPROVED`
+  application — each asserting `BadRequestException` with
+  `code: 'ApplicationTransitionError'`. All three fail without the fix
+  (uncaught `ApplicationTransitionError`) and pass with it.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 673/673 (670 baseline + 3 new). `pnpm build` 40/40 (35
+  cached, 5 rebuilt).
+
+  **For the next run.** The `IdentityService` fix's own log entry also
+  re-confirmed (by reading source) that `packages/retrieval`/
+  `packages/intent-router`/`packages/interop`'s DRAFT-filtering is correct
+  everywhere, that neither package is wired into `apps/api` yet, and that
+  `packages/devices`'s other unit conversions have no sign-flip risk like the
+  Fahrenheit bug did. Two small, previously-named items remain open and
+  untouched by this run: `packages/evaluation/src/index.ts`'s stale "two
+  cases carry `idealNote`" comment (cosmetic, zero behavioural effect), and
+  `apps/web`'s message catalogues, which the 2026-08-15 `municipality` run
+  already audited and found clean (664 keys each side, no untranslated
+  copies). A fresh independent survey, scoped away from every category this
+  log now documents as mined (wrong-state-500 across eleven modules now,
+  string-vs-`Date.parse`, ISO-date validation, cross-owner auth, forgeable
+  headers, mobile i18n, filename mangling, negative-reading validation), is
+  likely the most productive next step.
 
 - 2026-08-15 — **Queue fully checked; `IdentityService`'s `beginReview`,
   `approve` and `reject` had a live instance of the wrong-state-domain-error-

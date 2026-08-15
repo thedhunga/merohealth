@@ -96,23 +96,31 @@ export class CredentialingService {
     return application;
   }
 
+  /**
+   * Same transition-error-to-400 convention as `submit` above — a reviewer
+   * double-clicking "begin review", or a second tab racing the first, hits
+   * `UNDER_REVIEW → UNDER_REVIEW`, which is not a legal edge and must not
+   * surface as an uncaught 500.
+   */
   beginReview(applicationId: string, reviewerId: string): CredentialingApplication {
-    const reviewed = this.repository.save(beginReview(this.#require(applicationId)));
+    const reviewed = this.repository.save(this.#transition(applicationId, beginReview));
     this.#audit(applicationId, reviewerId, 'REVIEW_STARTED');
     return reviewed;
   }
 
+  /** Same transition-error-to-400 convention as `submit`/`beginReview` — an approve arriving before `beginReview` is `EVIDENCE_SUBMITTED → APPROVED`, not a legal edge. */
   approve(applicationId: string, reviewerId: string): CredentialingApplication {
     const decided = this.repository.save(
-      approveApplication(this.#require(applicationId), reviewerId, new Date().toISOString()),
+      this.#transition(applicationId, (application) => approveApplication(application, reviewerId, new Date().toISOString())),
     );
     this.#audit(applicationId, reviewerId, 'APPLICATION_APPROVED');
     return decided;
   }
 
+  /** Same transition-error-to-400 convention as `submit`/`beginReview`/`approve` — see `beginReview`'s doc comment. */
   reject(applicationId: string, reviewerId: string, reason: string): CredentialingApplication {
     const decided = this.repository.save(
-      rejectApplication(this.#require(applicationId), reviewerId, reason, new Date().toISOString()),
+      this.#transition(applicationId, (application) => rejectApplication(application, reviewerId, reason, new Date().toISOString())),
     );
     this.#audit(applicationId, reviewerId, 'APPLICATION_REJECTED');
     return decided;
@@ -139,6 +147,21 @@ export class CredentialingService {
     const application = this.repository.find(applicationId);
     if (!application) throw new NotFoundException(`No credentialing application ${applicationId}`);
     return application;
+  }
+
+  /** `submit`'s transition-error-to-400 conversion, shared by every state-changing reviewer action. */
+  #transition(
+    applicationId: string,
+    apply: (application: CredentialingApplication) => CredentialingApplication,
+  ): CredentialingApplication {
+    try {
+      return apply(this.#require(applicationId));
+    } catch (error) {
+      if (error instanceof ApplicationTransitionError) {
+        throw new BadRequestException({ code: error.name, message: error.message });
+      }
+      throw error;
+    }
   }
 }
 
