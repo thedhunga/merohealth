@@ -1332,6 +1332,79 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-15 — **Round three, task B1 continued: `ServiceCards`' featured-card
+  mobile floor shrunk from `min-h-[31rem]` to `min-h-72`.** Still left
+  unchecked — real progress, target still not met, and this is exactly the
+  lever the immediately preceding B1 entry named ("nothing has yet tried the
+  featured card's own fixed floor … well above what its content … needs at
+  375px width").
+
+  **What changed.** `ServiceCards.tsx`'s featured card set `min-h-[31rem]`
+  (496px) below `sm`, unconditionally, regardless of content. Measured the
+  card's natural content height with the floor removed entirely
+  (`min-h-0`): 250.5px for badge + title + body + "learn more" link at `p-7`
+  padding, in both locales (the featured item, `care247`, carries no `links`
+  list). Rather than drop to that raw minimum — which left the background
+  photograph almost entirely obscured by the gradient overlay with barely any
+  image showing above the text — used `min-h-72` (288px), the same mobile
+  floor the five non-featured cards already use two lines below in the same
+  file, so the featured card keeps a deliberate size relationship to its
+  siblings instead of an arbitrary rem value. `sm:min-h-[35rem]` (the `640px`+
+  floor) is untouched, so `sm`, `lg` and desktop are pixel-identical to
+  before — confirmed via screenshot at both 375px and 1280px, the photo still
+  fills the card generously at both.
+
+  **Measured at 375×812** (`document.body.scrollHeight / innerHeight`,
+  production build via `next start`, fresh server per build, Playwright at
+  `/opt/pw-browsers/chromium`, baseline reconfirmed against the same
+  pipeline): Nepali **7.33 → 7.08 screens** (5955px → 5747px, **-208px**).
+  English **7.82 → 7.57 screens** (6352px → 6144px, **-208px** — identical
+  delta both locales, as expected: `288 - 496 = -208` regardless of copy
+  length, since the floor was the binding constraint, not the content).
+  Target is still four to five screens (3248–4060px); today's 5747px needs
+  roughly 1700–2500px more.
+
+  **`ServiceCards` section height:** Nepali 1357px → 1149px (-208px), English
+  1372.25px → 1164.25px (-208px). Tap targets: 58 visible / 43 under 44px,
+  unchanged in both locales — no interactive element was added, removed or
+  resized, only the wrapping `<article>`'s floor.
+
+  **A repeat of the known stale-server pitfall, for the record.** The first
+  post-change measurement showed height *increasing* to 9154px/9419px with a
+  broken stylesheet MIME type and a 500 on a JS chunk — the exact symptom the
+  2026-08-15 `Testimonials` entry already documented. Cause was identical:
+  `next start` was still bound to the port from the previous (baseline)
+  build when the new build completed. `pkill -9 -f next-server`, confirmed
+  with `ps aux` that nothing was listening, then a fresh `pnpm start` fixed
+  it. Repeating this note because it has now recurred twice in three runs —
+  future runs should kill and confirm-dead before every rebuild, not just
+  suspect it after a weird number.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks; `pnpm build` 40/40 (no new
+  test file — matches every existing file under `apps/web/src/components`,
+  which unit-tests logic only, never markup for `apps/web`). Production
+  build checked with `next start` at 375px (both locales), 768px and 1280px:
+  no horizontal overflow, featured-card photo still fills the card at every
+  width, no new console errors beyond the two already-documented
+  pre-existing ones (missing story video source, `apps/api`
+  connection-refused with no local API running).
+
+  **For the next run.** The footer is now the single largest homepage block
+  at 1172px (Nepali) / 1214px (English) and hasn't been touched since the
+  earlier run collapsed its nav-link columns to an accordion — that cut the
+  columns but left the brand/tagline/address/locale-switcher block above
+  them, the app-store/social-icon row, the demo-notice callout and the
+  copyright line all still stacked below at full desktop spacing
+  (`py-16`/`gap-12`/`mt-14`/`pt-8`). None of those has been measured
+  individually yet. `Hero`/record-story (1101px Nepali / 1178px English) and
+  `Testimonials` (1005px Nepali / 1199px English — note English is now
+  ~200px taller than Nepali here, worth checking why) are the next two
+  largest and were both already cut once each; whether either has more room
+  is unexplored. Otherwise B3 (`/app` 404 in production) is next in queue
+  order, or task C's tap-target backlog (43 elements still under 44px on the
+  homepage alone, unchanged for five runs now).
+
 - 2026-08-15 — **Round three, task B1 continued: `Hero`'s floating
   record-preview card is now `lg`-and-up only.** Still left unchecked — real
   progress, target still not met, and this is exactly the lever the

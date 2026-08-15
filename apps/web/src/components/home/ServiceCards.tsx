@@ -55,7 +55,7 @@ export function ServiceCards() {
                 <article
                   className={
                     isFeatured
-                      ? 'group relative isolate flex min-h-[31rem] h-full overflow-hidden rounded-[2rem] bg-indigo-950 p-7 text-white shadow-card sm:min-h-[35rem] sm:p-10'
+                      ? 'group relative isolate flex min-h-72 h-full overflow-hidden rounded-[2rem] bg-indigo-950 p-7 text-white shadow-card sm:min-h-[35rem] sm:p-10'
                       : 'group relative flex h-full min-h-72 flex-col overflow-hidden rounded-[1.75rem] border border-line bg-white p-6 transition-all duration-300 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-card sm:p-7'
                   }
                 >
