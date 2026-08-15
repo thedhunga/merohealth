@@ -1230,11 +1230,101 @@ re-read the table itself rather than trust this paragraph.
       (the one added by this run) for the trace, why a prior version of the
       controller's own test suite had locked the bug in as intended
       behaviour, and the sibling gap left open in `BillingController`.
+- [x] Closed the sibling unauthenticated-disclosure gap on
+      `ClinicalChartingController`: every route on the controller, including
+      `listEncounters`, `getEncounter` and `listNotes`, carried no
+      `SessionAuthGuard` at all — the concrete next candidate the
+      `BillingController` run's own log entry named directly, verified by
+      reading `clinical-charting.controller.ts` before starting. See the
+      2026-08-15 log entry below (the one added by this run) for the trace,
+      the fix, and why `openEncounter`/`closeEncounter`/`recordNote`/
+      `reviseNote`/`attachDocument`/the template routes stay unguarded.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-15 — **Queue fully checked; `ClinicalChartingController` had no
+  `SessionAuthGuard` on any route, letting any unauthenticated caller list,
+  read or write every patient's encounters, SOAP notes and document
+  attachments system-wide.** Grepped for `- [ ]` first — zero hits.
+
+  **Why this task.** The immediately preceding run's own log entry (below)
+  named this exact controller as the one worth checking first among the six
+  it had flagged but not verified: "its `GET
+  /clinical-charting/encounters/:encounterId/notes` route ... returns the
+  free-text SOAP notes recorded against an encounter — clinical narrative,
+  not just structured fields — which would make an unguarded leak there
+  comparably serious to billing's, if the same missing-guard shape holds once
+  read all the way through." Confirmed live by reading
+  `clinical-charting.controller.ts` directly: not one of its eleven routes
+  carried `@UseGuards` — the gap was wider than the prior run's note guessed,
+  since it covers every route, not just `listNotes`.
+
+  **What was wrong.** `GET /clinical-charting/encounters` with no session
+  returned every patient's encounters in the system. `GET
+  /clinical-charting/encounters/:id` read any encounter — patient id,
+  clinician id, status, attached document ids — by a guessed or leaked id.
+  `GET /clinical-charting/encounters/:id/notes` did the same for the SOAP
+  note narrative (subjective/objective/assessment/plan) recorded against it.
+
+  **The fix.** Added `@UseGuards(SessionAuthGuard)` to `listEncounters`,
+  `getEncounter` and `listNotes` — the three reads that disclose patient PHI.
+  `listEncounters` now reads the owner from `@CurrentUser()` instead of an
+  optional client-supplied `patientId` query param, so a caller can no longer
+  list another patient's encounters at all. `getEncounter` and `listNotes`
+  resolve through two new service methods, `getEncounterForOwner`/
+  `listNotesForOwner`, which 404 (not 403) an encounter that exists but
+  belongs to someone else — the same rule `BillingService.getInvoiceForOwner`/
+  `TeleconsultationService.getSession` already use. The existing unowned
+  `getEncounter(id)` was left in place: `billing`/`prescribing`/`referrals`/
+  `diagnostics-orders`/`immunization`/`clinical-summary` all call it
+  server-side to resolve an encounter they were already handed a
+  same-request id for, exactly why `BillingService.getInvoice(id)` stayed
+  unowned alongside its own `getInvoiceForOwner`.
+
+  **What was deliberately left out.** `openEncounter`/`closeEncounter`/
+  `recordNote`/`reviseNote`/`attachDocument` stay unguarded — the same
+  clinician-action asymmetry `BillingController`'s doc comment already
+  established: `clinicianId`/`authorId` are free-text fields trusted from the
+  request body across the whole clinical suite, and this app has no
+  clinician-side session to check them against yet, so gating them behind a
+  *patient* `SessionAuthGuard` would make them unusable, not correct.
+  `createTemplate`/`listTemplates` also stay ungated: templates are
+  clinic-wide reusable prompts, not per-patient data, so there is no owner to
+  check them against at all.
+
+  **Tests.** `clinical-charting.controller.test.ts`: added an
+  entitlement-wiring `describe` block asserting `listEncounters`/
+  `getEncounter`/`listNotes` carry `[SessionAuthGuard]` and the eight
+  remaining routes carry none; updated every `getEncounter`/`listEncounters`/
+  `listNotes` call site to pass a `CurrentUserResult`; added two new 404
+  cases (a stranger reading/listing another caller's encounter, and a
+  stranger listing another caller's notes). `clinical-charting.service.ts`:
+  no existing test changed — `getEncounterForOwner`/`listNotesForOwner` are
+  new methods, covered by the controller-level tests above rather than
+  duplicated at the service layer, matching how `BillingService.
+  getInvoiceForOwner` was tested. All new cases fail against the pre-fix code
+  (no guard to trip, or `getEncounter`/`listNotes` returning the record
+  regardless of owner) and pass with it. Neither `apps/web` nor
+  `apps/mobile` calls any clinical-charting route yet, so no client code
+  needed updating.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 686/686 (682 baseline + 4 new). `pnpm build` 40/40 (35
+  cached, 5 rebuilt).
+
+  **For the next run.** The `TeleconsultationController` survey (two runs
+  back now) still names five more controllers with the same plausible
+  missing-guard shape, not yet verified by reading source:
+  `scheduling`/`referrals`/`diagnostics-orders`/`prescribing`/`immunization`'s
+  own read routes. None carry financial or clinical-narrative PHI as directly
+  as billing/teleconsultation/clinical-charting did, but each is still owed a
+  real read before being assumed clean or assumed a gap — the same
+  "confirmed live by reading the controller" standard this run and the two
+  before it held to, not an inference from the pattern alone.
 
 - 2026-08-15 — **Queue fully checked; `BillingController`'s `listInvoices`
   and `getInvoice` had no `SessionAuthGuard` at all, letting any

@@ -49,6 +49,20 @@ export class ClinicalChartingService {
     return encounter;
   }
 
+  /**
+   * The owner-checked read the controller uses. `getEncounter` itself stays
+   * unowned — billing, prescribing, referrals, diagnostics-orders,
+   * immunization and clinical-summary all call it server-side to resolve an
+   * encounter they were already handed a same-request id for, the same
+   * reason `BillingService.getInvoice` stayed unowned alongside its own
+   * `getInvoiceForOwner`.
+   */
+  getEncounterForOwner(id: string, ownerId: string): Encounter {
+    const encounter = this.getEncounter(id);
+    if (encounter.patientId !== ownerId) throw new NotFoundException(`No encounter ${id}`);
+    return encounter;
+  }
+
   listEncounters(patientId?: string): Encounter[] {
     return this.repository.listEncounters(patientId);
   }
@@ -82,6 +96,12 @@ export class ClinicalChartingService {
 
   listNotes(encounterId: string): SoapNote[] {
     this.getEncounter(encounterId);
+    return this.repository.listNotesForEncounter(encounterId);
+  }
+
+  /** The owner-checked read the controller uses — see `getEncounterForOwner`. */
+  listNotesForOwner(encounterId: string, ownerId: string): SoapNote[] {
+    this.getEncounterForOwner(encounterId, ownerId);
     return this.repository.listNotesForEncounter(encounterId);
   }
 

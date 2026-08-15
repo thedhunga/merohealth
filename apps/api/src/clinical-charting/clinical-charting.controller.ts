@@ -1,6 +1,9 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
+import type { CurrentUserResult } from '../auth/auth.service.js';
+import { CurrentUser } from '../auth/current-user.decorator.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { ClinicalChartingService } from './clinical-charting.service.js';
 
 const openEncounterSchema = z.object({
@@ -46,6 +49,23 @@ function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
  * Row 3 of clinical-suite.md's capability map. Encounters and notes are
  * nested under `encounters/`; templates are their own top-level resource
  * since they are not scoped to one encounter.
+ *
+ * `listEncounters`/`getEncounter`/`listNotes` carry `SessionAuthGuard` and
+ * are scoped to the caller — a prior version of this file left every route
+ * on this controller fully unauthenticated, including these three reads:
+ * `GET /clinical-charting/encounters` with no session returned every
+ * patient's encounters system-wide, `GET .../encounters/:id` read any
+ * encounter by a guessed or leaked id, and `GET .../encounters/:id/notes`
+ * did the same for the free-text SOAP narrative recorded against it — the
+ * same shape `BillingController`/`TeleconsultationController` were each
+ * fixed for. `openEncounter`/`closeEncounter`/`recordNote`/`reviseNote`/
+ * `attachDocument` stay unguarded: they are clinician actions
+ * (`clinicianId`/`authorId` are free-text fields trusted from the request
+ * body, the same as across the rest of this clinical suite), and this app
+ * has no clinician-side session to check them against yet. Gating them
+ * behind a *patient* `SessionAuthGuard` would not make them correct, only
+ * unusable. Templates are clinic-wide, not per-patient, so they carry no
+ * owner check at all.
  */
 @ApiTags('clinical-charting')
 @Controller('clinical-charting')
@@ -72,18 +92,19 @@ export class ClinicalChartingController {
   }
 
   @Get('encounters')
-  @ApiOperation({ summary: 'List encounters, optionally filtered by patientId' })
-  @ApiQuery({ name: 'patientId', required: false })
-  listEncounters(@Query('patientId') patientId?: string) {
-    const items = this.charting.listEncounters(patientId);
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: "List the signed-in caller's own encounters" })
+  listEncounters(@CurrentUser() user: CurrentUserResult) {
+    const items = this.charting.listEncounters(user.subjectId);
     return { items, total: items.length };
   }
 
   @Get('encounters/:encounterId')
+  @UseGuards(SessionAuthGuard)
   @ApiParam({ name: 'encounterId' })
-  @ApiOperation({ summary: 'Read one encounter by opaque id' })
-  getEncounter(@Param('encounterId') encounterId: string) {
-    return this.charting.getEncounter(encounterId);
+  @ApiOperation({ summary: "Read one of the caller's own encounters by opaque id" })
+  getEncounter(@CurrentUser() user: CurrentUserResult, @Param('encounterId') encounterId: string) {
+    return this.charting.getEncounterForOwner(encounterId, user.subjectId);
   }
 
   @Post('encounters/:encounterId/close')
@@ -114,10 +135,11 @@ export class ClinicalChartingController {
   }
 
   @Get('encounters/:encounterId/notes')
+  @UseGuards(SessionAuthGuard)
   @ApiParam({ name: 'encounterId' })
-  @ApiOperation({ summary: 'List every SOAP note recorded against one encounter' })
-  listNotes(@Param('encounterId') encounterId: string) {
-    const items = this.charting.listNotes(encounterId);
+  @ApiOperation({ summary: "List every SOAP note recorded against one of the caller's own encounters" })
+  listNotes(@CurrentUser() user: CurrentUserResult, @Param('encounterId') encounterId: string) {
+    const items = this.charting.listNotesForOwner(encounterId, user.subjectId);
     return { items, total: items.length };
   }
 
