@@ -25,6 +25,14 @@ export function IndividualsPageView({ page }: { page: IndividualsPage }) {
     body: t(`${page.key}.hero.body`),
     Art: page.Art,
     artPosition: page.artPosition,
+    ...(page.image
+      ? {
+          image: {
+            ...page.image,
+            alt: t(`${page.key}.hero.imageAlt`),
+          },
+        }
+      : {}),
   };
 
   // Segment pages route on to their children rather than offering care

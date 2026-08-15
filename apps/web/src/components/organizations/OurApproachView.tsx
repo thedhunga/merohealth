@@ -24,6 +24,11 @@ export function OurApproachView() {
     title: t('hero.title'),
     body: t('hero.body'),
     Art: MemberRouting,
+    image: {
+      src: '/imagery/mero-community-care.webp',
+      alt: t('hero.imageAlt'),
+      objectPosition: '38% center',
+    },
     artPosition: 'end' as const,
   };
 

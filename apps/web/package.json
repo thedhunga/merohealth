@@ -11,12 +11,14 @@
     "test": "vitest run src --passWithNoTests"
   },
   "dependencies": {
+    "@swasthya/clinical-safety": "workspace:*",
     "@swasthya/configuration": "workspace:*",
     "@swasthya/credentialing": "workspace:*",
     "@swasthya/entitlements": "workspace:*",
     "@swasthya/language-corpus": "workspace:*",
     "@swasthya/shared-types": "workspace:*",
     "lucide-react": "1.30.0",
+    "motion": "12.43.0",
     "next": "16.3.0",
     "next-intl": "4.13.5",
     "react": "19.2.3",

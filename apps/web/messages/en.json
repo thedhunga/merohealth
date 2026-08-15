@@ -126,6 +126,12 @@
       "secondaryCta": "No insurance needed",
       "liveLabel": "Health companion · live",
       "artCaption": "Photograph a paper report and it becomes a health record you can actually read, in your own language, tracked over time.",
+      "recordEyebrow": "Your health story, finally connected",
+      "recordTitle": "From paper report to a record you can actually use",
+      "recordBody": "Capture a report, understand the important details in your own language, and keep the history ready for your next conversation with a clinician.",
+      "recordStepOne": "Photograph or upload the report",
+      "recordStepTwo": "Review a clear, source-backed explanation",
+      "recordStepThree": "Keep the result connected over time",
       "trustOne": "Safety checks before any answer",
       "trustTwo": "Your consent before anything is shared"
     },
@@ -264,7 +270,8 @@
     "care247": {
       "hero": {
         "title": "Care whenever you need it",
-        "body": "Reach a Nepali-speaking clinician by voice or video call, day or night, without scheduling a clinic visit first."
+        "body": "Reach a Nepali-speaking clinician by voice or video call, day or night, without scheduling a clinic visit first.",
+        "imageAlt": "Illustrative scene of a clinician reviewing health information with an older patient"
       },
       "highlights": {
         "items": {
@@ -286,7 +293,8 @@
     "primaryCare": {
       "hero": {
         "title": "One clinician, over time",
-        "body": "Book routine check-ups and follow-ups with a provider who gets to know your history, instead of starting over with someone new each visit."
+        "body": "Book routine check-ups and follow-ups with a provider who gets to know your history, instead of starting over with someone new each visit.",
+        "imageAlt": "Illustrative scene of a clinician reviewing health information with an older patient"
       },
       "highlights": {
         "items": {
@@ -308,7 +316,8 @@
     "mentalHealth": {
       "hero": {
         "title": "Support, in private",
-        "body": "Talk with a licensed therapist or psychiatrist through a private video or voice call, in Nepali, at a time that works for you."
+        "body": "Talk with a licensed therapist or psychiatrist through a private video or voice call, in Nepali, at a time that works for you.",
+        "imageAlt": "Illustrative scene of a woman having a private health conversation by phone"
       },
       "highlights": {
         "items": {
@@ -640,7 +649,8 @@
     "ourApproach": {
       "hero": {
         "title": "Nepali-first, not Nepali-translated",
-        "body": "We build for the language, the record-keeping habits and the storage choices that make sense here, rather than adapting a platform built for somewhere else."
+        "body": "We build for the language, the record-keeping habits and the storage choices that make sense here, rather than adapting a platform built for somewhere else.",
+        "imageAlt": "Illustrative scene of a clinician reviewing health information with an older patient"
       },
       "highlightsHeading": "How we work with you",
       "highlights": {
@@ -832,7 +842,8 @@
     "about": {
       "hero": {
         "title": "A personal health platform, built for Nepal",
-        "body": "Mero Health is a personal health record and a Nepali-first assistant together — not a telehealth website. A photograph of a lab report becomes part of a record you keep, in a language you speak, with safety checked before any answer."
+        "body": "Mero Health is a personal health record and a Nepali-first assistant together — not a telehealth website. A photograph of a lab report becomes part of a record you keep, in a language you speak, with safety checked before any answer.",
+        "imageAlt": "Illustrative scene of a Nepali family reviewing a health report together"
       },
       "highlightsHeading": "What Mero Health is built on",
       "highlights": {
@@ -1178,6 +1189,58 @@
       "body": "Create an account and reach the assistant or a clinician whenever you need to. Add a paid module later, only if you need it.",
       "primaryCta": "Get started",
       "secondaryCta": "See FAQs"
+    }
+  },
+  "getCare": {
+    "eyebrow": "Safety before AI",
+    "title": "Understand what you’re feeling—without turning a question into a diagnosis.",
+    "body": "Mero Health first checks for urgent warning signs. If it is safe to continue, Perplexity Sonar returns general information with sources you can open.",
+    "steps": {
+      "label": "How your question is handled",
+      "safety": "Urgent warning signs are checked locally first",
+      "research": "Safe questions are researched with current sources",
+      "next": "You decide whether to read more or contact a clinician"
+    },
+    "form": {
+      "label": "What are you feeling or trying to understand?",
+      "placeholder": "For example: I have had a mild headache for two days",
+      "voice": "Use the voice companion",
+      "checking": "Checking safely…",
+      "submit": "Check safely",
+      "privacy": "Your question is not placed in the URL. It is held only in this browser tab while the care page opens, then removed. Do not enter names, record numbers, or other identifying details."
+    },
+    "idle": {
+      "heading": "What happens before an answer",
+      "body": "A deterministic safety check runs before any external research. It can stop the normal flow when the words suggest urgent risk."
+    },
+    "loading": {
+      "heading": "Checking safety and current sources",
+      "body": "Urgent signals are screened first. If it is safe, cited research is requested."
+    },
+    "emergency": {
+      "eyebrow": "Normal research stopped",
+      "heading": "Please seek urgent help now",
+      "fallback": "This may be an emergency. Go to the nearest appropriate hospital or contact a locally verified emergency service now.",
+      "localNotice": "Mero Health does not invent or display an emergency number until it has been verified for your location."
+    },
+    "result": {
+      "eyebrow": "Cited general information",
+      "heading": "What current sources say",
+      "sources": "Sources you can open",
+      "related": "Related questions"
+    },
+    "setup": {
+      "heading": "Cited research needs one final setup step",
+      "body": "The safety check worked, but the Perplexity API key has not been configured for this environment. You can continue in Perplexity Health or try again after setup."
+    },
+    "unavailable": {
+      "heading": "Cited research is temporarily unavailable",
+      "body": "The safety check completed, but current sources could not be retrieved. Try again later or continue in Perplexity Health."
+    },
+    "actions": {
+      "another": "Ask another question",
+      "perplexity": "Open Perplexity Health",
+      "retry": "Try again"
     }
   },
   "auth": {

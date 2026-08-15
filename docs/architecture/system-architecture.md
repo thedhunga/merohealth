@@ -7,6 +7,7 @@ Start with a TypeScript modular monolith and extraction-ready domain packages. T
 ```mermaid
 flowchart LR
   subgraph Clients
+    Web["Next.js public web + server routes"]
     Mobile["Expo mobile · Android/iOS"]
     Provider["Provider web · planned"]
     Admin["Admin web · planned"]
@@ -25,9 +26,11 @@ flowchart LR
     Audit["Audit"]
   end
   Adapters["Provider ports · mock/production"]
+  Research["Perplexity Sonar · cited general research"]
   Data[("PostgreSQL")]
   Queue[("Redis / event outbox")]
   Objects[("S3-compatible objects")]
+  Web --> Edge
   Mobile --> Edge
   Provider --> Edge
   Admin --> Edge
@@ -36,6 +39,7 @@ flowchart LR
   Domains --> Queue
   Domains --> Objects
   Domains --> Adapters
+  Web -->|"safe questions only"| Research
 ```
 
 ## Boundary rules
@@ -46,6 +50,7 @@ flowchart LR
 - Sensitive data is classified at field level. Logs receive identifiers, decisions, and timing—not clinical message bodies.
 - Provider integrations implement ports with capability and health reporting. UI labels mocks as demonstration services.
 - AI orchestration is a pipeline. Language, emergency screening, intake extraction, retrieval, generation, safety validation, and citation validation are independently testable stages.
+- The public `/get-care` route performs deterministic safety interception before its server-only Perplexity call. Provider keys never cross into browser or Expo bundles, and provider citations are restricted to HTTP/HTTPS before display.
 
 ## Companion pipeline
 
@@ -75,4 +80,3 @@ Likely first extractions are notifications/media processing (asynchronous load),
 - ADR-004: Reanimated motion tokens with reduced-motion/static fallbacks.
 - ADR-005: Training videos are managed content assets, streamed through signed URLs with text equivalents.
 - ADR-006: No event sourcing globally; immutable status/provenance histories and an outbox are used where regulation or reconciliation requires them.
-

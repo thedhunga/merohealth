@@ -1,6 +1,6 @@
 # Mero Health · मेरो स्वास्थ्य
 
-Production-oriented foundation for a Nepali-first digital-health companion on Android, iOS, and the web. It contains a responsive Expo experience, local voice-note capture, spoken guidance, a camera-enabled consultation preview, an interactive narrated walkthrough, a NestJS API, extraction-ready domain packages, Prisma/PostgreSQL schema, fictional seed content, safety tests, and architecture/security/compliance documentation.
+Production-oriented foundation for a Nepali-first digital-health companion on Android, iOS, and the web. The public front door is a bilingual Next.js application; the shared Expo product is published below it at `/app`; and a NestJS API plus extraction-ready domain packages provide the platform foundation. The repository also contains Prisma/PostgreSQL data models, fictional seed content, deterministic clinical-safety rules, tests, and architecture/security/compliance documentation.
 
 > **Demonstration only.** This is not a medical device, emergency service, diagnostic system, or prescribing system. Current providers, facilities, sources, and external integrations are fictional or mocks. Medical/legal translations and policies require qualified Nepal review before production.
 
@@ -15,6 +15,14 @@ Production-oriented foundation for a Nepali-first digital-health companion on An
 On Windows where PowerShell blocks the pnpm script shim, use pnpm.cmd.
 
 ## Run
+
+Run the public site:
+
+    pnpm --filter @swasthya/web dev
+
+Open http://localhost:3000. Copy `apps/web/.env.example` to `apps/web/.env.local` to enable optional local configuration. The `/get-care` route always runs the deterministic safety screen; cited Perplexity research additionally requires `PERPLEXITY_API_KEY`.
+
+Run the Expo product separately during development:
 
     pnpm install --frozen-lockfile
     pnpm dev:mobile
@@ -48,10 +56,10 @@ Open the responsive landing experience, try the private local voice-note control
 
 ## Staging and promotion
 
-The Expo web export is configured as a Vercel testing ground through `vercel.json`. It represents the shared Android/iOS product experience; signed store builds remain a separate EAS release process.
+Vercel builds the repository-root project defined by `vercel.json`: the bilingual Next.js site is the primary deployment and the Expo web export is copied into it at `/app`. Signed Android/iOS store builds remain a separate EAS release process.
 
-See `docs/deployment/staging-and-domain.md` for Vercel and Namecheap setup. See `docs/product/promotion-readiness.md` for the evidence gates that separate a public fictional-data demonstration from a system allowed to process real patient data.
+See `docs/deployment/developer-handoff.md` for the exact locations, access model, stack, commands, current deployment state, and secret placement. See `docs/deployment/staging-and-domain.md` for Vercel and Namecheap setup and `docs/product/promotion-readiness.md` for the evidence gates that separate a public fictional-data demonstration from a system allowed to process real patient data.
 
 ## Current limitations
 
-Authentication, provider/admin web, real clinician-to-patient WebRTC, prescriptions, pharmacy/lab fulfillment, payments, authoritative nationwide directory ingestion, human-reviewed production video assets, and real AI generation are planned modules—not operational integrations. The current voice recorder, speech playback, camera room, and narrated walkthrough run as transparent demonstrations without transmitting health data. See docs/product/implementation-backlog.md.
+The codebase contains OTP/authentication and clinical-domain foundations, but a complete authenticated web product, real clinician-to-patient WebRTC, pharmacy/lab fulfillment, payments, authoritative nationwide directory ingestion, and production clinical/provider operations are not launch-ready integrations. Perplexity-backed cited research is implemented but remains in a transparent setup state until its server-side key is configured. Do not enter real patient data. See `docs/product/implementation-backlog.md`.

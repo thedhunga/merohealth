@@ -1,74 +1,74 @@
 # Dedicated server deployment
 
-Target noted by the owner: `94.130.110.253` with initial SSH user `root`.
+Future target: `94.130.110.253`. Initial administrative login is `root`, but routine deployment should use a separate `mero-deploy` account after key access is proven.
 
-## Access: where credentials go
+## Credential handling
 
-Do not paste the root password, SSH private key, or Perplexity key into source files, Git, or chat.
+Do not paste a root password, SSH private key, API token, or `.env` contents into source files, Git, issue trackers, or chat.
 
-Preferred server access:
+1. Keep the private SSH key on an approved operator's computer.
+2. Put only its public key in `/root/.ssh/authorized_keys` for initial access.
+3. Use mode `700` for `/root/.ssh` and `600` for `authorized_keys`.
+4. Create a narrowly privileged `mero-deploy` user and verify it before disabling password-based root login.
 
-1. Keep the SSH private key on the owner's computer.
-2. Add only its public key to `/root/.ssh/authorized_keys` on the server.
-3. Set `/root/.ssh` to mode `700` and `authorized_keys` to mode `600`.
-4. For routine operations, create a separate `mero-deploy` user with narrowly scoped sudo access and disable password-based root login after key access is verified.
-
-To let an operator connect, provide the local path to the private key, not the private key contents. The connection target is:
+Connection shape:
 
 ```text
-ssh -i <local-private-key-path> root@94.130.110.253
+ssh -i <approved-local-private-key-path> root@94.130.110.253
 ```
 
-## Perplexity secret
+## Capacity audit (2026-08-15)
 
-On Vercel, add `PERPLEXITY_API_KEY` and optional `PERPLEXITY_MODEL=sonar-pro` in the project's Environment Variables for Production and Preview. Redeploy after adding them.
+- Ubuntu 24.04 ARM64
+- 4 CPU cores
+- 7.5 GiB RAM
+- about 38 GB free on the root disk
+- no swap
+- Apache active on ports 80 and 443 with multiple existing virtual hosts
+- MySQL restricted to loopback
+- Docker/Compose absent
+- no listener on 8090 or 4000
 
-On the dedicated server:
+This is sufficient for the demonstration Next.js and API workload. Add 2–4 GB swap before building containers on the host, or preferably build ARM64 images in CI and pull them. Monitor memory, disk, load, HTTP latency, container health, certificate renewal, and backups.
 
-1. Copy `.env.server.example` to `/opt/mero-health/.env.server`.
-2. Put the token after `PERPLEXITY_API_KEY=`.
-3. Run `chmod 600 /opt/mero-health/.env.server`.
-4. Never expose this key through an `EXPO_PUBLIC_*` variable. The browser calls the Mero Health API; only the server calls Perplexity.
+## Current deployment readiness
 
-## Capacity audit (2026-08-07)
+Do not deploy the present `compose.server.yaml` as a Vercel-equivalent website yet. `deploy/Dockerfile.web` currently exports only `apps/mobile` and serves it as a static nginx root. It does not contain the Next.js public site or the server-side `/api/companion/research` route.
 
-The server was inspected over the existing SSH key connection:
+Required sequence:
 
-- Ubuntu 24.04.3 LTS
-- 4 ARM64 CPU cores
-- 7.5 GiB RAM, about 5.1 GiB available during the check
-- 75 GB root disk, 38 GB free
-- ARM64 architecture, which is supported by the selected official container images
+1. Prove the combined repository-root deployment on Vercel.
+2. Replace the server web image with a tested ARM64-compatible image running the combined Next.js application, including the generated `/app` assets.
+3. Bind the web container to `127.0.0.1:8090`; keep the API and all data services private.
+4. Update `deploy/apache-mero-health.conf` with the approved hostname.
+5. Validate existing Apache virtual hosts and `apache2ctl configtest` before reload.
+6. Run the same bilingual, `/get-care`, emergency, citation, `/app`, deep-link, and header checks used for Vercel.
+7. Move DNS only after health checks and rollback are documented.
 
-This is enough for the current Mero Health web app and research API. The app does not yet need PostgreSQL, Redis, or object storage. For on-server container builds, add a 2-4 GB swap file or build multi-architecture images in CI so a temporary memory spike cannot interrupt the existing sites.
+Do not start the Caddy `standalone` profile on this machine because it would compete with Apache for ports 80 and 443.
 
-## Existing server services
+## Secrets
 
-- Apache is active and already owns ports 80 and 443 for four virtual hosts.
-- MySQL listens only on loopback ports 3306 and 33060.
-- Docker and Docker Compose are not installed.
-- UFW is installed but inactive.
+Copy `.env.server.example` to `/opt/mero-health/.env.server`, then run:
 
-Do not start the Caddy `standalone` profile on this server; it would conflict with Apache. The default Compose configuration binds Mero Health only to `127.0.0.1:8090` so Apache can reverse proxy it safely.
+```text
+chmod 600 /opt/mero-health/.env.server
+```
 
-## Recommended server layout
+At minimum, cited research needs `PERPLEXITY_API_KEY` and optionally `PERPLEXITY_MODEL=sonar-pro`. A production API additionally needs a strong `AUTH_SECRET`, database/Redis/object-storage credentials, allowed origins, and any provider credentials actually enabled. Never use `NEXT_PUBLIC_` or `EXPO_PUBLIC_` for a secret.
 
-1. Install Docker Engine and the Compose plugin for Ubuntu 24.04 ARM64.
-2. Add a 2-4 GB swap file if images will be built on this host.
-3. Copy the repository to `/opt/mero-health` and create the protected `.env.server` file described above.
-4. Set `ALLOWED_ORIGINS` to the final HTTPS domain and keep `MERO_BIND_IP=127.0.0.1`.
-5. Run `docker compose -f compose.server.yaml up -d --build` without the `standalone` profile.
-6. Copy `deploy/apache-mero-health.conf` to `/etc/apache2/sites-available/mero-health.conf`, replace `health.example.com`, and enable it.
-7. Enable the Apache proxy modules, validate the configuration, reload Apache, then use the already-installed Certbot for TLS.
+## Network shape
 
-Apache setup commands after the domain is chosen:
+Apache should terminate TLS and proxy the approved hostname to `http://127.0.0.1:8090`. Only TCP 22, 80, and 443 should be publicly reachable. Do not publicly expose 8090, 4000, 3306, 5432, 6379, 9000, or 9001.
+
+After the final hostname is chosen and the new container has passed local health checks:
 
 ```text
 a2enmod proxy proxy_http headers ssl
 a2ensite mero-health.conf
 apache2ctl configtest
 systemctl reload apache2
-certbot --apache -d health.example.com
+certbot --apache -d <approved-hostname>
 ```
 
-Open inbound TCP 22, 80, and 443 only. Do not expose ports 8090, 4000, 3306, 5432, 6379, 9000, or 9001 publicly.
+These commands change a production multi-site server and require a scheduled operational window, current backups, and a tested rollback. Do not run them as part of a documentation-only handoff.

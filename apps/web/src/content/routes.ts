@@ -43,9 +43,18 @@ const healthLibraryRoutes: RouteEntry[] = healthLibraryArticles.map((article) =>
 /** Every route with no shared content array to derive title/description from. */
 const bespokeRoutes: RouteEntry[] = [
   { pathname: '/', titleKey: 'home.hero.title', descriptionKey: 'home.hero.body' },
+  { pathname: '/get-care', titleKey: 'getCare.title', descriptionKey: 'getCare.body' },
   { pathname: '/pricing', titleKey: 'pricing.hero.title', descriptionKey: 'pricing.hero.body' },
-  { pathname: '/signin', titleKey: 'auth.signIn.hero.title', descriptionKey: 'auth.signIn.hero.body' },
-  { pathname: '/register', titleKey: 'auth.register.hero.title', descriptionKey: 'auth.register.hero.body' },
+  {
+    pathname: '/signin',
+    titleKey: 'auth.signIn.hero.title',
+    descriptionKey: 'auth.signIn.hero.body',
+  },
+  {
+    pathname: '/register',
+    titleKey: 'auth.register.hero.title',
+    descriptionKey: 'auth.register.hero.body',
+  },
   {
     pathname: '/individuals/how-it-works',
     titleKey: 'individuals.howItWorks.hero.title',
@@ -106,7 +115,11 @@ const bespokeRoutes: RouteEntry[] = [
     titleKey: 'clinicians.commitmentToQuality.hero.title',
     descriptionKey: 'clinicians.commitmentToQuality.hero.body',
   },
-  { pathname: '/about', titleKey: 'company.about.hero.title', descriptionKey: 'company.about.hero.body' },
+  {
+    pathname: '/about',
+    titleKey: 'company.about.hero.title',
+    descriptionKey: 'company.about.hero.body',
+  },
   {
     pathname: '/about/impact',
     titleKey: 'company.impact.hero.title',
@@ -132,7 +145,11 @@ const bespokeRoutes: RouteEntry[] = [
     titleKey: 'company.contact.hero.title',
     descriptionKey: 'company.contact.hero.body',
   },
-  { pathname: '/legal', titleKey: 'legal.index.hero.title', descriptionKey: 'legal.index.hero.body' },
+  {
+    pathname: '/legal',
+    titleKey: 'legal.index.hero.title',
+    descriptionKey: 'legal.index.hero.body',
+  },
   {
     pathname: '/legal/privacy',
     titleKey: 'legal.privacy.hero.title',

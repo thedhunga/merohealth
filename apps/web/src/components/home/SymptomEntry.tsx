@@ -1,119 +1,155 @@
 'use client';
 
+import Image from 'next/image';
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { ArrowRight, Mic, Search } from 'lucide-react';
+import { ArrowRight, HeartPulse, LockKeyhole, Mic, Search, ShieldCheck } from 'lucide-react';
 
 import { useRouter } from '@/i18n/navigation';
+import { storeCareQuestion } from '@/lib/get-care-session';
 
-/**
- * The first thing on the page, and the reason someone opened it.
- *
- * A person arriving at a health site on a phone has a symptom in mind and
- * wants to type it. Everything else — who we are, what we offer, which
- * organisations we serve — is a distant second, so this sits above it all
- * rather than after a brand statement.
- *
- * This is deliberately **not** a triage engine and must never become one. It
- * collects what the person is feeling and hands it to the assistant, where
- * `packages/clinical-safety` runs its deterministic emergency interception
- * before any model sees the text. Nothing here outputs a diagnosis.
- */
 const QUICK_KEYS = ['fever', 'headache', 'stomach', 'cough', 'chest', 'skin'] as const;
 
+/** The homepage hero and the start of the safety-gated care journey. */
 export function SymptomEntry() {
-  const t = useTranslations('home.symptom');
+  const symptom = useTranslations('home.symptom');
+  const hero = useTranslations('home.hero');
   const router = useRouter();
   const [value, setValue] = useState('');
 
   const submit = (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    router.push(`/get-care?q=${encodeURIComponent(trimmed)}`);
+    storeCareQuestion(trimmed);
+    router.push('/get-care');
   };
 
   return (
-    <section aria-labelledby="symptom-heading" className="bg-white pt-6 pb-8 sm:pt-10">
-      <div className="container-site">
-        <h1
-          className="text-[1.75rem] leading-tight font-bold text-balance text-ink sm:text-4xl"
-          id="symptom-heading"
-        >
-          {t('heading')}
-        </h1>
-        <p className="mt-2 text-[0.9375rem] text-ink-soft sm:text-lg">{t('body')}</p>
+    <section
+      aria-labelledby="home-hero-heading"
+      className="relative isolate min-h-[46rem] overflow-hidden bg-indigo-950 text-white sm:min-h-[50rem] lg:min-h-[46rem]"
+    >
+      <Image
+        alt="Illustrative scene of a Nepali family reviewing a health report together"
+        className="object-cover object-[68%_center] lg:object-center"
+        fill
+        priority
+        sizes="100vw"
+        src="/imagery/mero-family-report.webp"
+      />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(14,11,31,.98)_0%,rgba(14,11,31,.88)_35%,rgba(14,11,31,.34)_70%,rgba(14,11,31,.14)_100%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(14,11,31,.96)_0%,transparent_48%,rgba(14,11,31,.18)_100%)] lg:bg-[linear-gradient(0deg,rgba(14,11,31,.75)_0%,transparent_45%)]" />
+      <div
+        aria-hidden
+        className="absolute -top-32 -left-32 size-[28rem] rounded-full bg-indigo-400/15 blur-3xl"
+      />
 
-        <form
-          className="mt-5"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submit(value);
-          }}
-        >
-          <div className="flex items-center gap-2 rounded-2xl bg-sand p-2 ring-1 ring-line focus-within:ring-2 focus-within:ring-indigo-600">
-            <Search aria-hidden className="ms-2 size-5 shrink-0 text-ink-soft" />
-            <input
-              aria-label={t('inputLabel')}
-              autoComplete="off"
-              className="min-w-0 flex-1 bg-transparent py-3 text-base text-ink outline-none placeholder:text-ink-soft"
-              enterKeyHint="search"
-              name="q"
-              onChange={(event) => {
-                setValue(event.target.value);
-              }}
-              placeholder={t('placeholder')}
-              type="search"
-              value={value}
-            />
-            {/*
-              48px minimum on both controls: the WCAG target size, and the
-              practical floor for a thumb on a phone held one-handed.
-            */}
-            <button
-              aria-label={t('voiceLabel')}
-              className="grid size-12 shrink-0 place-items-center rounded-xl text-ink-soft hover:bg-white"
-              onClick={() => {
-                router.push('/get-care?mode=voice');
-              }}
-              type="button"
-            >
-              <Mic aria-hidden className="size-5" />
-            </button>
-            <button
-              aria-label={t('submitLabel')}
-              className="grid size-12 shrink-0 place-items-center rounded-xl bg-indigo-800 text-white transition-colors hover:bg-indigo-700"
-              type="submit"
-            >
-              <ArrowRight aria-hidden className="size-5" />
-            </button>
-          </div>
-        </form>
+      <div className="container-site relative z-10 flex min-h-[46rem] flex-col justify-between py-10 sm:min-h-[50rem] sm:py-14 lg:min-h-[46rem] lg:py-16">
+        <div className="max-w-2xl">
+          <span className="inline-flex items-center gap-2 rounded-pill border border-white/20 bg-white/10 px-3.5 py-2 text-sm font-semibold text-indigo-50 backdrop-blur-md">
+            <HeartPulse aria-hidden className="size-4 text-marigold-300" />
+            {hero('eyebrow')}
+          </span>
 
-        {/*
-          Horizontally scrollable rather than wrapped: on a 375px screen a
-          wrapped chip list becomes three stacked rows and pushes everything
-          below it off the first screen.
-        */}
-        <ul
-          aria-label={t('quickLabel')}
-          className="mt-3 -mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0"
-        >
-          {QUICK_KEYS.map((key) => (
-            <li key={key}>
-              <button
-                className="inline-flex min-h-11 items-center rounded-pill bg-white px-4 text-sm font-medium whitespace-nowrap text-ink ring-1 ring-line transition-colors hover:bg-indigo-50 hover:ring-indigo-200"
-                onClick={() => {
-                  submit(t(`quick.${key}`));
-                }}
-                type="button"
-              >
-                {t(`quick.${key}`)}
-              </button>
+          <h1
+            className="mt-7 max-w-[12ch] text-[2.65rem] leading-[1.08] text-balance sm:text-6xl lg:text-[4.5rem]"
+            id="home-hero-heading"
+          >
+            {hero('title')}
+          </h1>
+          <p className="mt-5 max-w-xl text-lg leading-relaxed text-indigo-100 sm:text-xl">
+            {hero('body')}
+          </p>
+
+          <ul className="mt-7 flex flex-wrap gap-x-6 gap-y-3 text-sm text-indigo-100">
+            <li className="inline-flex items-center gap-2">
+              <ShieldCheck aria-hidden className="size-4 text-marigold-300" />
+              {hero('trustOne')}
             </li>
-          ))}
-        </ul>
+            <li className="inline-flex items-center gap-2">
+              <LockKeyhole aria-hidden className="size-4 text-marigold-300" />
+              {hero('trustTwo')}
+            </li>
+          </ul>
+        </div>
 
-        <p className="mt-4 text-xs leading-relaxed text-ink-soft">{t('disclaimer')}</p>
+        <div className="mt-16 max-w-3xl lg:mt-10">
+          <div className="rounded-[1.75rem] border border-white/20 bg-white/95 p-4 text-ink shadow-lift backdrop-blur-xl sm:p-6">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
+              <div>
+                <h2 className="font-sans text-xl font-bold tracking-normal text-ink sm:text-2xl">
+                  {symptom('heading')}
+                </h2>
+                <p className="mt-1 text-sm text-ink-soft sm:text-base">{symptom('body')}</p>
+              </div>
+              <span className="mt-2 shrink-0 text-xs font-semibold tracking-wide text-indigo-600 uppercase sm:mt-0">
+                {hero('liveLabel')}
+              </span>
+            </div>
+
+            <form
+              className="mt-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                submit(value);
+              }}
+            >
+              <div className="flex items-center gap-2 rounded-2xl bg-sand p-2 ring-1 ring-line focus-within:ring-2 focus-within:ring-indigo-600">
+                <Search aria-hidden className="ms-2 size-5 shrink-0 text-ink-soft" />
+                <input
+                  aria-label={symptom('inputLabel')}
+                  autoComplete="off"
+                  className="min-w-0 flex-1 bg-transparent py-3 text-base text-ink outline-none placeholder:text-ink-soft"
+                  enterKeyHint="search"
+                  name="q"
+                  onChange={(event) => {
+                    setValue(event.target.value);
+                  }}
+                  placeholder={symptom('placeholder')}
+                  type="search"
+                  value={value}
+                />
+                <button
+                  aria-label={symptom('voiceLabel')}
+                  className="grid size-12 shrink-0 place-items-center rounded-xl text-ink-soft transition-colors hover:bg-white"
+                  onClick={() => {
+                    window.location.assign('/app/companion');
+                  }}
+                  type="button"
+                >
+                  <Mic aria-hidden className="size-5" />
+                </button>
+                <button
+                  aria-label={symptom('submitLabel')}
+                  className="grid size-12 shrink-0 place-items-center rounded-xl bg-marigold-500 text-indigo-950 transition-colors hover:bg-marigold-300"
+                  type="submit"
+                >
+                  <ArrowRight aria-hidden className="size-5" />
+                </button>
+              </div>
+            </form>
+
+            <ul
+              aria-label={symptom('quickLabel')}
+              className="mt-3 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] sm:flex-wrap"
+            >
+              {QUICK_KEYS.map((key) => (
+                <li key={key}>
+                  <button
+                    className="inline-flex min-h-10 items-center rounded-pill bg-white px-3.5 text-sm font-medium whitespace-nowrap text-ink ring-1 ring-line transition-colors hover:bg-indigo-50 hover:ring-indigo-200"
+                    onClick={() => {
+                      submit(symptom(`quick.${key}`));
+                    }}
+                    type="button"
+                  >
+                    {symptom(`quick.${key}`)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs leading-relaxed text-ink-soft">{symptom('disclaimer')}</p>
+          </div>
+        </div>
       </div>
     </section>
   );

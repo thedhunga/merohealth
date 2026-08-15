@@ -27,6 +27,11 @@ export function AboutView() {
     title: t('hero.title'),
     body: t('hero.body'),
     Art: RecordTransform,
+    image: {
+      src: '/imagery/mero-family-report.webp',
+      alt: t('hero.imageAlt'),
+      objectPosition: '68% center',
+    },
     artPosition: 'end' as const,
   };
 

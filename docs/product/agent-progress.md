@@ -4,6 +4,20 @@ A scheduled cloud agent works through this file. Each run starts with **zero
 memory of previous runs**, so this document is the only continuity between
 them. Read it first, do one task, update it last.
 
+> **Current operating note (2026-08-15):** the repository is now on `main`
+> and work is being directed interactively by the owner. The historical
+> scheduled-agent agreement below explains older entries but does not override
+> the current developer handoff in `docs/deployment/developer-handoff.md`.
+
+## Current interactive work — 2026-08-15 visual upgrade
+
+- Rebuilt the homepage around three original, web-optimized illustrative photographs: `mero-family-report.webp`, `mero-private-care.webp`, and `mero-community-care.webp`.
+- Combined the brand proposition, safety assurances, and safety-gated symptom form into one full-bleed first screen without placing health text in a URL or changing the clinical interception boundary.
+- Reworked the record story, care catalogue, organization tabs, and fictional-scenario/film section into a consistent editorial layout.
+- Extended the shared `SectionIntro` hero with an eager-loaded photograph plus branded SVG overlay, then enabled it on the highest-traffic care, company, and organization routes.
+- Removed the generated portrait avatars and demo-partner marquee from the rendered homepage. Fictional scenarios remain visibly labelled; unsubstantiated organization statistics are not rendered.
+- Targeted gates passed after each feature: web lint, typecheck, and 14 test files / 53 tests. Browser checks passed at 1280px and 390px in English and Nepali with no horizontal overflow or Next.js error overlay. The final monorepo gate is recorded in the developer handoff after completion.
+
 ## Working agreement
 
 1. Work on the branch `mero-health/platform-foundation`. Never commit to
@@ -417,6 +431,36 @@ sequenced but must not be started while anything above is unfinished.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-15 — **Private `/get-care` flow, Perplexity research wrapper, media
+  policy correction, and deployment handoff.** The homepage symptom entry now
+  passes text through tab-scoped session storage instead of a query string and
+  opens a bilingual care flow. Its route handler validates input, runs
+  `@swasthya/clinical-safety` before any external request, hard-stops emergency
+  language, and calls Perplexity Sonar only for safe questions. Missing keys or
+  provider failures produce explicit non-diagnostic fallback states. Citation
+  URLs are restricted to HTTP/HTTPS. Motion 12.43.0 provides reduced-motion-
+  aware state transitions.
+
+  Corrected Next.js `Permissions-Policy` from blocking camera/microphone to
+  same-origin-only access so the `/app` companion can request browser grants;
+  geolocation and payment remain disabled. Added regression assertions and
+  confirmed the emitted header.
+
+  Feature verification: web lint and typecheck passed; 14 Vitest files / 53
+  tests passed; the production build generated 101 Next.js pages; browser
+  checks verified private handoff, setup fallback, emergency interruption,
+  Nepali rendering, reduced motion, and no horizontal overflow at 390px.
+
+  Updated root/web READMEs, Vercel/domain and dedicated-server runbooks, added
+  `docs/architecture/ui-and-motion.md`, and added the full developer handoff.
+  The dedicated server has sufficient demonstration capacity but its current
+  Docker web image is Expo-only and must not be treated as equivalent to the
+  combined Next.js Vercel deployment. Next: full monorepo regression, combined
+  Vercel build/deploy, preview smoke test, then server-container modernization.
+  The combined production smoke test also caught and fixed extensionless Expo
+  deep links (`/app/companion` previously 404ed while its `.html` file worked);
+  all eight public product routes now have tested rewrites and returned 200.
 
 - 2026-08-10 — **Round two, task D1: serve the Expo build at `/app`.** First
   unchecked task, per the prior run's own handoff note — took it as pointed.

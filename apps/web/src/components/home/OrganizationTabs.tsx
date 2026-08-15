@@ -1,50 +1,49 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { useLocale, useTranslations } from 'next-intl';
-import { ArrowRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { ArrowUpRight, Building2, HeartHandshake, Network } from 'lucide-react';
 
 import { organizationTabs } from '@/content/home';
 import { Link } from '@/i18n/navigation';
-import { SectionHeading } from '@/components/ui/Section';
 import { cn } from '@/lib/cn';
+
+const TAB_ICONS = [HeartHandshake, Building2, Network] as const;
 
 export function OrganizationTabs() {
   const t = useTranslations('home.organizations');
-  const locale = useLocale();
   const baseId = useId();
   const [active, setActive] = useState(organizationTabs[0]?.key ?? '');
-
   const current = organizationTabs.find((tab) => tab.key === active) ?? organizationTabs[0];
+
   if (!current) return null;
 
   return (
-    <section aria-labelledby="orgs-heading" className="bg-indigo-800 py-16 text-white md:py-24">
+    <section aria-labelledby="orgs-heading" className="bg-sand py-20 md:py-28">
       <div className="container-site">
-        <SectionHeading
-          body={t('body')}
-          className="reveal"
-          id="orgs-heading"
-          title={t('heading')}
-          tone="light"
-        />
+        <div className="grid gap-6 lg:grid-cols-[1fr_.75fr] lg:items-end">
+          <h2 className="max-w-[17ch] text-4xl text-balance sm:text-5xl" id="orgs-heading">
+            {t('heading')}
+          </h2>
+          <p className="max-w-xl text-lg leading-relaxed text-ink-soft lg:justify-self-end">
+            {t('body')}
+          </p>
+        </div>
 
-        <div
-          aria-label={t('tabsLabel')}
-          className="mt-10 flex flex-wrap gap-2"
-          role="tablist"
-        >
-          {organizationTabs.map((tab) => {
+        <div aria-label={t('tabsLabel')} className="mt-10 grid gap-3 md:grid-cols-3" role="tablist">
+          {organizationTabs.map((tab, index) => {
             const selected = tab.key === active;
+            const Icon = TAB_ICONS[index] ?? Building2;
+
             return (
               <button
                 aria-controls={`${baseId}-panel-${tab.key}`}
                 aria-selected={selected}
                 className={cn(
-                  'inline-flex min-h-11 items-center rounded-pill px-5 text-[0.9375rem] font-semibold transition-colors',
+                  'flex min-h-16 items-center gap-3 rounded-2xl px-5 text-left font-semibold transition-all',
                   selected
-                    ? 'bg-white text-indigo-800'
-                    : 'bg-white/10 text-white ring-1 ring-inset ring-white/25 hover:bg-white/20',
+                    ? 'bg-indigo-800 text-white shadow-card'
+                    : 'border border-line bg-white text-ink hover:border-indigo-200 hover:bg-indigo-50',
                 )}
                 id={`${baseId}-tab-${tab.key}`}
                 key={tab.key}
@@ -54,6 +53,13 @@ export function OrganizationTabs() {
                 role="tab"
                 type="button"
               >
+                <Icon
+                  aria-hidden
+                  className={cn(
+                    'size-5 shrink-0',
+                    selected ? 'text-marigold-300' : 'text-indigo-600',
+                  )}
+                />
                 {t(`tabs.${tab.key}.label`)}
               </button>
             );
@@ -62,52 +68,35 @@ export function OrganizationTabs() {
 
         <div
           aria-labelledby={`${baseId}-tab-${current.key}`}
-          className="mt-8 grid gap-10 rounded-card bg-white p-8 text-ink shadow-menu md:p-10 lg:grid-cols-2 lg:items-center lg:gap-14"
+          className="mt-4 grid overflow-hidden rounded-[2rem] bg-indigo-950 text-white shadow-menu lg:grid-cols-[.9fr_1.1fr] lg:items-stretch"
           id={`${baseId}-panel-${current.key}`}
           role="tabpanel"
           tabIndex={0}
         >
-          <div className="flex flex-col gap-6">
-            <h3 className="text-2xl font-bold text-balance text-ink md:text-3xl">
+          <div className="flex flex-col items-start justify-center p-8 sm:p-12 lg:p-14">
+            <span className="text-sm font-semibold tracking-[.14em] text-marigold-300 uppercase">
+              {t(`tabs.${current.key}.label`)}
+            </span>
+            <h3 className="mt-4 max-w-[16ch] text-3xl text-balance text-white sm:text-4xl">
               {t(`tabs.${current.key}.title`)}
             </h3>
-            <p className="text-lg leading-relaxed text-ink-soft">{t(`tabs.${current.key}.body`)}</p>
-
-            {/*
-              The figures are em-dashes until substantiated (see the field
-              comment on `OrganizationTab.stats`), so each slot is built to
-              look deliberate as a badge-and-label pairing rather than a bare
-              number, instead of leaning on a large digit to carry the design.
-            */}
-            <dl className="grid gap-4 sm:grid-cols-2">
-              {current.stats.map((stat) => (
-                <div
-                  className="flex items-center gap-3 rounded-2xl bg-sand/70 p-4 ring-1 ring-line"
-                  key={stat.labelEn}
-                >
-                  <dt className="grid size-11 shrink-0 place-items-center rounded-full bg-indigo-50 text-lg font-bold text-indigo-700">
-                    {stat.value}
-                  </dt>
-                  <dd className="text-sm leading-snug text-ink-soft">
-                    {locale === 'ne' ? stat.labelNe : stat.labelEn}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-
+            <p className="mt-5 max-w-lg text-lg leading-relaxed text-indigo-100">
+              {t(`tabs.${current.key}.body`)}
+            </p>
             <Link
-              className="group inline-flex items-center gap-2 font-semibold text-indigo-800"
+              className="group mt-8 inline-flex min-h-12 items-center gap-2 rounded-pill bg-white px-5 font-semibold text-indigo-800 transition-colors hover:bg-indigo-50"
               href={current.href}
             >
               {t('learnMore')}
-              <ArrowRight
+              <ArrowUpRight
                 aria-hidden
-                className="size-4 transition-transform group-hover:translate-x-1"
+                className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
               />
             </Link>
           </div>
-
-          <current.Art className="aspect-[3/2] w-full rounded-card" />
+          <div className="flex min-h-80 items-center bg-indigo-50 p-6 sm:p-10 lg:min-h-[31rem]">
+            <current.Art className="aspect-[3/2] w-full rounded-[1.5rem]" />
+          </div>
         </div>
       </div>
     </section>

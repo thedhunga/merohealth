@@ -1,45 +1,35 @@
 # @swasthya/web
 
-The public marketing site — Next.js 16 App Router, Tailwind 4, next-intl.
-Nepali is served from the bare path (`/individuals`); English is prefixed
-(`/en/individuals`).
+The public Mero Health front door: Next.js 16 App Router, React 19, Tailwind CSS 4, next-intl, and Motion. Nepali is the default locale on bare paths; English uses `/en`.
 
-## Local
+## Local development
 
 From the repository root:
 
 ```bash
-pnpm turbo build --filter=@swasthya/web...
+pnpm install --frozen-lockfile
 pnpm --filter @swasthya/web dev
 ```
 
-The trailing `...` on the filter matters — it builds the workspace packages
-this app depends on. A bare `--filter=@swasthya/web` builds only the app and
-then fails on their missing `dist` output.
+Open `http://localhost:3000`. Copy `.env.example` in this directory to `.env.local` for local configuration. `PERPLEXITY_API_KEY` is private and must never use a `NEXT_PUBLIC_` prefix.
 
-## Deployment
+To build this app and all workspace dependencies:
 
-Vercel, from `main`.
+```bash
+pnpm build --filter=@swasthya/web...
+```
 
-Two settings live in the dashboard and cannot be committed:
+The trailing `...` matters: it includes the workspace packages on which the app depends.
 
-- **Root Directory** must be `apps/web`. `next` is a dependency of this
-  package, not of the repository root, so Vercel's framework detection finds
-  nothing if the root is left at the default.
-- **Production Branch** should be `main`.
+## Routes and runtime behavior
 
-Because the Root Directory is a subdirectory, Vercel skips builds for commits
-that do not touch `apps/web` — they report as *"Skipped — Not affected"*
-rather than failing. A commit elsewhere in the monorepo will not redeploy the
-site, which is usually what you want and occasionally very confusing.
+- Marketing and utility routes are generated in Nepali and English.
+- `/get-care` performs deterministic emergency interception before any Perplexity request. The question is passed from the homepage through tab-scoped session storage, not a query string.
+- `/api/companion/research` is a Node.js route handler. Only this server-side route reads `PERPLEXITY_API_KEY`.
+- `/app` is the Expo web product. It is generated and copied into `public/app` by `scripts/vercel-build.sh`; that generated directory is intentionally ignored by Git.
 
-`vercel.json` in this directory carries only security headers. Install and
-build are left to Vercel's own pnpm-workspace detection; an explicit
-`cd ../..` build command only works when *Include files outside the Root
-Directory* happens to be enabled.
+## Vercel
 
-## Not yet wired
+Import `https://github.com/thedhunga/merohealth` and keep the Vercel **Root Directory at the repository root**. The root `vercel.json` runs `scripts/vercel-build.sh`, which builds Expo, copies it to `/app`, and then builds Next.js. Do not set the project root to `apps/web`; that older setup omits the combined build.
 
-`/app` — the footer's app-store links point there, intending to serve the Expo
-build from `apps/mobile`. Nothing serves that path yet, so those links 404.
-Queued in the build ledger.
+Set environment variables in **Project Settings → Environment Variables**, scoped separately to Preview and Production. See `docs/deployment/staging-and-domain.md` and `docs/deployment/developer-handoff.md`.

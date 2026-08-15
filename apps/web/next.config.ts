@@ -1,6 +1,9 @@
 import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
 
+import { getExpoStaticRewrites } from './expo-static-routes';
+import { SAME_ORIGIN_MEDIA_POLICY } from './security-policy';
+
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 const nextConfig: NextConfig = {
@@ -24,9 +27,10 @@ const nextConfig: NextConfig = {
   // scripts/vercel-build.sh), and Next's public folder serves those by their
   // literal filename only — it never resolves a bare directory request to
   // its index.html the way a static host would. Without this the footer's
-  // `/app` link 404s even though `public/app/index.html` exists.
+  // `/app` link and Expo's extensionless deep links 404 even though their
+  // generated HTML files exist.
   async rewrites() {
-    return [{ source: '/app', destination: '/app/index.html' }];
+    return getExpoStaticRewrites();
   },
   async headers() {
     return [
@@ -38,7 +42,10 @@ const nextConfig: NextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
           {
             key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=(), payment=()',
+            // The Expo companion is served from the same origin at /app and
+            // needs media access after an explicit browser permission grant.
+            // Cross-origin frames remain blocked; location and payment stay off.
+            value: SAME_ORIGIN_MEDIA_POLICY,
           },
         ],
       },

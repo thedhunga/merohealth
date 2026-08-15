@@ -1,66 +1,91 @@
+import Image from 'next/image';
 import { useTranslations } from 'next-intl';
-import { FileText, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { ArrowUpRight, Camera, FileCheck2, Languages, TrendingUp } from 'lucide-react';
 
 import { ButtonLink } from '@/components/ui/Button';
 import { RecordTransform } from '@/components/art/RecordTransform';
 
-/**
- * The value proposition, sitting *below* the symptom entry rather than above
- * it.
- *
- * This used to be a 1111px dark full-bleed panel — 1.4 phone screens of brand
- * before the reader could do anything, on a site whose visitors arrive with a
- * symptom in mind. It is now a light, compact band: the artwork still carries
- * the paper-report-becomes-a-record idea, but it no longer stands between the
- * person and the thing they came to do.
- *
- * Light surface on purpose. Dark full-bleed reads editorial; a health utility
- * reads clinical, which means white, dense and functional.
- */
 export function Hero() {
   const t = useTranslations('home.hero');
-
-  const assurances = [
-    { key: 'trustOne', Icon: ShieldCheck },
-    { key: 'trustTwo', Icon: LockKeyhole },
+  const steps = [
+    { key: 'recordStepOne', Icon: Camera },
+    { key: 'recordStepTwo', Icon: Languages },
+    { key: 'recordStepThree', Icon: TrendingUp },
   ] as const;
 
   return (
-    <section aria-labelledby="value-heading" className="border-t border-line bg-sand py-10 sm:py-14">
-      <div className="container-site grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
-        <div className="flex flex-col items-start gap-4">
-          <span className="inline-flex items-center gap-2 rounded-pill bg-white px-3 py-1.5 text-xs font-semibold text-indigo-800 ring-1 ring-line">
-            <FileText aria-hidden className="size-4" />
-            {t('eyebrow')}
-          </span>
+    <section
+      aria-labelledby="record-story-heading"
+      className="overflow-hidden bg-sand py-20 lg:py-28"
+    >
+      <div className="container-site grid items-center gap-12 lg:grid-cols-[1.05fr_.95fr] lg:gap-20">
+        <div className="relative mx-auto w-full max-w-2xl lg:mx-0">
+          <div className="relative aspect-[4/3] overflow-hidden rounded-[2rem] bg-indigo-950 shadow-lift">
+            <Image
+              alt="Illustrative scene of a woman having a private health conversation by phone"
+              className="object-cover"
+              fill
+              sizes="(min-width: 1024px) 48vw, 100vw"
+              src="/imagery/mero-private-care.webp"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-indigo-950/50 via-transparent to-transparent" />
+            <span className="absolute top-5 left-5 inline-flex items-center gap-2 rounded-pill border border-white/25 bg-indigo-950/55 px-3.5 py-2 text-sm font-semibold text-white backdrop-blur-md">
+              <span className="relative flex size-2">
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-marigold-300 opacity-75 motion-reduce:animate-none" />
+                <span className="relative inline-flex size-2 rounded-full bg-marigold-300" />
+              </span>
+              {t('liveLabel')}
+            </span>
+          </div>
 
-          <h2
-            className="text-2xl leading-snug font-bold text-balance text-ink sm:text-3xl"
-            id="value-heading"
-          >
-            {t('title')}
-          </h2>
-
-          <p className="text-[0.9375rem] leading-relaxed text-ink-soft sm:text-base">
-            {t('artCaption')}
-          </p>
-
-          <ButtonLink className="mt-1" href="/individuals/how-it-works" variant="secondary">
-            {t('secondaryCta')}
-          </ButtonLink>
-
-          <ul className="mt-1 flex flex-col gap-2">
-            {assurances.map(({ key, Icon }) => (
-              <li className="inline-flex items-center gap-2 text-sm text-ink-soft" key={key}>
-                <Icon aria-hidden className="size-4 shrink-0 text-indigo-600" />
-                {t(key)}
-              </li>
-            ))}
-          </ul>
+          <div className="relative -mt-12 ml-auto w-[88%] rounded-[1.5rem] border border-line bg-white p-4 shadow-menu sm:-mt-16 sm:w-[76%] sm:p-5">
+            <div className="flex items-center gap-3 border-b border-line pb-3">
+              <span className="grid size-10 place-items-center rounded-xl bg-indigo-100 text-indigo-800">
+                <FileCheck2 aria-hidden className="size-5" />
+              </span>
+              <div>
+                <p className="text-xs font-semibold tracking-wide text-indigo-600 uppercase">
+                  {t('recordEyebrow')}
+                </p>
+                <p className="text-sm font-semibold text-ink">{t('artCaption')}</p>
+              </div>
+            </div>
+            <RecordTransform className="mt-3 aspect-[3/1] w-full overflow-hidden rounded-xl" />
+          </div>
         </div>
 
-        {/* Artwork is decorative support here, so it yields first on a phone. */}
-        <RecordTransform className="order-first w-full max-w-sm justify-self-center lg:order-none lg:max-w-none" />
+        <div className="reveal">
+          <p className="text-sm font-semibold tracking-[0.14em] text-indigo-600 uppercase">
+            {t('recordEyebrow')}
+          </p>
+          <h2
+            className="mt-4 max-w-[13ch] text-4xl text-balance sm:text-5xl"
+            id="record-story-heading"
+          >
+            {t('recordTitle')}
+          </h2>
+          <p className="mt-5 max-w-xl text-lg leading-relaxed text-ink-soft">{t('recordBody')}</p>
+
+          <ol className="mt-8 space-y-3">
+            {steps.map(({ key, Icon }, index) => (
+              <li
+                className="flex items-center gap-4 rounded-2xl border border-line bg-white p-4 shadow-[0_1px_0_rgb(23_20_41/.04)]"
+                key={key}
+              >
+                <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-700">
+                  <Icon aria-hidden className="size-5" />
+                </span>
+                <span className="flex-1 font-semibold text-ink">{t(key)}</span>
+                <span className="text-sm font-bold text-indigo-200">0{index + 1}</span>
+              </li>
+            ))}
+          </ol>
+
+          <ButtonLink className="mt-8" href="/individuals/how-it-works" size="lg" variant="primary">
+            {t('secondaryCta')}
+            <ArrowUpRight aria-hidden className="size-4.5" />
+          </ButtonLink>
+        </div>
       </div>
     </section>
   );

@@ -8,6 +8,7 @@ import { HomeFirstVisit } from '@/components/art/HomeFirstVisit';
 import { VitalsTrend } from '@/components/art/VitalsTrend';
 
 type Art = ComponentType<{ className?: string }>;
+type PageImage = { src: string; objectPosition?: string };
 
 /** A page with no sub-services: hero + three short highlights + the shared CTA band. */
 export interface ConditionPage {
@@ -16,6 +17,7 @@ export interface ConditionPage {
   key: string;
   href: string;
   Art: Art;
+  image?: PageImage;
   artPosition: 'start' | 'end';
   /** Ordered keys into `individuals.<key>.highlights.items`. */
   highlightKeys: readonly string[];
@@ -27,6 +29,7 @@ export interface SegmentPage {
   key: string;
   href: string;
   Art: Art;
+  image?: PageImage;
   artPosition: 'start' | 'end';
   children: ReadonlyArray<{ key: string; href: string; Art: Art }>;
 }
@@ -46,6 +49,7 @@ export const individualsPages: readonly IndividualsPage[] = [
     key: 'care247',
     href: '/individuals/24-7-care',
     Art: AroundTheClockCare,
+    image: { src: '/imagery/mero-community-care.webp', objectPosition: '38% center' },
     artPosition: 'end',
     highlightKeys: HIGHLIGHT_KEYS,
   },
@@ -54,6 +58,7 @@ export const individualsPages: readonly IndividualsPage[] = [
     key: 'primaryCare',
     href: '/individuals/primary-care',
     Art: HomeFirstVisit,
+    image: { src: '/imagery/mero-community-care.webp', objectPosition: '38% center' },
     artPosition: 'start',
     highlightKeys: HIGHLIGHT_KEYS,
   },
@@ -62,6 +67,7 @@ export const individualsPages: readonly IndividualsPage[] = [
     key: 'mentalHealth',
     href: '/individuals/mental-health',
     Art: CalmMind,
+    image: { src: '/imagery/mero-private-care.webp', objectPosition: '42% center' },
     artPosition: 'end',
     highlightKeys: HIGHLIGHT_KEYS,
   },

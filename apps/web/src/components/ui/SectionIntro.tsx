@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import type { ComponentType } from 'react';
 
 import { ButtonLink } from '@/components/ui/Button';
@@ -20,6 +21,8 @@ interface SectionIntroProps {
    * wall of text, and an optional prop would let that slip.
    */
   Art: ComponentType<{ className?: string }>;
+  /** Optional original illustrative photograph; the branded Art remains as a product cue. */
+  image?: { src: string; alt: string; objectPosition?: string };
   artCaption?: string;
   cta?: SectionIntroCta;
   /**
@@ -66,6 +69,7 @@ export function SectionIntro({
   title,
   body,
   Art,
+  image,
   artCaption,
   cta,
   tone = 'forest',
@@ -114,8 +118,36 @@ export function SectionIntro({
           ) : null}
         </div>
 
-        <div className={cn('relative', artPosition === 'start' && 'lg:order-first')}>
-          <Art className="w-full drop-shadow-2xl" />
+        <div
+          className={cn(
+            'relative',
+            image && 'pb-8 sm:pb-10',
+            artPosition === 'start' && 'lg:order-first',
+          )}
+        >
+          {image ? (
+            <>
+              <div className="relative aspect-[4/3] overflow-hidden rounded-[2rem] bg-indigo-950 shadow-menu ring-1 ring-white/10">
+                <Image
+                  alt={image.alt}
+                  className="object-cover"
+                  fill
+                  loading="eager"
+                  sizes="(min-width: 1024px) 48vw, 100vw"
+                  src={image.src}
+                  style={
+                    image.objectPosition ? { objectPosition: image.objectPosition } : undefined
+                  }
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-indigo-950/30 via-transparent to-transparent" />
+              </div>
+              <div className="absolute right-5 bottom-0 w-[48%] min-w-44 rounded-[1.25rem] border border-line bg-white p-3 shadow-lift sm:right-8 sm:p-4">
+                <Art className="aspect-[3/2] w-full rounded-xl" />
+              </div>
+            </>
+          ) : (
+            <Art className="w-full drop-shadow-2xl" />
+          )}
           {artCaption ? (
             <p className={cn('mt-5 max-w-sm text-sm leading-relaxed', styles.caption)}>
               {artCaption}
@@ -127,10 +159,7 @@ export function SectionIntro({
       {tone === 'forest' ? (
         // Curved lip into the next section, matching the homepage Hero so the
         // ground still ends deliberately rather than cutting off flat.
-        <div
-          aria-hidden
-          className="h-10 rounded-t-[2.5rem] bg-paper md:h-14 md:rounded-t-[4rem]"
-        />
+        <div aria-hidden className="h-10 rounded-t-[2.5rem] bg-paper md:h-14 md:rounded-t-[4rem]" />
       ) : null}
     </section>
   );

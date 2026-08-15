@@ -8,6 +8,7 @@ interface PageTemplateHero {
   title: string;
   body?: string;
   Art: ComponentType<{ className?: string }>;
+  image?: { src: string; alt: string; objectPosition?: string };
   artCaption?: string;
   cta?: { label: string; href: string };
   tone?: SectionIntroTone;

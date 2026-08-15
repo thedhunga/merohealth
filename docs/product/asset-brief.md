@@ -5,16 +5,21 @@
 Wired and live. Anything missing keeps its SVG artwork, so the site is
 complete either way.
 
-| Asset | State |
-|---|---|
-| `video/mero-health-hero.mp4` | ✅ wired — ambient loop behind the hero, muted, `motion-reduce:hidden` |
-| `video/mero-health-story.mp4` | ✅ wired — testimonial player |
-| `video/mero-health-capture.mp4` | ⬜ present but unused — 9:16, no slot for it yet |
-| `imagery/portrait-{sabina,raju,mina,prakash}.webp` | ✅ wired — testimonial avatars |
-| `mero-health-social.png` | ✅ used as the OG/Twitter card |
-| The 9 remaining images | ⬜ missing — SVG artwork stands in |
+| Asset                                              | State                                                                                       |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `imagery/mero-family-report.webp`                  | ✅ wired — homepage hero, original illustrative photography                                 |
+| `imagery/mero-private-care.webp`                   | ✅ wired — record/care story, original illustrative photography                             |
+| `imagery/mero-community-care.webp`                 | ✅ wired — featured care card and story-film poster                                         |
+| `video/mero-health-hero.mp4`                       | ⬜ present but unused — the new hero is photo-led to keep the care form stable and readable |
+| `video/mero-health-story.mp4`                      | ✅ wired — prominent story-film player                                                      |
+| `video/mero-health-capture.mp4`                    | ⬜ present but unused — 9:16, no slot for it yet                                            |
+| `imagery/portrait-{sabina,raju,mina,prakash}.webp` | 🗑 removed — fictional scenarios do not need synthetic identity portraits                   |
+| `mero-health-social.png`                           | ✅ used as the OG/Twitter card                                                              |
+| The 9 remaining images                             | ⬜ missing — SVG artwork stands in                                                          |
 
-### Four things to know about the delivered images
+The three `mero-*` photographs were generated as original assets on 2026-08-15, inspected, and converted to WebP at quality 86. They total about 400 KB. They contain no readable interface, logo, or medical claim. They are illustrative scenes and must not be described as real patients, clinicians, or outcomes.
+
+### Four things to know about the older delivered portraits
 
 1. **Every one carries a visible AI watermark** — the four-pointed ✦ in the
    bottom-right. It is cropped out incidentally at the 44px avatar size, but it
@@ -34,7 +39,6 @@ complete either way.
    **`portrait-sgroup-4.webp` was a four-up contact sheet**, not a single
    portrait, so it was moved out of `public/` to
    `docs/product/source-contact-sheet-4up.webp` rather than served as one.
-
 
 Generate these externally, drop the files at the exact paths below, and the
 code picks them up. Filenames are load-bearing: match them exactly.
@@ -65,6 +69,7 @@ than fourteen stock photos.
 ## Videos — Google Veo
 
 ### 1. Hero brand film
+
 **Path:** `apps/web/public/video/mero-health-hero.mp4`
 **Ratio:** 16:9 · **Length:** 8–12s · silent, loops seamlessly
 
@@ -76,6 +81,7 @@ than fourteen stock photos.
 > paper. No faces.
 
 ### 2. Story film
+
 **Path:** `apps/web/public/video/mero-health-story.mp4`
 **Ratio:** 16:9 · **Length:** 25–40s · **This slot already exists in the code**
 
@@ -87,6 +93,7 @@ than fourteen stock photos.
 > shot held 4-6 seconds. No text, no signage, no on-screen graphics.
 
 ### 3. App capture loop
+
 **Path:** `apps/web/public/video/mero-health-capture.mp4`
 **Ratio:** 9:16 · **Length:** 6–8s · silent loop
 
@@ -98,31 +105,35 @@ than fourteen stock photos.
 ## Images — ChatGPT, Imagen or Veo stills
 
 ### Testimonial portraits — 1:1, four files
+
 Warm natural portrait, soft window light, plain warm-cream background,
 shallow depth of field, looking directly at camera with a slight genuine
 smile. Film grain. No text.
 
-| Path | Subject |
-|---|---|
-| `apps/web/public/imagery/portrait-sabina.webp` | Nepali woman, early thirties, simple deep green kurta, quietly confident |
-| `apps/web/public/imagery/portrait-raju.webp` | Nepali man, early forties, plain collared shirt, warm and open |
-| `apps/web/public/imagery/portrait-mina.webp` | Nepali woman, late twenties, dark hair tied back, thoughtful |
-| `apps/web/public/imagery/portrait-prakash.webp` | Nepali man, sixties, grey hair, weathered kind face, dignified |
+| Path                                            | Subject                                                                  |
+| ----------------------------------------------- | ------------------------------------------------------------------------ |
+| `apps/web/public/imagery/portrait-sabina.webp`  | Nepali woman, early thirties, simple deep green kurta, quietly confident |
+| `apps/web/public/imagery/portrait-raju.webp`    | Nepali man, early forties, plain collared shirt, warm and open           |
+| `apps/web/public/imagery/portrait-mina.webp`    | Nepali woman, late twenties, dark hair tied back, thoughtful             |
+| `apps/web/public/imagery/portrait-prakash.webp` | Nepali man, sixties, grey hair, weathered kind face, dignified           |
 
 ### Organisation section — 3:2
 
 **`apps/web/public/imagery/org-health-plans.webp`**
+
 > A Nepali man in his thirties sitting on a step outside a modest home,
 > talking to someone on his phone, relaxed and mid-conversation. Late
 > afternoon light. Shallow depth of field, film grain. No text.
 
 **`apps/web/public/imagery/org-employers.webp`**
+
 > Two Nepali colleagues, a woman and a man in their thirties in smart casual
 > clothes, talking over a laptop at a shared desk beside a window in a bright
 > Kathmandu office. Plants, natural daylight, candid unposed moment. Film
 > grain. No text or signage on screens.
 
 **`apps/web/public/imagery/org-hospitals.webp`**
+
 > A bright modern Nepali hospital corridor, a nurse walking away from camera,
 > tall windows casting long warm light across a polished floor. Calm and
 > spacious. Shallow depth of field, film grain. No signage or lettering.
@@ -130,35 +141,41 @@ smile. Film grain. No text.
 ### Condition and service pages — 3:2
 
 **`apps/web/public/imagery/care-247.webp`**
+
 > A young Nepali man sitting on the edge of a bed at night in a modest
 > Kathmandu apartment, lit by a warm bedside lamp and the glow of the phone in
 > his hand. Calm, not distressed. Deep green and amber tones. Film grain. No
 > text.
 
 **`apps/web/public/imagery/primary-care.webp`**
+
 > A Nepali woman doctor in her forties in a simple clinic room, leaning in to
 > listen to an elderly patient seated across from her. Warm daylight through a
 > carved wooden window frame. Stethoscope around her neck. Genuine unposed
 > moment of attention. Film grain. No text.
 
 **`apps/web/public/imagery/mental-health.webp`**
+
 > A young Nepali woman sitting alone by a large window in soft diffuse morning
 > light, looking out thoughtfully. Warm interior, terracotta wall. Calm and
 > dignified, not sad. Muted green and cream. Film grain. No text.
 
 **`apps/web/public/imagery/condition-management.webp`**
+
 > Close shot of the weathered hands of an older Nepali man using a small home
 > blood pressure cuff on his forearm, at a wooden table in warm afternoon
 > light. A glass of water beside him. Shallow depth of field, film grain. No
 > readable numbers or text on the device.
 
 **`apps/web/public/imagery/specialty-care.webp`**
+
 > A Nepali dermatologist examining a patient's forearm with a small
 > illuminated magnifier in a bright clean consultation room. Focused
 > professional hands in the foreground. Soft natural light, film grain. No
 > text.
 
 **`apps/web/public/imagery/healthy-habits.webp`**
+
 > Overhead shot of a Nepali home kitchen counter: fresh spinach, lentils in a
 > brass bowl, tomatoes, ginger and garlic on a worn wooden board, a woman's
 > hands slicing at the edge of frame. Natural window light, rich marigold and
@@ -167,18 +184,21 @@ smile. Film grain. No text.
 ### Wider brand — 3:2
 
 **`apps/web/public/imagery/rural-reach.webp`**
+
 > Golden-hour view of a Nepali hill village with terraced fields, a narrow
 > path leading toward a small rural health post with a metal roof. Warm light
 > raking across the terraces, soft distant haze, deep green fields. Film
 > grain. No signage or lettering.
 
 **`apps/web/public/imagery/clinicians.webp`**
+
 > Three Nepali healthcare workers — a doctor and two nurses in their thirties
 > — standing together in a sunlit hospital corridor, mid-conversation, relaxed
 > and collegial. Natural light, film grain. No badges, no lettering, no
 > signage.
 
 ### Social share card
+
 **Path:** `apps/web/public/mero-health-social.png` · **Ratio:** 1.91:1 (1200×630)
 
 > A creased paper medical report on a warm wooden table in soft window light,
@@ -212,7 +232,8 @@ autoplay across browsers.
 
 ## Wiring
 
-Once files exist, the components need photography slots added — currently
-everything is SVG artwork and `next/image` is unused. That task is in the
-build ledger under "Photography wiring". Artwork stays as the fallback: a
-missing file must degrade to the existing SVG, never to a broken image.
+Photography is now wired into the hero, record story, featured service, and
+story-film poster with `next/image`. The remaining service and organization
+surfaces intentionally retain the local SVG system until a specific approved
+photograph exists. A missing future photograph must degrade to the existing
+SVG, never to a broken image.
