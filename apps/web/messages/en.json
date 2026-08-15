@@ -143,27 +143,27 @@
       "items": {
         "care247": {
           "title": "24/7 Care",
-          "body": "Talk to a medical provider any time, day or night — from a common cold to an urgent worry."
+          "body": "Talk to a provider any time, day or night."
         },
         "primaryCare": {
           "title": "Primary Care",
-          "body": "Stay on top of your health with board-certified providers, building a relationship with one clinician."
+          "body": "One clinician, ongoing care you can rely on."
         },
         "mentalHealth": {
           "title": "Mental Health",
-          "body": "Access a network of licensed therapists and psychiatrists — private, and in your own language."
+          "body": "Licensed therapists, private and in your own language."
         },
         "conditionManagement": {
           "title": "Condition Management",
-          "body": "Personalised coaching, connected devices and continuous support for long-term conditions."
+          "body": "Coaching and support for long-term conditions."
         },
         "specialtyCare": {
           "title": "Specialty Care",
-          "body": "Consult specialists, from dermatology through to a second opinion on a complex diagnosis."
+          "body": "Specialists, from dermatology to a second opinion."
         },
         "healthyHabits": {
           "title": "Everyday healthy habits",
-          "body": "Small, durable steps for nutrition, sleep and habits that hold over the long run."
+          "body": "Small steps for nutrition, sleep and lasting habits."
         }
       }
     },
@@ -195,6 +195,8 @@
       "watchVideo": "Watch the short video",
       "previous": "Previous",
       "next": "Next",
+      "showMore": "Show {count} more stories",
+      "showFewer": "Show fewer stories",
       "items": {
         "sabina": {
           "quote": "I photographed the report and understood the result in Nepali straight away. I no longer have to ask a doctor every time.",

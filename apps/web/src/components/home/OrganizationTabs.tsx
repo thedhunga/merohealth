@@ -19,7 +19,10 @@ export function OrganizationTabs() {
   if (!current) return null;
 
   return (
-    <section aria-labelledby="orgs-heading" className="bg-sand py-20 md:py-28">
+    <section
+      aria-labelledby="orgs-heading"
+      className="hidden bg-sand py-20 md:py-28 lg:block"
+    >
       <div className="container-site">
         <div className="grid gap-6 lg:grid-cols-[1fr_.75fr] lg:items-end">
           <h2 className="max-w-[17ch] text-4xl text-balance sm:text-5xl" id="orgs-heading">

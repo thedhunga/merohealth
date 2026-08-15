@@ -1332,6 +1332,83 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-15 — **Round three, task B1: cut the homepage, but not down to
+  four or five screens.** Left unchecked — the three specified cuts are done
+  and measured, but the numeric target isn't met, and the reason is worth
+  the next run reading before it re-attempts this.
+
+  **What changed.** `OrganizationTabs` now renders `hidden lg:block` — it no
+  longer reaches mobile at all rather than only "collapsing" (there is no
+  compact mobile form worth keeping for an employer/health-plan pitch on a
+  phone). `Testimonials` shows its first two cards on load; the other two
+  sit behind a "Show 2 more stories" button (`home.testimonials.showMore`/
+  `showFewer`, both locales) that expands in place. No `/stories` page
+  exists and none was invented for this — an in-page reveal is honest scope,
+  a new route is not. `ServiceCards` body copy was shortened in both
+  locales (e.g. "Talk to a medical provider any time, day or night — from a
+  common cold to an urgent worry." → "Talk to a provider any time, day or
+  night."). `PartnerMarquee` needed nothing — it was already unrendered
+  (dead file, not imported by `page.tsx`), which the queue's wording didn't
+  know when it was written.
+
+  **The `EditorialImage`/`node:fs` trap.** First attempt made `Testimonials`
+  itself `'use client'` so the card list could hold `useState`. Turbopack
+  panicked repeatedly (`the chunking context (unknown) does not support
+  external modules (request: node:fs)`) because `EditorialImage` calls
+  `hasAsset()`, which is explicitly commented as server-only in
+  `lib/assets.ts` — bundling it for the client tries to ship `node:fs` to
+  the browser. Fixed by keeping `Testimonials` a server component that
+  renders the four `<li>` cards (with `EditorialImage`) as before, and
+  extracting only the expand/collapse *behavior* into a new client
+  component, `TestimonialsGrid`, which receives the already-rendered cards
+  as a `ReactNode[]` prop rather than re-rendering them itself. Worth
+  remembering for any future "make part of a server-rendered list
+  interactive" task in this codebase — split the interactivity out, don't
+  flip the whole component to `'use client'`.
+
+  **Measured before/after at 375×812** (`document.body.scrollHeight /
+  innerHeight`, production build via `next start`, not dev):
+  Nepali **13.36 → 11.06 screens** (10850px → 8978px). English **14.25 →
+  11.82 screens** (11568px → 9595px). Tap targets 78→79 (one new button,
+  which is 44px so it doesn't add to the undersized count); small targets
+  unchanged at 54/78 (ne) and 53/78 (en) — task C-adjacent, not touched
+  here.
+
+  **Why "four or five" wasn't reached, with numbers.** Per-section height
+  at 375px, Nepali, after this run's cuts: header 80, `SymptomEntry` 778,
+  `Hero`/record-story 1275, `ServiceCards` 3007, `OrganizationTabs` 0
+  (hidden), `Testimonials` 1259, `FinalCta` 462, **footer 2116**. Two things
+  dominate that the queue's three cuts don't touch: the global footer alone
+  is 2116px — 2.6 screens on every route, not just this one — and
+  `ServiceCards`'s six cards mostly sit on fixed `min-h` floors (the
+  featured card is exactly at its `min-h-[31rem]`), so shortening copy only
+  shaved 156px off 3163 rather than the several hundred a shorter page
+  needs. Reaching four or five screens honestly requires one of: reducing
+  `ServiceCards` to fewer or smaller cards on mobile specifically (a
+  layout change beyond "shorten copy," so deliberately not done here
+  without being asked), or compacting the footer (which is shared across
+  all ~45 routes, so that decision belongs with task B2's "push the light
+  treatment everywhere" work, not this one). Left the checkbox unticked
+  rather than mark a numeric target met when it wasn't — the three
+  specified cuts are genuinely done and safe to build on, but this task
+  isn't finished by its own stated goal.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks (686 tests in `apps/api`,
+  77 in `apps/web`); `pnpm build` 40/40. Production build checked with
+  `next start` (not just dev) at 375px in both locales: no horizontal
+  overflow, no new console errors (the two present — missing story video,
+  `apps/api` connection-refused — are the same pre-existing, documented
+  ones from the task-A entry below), expand/collapse verified by scripted
+  click (2 cards → 4), `OrganizationTabs` verified hidden at 375px and
+  visible at 1280px.
+
+  **For the next run.** If continuing B1: the `ServiceCards`
+  fewer-or-smaller-on-mobile question above is the concrete next lever, or
+  fold this into B2's footer work instead. Otherwise B2 (push the light
+  treatment through `PageTemplate`/`SectionIntro` to the other 45 routes)
+  is next in queue order.
+
 - 2026-08-15 — **Round three, task A: merged `main` and
   `mero-health/platform-foundation` into one history, directly on `main`.**
   First unchecked task in the queue, and the one everything else was blocked
