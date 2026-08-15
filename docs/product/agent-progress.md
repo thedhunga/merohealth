@@ -1332,6 +1332,63 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-15 — **Round three, task B1 continued: `Hero`/record-story given a
+  mobile spacing tier.** Still left unchecked — real progress, target still
+  not met. This is the exact lever the immediately preceding (`ServiceCards`)
+  B1 entry named as next ("`Hero`/record-story … is now the single largest
+  homepage block … its `py-20 lg:py-28` section padding — never given the
+  `sm:` mobile tier `Footer` already has — [is an] unexplored lever").
+
+  **What changed.** `Hero.tsx` used the same padding/gap/margin values at
+  every width below `lg` (`py-20` section, `gap-12` grid, `mt-5` body
+  paragraph, `mt-8`/`space-y-3` step list, `p-4` per step card, `mt-8` CTA
+  button) — desktop spacing carried straight down to 375px, same shape as
+  `Footer` before its own B1 pass. Added an `sm:` (640px) step below each of
+  those six values, following `Footer`'s established pattern exactly: `sm`
+  and up are untouched, so `sm`, `md`, `lg` and desktop stay pixel-identical
+  to before. Confirmed by building both the pre-edit and post-edit commits
+  and re-measuring at 768px and 1280px: `Hero` section height identical in
+  both builds at both widths (768px: 1344.5px ne / 1392.5px en; 1280px:
+  858.95px ne / 933.75px en), and no horizontal overflow introduced at any
+  width. The floating record-preview card (`lg:block`, already `sm:`-scaled)
+  and the photograph's `aspect-[4/3]` were left alone — this run only touched
+  padding, margin and gap on the text column and section shell, not
+  typography or imagery. No copy changed, so no message-file edits.
+
+  **Measured at 375×812** (`document.body.scrollHeight / innerHeight`,
+  production build via `next start`, fresh server per build — killed and
+  confirmed dead before every rebuild — Playwright at
+  `/opt/pw-browsers/chromium`): Nepali **6.44 → 6.28 screens** (5229px →
+  5097px, **-132px**). English **6.90 → 6.73 screens** (5599px → 5467px,
+  **-132px**). Target is still four to five screens (3248–4060px); today's
+  5097px (ne) / 5467px (en) still needs roughly 1037–1849px / 1207–2019px
+  more.
+
+  **`Hero` section height:** Nepali 1101px → 969px (-132px), English
+  1178.25px → 1046.25px (-132px) — matches the shell savings exactly, as
+  expected for a pure-spacing change with no reflow elsewhere. `Hero` is no
+  longer the largest homepage block.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks; `pnpm build` 40/40 (no new
+  test file — this file has no colocated test, matching every other
+  `apps/web` homepage component, which unit-tests logic only). Production
+  build checked with `next start` at 375px, 768px and 1280px in both
+  locales: no horizontal overflow, no new console errors beyond the two
+  already-documented pre-existing ones (missing story video source, `apps/api`
+  connection-refused with no local API running). Screenshotted the section at
+  375px in both locales — spacing reads intentional, not cramped; the three
+  step cards and CTA are still clearly separated.
+
+  **For the next run.** `Footer` (1028px ne / 1070px en) and `Testimonials`
+  (1005px ne / 1199px en, still full-bleed dark, still ~200px taller in
+  English than Nepali — unexplored) are now the two largest untouched
+  homepage blocks; `ServiceCards` (774.5px / 763.75px) and `Hero` (969px /
+  1046.25px) are past their easiest mobile-spacing wins. `SymptomEntry` (the
+  actual first section, above `Hero`) has not been measured individually and
+  is worth a look before assuming it's already lean. Otherwise B3 (`/app` 404
+  in production) is next in queue order, or task C's tap-target backlog.
+
 - 2026-08-15 — **Round three, task B1 continued: `ServiceCards` collapses to
   just the featured card by default on mobile, not featured + 1.** Still left
   unchecked — real progress, target still not met, and this is exactly the

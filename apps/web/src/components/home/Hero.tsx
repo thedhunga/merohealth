@@ -16,9 +16,9 @@ export function Hero() {
   return (
     <section
       aria-labelledby="record-story-heading"
-      className="overflow-hidden bg-sand py-20 lg:py-28"
+      className="overflow-hidden bg-sand py-12 sm:py-20 lg:py-28"
     >
-      <div className="container-site grid items-center gap-12 lg:grid-cols-[1.05fr_.95fr] lg:gap-20">
+      <div className="container-site grid items-center gap-8 sm:gap-12 lg:grid-cols-[1.05fr_.95fr] lg:gap-20">
         <div className="relative mx-auto w-full max-w-2xl lg:mx-0">
           <div className="relative aspect-[4/3] overflow-hidden rounded-[2rem] bg-indigo-950 shadow-lift">
             <Image
@@ -69,12 +69,14 @@ export function Hero() {
           >
             {t('recordTitle')}
           </h2>
-          <p className="mt-5 max-w-xl text-lg leading-relaxed text-ink-soft">{t('recordBody')}</p>
+          <p className="mt-4 max-w-xl text-lg leading-relaxed text-ink-soft sm:mt-5">
+            {t('recordBody')}
+          </p>
 
-          <ol className="mt-8 space-y-3">
+          <ol className="mt-6 space-y-2 sm:mt-8 sm:space-y-3">
             {steps.map(({ key, Icon }, index) => (
               <li
-                className="flex items-center gap-4 rounded-2xl border border-line bg-white p-4 shadow-[0_1px_0_rgb(23_20_41/.04)]"
+                className="flex items-center gap-4 rounded-2xl border border-line bg-white p-3 shadow-[0_1px_0_rgb(23_20_41/.04)] sm:p-4"
                 key={key}
               >
                 <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-700">
@@ -86,7 +88,12 @@ export function Hero() {
             ))}
           </ol>
 
-          <ButtonLink className="mt-8" href="/individuals/how-it-works" size="lg" variant="primary">
+          <ButtonLink
+            className="mt-6 sm:mt-8"
+            href="/individuals/how-it-works"
+            size="lg"
+            variant="primary"
+          >
             {t('secondaryCta')}
             <ArrowUpRight aria-hidden className="size-4.5" />
           </ButtonLink>
