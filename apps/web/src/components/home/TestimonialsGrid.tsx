@@ -23,12 +23,14 @@ export function TestimonialsGrid({ cards, showMoreLabel, showFewerLabel }: Testi
 
   return (
     <>
-      <ul className="reveal-stagger mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">{visible}</ul>
+      <ul className="reveal-stagger mt-6 grid gap-3 sm:mt-10 sm:gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {visible}
+      </ul>
 
       {hiddenCount > 0 ? (
         <button
           aria-expanded={expanded}
-          className="mx-auto mt-8 flex min-h-11 items-center gap-2 rounded-pill border border-white/20 px-5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+          className="mx-auto mt-6 flex min-h-11 items-center gap-2 rounded-pill border border-white/20 px-5 text-sm font-semibold text-white transition-colors hover:bg-white/10 sm:mt-8"
           onClick={() => {
             setExpanded((value) => !value);
           }}

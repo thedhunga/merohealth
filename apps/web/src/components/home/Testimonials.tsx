@@ -18,17 +18,17 @@ export function Testimonials() {
   // only owns the client-side expand/collapse of the already-rendered list.
   const cards = testimonialKeys.map((key, index) => (
     <li
-      className="rounded-[1.5rem] border border-white/12 bg-white/8 p-6 backdrop-blur-sm"
+      className="rounded-[1.5rem] border border-white/12 bg-white/8 p-5 backdrop-blur-sm sm:p-6"
       key={key}
     >
       <div className="flex items-center justify-between">
         <Quote aria-hidden className="size-6 text-marigold-300" />
         <span className="text-xs font-bold tracking-[.16em] text-indigo-400">0{index + 1}</span>
       </div>
-      <blockquote className="mt-5 text-lg leading-relaxed text-white text-pretty">
+      <blockquote className="mt-4 text-lg leading-relaxed text-white text-pretty sm:mt-5">
         {t(`items.${key}.quote`)}
       </blockquote>
-      <footer className="mt-6 flex items-center gap-3 border-t border-white/12 pt-4 text-sm text-indigo-200">
+      <footer className="mt-4 flex items-center gap-3 border-t border-white/12 pt-3 text-sm text-indigo-200 sm:mt-6 sm:pt-4">
         {/*
           Portraits land one at a time, so each avatar falls back to a
           neutral placeholder rather than a broken image. The
@@ -57,26 +57,26 @@ export function Testimonials() {
   return (
     <section
       aria-labelledby="testimonials-heading"
-      className="relative isolate overflow-hidden bg-indigo-950 py-20 text-white md:py-28"
+      className="relative isolate overflow-hidden bg-indigo-950 py-14 text-white sm:py-20 md:py-28"
     >
       <div
         aria-hidden
         className="absolute -top-48 -right-40 -z-10 size-[34rem] rounded-full bg-indigo-600/25 blur-3xl"
       />
       <div className="container-site">
-        <div className="grid gap-8 lg:grid-cols-[.72fr_1.28fr] lg:items-end">
+        <div className="grid gap-6 sm:gap-8 lg:grid-cols-[.72fr_1.28fr] lg:items-end">
           <div className="reveal">
             <span className="hidden items-center gap-2 rounded-pill border border-white/15 bg-white/8 px-3 py-1.5 text-sm font-semibold text-indigo-100 lg:inline-flex">
               <Sparkles aria-hidden className="size-4 text-marigold-300" />
               {t('watchVideo')}
             </span>
             <h2
-              className="mt-5 max-w-[11ch] text-4xl text-balance sm:text-5xl"
+              className="mt-4 max-w-[11ch] text-4xl text-balance sm:mt-5 sm:text-5xl"
               id="testimonials-heading"
             >
               {t('heading')}
             </h2>
-            <p className="mt-5 max-w-lg text-base leading-relaxed text-indigo-200">
+            <p className="mt-4 max-w-lg text-base leading-relaxed text-indigo-200 sm:mt-5">
               {t('disclaimer')}
             </p>
           </div>

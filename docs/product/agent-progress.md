@@ -1332,6 +1332,79 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-15 — **Round three, task B1 continued: `Testimonials`/
+  `TestimonialsGrid` given a mobile spacing tier.** Still left unchecked —
+  real progress, target still not met. This is exactly the lever the
+  immediately preceding (`Hero`) B1 entry named as next ("`Footer` … and
+  `Testimonials` … are now the two largest untouched homepage blocks … still
+  full-bleed dark … unexplored").
+
+  **What changed.** `Testimonials.tsx` and `TestimonialsGrid.tsx` used the
+  same padding/gap/margin values at every width below `lg` (section
+  `py-20 md:py-28`, header grid `gap-8`, heading `mt-5`, paragraph `mt-5`,
+  card `p-6`, blockquote `mt-5`, card footer `mt-6`/`pt-4`, grid `mt-10`/
+  `gap-4`, show-more button `mt-8`) — desktop spacing carried straight down
+  to 375px, the same shape `Hero` and `Footer` were in before their own B1
+  passes. Added an `sm:` (640px) step below each of those nine values,
+  following the exact pattern established by `Hero`/`Footer`: the `sm:`
+  value equals the old unconditional value, so `sm`, `md`, `lg` and desktop
+  are pixel-identical to before by construction (every changed class keeps
+  its original value behind an `sm:` prefix — nothing above 640px could have
+  moved). Confirmed anyway by measuring total page height at 768px and
+  1280px in both locales after the change (768px: 6195px ne / 6478px en;
+  1280px: 6663px ne / 6863px en) — recorded for a future run to diff
+  against, since no prior total-height baseline at those widths existed to
+  compare to directly. The video player and its "watch" pill stay `lg:`-only
+  as before; only the text column, card internals and grid spacing changed.
+  No copy changed, so no message-file edits.
+
+  **Measured at 375×812** (`document.body.scrollHeight / innerHeight`,
+  production build via `next start`, fresh server per build — killed and
+  confirmed dead before every rebuild — Playwright at
+  `/opt/pw-browsers/chromium`, baseline reconfirmed by `git stash`-ing the
+  change and rebuilding before restoring it): Nepali **6.28 → 6.11 screens**
+  (5097px → 4965px, **-132px**). English **6.73 → 6.57 screens** (5467px →
+  5335px, **-132px** — identical delta both locales, as expected for a pure
+  spacing change). Target is still four to five screens (3248–4060px);
+  today's 4965px (ne) / 5335px (en) still needs roughly 905–1717px / 1275–
+  2087px more.
+
+  **`Testimonials` section height:** Nepali 1005px → 873px (-132px), English
+  1198.75px → 1066.75px (-132.25px) — matches the shell savings exactly, as
+  expected. `Testimonials` is no longer the largest untouched block; it is
+  still full-bleed dark (`bg-indigo-950`), which is a design question (task
+  B2's WebMD-not-editorial direction) rather than a spacing one — out of
+  scope for this pass, which only touched spacing.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks; `pnpm build` 40/40 (no new
+  test file — matches every existing file under `apps/web/src/components`,
+  which unit-tests logic only, never markup for `apps/web`). Production
+  build checked with `next start` at 375px, 768px and 1280px in both
+  locales: no horizontal overflow anywhere, no new console errors beyond the
+  one already-documented pre-existing one (`apps/api` connection-refused
+  with no local API running — the missing story video source did not log a
+  console error this run). Tap targets at 375px: 57 visible / 42 under 44px,
+  unchanged from the prior run — no interactive element was resized, only
+  the padding and gaps around them. Screenshotted the section at 375px in
+  both locales — spacing reads intentional, cards and heading are still
+  clearly separated.
+
+  **For the next run.** `Footer` (1027.75px ne / 1070px en) is now the
+  single largest untouched homepage block, followed by `Hero`/record-story
+  (969px/1046.25px, past its easiest win) and `Testimonials` (873px/
+  1066.75px, past its easiest win). `SymptomEntry` (the actual first
+  section, above `Hero`) still has not been measured individually — it sets
+  `min-h-[46rem]` (736px) below `sm` and `min-h-[50rem]` (800px) at `sm`,
+  which is a large deliberate floor for the primary CTA and safety-gated
+  form (the brand direction calls for "the symptom entry first" as a
+  full-bleed opening screen), so cutting it would cut against product
+  intent rather than incidental bloat — worth confirming that read before
+  touching it, not assuming it's free height. Otherwise B3 (`/app` 404 in
+  production) is next in queue order, or task C's tap-target backlog (42
+  elements still under 44px on the homepage alone, unchanged for six runs
+  now).
+
 - 2026-08-15 — **Round three, task B1 continued: `Hero`/record-story given a
   mobile spacing tier.** Still left unchecked — real progress, target still
   not met. This is the exact lever the immediately preceding (`ServiceCards`)
