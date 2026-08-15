@@ -1189,10 +1189,122 @@ re-read the table itself rather than trust this paragraph.
       log entry below for the survey's full results (six of seven already
       clean) and the fix.
 
+- [x] Mapped `PatientRegistryService`'s `FutureDateOfBirthError` (thrown by
+      both `register` and `updateDemographics`) to `BadRequestException({
+      code, message })` — a live, missed instance of the
+      wrong-state-domain-error-reaches-the-client-as-a-bare-500 gap this
+      series repeatedly declared closed. Ten prior modules across two
+      surveys had already been fixed for this exact shape, and two separate
+      log entries had explicitly logged `patient-registry` as "already
+      confirmed clean" — it was not; its own service test asserted the raw
+      domain error unwrapped, the same "test itself is wrong" tell every
+      other module in the series had before its fix. See the 2026-08-15 log
+      entry below (the one added by this run) for how the audit that found
+      it was actually aimed at three unrelated hard constraints, and what
+      else it ruled out.
+
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-15 — **Queue fully checked; `PatientRegistryService` had a live,
+  previously-missed instance of the wrong-state-domain-error-reaches-the-
+  client-as-a-bare-500 gap the ledger had twice logged as already closed for
+  this module.** Grepped for `- [ ]` first — zero hits.
+
+  **Why this task, not a bug hunt.** Ten prior modules across this series had
+  already been fixed (billing, prescribing, clinical-charting,
+  diagnostics-orders, immunization, referrals, teleconsultation, scheduling,
+  engagement, language-corpus), and the `LanguageCorpusService` run's own log
+  entry declared the series closed "across the entire `apps/api` tree." Given
+  that, this run commissioned a general-purpose survey agent aimed
+  deliberately away from the exhausted bug-hunt veins, at this ledger's own
+  named hard constraints instead: DRAFT-observation leakage into the
+  assistant/share-link/export path, a clinical-safety-bypassing model-call
+  entry point, and plaintext reaching the Google Drive adapter. The survey
+  found invariants 1 and 2 genuinely well-defended (traced every consumer;
+  `packages/interop`'s `toFhirObservation` re-checks trust status even though
+  callers already filter, and the only live model call —
+  `PerplexityHealthService.research` via `CompanionController.research` —
+  always runs `assessSafety` first). Its one finding, invariant 3, was that
+  `apps/api` never actually resolves a caller's storage tier: `RecordsModule`
+  unconditionally binds the `HOSTED` backend for every request regardless of
+  entitlement, so a `FREE`-tier document capture (100% of captures today,
+  since `FreeTierSubscriptionResolver` resolves everyone to `FREE`) lands in
+  Mero-controlled storage with `clientEncrypted` defaulting `false`, never
+  routed through `resolveStoragePlacement` at all.
+
+  **Investigated that finding and did not act on it.** Confirmed it directly
+  by reading `records.module.ts`/`records.service.ts`/`storage-adapters/src/
+  index.ts`: real, but already an explicitly-decided, well-documented
+  interim state, not a fresh discovery — the 2026-08-09 `GoogleDriveDocumentStore`
+  log entry names exactly why the Drive adapter is not wired into
+  `RecordsModule` (no OAuth consent flow, nowhere to persist a per-person
+  refresh token, both needing an identity/connected-accounts layer that
+  doesn't exist). The "minimal fix" the survey itself proposed — reject a
+  capture when the tier isn't entitled to `HOSTED_STORAGE` and the blob isn't
+  client-encrypted — would not close the gap, it would break every capture on
+  this branch today with no working alternative backend to fall back to, for
+  a business-tier boundary rather than the specific hard-constraint wording
+  ("documents bound for storage we do not control must be client-encrypted"
+  — nothing is currently bound for a backend Mero Health does not control,
+  since Drive is unreachable end to end). Turning a quiet, already-named gap
+  into a broken capture flow would have been a worse outcome than leaving it
+  documented. Did not touch this.
+
+  **What was actually built instead.** Re-reading the two log entries that
+  called `patient-registry` "already confirmed clean"
+  (`ReferralsService`/`SchedulingService` runs, both by inference from a
+  peer's survey rather than a direct read) against the source directly:
+  `PatientRegistryService.register`/`updateDemographics`
+  (`apps/api/src/patient-registry/patient-registry.service.ts`) call
+  `@swasthya/patient-registry`'s `registerPatient`/`updateDemographics` with
+  no `try`/`catch`. Both throw `FutureDateOfBirthError` on an impossible
+  birth date — a real, live rejection reachable via `POST /patients` and
+  `POST /patients/:id/demographics`, both open routes with no
+  `SessionAuthGuard` (a separate, already-standing, not-this-run's-to-resolve
+  gap the ledger has named repeatedly). `patient-registry.service.test.ts`'s
+  own "propagates a domain rejection... unwrapped" test asserted the raw
+  `FutureDateOfBirthError` directly — the exact "test itself is wrong" tell
+  every other module in this series had before its fix, and the strongest
+  evidence the "confirmed clean" claim was never actually checked against
+  this file.
+
+  **The fix.** Added a private `#runTransition` to `PatientRegistryService`,
+  the same shape the nine sibling services already use: catches
+  `FutureDateOfBirthError` by `instanceof`, re-throws as `new
+  BadRequestException({ code: error.name, message: error.message })`, lets
+  anything else pass through. Both `register` and `updateDemographics` now
+  route their domain call through it.
+
+  **Tests.** `patient-registry.service.test.ts`: rewrote the one existing
+  raw-error assertion to the try/`expect.unreachable`/catch shape
+  `referrals.service.test.ts` established, and added a second case for the
+  `updateDemographics` path — the domain guard exists on both call sites but
+  only `register` had ever been exercised at the service-test layer.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean, no lockfile change.
+  `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75 turbo tasks,
+  `@swasthya/api` 667/667 (net +1: one test rewritten, one new). `pnpm build`
+  40/40 (35 cached, 5 rebuilt).
+
+  **For the next run.** This is very likely the true end of the
+  wrong-state-500 series — `analytics`/`clinical-summary`/`clinical-suite`
+  throw no domain error capable of this shape, `auth` already wraps its one
+  call, and `credentialing`/`family`/`identity`/`records` were each checked
+  by name in an earlier entry — but this run's own experience is a concrete
+  reason not to fully trust that without a fresh, direct read: a "confirmed
+  clean" claim two entries deep turned out to be wrong. The two standing
+  product-decision items are unchanged: `packages/health-records`'s
+  status-guard question, and the clinical-suite's missing clinician/patient
+  identity model. A third, real but explicitly out-of-scope-for-one-run item
+  now has a fuller paper trail: `apps/api` never enforces the storage-tier
+  entitlement boundary described in `docs/architecture/platform-vision.md`
+  §3.1, and closing it honestly needs the Drive OAuth/connected-accounts
+  layer the 2026-08-09 log entry already named as its prerequisite — not a
+  reject-on-capture patch that would just break the only working storage
+  path that exists today.
 
 - 2026-08-15 — **Queue fully checked; `packages/credentialing`'s
   `isBadgeCurrent` had the same string-vs-`Date.parse` instant-comparison bug

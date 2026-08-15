@@ -1,5 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
-import { FutureDateOfBirthError } from '@swasthya/patient-registry';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import type { PatientDemographics } from '@swasthya/shared-types';
 import { describe, expect, it } from 'vitest';
 import { PatientRegistryRepository } from './patient-registry.repository.js';
@@ -63,9 +62,29 @@ describe('PatientRegistryService', () => {
     expect(() => service.updateDemographics('missing', { phone: '9811111111' })).toThrow(NotFoundException);
   });
 
-  it('propagates a domain rejection, e.g. a future birth date, unwrapped', () => {
+  it('rejects registering a future birth date, as a 400 with a code', () => {
     const service = buildService();
-    expect(() => service.register({ ...demographics, dateOfBirth: '2099-01-01' })).toThrow(FutureDateOfBirthError);
+
+    try {
+      service.register({ ...demographics, dateOfBirth: '2099-01-01' });
+      expect.unreachable('expected register to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'FutureDateOfBirthError' });
+    }
+  });
+
+  it('rejects a demographics patch that moves the birth date into the future, as a 400 with a code', () => {
+    const service = buildService();
+    const record = service.register(demographics);
+
+    try {
+      service.updateDemographics(record.id, { dateOfBirth: '2099-01-01' });
+      expect.unreachable('expected updateDemographics to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'FutureDateOfBirthError' });
+    }
   });
 
   it('reports UP with no failure mode of its own', async () => {
