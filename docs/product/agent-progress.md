@@ -1516,6 +1516,95 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-16 — **Queue's three unchecked boxes all re-confirmed genuinely
+  blocked; picked the highest-value improvement to work already shipped:
+  the shared `Button` component's default (`md`) size measured 43px tall, one
+  pixel under the 44px tap-target minimum, across roughly 30 call sites
+  site-wide.** Fixed.
+
+  **Selection.** `git checkout main && git pull`, read the ledger and
+  `platform-vision.md` fresh per the zero-memory rule, then
+  `grep -n "^- \[ \]"` across the whole file. Exactly three unchecked boxes,
+  unchanged from the prior run: (1) Round four §F's "Sign in with Google" —
+  re-confirmed `GOOGLE_CLIENT_ID`/`NEXT_PUBLIC_GOOGLE_CLIENT_ID` still unset
+  anywhere real, and every build-side task under §D is already done, so
+  there is nothing left to build regardless of the secret; (2) the two
+  missing testimonial portraits — checked `ListConnectors`, the Higgsfield
+  connector is authenticated at the org level but `enabledInChat: false` for
+  this session, so it cannot be invoked here, and there is no live user to
+  ask to toggle it on; (3) the homepage-height task (B1) — ~18 prior "B1
+  continued" entries and two independent same-day audits already agree the
+  non-destructive levers are exhausted pending an owner content-cut
+  decision. All three are genuinely blocked, not stale.
+
+  With nothing actionable in the queue, dispatched a fresh independent
+  audit (general-purpose subagent) of the whole repo — `apps/web`,
+  `apps/mobile`, `apps/api`, `packages/*` — for a real, scoped, low-risk
+  improvement, the same move the 2026-08-12 "queue fully checked" precedent
+  used. The audit first verified that precedent's own three candidates
+  (dedupe `Testimonials.tsx` onto `EditorialImage`, widen the Google Drive
+  filename sanitizer for non-ASCII, restructure the mobile root layout for
+  i18n) are all already fixed, then surveyed fresh and ranked four new
+  candidates: (1) the shared `Button` `md` size rendering at 43px sitewide;
+  (2) the footer's app-download links still hidden below `sm` from an
+  `/app`-404 justification that was fixed 57 minutes after the hiding
+  commit, and never reverted; (3) `gemini-health.ts`'s network-failure path
+  has no test that actually rejects/throws; (4) nine hand-duplicated error-
+  alert `className` strings with no shared component. Picked (1): one-line,
+  near-zero-risk, backed by the team's own prior production measurement
+  (ledger 2026-08-16, Google sign-in button: "335×43px... exactly matches
+  its sibling 'Send code' button... bumping the shared `Button` `md` size...
+  is out of scope for this task" — that scope note is what this run closed),
+  and it improves a real accessibility floor across dozens of primary CTAs
+  on every route of the mobile-first primary surface.
+
+  **What was built.** `apps/web/src/components/ui/Button.tsx`: added
+  `min-h-11` to the `md` size's class string (`sizes.md`). `lg` was already
+  comfortably above 44px and untouched. No API change — `ButtonSize`,
+  `variants`, and every call site are unaffected; `flex items-center`
+  already centers content vertically, so `min-h` only raises the height
+  floor, it does not require re-centering anything.
+
+  **Verify.** Built `packages/configuration` and the rest of `packages/*`
+  first (fresh checkout, `node_modules` present but nothing pre-built),
+  then ran a local `next dev` and drove system Playwright's Chromium
+  (`/opt/pw-browsers/chromium-1194`, `--no-sandbox`) at 375×812 against `/`,
+  `/en`, `/signin`, `/en/signin`. Before this run's own fresh measurement:
+  the phone-OTP "Send code" button was 44px tall on both `/signin` and
+  `/en/signin` (previously 43px per the log entry cited above) — confirms
+  the fix in a live render, not just the class-string edit. Every visible
+  `.rounded-pill` element on the homepage at 375px now measures ≥44px in
+  height. No component test file exists for `Button.tsx` (no test file
+  existed before this change either — `apps/web` has zero component test
+  files project-wide, matching every prior run's note on this). Full gate
+  from the repository root: `pnpm install --frozen-lockfile` clean, `pnpm
+  lint` 40/40, `pnpm typecheck` 40/40, `pnpm test` 75/75 tasks (`apps/api`
+  unchanged at 114 files / 744 tests), `pnpm build` 40/40 including the full
+  Next.js static/SSG pass and the Expo web export.
+
+  **Mobile measurement.** Homepage `scrollHeight` unchanged by this task
+  (375×812): `/` 4555px / 5.61 screens, `/en` 4925px / 6.07 screens — same
+  figures as the prior run, since a 1px height bump on already-visible
+  pill buttons does not measurably shift total page height. Tap targets
+  under 44px on the homepage: 36 (ne) / 34 (en), both entirely the
+  documented footer/mega-menu text-link exception — unchanged, since none
+  of those are `Button`/`ButtonLink` components. The concrete result of
+  this task is on `/signin` and `/en/signin`: the "Send code" pill went
+  from 43px to 44px.
+
+  **For the next run.** The three standing blocked items are unchanged —
+  re-verify each fresh rather than trusting this note, per the usual rule.
+  Three more real, un-fixed candidates surfaced by this run's audit, ranked
+  by the audit below the one picked here: re-show the footer's app-download
+  links now that `/app` resolves (small trade-off: adds back ~144px to the
+  still-open B1 height goal, worth a one-line note when fixing); add a
+  reject/throw test case to `gemini-health.test.ts`'s and
+  `perplexity-health.service.test.ts`'s `fetchImpl` mocks, since neither
+  file currently exercises the "provider unreachable" path despite both
+  being the default/fallback research providers behind a live route; extract
+  the nine hand-duplicated `role="alert"` error-message `className` strings
+  into one shared component (lowest priority, cosmetic).
+
 - 2026-08-16 — **Round three, task D's last open item: the
   `hosting-migration-inventory.md` doc entry for Google sign-in.** Done —
   checked off.

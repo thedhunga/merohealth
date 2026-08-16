@@ -29,7 +29,9 @@ const variants: Record<ButtonVariant, string> = {
 };
 
 const sizes: Record<ButtonSize, string> = {
-  md: 'px-5 py-2.5 text-[0.9375rem]',
+  // `min-h-11` (44px) clears the tap-target minimum; py-2.5 alone measured
+  // 43px in production (ledger 2026-08-16, Google sign-in button).
+  md: 'min-h-11 px-5 py-2.5 text-[0.9375rem]',
   lg: 'px-7 py-3.5 text-base',
 };
 
