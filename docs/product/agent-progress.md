@@ -243,7 +243,35 @@ longer the integration point.
       and `OrganizationTabs` below `lg`, trim `Testimonials` to two cards with
       a link to the rest, and shorten `ServiceCards` copy. Measure with
       `document.body.scrollHeight / innerHeight` before and after, and record
-      both numbers in the log.
+      both numbers in the log. **Status 2026-08-16: all four named cuts are
+      already in place (`PartnerMarquee` isn't imported into `page.tsx` at
+      all; `OrganizationTabs` is `hidden ... lg:block`; `Testimonials` is
+      collapsed to two cards behind a toggle; `ServiceCards` shows only the
+      featured card below `lg`). Height is down from 11.82 to 5.60 screens
+      (ne) / 6.06 (en) — real progress, target not yet met. ~18 "B1
+      continued" log entries have each shaved a further padding/collapse
+      pass; two independent audits (2026-08-16 entries) now agree every
+      section has had its non-destructive pass and reaching 4–5 screens from
+      here means dropping real content (the record-story video, the
+      three-step list, a testimonial card, or a footer nav column) — a
+      product call, not a code task. Leave unchecked until either the owner
+      authorizes a specific content cut, or someone finds a lever the two
+      audits missed.**
+- [ ] **Tap-target sizing, split off from B1's own scroll-height focus.** 42
+      of 110 interactive elements on the homepage are under the 44px minimum
+      at 375px (tracked informally across a dozen "B1 continued" log entries
+      as "task C's tap-target backlog" but never turned into its own queue
+      item until now). Most of the 42 are footer/mega-menu text links, a
+      conventional exception. Two are not: `SymptomEntry.tsx`'s six
+      quick-reply chips (`QUICK_KEYS`, currently `min-h-10` / 40px) are a
+      primary above-the-fold action, and `ServiceCards.tsx`'s per-card nav
+      pills (also `min-h-10`) share the same class. Bump both to `min-h-11`
+      (44px, the value every other button in these two files already uses)
+      — a two-line, mechanical, low-risk fix. Re-measure the under-44 count
+      before and after; expect it to drop from 42 toward 36 on load (the
+      `ServiceCards` pills are behind the "Show more" toggle at rest, so
+      they won't move the on-load count but should still be fixed for when
+      a visitor expands it).
 - [x] **The clinical, light treatment exists only on the homepage.** The other
       45 routes still open with the old dark hero. Push it through
       `PageTemplate` and `SectionIntro` so every route inherits it. The
@@ -319,9 +347,11 @@ Client ID → Vercel env `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (all environments) and
       ever calls it. Add the session hook and a protected landing. **Done —
       turned out to already be built (Round two §D2); see the log entry
       below for the verification and the real bug it turned up.**
-- [ ] Launch gate in `docs/product/promotion-readiness.md`: what must be true
+- [x] Launch gate in `docs/product/promotion-readiness.md`: what must be true
       before `robots` stops saying noindex. Copy reviewed by a qualified Nepali
       clinician, no fictional figures left anywhere, a real registered address.
+      **Done — turned out to already be built (Round two §D3, 2026-08-10); see
+      the log entry below for the verification.**
 
 
 
@@ -1481,6 +1511,113 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round three, task C4: confirmed the promotion-readiness
+  launch gate was already built by Round two's D3, ticked the checkbox.**
+  Done — checked off.
+
+  **Selection.** `git checkout main && git pull`, read the ledger and
+  `platform-vision.md` fresh per the standing zero-memory rule. Checked
+  `GOOGLE_CLIENT_ID`/`NEXT_PUBLIC_GOOGLE_CLIENT_ID` again (`.env*` files,
+  shell environment) — still absent, so Round four §F3 and Round three §D's
+  four remaining Google sub-tasks stay skipped per their own "do the next
+  task instead" note. `ToolSearch("higgsfield image generation")` again
+  found no matching tool, so the two missing testimonial portraits (line
+  220) stay blocked for the same reason ~18 prior runs recorded — not
+  re-logged as its own entry.
+
+  That left B1 (homepage height) as the next unblocked box. Rather than
+  trust the prior "exhausted" conclusion secondhand, re-read every homepage
+  section fresh: `SymptomEntry.tsx`, `Hero.tsx`, `ServiceCards.tsx`,
+  `OrganizationTabs.tsx`, `PartnerMarquee.tsx`, `Testimonials.tsx` /
+  `TestimonialsGrid.tsx`, `Footer.tsx`, `CtaBand.tsx` / `FinalCta.tsx`. All
+  four cuts B1's own task text names are already in place, and every
+  section already carries the `sm:`/`md:` spacing tier, collapse-behind-
+  toggle, or `hidden ... lg:block` pattern the ~18 prior "B1 continued"
+  entries built up one at a time. Measured fresh with Playwright at 375×812
+  against `next dev` (production `next start` wasn't rebuilt for this
+  read-only check): **4551px / 812 = 5.60 screens (ne)** — the exact figure
+  the last B1 log entry recorded, confirming nothing has drifted since.
+  `SymptomEntry`'s `min-h-[46rem]` floor is a deliberate brand choice (the
+  art direction's "symptom entry first" full-bleed opening screen), and
+  `CtaBand` is shared across ~40 routes, not homepage-only — both are out of
+  bounds for a "cut, do not reorder" pass without product sign-off. Found no
+  lever the two prior 2026-08-16 audits missed. Recorded that finding as an
+  explicit status note on B1 itself (see the queue edit) instead of
+  re-writing the same "still exhausted" conclusion as a full log entry with
+  no actual change behind it.
+
+  **One genuine, new finding, written up as its own queue item instead of
+  being coded this run.** Auditing B1 surfaced something the ~18 prior
+  passes never separated out: of 110 interactive elements on the homepage,
+  42 sit under the 44px tap-target minimum, and this exact number has been
+  repeated in log entries as "task C's tap-target backlog" for well over
+  half a dozen runs without ever becoming an actual queue checkbox — nobody
+  had turned the informal note into trackable work. Most of the 42 are
+  footer/mega-menu text links (a conventional exception), but
+  `SymptomEntry.tsx`'s six quick-reply chips and `ServiceCards.tsx`'s
+  per-card nav pills are both `min-h-10` (40px) and are primary,
+  above-the-fold actions, not decoration. Added this as a new unchecked
+  queue item directly under B1 rather than fixing it inline, to keep this
+  run to exactly one task — B1's own task text is about scroll height, and
+  growing two buttons by 4px each moves the opposite direction from that
+  goal, so bundling it into B1 would have muddied which change served which
+  target.
+
+  **C4 itself.** Read `docs/product/promotion-readiness.md` and Round two's
+  own 2026-08-10 D3 log entry side by side, per the 2026-08-16 (earlier, C3)
+  entry's explicit suggestion not to repeat "Round three is a stale copy of
+  Round two" a third time without checking. They match exactly: D3 added a
+  lead-in paragraph naming `robots.ts` / `isDemonstrationBuild` as the
+  actual code signal, plus four checklist items in this order — clinician
+  review of clinical copy, substantiated-or-removed quantitative claims, the
+  demonstration notice staying up until no fictional content remains, and a
+  real registered address on `legalEntity` — which is precisely C4's own
+  four named items, word for word in intent. Nothing in the file has drifted
+  since; the `displayName` placeholder D3 flagged (`"Demonstration entity —
+  configure before launch"`) is still there today, confirming the gate is
+  still correctly closed. C4 was a stale duplicate of already-completed
+  work, the same shape as C3 (`GET /auth/me`) two entries ago.
+
+  **What was built.** Ticked C4's checkbox with a "turned out to already be
+  built" note pointing at D3, and this log entry as the verification record.
+  No changes to `promotion-readiness.md` itself — it already says everything
+  the task asked for.
+
+  **What was deliberately not built.** No tap-target code change (see
+  above — queued instead, to keep this run to one task). No further B1
+  spacing pass — two independent, same-day audits now agree the
+  non-destructive lever is empty; forcing a third pass would either touch
+  real content without authorization or produce a no-op diff.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (no dependency
+  changes). `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75
+  tasks, 114 test files / 734 tests in `apps/api` alone, all passing, none
+  touched by this change. `pnpm build` 40/40 (35 cached). Doc-and-ledger-only
+  change — no component, route, or copy touched, so no `messages/*.json`
+  edits and no build/test count could plausibly move; confirmed they didn't.
+
+  **Mobile measurement.** No UI was shipped this run (C4 is documentation).
+  The B1 audit above is reported as supplementary context, not this task's
+  own gate: 375×812, Nepali, `next dev` — **4551px scrollHeight, 5.60
+  screens** (unchanged from the last logged figure); **110 tappable
+  elements, 42 under 44px** (unchanged); first interactive element
+  (`SymptomEntry`'s form) at 630px from the top, i.e. inside the first
+  screen. No before/after pair applies since nothing was edited.
+
+  **For the next run.** The queue's only remaining unchecked items are: the
+  two Higgsfield-blocked portraits, B1 (homepage height — non-destructive
+  levers now confirmed exhausted by two same-day audits; needs either an
+  owner-authorized content cut or a fresh idea neither audit found), the new
+  tap-target item just added (a real, small, unblocked win — bump
+  `SymptomEntry`'s `QUICK_KEYS` buttons and `ServiceCards`' nav-pill links
+  from `min-h-10` to `min-h-11`, re-measure the under-44 count, and this one
+  should be genuinely completable in one run), and the four remaining
+  Google-sign-in sub-tasks under §D plus §F3 (all blocked on the same
+  missing `GOOGLE_CLIENT_ID` — check for it fresh before assuming it's still
+  absent). The tap-target item is the honest next pick: it is small,
+  mechanical, and has no external blocker, unlike everything else left in
+  the queue right now.
 
 - 2026-08-16 — **Round four, task G (payment provider — decision document).**
   Done — checked off.
