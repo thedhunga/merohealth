@@ -36,7 +36,9 @@ equivalent · **CAN DROP** — Vercel-only, delete on the way out.
 
 | Variable | Scope | Status | Notes |
 |---|---|---|---|
-| `PERPLEXITY_API_KEY` | server only, **never** `NEXT_PUBLIC_` | **MUST set** on new host | Not set on Vercel at time of writing (answers return `setup-required`). Set in Production; keep it out of build logs. |
+| `GEMINI_API_KEY` | server only, **never** `NEXT_PUBLIC_` | **MUST set** on new host | The preferred research provider (free tier). Answers return `setup-required` without it. Set in Production; keep it out of build logs. |
+| `PERPLEXITY_API_KEY` | server only | optional | Fallback provider, paid. Only used when `GEMINI_API_KEY` is absent or `RESEARCH_PROVIDER=perplexity`. |
+| `RESEARCH_PROVIDER`, `GEMINI_MODEL` | server only | optional | Force a provider / pick a model. See `apps/web/.env.example`. |
 | `NEXT_PUBLIC_SITE_URL` (or equivalent used by `lib/seo.ts`) | build-time | **MUST update** | Sitemap, canonical and OG URLs are derived from the site URL. Change to the new domain. |
 | Any Vercel-injected vars (`VERCEL_URL`, `VERCEL_ENV`) | runtime | **CHECK** | `grep -rn "VERCEL_" apps/web/src` — currently none used, keep it that way. |
 | `apps/web/.env.example` | repo | **CHECK** | Source of truth for what the app expects. Keep updated. |

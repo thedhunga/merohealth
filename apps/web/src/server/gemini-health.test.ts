@@ -1,0 +1,120 @@
+import { describe, expect, it } from 'vitest';
+
+import { researchWithGemini } from './gemini-health';
+import { selectProvider } from './research-provider';
+
+/** Shaped like the documented `interactions` response, citations as annotations. */
+const groundedResponse = {
+  steps: [
+    { type: 'google_search_call', queries: ['fever three days'] },
+    {
+      type: 'model_output',
+      content: [
+        {
+          type: 'text',
+          text: 'तीन दिनभन्दा बढी ज्वरो रहे स्वास्थ्यकर्मीलाई देखाउनुहोस्।',
+          annotations: [
+            { type: 'url_citation', url: 'https://www.who.int/x', title: 'WHO', start_index: 0, end_index: 10 },
+            { type: 'url_citation', url: 'https://www.who.int/x', title: 'WHO again', start_index: 5, end_index: 12 },
+            { type: 'url_citation', url: 'https://www.cdc.gov/y', start_index: 0, end_index: 3 },
+            { type: 'url_citation', url: 'javascript:alert(1)', title: 'bad', start_index: 0, end_index: 1 },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+const fetchReturning = (status: number, body: unknown): typeof fetch =>
+  (() => Promise.resolve(new Response(JSON.stringify(body), { status }))) as unknown as typeof fetch;
+
+describe('researchWithGemini', () => {
+  it('reports setup-required without a key and never calls the network', async () => {
+    let called = false;
+    const spy: typeof fetch = (() => {
+      called = true;
+      return Promise.resolve(new Response('{}'));
+    }) as unknown as typeof fetch;
+
+    const result = await researchWithGemini('ज्वरो छ', 'ne', { apiKey: undefined, fetchImpl: spy });
+    expect(result.status).toBe('setup-required');
+    expect(result.provider).toBe('gemini-grounded');
+    expect(called).toBe(false);
+  });
+
+  it('sends the key in the x-goog-api-key header and enables google_search', async () => {
+    let seenHeaders: Headers | undefined;
+    let seenBody: Record<string, unknown> | undefined;
+    const spy: typeof fetch = ((_url: unknown, init?: RequestInit) => {
+      seenHeaders = new Headers(init?.headers);
+      seenBody = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as Record<string, unknown>;
+      return Promise.resolve(new Response(JSON.stringify(groundedResponse), { status: 200 }));
+    }) as unknown as typeof fetch;
+
+    await researchWithGemini('ज्वरो छ', 'ne', { apiKey: 'k', fetchImpl: spy });
+    expect(seenHeaders?.get('x-goog-api-key')).toBe('k');
+    expect(seenBody?.tools).toEqual([{ type: 'google_search' }]);
+    expect(String(seenBody?.input)).toContain('ज्वरो छ');
+  });
+
+  it('extracts the answer from the model_output text block', async () => {
+    const result = await researchWithGemini('ज्वरो छ', 'ne', {
+      apiKey: 'k',
+      fetchImpl: fetchReturning(200, groundedResponse),
+    });
+    expect(result.status).toBe('complete');
+    expect(result.answer).toContain('स्वास्थ्यकर्मी');
+  });
+
+  it('dedupes citations by URL, keeps the first title, and drops non-http URLs', async () => {
+    const result = await researchWithGemini('ज्वरो छ', 'ne', {
+      apiKey: 'k',
+      fetchImpl: fetchReturning(200, groundedResponse),
+    });
+    expect(result.citations).toEqual([
+      { title: 'WHO', url: 'https://www.who.int/x' },
+      { title: 'cdc.gov', url: 'https://www.cdc.gov/y' },
+    ]);
+  });
+
+  it('never links off-site', async () => {
+    const result = await researchWithGemini('ज्वरो छ', 'ne', {
+      apiKey: 'k',
+      fetchImpl: fetchReturning(200, groundedResponse),
+    });
+    expect(result.externalHealthHubUrl).toBeNull();
+  });
+
+  it('is unavailable, not a crash, on a non-2xx or empty answer', async () => {
+    const bad = await researchWithGemini('x', 'en', { apiKey: 'k', fetchImpl: fetchReturning(429, {}) });
+    expect(bad.status).toBe('unavailable');
+
+    const empty = await researchWithGemini('x', 'en', {
+      apiKey: 'k',
+      fetchImpl: fetchReturning(200, { steps: [{ type: 'model_output', content: [] }] }),
+    });
+    expect(empty.status).toBe('unavailable');
+  });
+
+  it('carries the Nepali disclaimer for ne and English for en', async () => {
+    const ne = await researchWithGemini('x', 'ne', { apiKey: undefined });
+    const en = await researchWithGemini('x', 'en', { apiKey: undefined });
+    expect(ne.disclaimer).toMatch(/निदान/);
+    expect(en.disclaimer).toMatch(/not a diagnosis/);
+  });
+});
+
+describe('selectProvider', () => {
+  it('prefers gemini when its key is present', () => {
+    expect(selectProvider({ GEMINI_API_KEY: 'g', PERPLEXITY_API_KEY: 'p' })).toBe('gemini');
+  });
+  it('falls back to perplexity when only that key exists', () => {
+    expect(selectProvider({ PERPLEXITY_API_KEY: 'p' })).toBe('perplexity');
+  });
+  it('honours an explicit override', () => {
+    expect(selectProvider({ GEMINI_API_KEY: 'g', PERPLEXITY_API_KEY: 'p', RESEARCH_PROVIDER: 'perplexity' })).toBe('perplexity');
+  });
+  it('is null with no keys at all', () => {
+    expect(selectProvider({})).toBeNull();
+  });
+});

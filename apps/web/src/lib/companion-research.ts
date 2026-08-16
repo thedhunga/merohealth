@@ -8,13 +8,17 @@ export interface ResearchCitation {
 }
 
 export interface HealthResearch {
-  provider: 'perplexity-sonar';
+  provider: 'perplexity-sonar' | 'gemini-grounded';
   status: 'complete' | 'setup-required' | 'unavailable';
   answer: string | null;
   citations: ResearchCitation[];
   relatedQuestions: string[];
   disclaimer: string;
-  externalHealthHubUrl: string;
+  /**
+   * Deprecated: the UI no longer links off-site, so nothing reads this. Kept
+   * on the shape so older clients keep parsing; new providers return null.
+   */
+  externalHealthHubUrl: string | null;
 }
 
 export interface CompanionResearchResponse {

@@ -1,7 +1,7 @@
 import { assessSafety, getSafetyTemplate } from '@swasthya/clinical-safety';
 
 import type { ResearchLanguage } from '@/lib/companion-research';
-import { researchHealthQuestion } from '@/server/perplexity-health';
+import { researchHealthQuestion } from '@/server/research-provider';
 
 export const runtime = 'nodejs';
 
