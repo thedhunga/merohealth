@@ -257,7 +257,7 @@ longer the integration point.
       product call, not a code task. Leave unchecked until either the owner
       authorizes a specific content cut, or someone finds a lever the two
       audits missed.**
-- [ ] **Tap-target sizing, split off from B1's own scroll-height focus.** 42
+- [x] **Tap-target sizing, split off from B1's own scroll-height focus.** 42
       of 110 interactive elements on the homepage are under the 44px minimum
       at 375px (tracked informally across a dozen "B1 continued" log entries
       as "task C's tap-target backlog" but never turned into its own queue
@@ -271,7 +271,7 @@ longer the integration point.
       before and after; expect it to drop from 42 toward 36 on load (the
       `ServiceCards` pills are behind the "Show more" toggle at rest, so
       they won't move the on-load count but should still be fixed for when
-      a visitor expands it).
+      a visitor expands it). **Done 2026-08-16 — see the log entry below.**
 - [x] **The clinical, light treatment exists only on the homepage.** The other
       45 routes still open with the old dark hero. Push it through
       `PageTemplate` and `SectionIntro` so every route inherits it. The
@@ -1511,6 +1511,79 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round three, task B (tap-target sizing): `SymptomEntry`
+  quick-reply chips and `ServiceCards` nav pills from `min-h-10` to
+  `min-h-11`.** Done — checked off.
+
+  **Selection.** `git checkout main && git pull`, read the ledger and
+  `platform-vision.md` fresh per the standing zero-memory rule. Re-checked
+  the two known blockers before touching anything else: no
+  `GOOGLE_CLIENT_ID`/`NEXT_PUBLIC_GOOGLE_CLIENT_ID` anywhere (`.env.example`,
+  `.env.server.example`, shell env — only the unrelated
+  `GOOGLE_OAUTH_CLIENT_ID=replace-me` placeholder), so Round four §F3 and
+  Round three §D's Google sub-tasks stay skipped per their own "do the next
+  task instead" note; `ToolSearch("higgsfield image generation")` found no
+  matching tool, so the two missing testimonial portraits stay blocked for
+  the same reason ~19 prior runs recorded. B1 (homepage height) is still
+  correctly left unchecked with its own status note explaining the
+  non-destructive levers are exhausted pending an owner content-cut
+  decision — not retested this run, since nothing changed that would move
+  it. That left the tap-target item the prior run (C4) explicitly flagged as
+  "the honest next pick: small, mechanical, no external blocker" — confirmed
+  that framing was still accurate and took it.
+
+  **What was built.** Two one-line class changes: `SymptomEntry.tsx`'s six
+  `QUICK_KEYS` chips and `ServiceCards.tsx`'s per-card nav pills went from
+  `min-h-10` (40px) to `min-h-11` (44px), matching every other button already
+  in both files. `grep -rn "min-h-10"` across `apps/web/src` confirmed these
+  were the only two matches before the edit and zero remain after.
+
+  **Measured, not assumed.** Built `packages/*` (the dev server 500'd
+  without it — `@swasthya/configuration` etc. are workspace deps, not
+  prebuilt), started `next dev`, and used Playwright at 375×812 against
+  `localhost:3000` directly (not a test-only harness) for both locales.
+  Tappable-element count and scroll height before and after:
+
+  | locale | scrollHeight/screens (before → after) | tappable total (before → after) | under 44px (before → after) |
+  |---|---|---|---|
+  | `/` (ne) | 4551px / 5.60 → 4555px / 5.61 | 115 → 115 | 42 → 36 |
+  | `/en` | 4921px / 6.06 → 4925px / 6.07 | 115 → 115 | 40 → 34 |
+
+  Exactly the drop the task text predicted (42→36 on load; the count moved
+  by 6, not 12, because `ServiceCards`' pills sit behind the homepage's
+  "Show more" toggle and aren't in the DOM's visible/measured set at rest —
+  they're still fixed in the markup for when a visitor expands it). Height
+  moved by 4px, the expected cost of the 4px min-height bump, not a
+  regression. (My own tappable-element count reads 115, not the previously
+  logged 110 — likely a difference in which elements my selector list picked
+  up, e.g. `summary`/`select`; the *under-44* figures match the prior run's
+  42/40 exactly, so the baseline is consistent even if the total-count
+  denominator isn't identical across runs. Worth normalizing the measurement
+  script itself in a future pass, but not this one.)
+
+  **What was deliberately not built.** No further B1 spacing pass (unrelated
+  to this task, and already confirmed exhausted). No touch to the
+  footer/mega-menu links that make up most of the remaining under-44 count —
+  the task text itself calls those "a conventional exception," and widening
+  every footer text link would be a much larger, unrequested change.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean. `pnpm lint` 40/40.
+  `pnpm typecheck` 40/40. `pnpm test` 75/75 tasks, 114 test files / 734 tests
+  in `apps/api` alone, all passing (no test referenced the `min-h-10` class
+  directly, so none needed updating). `pnpm build` 40/40 (35 cached, `web`
+  and its dependents rebuilt fresh).
+
+  **For the next run.** Remaining unchecked items: the two Higgsfield-blocked
+  portraits (check for a Higgsfield tool fresh — do not assume still
+  absent), B1 (homepage height — needs an owner-authorized content cut or a
+  genuinely new lever, two-plus audits agree the non-destructive ones are
+  spent), and the Google-sign-in sub-tasks under Round three §D plus Round
+  four §F3 (all blocked on the same missing `GOOGLE_CLIENT_ID` — check fresh
+  each run, it may get set at any time). None of these three is a "small,
+  mechanical, unblocked" pick the way this run's task was; whichever is
+  chosen next will likely need either an owner decision or a genuinely new
+  angle, not just re-confirmation of the existing blocker.
 
 - 2026-08-16 — **Round three, task C4: confirmed the promotion-readiness
   launch gate was already built by Round two's D3, ticked the checkbox.**
