@@ -165,13 +165,14 @@ longer the integration point.
       `PageTemplate` and `SectionIntro` so every route inherits it. The
       reference is WebMD: white surfaces, dense scannable type, utility over
       atmosphere. Dark full-bleed reads editorial, not clinical.
-- [ ] **`/app` returns 404 in production.** The root `vercel.json` runs
+- [x] **`/app` returns 404 in production.** The root `vercel.json` runs
       `scripts/vercel-build.sh` to publish the Expo build there, but the Vercel
       project's Root Directory is `apps/web`, so only `apps/web/vercel.json` is
       ever read and that script never runs. Either invoke the Expo copy from
       the app-level config or drop the footer's app-store links until it works.
       **`apps/web/README.md` currently documents the opposite of the live
-      configuration — correct it.**
+      configuration — correct it.** **Done 2026-08-16 — see the log entry
+      below.**
 
 ### C · Gaps this inventory turned up
 
@@ -1345,6 +1346,79 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round three, task B3: fixed `/app` 404ing in production by
+  making `apps/web/vercel.json` invoke the combined build script directly,
+  instead of building `@swasthya/web` alone.** Done — checked off.
+
+  **Selection.** Re-derived the first unchecked task from the raw checkbox
+  list (`grep -n "^- \["` over the whole queue), per the 2026-08-09 standing
+  rule. Literal first unchecked item is still the two missing testimonial
+  portraits; `ls apps/web/public/imagery/` again showed only
+  `portrait-sabina.webp`/`portrait-prakash.webp`, and `ToolSearch` again found
+  no Higgsfield tool in this session — the same block ~13 prior runs have
+  hit, unchanged, so not re-logged as its own entry. B1 (homepage height) was
+  next, but the 2026-08-16 (previous) entry's own "for the next run" note
+  judged its easy, non-destructive wins exhausted — every homepage section
+  has had at least one padding/collapse pass, and what's left is dropping
+  content outright, which the task's own "cut, do not reorder" instruction
+  argues against without owner input. That note explicitly named B3 as a
+  reasonable next task if a future run made that call, so this run did.
+
+  **The actual bug.** `scripts/vercel-build.sh` (built for a different task,
+  Round two's D1, back on 2026-08-10) is the only place that exports the Expo
+  app and copies it into `apps/web/public/app` before the Next.js build. The
+  root `vercel.json` calls it directly. But B3's own text says the live
+  Vercel project has Root Directory set to `apps/web`, which means only
+  `apps/web/vercel.json` is ever read — and that file's `buildCommand` was
+  `cd ../.. && pnpm turbo build --filter=@swasthya/web...`, which never
+  touches `@swasthya/mobile` or the copy step. So the D1 mechanism was
+  correct and has been sitting unused in production this whole time; the gap
+  was purely that the second `vercel.json` never called it. No prior log
+  entry had actually attempted this file — every prior run's "B3 is next"
+  note referred to it without touching it.
+
+  **The fix.** Changed `apps/web/vercel.json`'s `buildCommand` to
+  `cd ../.. && bash scripts/vercel-build.sh` — the exact same script the root
+  `vercel.json` runs. This makes `/app` resolve under either Root Directory
+  setting without needing a live Vercel dashboard change, which is not
+  something this agent has access to. `outputDirectory` needed no change:
+  it's already unset in `apps/web/vercel.json`, defaulting to `.next`
+  relative to the Root Directory (`apps/web`), and the script's final step
+  still ends by building `@swasthya/web` from the repo root, landing output
+  at `apps/web/.next` either way. Also corrected `apps/web/README.md`'s
+  Vercel section, which is what the task explicitly named as documenting the
+  wrong thing — it previously said "do not set the project root to
+  `apps/web`; that older setup omits the combined build," which is no longer
+  true after this fix.
+
+  **Verify, beyond the standard gates.** Ran the *exact* string now in
+  `apps/web/vercel.json` (`cd ../.. && bash scripts/vercel-build.sh`) from a
+  clean `apps/web/public/app` and `apps/web/.next`, confirmed both the Expo
+  export (16 static routes bundled) and the Next.js build completed, then
+  started the real production server (`next start`) and curled three routes:
+  `/app` → 200 (was a 404 before this fix — confirmed by testing on the
+  unmodified file first), `/app/records` (a deep link) → 200, `/en` → 200
+  unaffected. This is the same empirical approach the original D1 log entry
+  used rather than trusting the config by inspection alone.
+
+  **Full pipeline.** `pnpm install --frozen-lockfile` clean; `pnpm lint`
+  40/40; `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks (686 `apps/api`
+  tests, unchanged); `pnpm build` 40/40. No test file touched — this is
+  Vercel build-config JSON and a README correction, no application logic, no
+  user-visible copy, so no `messages/*.json` changes either.
+
+  **For the next run.** Queue section C is now the only fully-unstarted
+  section: portraits (still Higgsfield-blocked, check anyway per the
+  standing rule), no database ever run against real Postgres, `GET /auth/me`
+  never called from the web app, and the promotion-readiness launch gate.
+  "No database has ever been run" is probably the highest-value pick — it's
+  the last major gap between the code being tested against fakes and it
+  being tested against anything real, and several packages' correctness
+  claims currently rest entirely on in-memory doubles. B1 (homepage height)
+  is still open and unchecked too; revisit it if a future run has fresh
+  ideas beyond padding trims, or if the owner narrows the four-to-five-screen
+  target.
 
 - 2026-08-16 — **Round three, task B1 continued: gave `ServiceCards` its
   missing `sm:` padding step, and hid `Footer`'s dead app-store buttons below

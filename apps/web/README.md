@@ -30,6 +30,6 @@ The trailing `...` matters: it includes the workspace packages on which the app 
 
 ## Vercel
 
-Import `https://github.com/thedhunga/merohealth` and keep the Vercel **Root Directory at the repository root**. The root `vercel.json` runs `scripts/vercel-build.sh`, which builds Expo, copies it to `/app`, and then builds Next.js. Do not set the project root to `apps/web`; that older setup omits the combined build.
+Import `https://github.com/thedhunga/merohealth`. Root Directory at the repository root is the canonical setup: the root `vercel.json` runs `scripts/vercel-build.sh` directly, which builds Expo, copies it to `/app`, and then builds Next.js. If the project's Root Directory is instead set to `apps/web`, this directory's own `vercel.json` now calls the same `scripts/vercel-build.sh` (via `cd ../..`) rather than building `@swasthya/web` alone, so `/app` resolves under either setting — no live dashboard change is required.
 
 Set environment variables in **Project Settings → Environment Variables**, scoped separately to Preview and Production. See `docs/deployment/staging-and-domain.md` and `docs/deployment/developer-handoff.md`.
