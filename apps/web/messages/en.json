@@ -116,7 +116,7 @@
   "home": {
     "announcement": {
       "badge": "New",
-      "text": "Evidence-backed health research is now available",
+      "text": "New: ask in your own language, get a trusted answer",
       "cta": "Try it now"
     },
     "hero": {
@@ -1211,11 +1211,11 @@
   "getCare": {
     "eyebrow": "Safety before AI",
     "title": "Understand what you’re feeling—without turning a question into a diagnosis.",
-    "body": "Mero Health first checks for urgent warning signs. If it is safe to continue, Perplexity Sonar returns general information with sources you can open.",
+    "body": "We read your question and first check for anything urgent. If it is safe, we answer in plain language from trusted sources.",
     "steps": {
       "label": "How your question is handled",
       "safety": "Urgent warning signs are checked locally first",
-      "research": "Safe questions are researched with current sources",
+      "research": "Safe questions are answered from trusted sources",
       "next": "You decide whether to read more or contact a clinician"
     },
     "form": {
@@ -1230,14 +1230,14 @@
     },
     "idle": {
       "heading": "What happens before an answer",
-      "body": "A deterministic safety check runs before any external research. It can stop the normal flow when the words suggest urgent risk."
+      "body": "A safety check runs before anything else. It can stop the normal flow if the words suggest an emergency."
     },
     "loading": {
       "heading": "Checking safety and current sources",
-      "body": "Urgent signals are screened first. If it is safe, cited research is requested."
+      "body": "Checking for anything urgent first. If it is safe, your answer is being prepared."
     },
     "emergency": {
-      "eyebrow": "Normal research stopped",
+      "eyebrow": "Normal answer stopped",
       "heading": "Please seek urgent help now",
       "fallback": "This may be an emergency. Go to the nearest appropriate hospital or contact a locally verified emergency service now.",
       "localNotice": "Mero Health does not invent or display an emergency number until it has been verified for your location."
@@ -1251,17 +1251,54 @@
       "listenStop": "Stop"
     },
     "setup": {
-      "heading": "Cited research needs one final setup step",
-      "body": "The safety check worked, but the Perplexity API key has not been configured for this environment. You can continue in Perplexity Health or try again after setup."
+      "heading": "Answers are briefly unavailable",
+      "body": "Your question is safe, but we could not prepare an answer just now. Please try again shortly. If it feels urgent, speak to a nearby health worker."
     },
     "unavailable": {
-      "heading": "Cited research is temporarily unavailable",
-      "body": "The safety check completed, but current sources could not be retrieved. Try again later or continue in Perplexity Health."
+      "heading": "We could not fetch an answer right now",
+      "body": "Your question is safe, but our sources could not be reached. Please try again in a moment."
     },
     "actions": {
       "another": "Ask another question",
-      "perplexity": "Open Perplexity Health",
       "retry": "Try again"
+    },
+    "profilePrompts": {
+      "skip": "Not now",
+      "ageBand": {
+        "question": "How old are you?",
+        "why": "Advice differs by age. This makes the next answer better.",
+        "options": {
+          "under18": "Under 18",
+          "18to40": "18–40",
+          "40to60": "40–60",
+          "over60": "Over 60"
+        }
+      },
+      "askingFor": {
+        "question": "Who is this question for?",
+        "why": "We tailor the answer to who is asking.",
+        "options": {
+          "self": "Myself",
+          "child": "A child",
+          "parent": "A parent",
+          "other": "Someone else"
+        }
+      },
+      "chronicCondition": {
+        "question": "Do you have any of these long-term conditions?",
+        "why": "If so, future answers will keep it in mind.",
+        "options": {
+          "diabetes": "Diabetes",
+          "bloodPressure": "High blood pressure",
+          "thyroid": "Thyroid",
+          "none": "None"
+        }
+      }
+    },
+    "signInSuggestion": {
+      "heading": "Keep these answers?",
+      "body": "Sign in with your phone number and everything you asked so far joins your history.",
+      "cta": "Sign in"
     }
   },
   "auth": {

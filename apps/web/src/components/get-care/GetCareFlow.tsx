@@ -23,6 +23,16 @@ import type {
   ResearchLanguage,
 } from '@/lib/companion-research';
 import { consumeCareQuestion } from '@/lib/get-care-session';
+import {
+  history,
+  markPromptAsked,
+  profile,
+  recordExchange,
+  shouldSuggestSignIn,
+  updateProfile,
+} from '@/lib/anonymous-history';
+import { nextProfilePrompt, type ProfilePrompt } from '@/lib/profile-prompts';
+import { Link } from '@/i18n/navigation';
 import { useSpeechPlayback } from '@/hooks/useSpeechPlayback';
 import { useSpeechDictation } from '@/hooks/useSpeechDictation';
 import { cn } from '@/lib/cn';
@@ -36,6 +46,8 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
   const [question, setQuestion] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [response, setResponse] = useState<CompanionResearchResponse | null>(null);
+  const [pendingPrompt, setPendingPrompt] = useState<ProfilePrompt | null>(null);
+  const [suggestSignIn, setSuggestSignIn] = useState(false);
   const dictation = useSpeechDictation(locale, (text) => {
     setQuestion((current) => (current ? `${current} ${text}` : text));
   });
@@ -67,10 +79,46 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
 
       const body = (await researchResponse.json()) as CompanionResearchResponse;
       setResponse(body);
-      setPhase(body.assessment.interruptConversation ? 'emergency' : 'result');
+      const emergency = body.assessment.interruptConversation;
+      setPhase(emergency ? 'emergency' : 'result');
+
+      // Remember the exchange on the device, so tomorrow's visit is not a
+      // blank slate. Nothing here leaves the phone until the person signs in.
+      const answered = body.research?.status === 'complete' && Boolean(body.research.answer);
+      recordExchange({
+        question: message,
+        answer: answered ? (body.research?.answer ?? null) : null,
+        language: locale,
+        outcome: emergency ? 'emergency' : answered ? 'answered' : 'unavailable',
+      });
+
+      // One skippable profile question, only when there is a real answer to
+      // react to and only if it would help the next answer.
+      if (answered) {
+        const answeredCount = history().filter((e) => e.outcome === 'answered').length;
+        setPendingPrompt(nextProfilePrompt(message, answeredCount, profile()));
+        setSuggestSignIn(shouldSuggestSignIn());
+      } else {
+        setPendingPrompt(null);
+      }
     } catch {
       setPhase('unavailable');
     }
+  };
+
+  const answerPrompt = (prompt: ProfilePrompt, option: string) => {
+    if (prompt.field === 'conditions') {
+      updateProfile({ conditions: option === 'none' ? [] : [option] });
+    } else {
+      updateProfile({ [prompt.field]: option });
+    }
+    markPromptAsked(prompt.key);
+    setPendingPrompt(null);
+  };
+
+  const skipPrompt = (prompt: ProfilePrompt) => {
+    markPromptAsked(prompt.key);
+    setPendingPrompt(null);
   };
 
   const reset = () => {
@@ -191,6 +239,23 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
                     <UnavailablePanel key="unavailable" reset={reset} />
                   ) : null}
                 </AnimatePresence>
+
+                {/*
+                  Reactions to the answer, below it and after it. Profile
+                  prompt first (one question, skippable), then the sign-in
+                  suggestion — never both on a first visit, and never before
+                  a real answer has been given.
+                */}
+                {phase === 'result' && pendingPrompt ? (
+                  <ProfilePromptCard
+                    onAnswer={(option) => answerPrompt(pendingPrompt, option)}
+                    onSkip={() => skipPrompt(pendingPrompt)}
+                    prompt={pendingPrompt}
+                  />
+                ) : null}
+                {phase === 'result' && !pendingPrompt && suggestSignIn ? (
+                  <SignInSuggestion />
+                ) : null}
               </div>
             </div>
           </div>
@@ -385,15 +450,6 @@ function ResearchPanel({
           <RotateCcw aria-hidden className="size-4" />
           {t('actions.another')}
         </button>
-        <a
-          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-white px-5 font-bold text-indigo-800 ring-1 ring-line hover:bg-indigo-50"
-          href={research.externalHealthHubUrl}
-          rel="noreferrer noopener"
-          target="_blank"
-        >
-          {t('actions.perplexity')}
-          <ExternalLink aria-hidden className="size-4" />
-        </a>
       </div>
     </Panel>
   );
@@ -411,17 +467,8 @@ function SetupPanel({ research, reset }: { research: HealthResearch; reset: () =
       </p>
       <p className="mt-4 rounded-xl bg-white p-4 text-sm leading-relaxed">{research.disclaimer}</p>
       <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-        <a
-          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-indigo-800 px-5 font-bold text-white hover:bg-indigo-700"
-          href={research.externalHealthHubUrl}
-          rel="noreferrer noopener"
-          target="_blank"
-        >
-          {t('actions.perplexity')}
-          <ExternalLink aria-hidden className="size-4" />
-        </a>
         <button
-          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-white px-5 font-bold text-indigo-800 ring-1 ring-line hover:bg-indigo-50"
+          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-indigo-800 px-5 font-bold text-white hover:bg-indigo-700"
           onClick={reset}
           type="button"
         >
@@ -449,5 +496,60 @@ function UnavailablePanel({ reset }: { reset: () => void }) {
         {t('actions.retry')}
       </button>
     </Panel>
+  );
+}
+
+function ProfilePromptCard({
+  prompt,
+  onAnswer,
+  onSkip,
+}: {
+  prompt: ProfilePrompt;
+  onAnswer: (option: string) => void;
+  onSkip: () => void;
+}) {
+  const t = useTranslations('getCare.profilePrompts');
+  return (
+    <div className="mt-4 rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+      <p className="text-sm font-semibold text-indigo-900">{t(`${prompt.key}.question`)}</p>
+      <p className="mt-1 text-xs text-ink-soft">{t(`${prompt.key}.why`)}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {prompt.options.map((option) => (
+          <button
+            className="inline-flex min-h-11 items-center rounded-pill bg-white px-4 text-sm font-medium text-ink ring-1 ring-line transition-colors hover:bg-indigo-100"
+            key={option}
+            onClick={() => onAnswer(option)}
+            type="button"
+          >
+            {t(`${prompt.key}.options.${option}`)}
+          </button>
+        ))}
+        <button
+          className="inline-flex min-h-11 items-center px-3 text-sm text-ink-soft underline-offset-4 hover:underline"
+          onClick={onSkip}
+          type="button"
+        >
+          {t('skip')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SignInSuggestion() {
+  const t = useTranslations('getCare.signInSuggestion');
+  return (
+    <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-marigold-300 bg-marigold-100/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-sm font-semibold text-ink">{t('heading')}</p>
+        <p className="mt-0.5 text-xs text-ink-soft">{t('body')}</p>
+      </div>
+      <Link
+        className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-pill bg-indigo-800 px-5 text-sm font-bold text-white hover:bg-indigo-700"
+        href="/signin?next=/get-care"
+      >
+        {t('cta')}
+      </Link>
+    </div>
   );
 }
