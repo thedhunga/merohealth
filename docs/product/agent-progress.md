@@ -192,11 +192,12 @@ lists the required degradations. A module without its outage test is not done.
 
 ### G · Pay and consult — do not start until E and F are done
 
-- [ ] Choose and document a payment provider that actually operates in
+- [x] Choose and document a payment provider that actually operates in
       Nepal (eSewa, Khalti, ConnectIPS). This is a decision for the owner;
       write the comparison in `docs/architecture/payments.md` and stop. Do
       not integrate a provider the owner has not chosen, and never store
-      card or wallet credentials.
+      card or wallet credentials. **Done 2026-08-16 — see the log entry
+      below.**
 
 
 # Round three — reconcile, then finish what the owner actually asked for
@@ -1480,6 +1481,74 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round four, task G (payment provider — decision document).**
+  Done — checked off.
+
+  **Selection.** `git checkout main && git pull`, read the ledger and
+  `platform-vision.md` fresh per the standing zero-memory rule. Round four
+  §E and §F1/F2/F4/F5 were checked; §F3 (Google sign-in) still carries its
+  own "blocked on the owner's OAuth client id — do the next task instead"
+  note, and no `GOOGLE_CLIENT_ID`/`NEXT_PUBLIC_GOOGLE_CLIENT_ID` exists
+  anywhere in this environment (checked `.env.example`,
+  `.env.server.example`, `apps/api/.env*`, `apps/web/.env*` and the shell —
+  nothing). §G was explicitly flagged "unblocked" by the prior run's own
+  log entry, so this run took it.
+
+  **What was built.** `docs/architecture/payments.md` — a comparison of the
+  three payment rails that actually operate in Nepal (eSewa, Khalti,
+  ConnectIPS: operator, integration shape, reach, settlement model,
+  onboarding weight, refund path), written for the owner to pick from, not
+  a decision this run made. Explicitly does not quote fee percentages or
+  rupee figures — those change over time and a stale or guessed number
+  would read as exactly the kind of fabricated statistic the standing
+  constraints forbid; the document tells the owner to confirm current
+  commercial terms directly with whichever provider is chosen instead.
+  Cross-referenced `packages/shared-types`' existing `PaymentProvider =
+  'MOCK'` (the type deliberately left single-literal by the 2026-08-11
+  `billing` module run, precisely because nothing in the repo names a real
+  settlement integration — see that entry) and
+  `docs/compliance/compliance-gap-register.md`'s "Payments/refunds" row
+  (unresolved: taxes, settlement, consumer protection; interim control:
+  "configurable ledger; mock provider") so the new document doesn't
+  contradict either. The document lists what the owner personally needs to
+  supply (merchant registration documents, API credentials — never
+  fabricated or placeholder-that-looks-real in the repo) and sketches the
+  five-step integration sequence a future run would follow once a provider
+  and credentials exist, so that run doesn't have to re-derive the shape
+  from `packages/billing`, `sms-provider.ts` and
+  `record-extraction.service.ts` from scratch.
+
+  **What was deliberately not built.** No code change of any kind — no new
+  `PaymentProvider` literal, no SDK dependency, no API route, no env var
+  added to `.env.server.example`. The task text says "write the comparison
+  ... and stop," and integrating an unchosen vendor would violate both that
+  instruction and the standing "invent no partners" constraint, since no
+  real merchant relationship with any of the three exists.
+
+  **Verify.** Documentation-only change, but ran the full gate anyway per
+  the standing instructions. `pnpm install --frozen-lockfile` clean (no
+  dependency changes). `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm
+  test` 75/75 tasks, 734 API tests passing — counts unchanged from the
+  prior entry, as expected for a docs-only change. `pnpm build` 40/40,
+  35 cached (only the two touched-ledger-adjacent doc packages and their
+  dependents re-ran).
+
+  **Mobile measurement.** Not applicable — no UI, route or component was
+  touched.
+
+  **For the next run.** Round four is now fully checked except §F3 (Google
+  sign-in, blocked on the owner's OAuth client id — check for
+  `GOOGLE_CLIENT_ID`/`NEXT_PUBLIC_GOOGLE_CLIENT_ID` first; if still absent,
+  the round has no other unblocked box) and the earlier Round three items
+  still open (two missing testimonial portraits waiting on Higgsfield
+  credits; the 11.8-screen homepage cut in §B; Google sign-in's own
+  remaining sub-tasks in §D — the API route, the web button, copy and the
+  hosting-migration-inventory entry — all still unchecked and all waiting
+  on the same OAuth client id). If the client id is still missing next run,
+  the honest next pick is the homepage screen-count task (§B, Round three)
+  — it has no external blocker and the owner has already flagged it as an
+  open complaint.
 
 - 2026-08-16 — **Round four, task F5 (care-directory honesty — demonstration
   labelling).** Done — checked off.
