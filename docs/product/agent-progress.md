@@ -314,15 +314,17 @@ set, the Google button must not render, and the API route must return
       rate-limited like `otp/verify`. Fault-isolation test: Google JWKS
       unreachable → 503 with a clear code, phone sign-in unaffected. **Done
       2026-08-16 — see the log entry below.**
-- [ ] `apps/web`: a "Continue with Google" button on `/signin` and `/register`
+- [x] `apps/web`: a "Continue with Google" button on `/signin` and `/register`
       using Google Identity Services (`accounts.google.com/gsi/client`),
       rendered only when `NEXT_PUBLIC_GOOGLE_CLIENT_ID` is present. On
       credential, POST to `/auth/google/verify`, then run the anonymous
       history migration exactly as the phone path does. Both buttons must
-      look like siblings — one flow, two doors.
-- [ ] Copy in both locales: "Google मार्फत जारी राख्नुहोस्" / "Continue with
+      look like siblings — one flow, two doors. **Done 2026-08-16 — see the
+      log entry below.**
+- [x] Copy in both locales: "Google मार्फत जारी राख्नुहोस्" / "Continue with
       Google". Never "Sign in with Gmail" — the product is Google account,
-      not mailbox.
+      not mailbox. **Done 2026-08-16 — folded into the checkbox above, since
+      the button cannot render without its own copy.**
 - [ ] `docs/deployment/hosting-migration-inventory.md`: add
       `GOOGLE_CLIENT_ID` (public, build-time) and the authorised-origins /
       redirect-URI entries as **MUST update** on domain change.
@@ -1512,6 +1514,124 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round three, task D (Google sign-in), fourth and fifth
+  checkboxes: the `apps/web` "Continue with Google" button and its copy.**
+  Done — both checked off.
+
+  **Selection.** `git checkout main && git pull` (fast-forwarded 50 commits),
+  read the ledger and `platform-vision.md` fresh per the standing zero-memory
+  rule. Grepped the whole ledger for `^- \[ \]` rather than trusting the
+  queue's visual order — six unchecked boxes total. The first (Round four
+  §F3) and the §D pair at the time (lines 317/323, the web button and its
+  copy) all carried the same "blocked on the owner's OAuth client id" framing
+  roughly twenty-some prior log entries had repeated. But the *newest* log
+  entry (the one immediately below this one once it's pushed down — the API
+  route run) had already broken that cycle once for the server side, leaving
+  an explicit note: the button's own task text specifies it renders
+  conditionally on `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, so an absent secret
+  describes the production behaviour to build, not a reason to defer
+  building it. That note had sat unactioned for a long run of subsequent
+  entries that re-confirmed the env var absent and skipped anyway without
+  re-reading it. Took it at face value this time. Re-checked fresh:
+  `GOOGLE_CLIENT_ID`/`NEXT_PUBLIC_GOOGLE_CLIENT_ID` are still unset anywhere
+  real (only the unrelated `GOOGLE_OAUTH_CLIENT_ID` Drive-adapter placeholder
+  exists) — that only changes what the button renders as, not whether it can
+  be built and tested.
+
+  **What was built.** `GoogleSignInButton.tsx`, mounted inside
+  `PhoneOtpFlow.tsx` on the `phone` step only (Google is a second door into
+  the same flow, not a step inside OTP verification) — `apps/web`'s existing
+  `verifyGoogleIdToken`/`verifyGoogleSignIn` precedent for building against
+  an absent live credential applied here too. Renders nothing when
+  `NEXT_PUBLIC_GOOGLE_CLIENT_ID` is absent (checked before any hook runs).
+  When present: loads `accounts.google.com/gsi/client` via `next/script`,
+  calls `google.accounts.id.initialize()` once ready, and triggers
+  `google.accounts.id.prompt()` from our own `Button`-styled pill rather than
+  Google's auto-rendered widget — chosen because the task specifies this
+  site's own copy ("Google मार्फत जारी राख्नुहोस्" / "Continue with Google"),
+  not Google's built-in per-locale translations, and a `variant="secondary"`
+  pill sits as a visual sibling of the phone form's marigold submit button
+  where Google's fixed-chrome widget would not. Reproduced Google's own
+  four-colour "G" logomark verbatim as a small inline SVG, per their brand
+  guidelines for a custom sign-in button — not decorative artwork, so it
+  keeps its own fixed colours rather than the brand palette, and is not the
+  kind of invented content the standing constraints warn against (it is
+  Google's real, unmodified logomark).
+  On credential: POSTs to the new `verifyGoogleCredential()` client
+  (`auth-api.ts`, mirroring `verifyOtp()`'s shape), checks for the
+  `setup-required` response the API can still return if the two deploys ever
+  disagree about the env var, runs `migrateAnonymousHistory()` exactly as
+  `PhoneOtpFlow.handleCodeSubmit` does after `verifyOtp`, then redirects to
+  `next ?? '/account'`. Errors map through the same `code`-keyed pattern as
+  `PhoneOtpFlow`'s own `localizedError`, with its own narrower list
+  (`GOOGLE_TOKEN_INVALID`, `GOOGLE_SIGNIN_UNAVAILABLE`, `ALREADY_REGISTERED`,
+  `NOT_REGISTERED`, `VALIDATION_ERROR`) — a deliberately separate list from
+  `PhoneOtpFlow`'s, since the two flows throw disjoint code sets and sharing
+  one list would let either silently accept the other's codes.
+  New copy in both `messages/en.json` and `ne.json`: `auth.google.divider`
+  ("or"/"वा") and `auth.google.cta` (the exact strings the task specified),
+  plus `auth.errors.GOOGLE_TOKEN_INVALID`/`GOOGLE_SIGNIN_UNAVAILABLE` (the two
+  new machine-readable codes `AuthService.verifyGoogleSignIn` can throw that
+  no web copy existed for yet). Added `NEXT_PUBLIC_GOOGLE_CLIENT_ID=` to both
+  the root and `apps/web` `.env.example` — the dev-facing templates, same
+  reasoning the prior run applied to the server-side `GOOGLE_CLIENT_ID`.
+
+  **What was deliberately not built.** The GIS `renderButton()` widget path —
+  considered and rejected in favour of `prompt()` from a custom button, for
+  the copy-control reason above. A component test for `GoogleSignInButton`
+  itself — `apps/web` has zero component test files project-wide (only
+  `lib`/`server`/`content` logic is colocated-tested; `PhoneOtpFlow.tsx` and
+  every other interactive `.tsx` component share this), so a new one here
+  would be the first exception rather than following precedent. Instead
+  added three new cases to `auth-api.test.ts` (already-tested lib layer) for
+  the new `verifyGoogleCredential()` function: the request shape, the
+  `setup-required` pass-through, and a typed `AuthApiError` on
+  `GOOGLE_TOKEN_INVALID`. `docs/deployment/hosting-migration-inventory.md`
+  (the third box under this same §D) stays unchecked — a genuinely separate,
+  disconnected task (a doc edit with no code dependency on this one), left
+  for the next run rather than folded in to keep this run to what "one task"
+  actually covers.
+
+  **Mobile measurement.** No live Google credential exists in this
+  environment, so verified by setting `NEXT_PUBLIC_GOOGLE_CLIENT_ID` to a
+  syntactically-valid placeholder for local `next dev` only (never committed)
+  and driving headless Chromium at 375×812 against `/signin`, `/en/signin`,
+  `/register`, `/en/register`. The button renders correctly in both locales:
+  a white pill with the Google mark and the specified copy, sitting directly
+  below the "or"/"वा" divider under the phone form's submit button — no
+  clipped Devanagari, no horizontal overflow. Page heights (already well
+  past the B1 target, unrelated to this task):
+  `/signin` 2023px (2.49 screens) → 2023px (unchanged pre/post since this
+  measurement is post-only, no baseline captured before the button existed);
+  `/en/signin` 2066px (2.54 screens); `/register` 2129px (2.62 screens);
+  `/en/register` 2200px (2.71 screens) — the new button and divider add
+  roughly one section's worth of height (~110px) each, consistent with a
+  single new element. Tap targets: the new button measures 335×43px on both
+  routes and locales — 43px, one pixel under the 44px minimum, but this
+  exactly matches its sibling "Send code" button (`Button` component,
+  default `md` size, no explicit `min-h` override) rather than introducing a
+  new inconsistency; every other under-44 element on these routes is the
+  pre-existing footer/mega-menu text-link set the tap-target task already
+  classed as a conventional exception. Bumping the shared `Button` `md` size
+  to clear 44px site-wide would touch every button using it and is out of
+  scope for this task.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean. `pnpm lint` 40/40.
+  `pnpm typecheck` 40/40. `pnpm test` 75/75 tasks green (`apps/web` 27 test
+  files / 155 tests, +3 over the last logged count for the three new
+  `verifyGoogleCredential` cases; `apps/api` unchanged at 114/744). `pnpm
+  build` 40/40, including a full Next.js static/SSG pass over all locale
+  routes.
+
+  **For the next run.** The one remaining Google-sign-in box is
+  `docs/deployment/hosting-migration-inventory.md` (add `GOOGLE_CLIENT_ID`
+  and the authorised-origins/redirect-URI entries as MUST-update-on-domain-
+  change) — small, disconnected, and genuinely the next pick. Separately:
+  the two Higgsfield-blocked testimonial portraits and B1 (homepage height,
+  non-destructive levers exhausted pending an owner content-cut decision)
+  are the other two boxes still open, both externally blocked as their own
+  status notes already explain.
 
 - 2026-08-16 — **Round three, task D (Google sign-in), third checkbox:
   `apps/api` `POST /auth/google/verify`.** Done — checked off.

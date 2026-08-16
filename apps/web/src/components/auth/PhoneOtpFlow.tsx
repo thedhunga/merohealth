@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 
 import { RecordTransform } from '@/components/art/RecordTransform';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import { Button } from '@/components/ui/Button';
 import { Link, useRouter } from '@/i18n/navigation';
 import { PageTemplate } from '@/components/ui/PageTemplate';
@@ -225,6 +226,10 @@ export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
               </p>
             </form>
           ) : null}
+
+          {/* Only on the phone step — Google is a second door into the same
+              flow, not a step inside OTP verification. */}
+          {step === 'phone' ? <GoogleSignInButton intent={intent} next={next} /> : null}
 
           {step === 'code' ? (
             <form className="flex flex-col gap-6" onSubmit={(event) => void handleCodeSubmit(event)}>

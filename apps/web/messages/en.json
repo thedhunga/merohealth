@@ -1314,8 +1314,14 @@
       "NOT_REGISTERED": "No account found for this phone number. Try registering instead.",
       "ALREADY_REGISTERED": "This phone number already has an account. Try signing in instead.",
       "DISPLAY_NAME_REQUIRED": "Please enter your name.",
+      "GOOGLE_TOKEN_INVALID": "We couldn't verify that with Google. Please try again.",
+      "GOOGLE_SIGNIN_UNAVAILABLE": "Google sign-in is temporarily unavailable — try phone sign-in instead.",
       "VALIDATION_ERROR": "Something about that request wasn't valid. Please check and try again.",
       "GENERIC": "Something went wrong. Please try again."
+    },
+    "google": {
+      "divider": "or",
+      "cta": "Continue with Google"
     },
     "signIn": {
       "hero": {

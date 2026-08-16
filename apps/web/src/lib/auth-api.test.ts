@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { AuthApiError, getCurrentUser, logout, requestOtp, verifyOtp } from '@/lib/auth-api';
+import { AuthApiError, getCurrentUser, logout, requestOtp, verifyGoogleCredential, verifyOtp } from '@/lib/auth-api';
 
 function mockFetchOnce(status: number, body: unknown) {
   const fetchMock = vi.fn().mockResolvedValue({
@@ -72,6 +72,45 @@ describe('verifyOtp', () => {
       phone: '9812345678',
       intent: 'REGISTER',
       displayName: 'Sita Rai',
+    });
+  });
+});
+
+describe('verifyGoogleCredential', () => {
+  it('posts the idToken, intent and locale to /v1/auth/google/verify', async () => {
+    const fetchMock = mockFetchOnce(200, {
+      status: 'complete',
+      token: 't1',
+      userId: 'u1',
+      email: 'sita@example.com',
+      phone: null,
+      role: 'PATIENT',
+      locale: 'ne',
+      patientProfileId: 'p1',
+      assuranceLevel: 'REGISTERED',
+    });
+
+    const result = await verifyGoogleCredential({ idToken: 'id-token', intent: 'REGISTER', locale: 'ne' });
+
+    expect(result).toMatchObject({ status: 'complete', token: 't1', email: 'sita@example.com' });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://localhost:4000/v1/auth/google/verify');
+    expect(JSON.parse(init.body as string)).toEqual({ idToken: 'id-token', intent: 'REGISTER', locale: 'ne' });
+  });
+
+  it('reports setup-required as a normal response, not a thrown error', async () => {
+    mockFetchOnce(200, { status: 'setup-required' });
+
+    const result = await verifyGoogleCredential({ idToken: 'id-token', intent: 'SIGN_IN' });
+
+    expect(result).toEqual({ status: 'setup-required' });
+  });
+
+  it('surfaces GOOGLE_TOKEN_INVALID as a typed AuthApiError', async () => {
+    mockFetchOnce(401, { code: 'GOOGLE_TOKEN_INVALID', message: 'bad token' });
+
+    await expect(verifyGoogleCredential({ idToken: 'bad', intent: 'SIGN_IN' })).rejects.toMatchObject({
+      code: 'GOOGLE_TOKEN_INVALID',
     });
   });
 });

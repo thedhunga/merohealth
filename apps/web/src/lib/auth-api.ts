@@ -95,6 +95,32 @@ export function verifyOtp(input: VerifyOtpInput): Promise<VerifyOtpResponse> {
   return requestJson<VerifyOtpResponse>('/otp/verify', input);
 }
 
+export interface VerifyGoogleInput {
+  idToken: string;
+  intent: AuthIntent;
+  displayName?: string | undefined;
+  locale?: ('ne' | 'en') | undefined;
+}
+
+/** Mirrors `apps/api`'s `VerifyGoogleResult` — `setup-required` is a normal response to check for, not a thrown error, so a missing `GOOGLE_CLIENT_ID` on the server degrades the same way an absent `NEXT_PUBLIC_GOOGLE_CLIENT_ID` already hides the button on this side. */
+export type VerifyGoogleResponse =
+  | { status: 'setup-required' }
+  | {
+      status: 'complete';
+      token: string;
+      userId: string;
+      email: string | null;
+      phone: string | null;
+      role: string;
+      locale: string;
+      patientProfileId: string | null;
+      assuranceLevel: string;
+    };
+
+export function verifyGoogleCredential(input: VerifyGoogleInput): Promise<VerifyGoogleResponse> {
+  return requestJson<VerifyGoogleResponse>('/google/verify', input);
+}
+
 export interface CurrentUserResponse {
   userId: string;
   phone: string;
