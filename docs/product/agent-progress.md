@@ -1346,6 +1346,84 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-16 — **Round three, task B1 continued: gave `ServiceCards` its
+  missing `sm:` padding step, and hid `Footer`'s dead app-store buttons below
+  `sm`.** Still left unchecked — real progress, target still not met.
+
+  **Selection.** Ran `grep -n "^- \["` over the whole queue per the
+  2026-08-09 standing rule to re-derive the first unchecked task rather than
+  trust the previous entry. Literal first unchecked item is still the two
+  missing testimonial portraits; `ls apps/web/public/imagery/` confirmed only
+  `portrait-sabina.webp`/`portrait-prakash.webp` exist, and `ToolSearch`
+  again found no Higgsfield tool in this session — the same block ~12 prior
+  runs have hit. Not re-logged as its own entry since nothing changed. Moved
+  to B1, next in order.
+
+  **What changed.** Two independent cuts. First, `ServiceCards`' section
+  wrapper was still `py-20 md:py-28` with no `sm:` step — the same shape
+  `Hero`, `Testimonials`, `Footer` and `CtaBand` were in before their own B1
+  passes. Brought it in line with the established convention (`py-14
+  sm:py-20 md:py-28`, matching `CtaBand`'s 2026-08-15 values exactly); `sm`
+  and up are pixel-identical by construction. Second, `Footer`'s "download
+  the app" block (App Store / Google Play buttons) was found to link to
+  `/app`, which queue item B3 records as 404ing in production because the
+  Vercel project's Root Directory (`apps/web`) never reads the root
+  `vercel.json` that would publish the Expo build there. Below `sm` this was
+  a full sub-block of dead links contributing height for zero function, so it
+  is now `hidden ... sm:flex` — the same pattern used for the locale switcher
+  in the 2026-08-16 (previous) entry. `sm` and up are unchanged and the
+  buttons there are still broken, which stays B3's problem, not this one —
+  a comment on the block says so for whoever picks up B3.
+
+  **Measured at 375×812** (`document.body.scrollHeight` / `window.innerHeight`,
+  production build via `next start`, Playwright — global `playwright@1.56.1`
+  from `/opt/node22/lib/node_modules`, launched against
+  `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` since this repo's own
+  `node_modules` has no Playwright install this run; worth knowing if a
+  future run hits the same `ERR_MODULE_NOT_FOUND` reaching for
+  `playwright-core`). Nepali **5.78 → 5.60 screens** (4695px → 4551px,
+  **-144px**). English **6.24 → 6.06 screens** (5065px → 4921px, **-144px**).
+  `ServiceCards`: 774.5px → 726.5px (both locales, no copy changed so the
+  -48px is locale-independent). `Footer`: 821.75px → 725.75px (ne), 864px →
+  768px (en), a clean -96px matching the removed block. Target is still four
+  to five screens (3248–4060px); today's 4551px (ne) / 4921px (en) needs
+  roughly 491–1303px / 861–1673px more. Tap targets: unchanged in count and
+  size — the two removed buttons were already `min-h-11`-compliant, this cut
+  removed them from the mobile DOM entirely rather than shrinking them, and
+  no other interactive element changed size.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks (686 `apps/api` tests
+  alone); `pnpm build` 40/40. No new test file — both changes are
+  markup/class-only with no new branching logic, matching every other B1
+  pass. Checked the production build at 375px in both locales (screenshot of
+  `Footer` and `ServiceCards`): no horizontal overflow, "follow us" now sits
+  alone in its row with no orphaned gap where the app buttons were. Checked
+  640px (`sm`) separately: the App Store / Google Play buttons still render
+  there, 44px tall, unchanged.
+
+  **For the next run.** Component-by-component at 375px (ne), current:
+  `SymptomEntry` 778px, `Hero`/record-story 969px, `ServiceCards` 726.5px,
+  `OrganizationTabs` 0px (hidden below `lg`), `Testimonials` 873px, `CtaBand`
+  398px, `Footer` 725.75px. Every section on the homepage has now had at
+  least one B1 pass; the two largest untouched blocks are `Hero` (969px —
+  the two-column record-story illustration + three-step list, already at
+  `py-12` at this breakpoint, so any further cut means dropping content, not
+  spacing) and `Testimonials` (873px — already collapsed to 2 cards behind a
+  toggle, already `py-14` at this breakpoint; the remaining height is mostly
+  the two visible cards themselves, which is the actual content, not
+  padding). Everywhere padding could plausibly still be tightened without
+  dropping content has now been tightened. Reaching four to five screens from
+  here needs either a genuine content cut on `Hero` or `Testimonials`
+  specifically (not just spacing) or, as the 2026-08-16 (previous) entry
+  already flagged, revisiting whether the four-to-five-screen target itself
+  is reachable through non-destructive means alone. B3 (`/app` 404 in
+  production — this run's `Footer` change is a partial, mobile-only version
+  of its own suggested fix, but the root `vercel.json` wiring and
+  `apps/web/README.md` correction are still untouched) and "no database has
+  ever been run" (queue section C) remain open and are reasonable next tasks
+  if a future run judges B1's low-risk cuts exhausted.
+
 - 2026-08-16 — **Round three, task B1 continued: cut `Footer`'s two
   untouched sub-blocks — the duplicate locale switcher and the single-column
   nav-link accordion.** Still left unchecked — real progress, target still

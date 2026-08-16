@@ -30,7 +30,7 @@ export function ServiceCards() {
   const hiddenCount = serviceCards.length - 1 - COLLAPSED_COUNT;
 
   return (
-    <section aria-labelledby="services-heading" className="bg-paper py-20 md:py-28">
+    <section aria-labelledby="services-heading" className="bg-paper py-14 sm:py-20 md:py-28">
       <div className="container-site">
         <div className="reveal grid gap-6 lg:grid-cols-[1fr_.7fr] lg:items-end">
           <h2 className="max-w-[15ch] text-4xl text-balance sm:text-5xl" id="services-heading">

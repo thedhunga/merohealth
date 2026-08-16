@@ -126,15 +126,20 @@ export function Footer() {
 
         <div className="mt-8 flex flex-col gap-6 border-t border-white/15 pt-6 sm:mt-14 sm:gap-8 sm:pt-8">
           <div className="flex flex-wrap items-center justify-between gap-6">
-            <div className="flex flex-col gap-3">
+            {/*
+              `/app` currently 404s in production (queue item B3 — the root
+              `vercel.json` that publishes the Expo build there never runs
+              because the Vercel project's Root Directory is `apps/web`), so
+              below `sm` this block would be the footer's only dead link.
+              Hidden on mobile until B3 lands; unchanged at `sm` and up where
+              it was already broken before this pass and stays a known issue
+              for that task rather than this one.
+            */}
+            <div className="hidden flex-col gap-3 sm:flex">
               <span className="text-xs font-bold tracking-[0.12em] text-white uppercase">
                 {t('downloadApp')}
               </span>
               <div className="flex flex-wrap gap-3">
-                {/*
-                  Store listings do not exist yet, so these point at the web
-                  build of the Expo product surface rather than a dead link.
-                */}
                 <a
                   className="inline-flex min-h-11 items-center rounded-xl border border-white/25 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/10"
                   href="/app"
