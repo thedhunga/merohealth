@@ -174,6 +174,52 @@ longer the integration point.
       configuration — correct it.** **Done 2026-08-16 — see the log entry
       below.**
 
+### D · Sign in with Google (alongside phone + OTP)
+
+The owner asked for Gmail *or* phone. Phone + OTP exists end to end;
+Google is the second identity provider over the **same** session machinery.
+Read `apps/api/src/auth/auth.controller.ts` first — `verifyOtp` is the model
+for how a proof of identity becomes a session cookie, and Google must produce
+an identical session, not a parallel one.
+
+**Owner-supplied, do not fabricate:** `GOOGLE_CLIENT_ID` (and
+`GOOGLE_CLIENT_SECRET` if using the server-side code flow). If they are not
+set, the Google button must not render, and the API route must return
+`setup-required` — the same pattern the research provider uses.
+
+- [ ] `packages/auth`: `verifyGoogleIdToken(idToken, clientId, fetchImpl?)`
+      that validates signature/audience/issuer/expiry against Google's JWKS
+      and returns `{ sub, email, emailVerified, name, picture }`. Reject
+      unverified emails. Test with a fixture JWKS; never call the network in
+      tests.
+- [ ] Prisma: add nullable `googleSub String? @unique` on `User`; migration.
+      A user may have phone, googleSub, or both — linking is by explicit
+      action from a signed-in session, never by matching email to phone.
+- [ ] `apps/api` `POST /auth/google/verify`: body `{ idToken, intent, locale,
+      displayName? }`. Verify, upsert user by `googleSub`, issue the **same**
+      session cookie `verifyOtp` issues, reach `REGISTERED`. Guarded and
+      rate-limited like `otp/verify`. Fault-isolation test: Google JWKS
+      unreachable → 503 with a clear code, phone sign-in unaffected.
+- [ ] `apps/web`: a "Continue with Google" button on `/signin` and `/register`
+      using Google Identity Services (`accounts.google.com/gsi/client`),
+      rendered only when `NEXT_PUBLIC_GOOGLE_CLIENT_ID` is present. On
+      credential, POST to `/auth/google/verify`, then run the anonymous
+      history migration exactly as the phone path does. Both buttons must
+      look like siblings — one flow, two doors.
+- [ ] Copy in both locales: "Google मार्फत जारी राख्नुहोस्" / "Continue with
+      Google". Never "Sign in with Gmail" — the product is Google account,
+      not mailbox.
+- [ ] `docs/deployment/hosting-migration-inventory.md`: add
+      `GOOGLE_CLIENT_ID` (public, build-time) and the authorised-origins /
+      redirect-URI entries as **MUST update** on domain change.
+
+**Owner steps** (put these in the ledger log so they are not lost):
+Google Cloud Console → APIs & Services → Credentials → Create OAuth client
+→ Web application → Authorised JavaScript origins:
+`https://merohealth-beta.vercel.app` (and later the real domain) → copy the
+Client ID → Vercel env `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (all environments) and
+`GOOGLE_CLIENT_ID` (server).
+
 ### C · Gaps this inventory turned up
 
 - [x] The four `portrait-*.webp` files were deleted while `Testimonials` still
