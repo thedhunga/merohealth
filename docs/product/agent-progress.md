@@ -179,10 +179,11 @@ longer the integration point.
 - [x] The four `portrait-*.webp` files were deleted while `Testimonials` still
       requests them. Confirm the fallback renders cleanly, or restore them.
       **Done 2026-08-16 — see the log entry below.**
-- [ ] **No database has ever been run.** The Prisma schema, every repository
+- [x] **No database has ever been run.** The Prisma schema, every repository
       and the seed have never met a real Postgres — all of it is tested against
       in-memory fakes. Bring up `compose.yaml`, migrate, seed, and fix what
-      only a real database reveals.
+      only a real database reveals. **Done 2026-08-16 — see the log entry
+      below.**
 - [ ] `GET /auth/me` is real and tested in `apps/api`, and nothing on the web
       ever calls it. Add the session hook and a protected landing.
 - [ ] Launch gate in `docs/product/promotion-readiness.md`: what must be true
@@ -1347,6 +1348,116 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round three, task C2: brought up a real Postgres, ran
+  migrate + seed against it, then booted the compiled `apps/api` end-to-end
+  for the first time — and found a real dependency-injection bug that no
+  unit test could have caught.** Done — checked off.
+
+  **Selection.** `grep -n "^- \[ \]"` over the whole queue per the 2026-08-09
+  standing rule. Literal first unchecked item is still the two missing
+  testimonial portraits; `ToolSearch("higgsfield")` again found no tool in
+  this session, the same block ~16 prior runs have hit — not re-logged as
+  its own entry. B1 (homepage height) is still open per the 2026-08-16
+  (previous) entries' own conclusion that its non-destructive cuts are
+  exhausted without owner input on what content to drop. C2 was next in
+  order and, per that same entry, "the highest-value pick left."
+
+  **Bringing up Postgres.** `docker compose up -d postgres` was not
+  attempted — Round two A1's log entry already recorded the same egress
+  block (Docker Hub pull `403` through this environment's proxy) and this
+  environment still has no `dockerd` socket (`docker ps` → "no such file or
+  directory"). Used the same workaround that run found: this container
+  image ships `postgresql-16` preinstalled (`pg_lsclusters` showed cluster
+  `16/main` present but `down`). `service postgresql start`, then created
+  the `swasthya`/`swasthya` role and database via `sudo -u postgres psql` to
+  match `compose.yaml`'s credentials exactly, so the stock
+  `DATABASE_URL=postgresql://swasthya:swasthya@localhost:5432/swasthya`
+  needed no override.
+
+  **Migrate and seed found nothing broken this time.** `prisma migrate
+  deploy` applied all 7 migrations cleanly; `prisma migrate diff
+  --from-config-datasource --to-schema prisma/schema.prisma --script` came
+  back an empty script (no drift). `tsx prisma/seed.ts` (after `prisma
+  generate`, needed first — the generated client isn't committed) inserted
+  all 14 tables' worth of demonstration rows with zero errors. Round two
+  A1's own run found real problems here (`PrismaClientInitializationError`
+  from the missing driver-adapter wiring); that fix has held since, so
+  schema and seed are genuinely solid against a live database now.
+
+  **What only booting the real app revealed.** The task's own wording says
+  "fix what only a real database reveals," and stopping at a clean
+  migrate/seed would have under-delivered on it — nothing in this repo has
+  ever actually started the compiled API against a live Postgres and sent
+  it a request. `pnpm build` then `node apps/api/dist/main.js` with
+  `DATABASE_URL` pointed at the now-seeded database hit
+  `UnknownDependenciesException`: `SessionAuthGuard` (?) — `AuthService` not
+  available in `ClinicalChartingModule`. Root cause: `RecordsModule` imports
+  `AuthModule` for its own `SessionAuthGuard` use but only exports
+  `RecordsService` in its `exports` array, not `AuthModule` itself — Nest
+  does not re-export an imported module's providers unless the importing
+  module says so explicitly. `ClinicalChartingModule` imports `RecordsModule`
+  (to get `RecordsService`) and separately declares `@UseGuards(SessionAuthGuard)`
+  on its own controller, but never imports `AuthModule` directly — so the
+  guard's own `AuthService` dependency had nowhere to resolve from. Every
+  existing test for this module constructs `ClinicalChartingService` by hand
+  (see `clinical-charting.module-descriptor.test.ts`) rather than asking
+  Nest to wire the module graph, so this was invisible to `pnpm test`.
+  Grepped every controller using `SessionAuthGuard` against every module
+  importing `AuthModule` directly and found one more instance of the exact
+  same gap: `BillingModule` imports `ClinicalChartingModule` for
+  `BillingService` the same way, and has the same missing direct
+  `AuthModule` import. The other seven `SessionAuthGuard`-gated controllers
+  (`records`, `credentialing`, `family`, `identity`, `interop`,
+  `language-corpus`, `teleconsultation`) all import `AuthModule` directly
+  already and were unaffected; the other guard classes
+  (`EntitlementsGuard`/`ReviewerGuard`/`CorpusReviewerGuard`/
+  `IdentityReviewerGuard`) are all provided locally in the same module as
+  their controller, not through this transitive-export pattern, so they
+  don't have the same exposure.
+
+  **The fix.** Added `AuthModule` to the `imports` array of both
+  `ClinicalChartingModule` and `BillingModule`, matching the "import the
+  module, get the guard" convention every other guarded module already
+  follows (see `RecordsModule`'s own doc comment). Rebuilt and re-booted the
+  compiled app against the live database: it now starts clean, maps every
+  route, and stays up. Exercised it for real rather than trusting the
+  startup log alone — `GET /v1/records/health` → 200, `GET
+  /v1/family/grants` → 401 (correct, no session), `POST
+  /v1/auth/otp/request` → 201 with a real challenge id, then confirmed via
+  `psql` that the row actually landed in `"OtpChallenge"` — a genuine
+  write-then-read round trip through Prisma against Postgres, not a mock.
+
+  **A permanent regression guard, not just a log note.** Added
+  `apps/api/src/app.module.test.ts`: `Test.createTestingModule({ imports:
+  [AppModule] }).compile()` from `@nestjs/testing` (new devDependency, not
+  previously used anywhere in this repo — pinned to `11.1.28` to match
+  every other `@nestjs/*` package here). This reproduces Nest's exact
+  provider-resolution pass without needing a live database —
+  `PrismaService`'s own doc comment already establishes its `PrismaClient`
+  connects lazily on first query, so `compile()` alone never opens a
+  socket. Verified the test actually catches the regression it exists for:
+  `git stash`ed just the two module fixes, reran the test, watched it fail
+  with the identical `UnknownDependenciesException`, then restored the fix
+  and watched it pass — this is a real guard, not a test written to match
+  already-passing code.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks (`apps/api` 106 test files
+  / 687 tests, up from 105/686); `pnpm build` 40/40. No user-visible copy
+  touched, so no `messages/*.json` changes. No web UI touched — this is
+  purely `apps/api` module wiring and a new test — so no 375px measurement
+  applies to this run.
+
+  **For the next run.** C3 (`GET /auth/me` real and tested in `apps/api`,
+  nothing on the web ever calls it) is next in order, then C4 (the
+  promotion-readiness launch gate). B1 (homepage height) is still open and
+  unchecked; revisit only with a fresh idea or owner sign-off on a content
+  cut, per the 2026-08-16 (earlier) entries. Worth knowing: this run's local
+  Postgres/role/data lives only in this container and will not persist to
+  the next session — the next run that needs a live database again should
+  expect to redo the `service postgresql start` + role/database creation
+  step from scratch, same as every prior DB-touching run has.
 
 - 2026-08-16 — **Round three, task C1: added a colocated regression test
   proving `EditorialImage`'s missing-portrait fallback, ticked the
