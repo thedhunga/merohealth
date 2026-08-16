@@ -19,8 +19,12 @@ can do; none of it can be automated from CI safely.
 - [ ] **Code.** `git clone https://github.com/thedhunga/merohealth
       /opt/mero-health && cd /opt/mero-health`.
 - [ ] **Secrets.** `cp .env.server.example .env.server && chmod 600
-      .env.server`, then edit it. Three values matter:
+      .env.server`, then edit it. Four values matter:
       `POSTGRES_PASSWORD` (long and random — `openssl rand -base64 32`),
+      `AUTH_SECRET` (also `openssl rand -base64 32` — this one is easy to
+      skip because the API boots and `/v1/health` stays green without it,
+      but it hashes every OTP code and session token, so sign-in 500s the
+      moment someone actually tries it; there is no default, on purpose),
       `GEMINI_API_KEY` (same key as Vercel), and `ALLOWED_ORIGINS`
       (`https://merohealth-beta.vercel.app`, comma-add the real domain later).
 - [ ] **Pull the image, then bring it up.** `deploy-api.yml` builds
@@ -84,6 +88,7 @@ slow, OOM-prone path the GHCR image exists to avoid.
 |---|---|
 | `api` never becomes healthy | `docker compose logs migrate` first — a failed migration blocks it on purpose |
 | Sign-in works on the box but not from the website | `ALLOWED_ORIGINS` missing the Vercel origin, or the API not on HTTPS |
+| `/v1/health` 200 but sign-in / OTP verify 500s with `AUTH_SECRET must be set` | `AUTH_SECRET` missing from `.env.server` — the health check never touches it, so this only shows up when someone actually signs in; set it and `docker compose -f compose.server.yaml up -d api` to restart with the new value |
 | `/v1/health` 200 but records routes 503 | Postgres unreachable; `docker compose ps postgres` |
 | Build OOMs | swap step skipped, or you ran `build` instead of `pull` — the server should never build the arm64 image itself |
 

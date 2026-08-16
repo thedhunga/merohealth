@@ -153,12 +153,13 @@ lists the required degradations. A module without its outage test is not done.
       to GHCR on every push to `main`. The owner will pull it on the server;
       do not attempt to SSH from CI. Document the three server commands in
       `docs/deployment/dedicated-server.md`.
-- [ ] `docs/deployment/dedicated-server.md`: an honest, ordered runbook for
+- [x] `docs/deployment/dedicated-server.md`: an honest, ordered runbook for
       the owner — DNS `api.<domain>` → server, `.env.server` with the real
       values, `docker compose -f compose.server.yaml up -d`, migrate, smoke
       test with `curl /v1/health`. Then in Vercel set
       `NEXT_PUBLIC_API_URL=https://api.<domain>` and redeploy. Every step
       the owner has to do by hand goes in a checkbox list at the top.
+      **Done 2026-08-16 — see the log entry below.**
 
 ### F · The journey, once the API is reachable
 
@@ -1476,6 +1477,61 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round four, task E5 (dedicated-server.md runbook).** Done —
+  checked off.
+
+  **Selection.** `grep -n "^- \[ \]"` over the merged queue from scratch per
+  the standing 2026-08-09 rule (never trust a prior run's "resume at X"
+  note). First hits are the Higgsfield-blocked portraits and the B1 homepage
+  height item, both already logged as open and not re-picked; the first
+  genuinely unattempted item was Round four §E's fifth checkbox — the
+  runbook — which the immediately preceding entry (E4, GHCR workflow) left
+  untouched by design.
+
+  **What was found.** The runbook file already existed and already had
+  almost everything the task asks for — a checkbox list at the top, DNS,
+  `.env.server`, `docker compose ... up`, migrate, `curl /v1/health`, and the
+  Vercel `NEXT_PUBLIC_API_URL` step — written across the two prior E-round
+  commits. Before ticking it off on the strength of "looks done," grepped
+  `apps/api/src` for every `process.env[...]` it reads to check the runbook's
+  "three values that matter" claim against the code. `AUTH_SECRET` is read
+  in `auth.service.ts` with no default — it throws `AUTH_SECRET must be set`
+  the instant it's called — and hashes every OTP code and session token. It
+  is not in `.env.server.example` and not mentioned anywhere in the runbook.
+  Concretely: an owner who follows the runbook exactly as written gets a
+  server that passes every documented smoke test (`/v1/health` 200, `/docs`
+  serves, CORS preflight correct) and then watches real sign-in 500 the
+  first time anyone tries it, with no step in the runbook pointing at why.
+  That is exactly the gap "an honest runbook" exists to close, so this was
+  in scope rather than a new task.
+
+  **What was built.** Added `AUTH_SECRET` to `.env.server.example` (same
+  `openssl rand -base64 32` pattern as `POSTGRES_PASSWORD`, with a comment
+  naming the exact throw site). Changed the runbook's "Secrets" step from
+  three values to four, explicitly calling out that this one is easy to
+  miss *because* the health check stays green without it. Added a
+  troubleshooting row for the `AUTH_SECRET must be set` 500 pointing at the
+  fix. Did not touch `OBJECT_STORAGE_ENDPOINT` or `SMS_PROVIDER` — both are
+  genuinely optional (documented fallbacks: in-memory store, `mock`
+  provider) and out of scope for this checkbox; hosted object storage isn't
+  even in `compose.server.yaml` yet, which is a bigger, separate gap.
+
+  **Verify.** `docker compose -f compose.server.yaml config` still fails
+  only on the expected missing `POSTGRES_PASSWORD` interpolation (real
+  secret, not present outside `.env.server`) — unchanged from the E4 entry,
+  confirms the compose file itself is untouched. `pnpm install
+  --frozen-lockfile` clean. `pnpm lint` 40/40, `pnpm typecheck` 40/40,
+  `pnpm test` 75/75 tasks / 693 tests (identical count to E4 — nothing here
+  touches runtime code, only doc and example-env text), `pnpm build` 40/40.
+  No user-visible copy changed, so no `messages/*.json` edits. No web UI
+  touched, so no 375px screen-height measurement applies to this run.
+
+  **For the next run.** The remaining owner-facing item in Round four §E is
+  the runbook checklist itself (swap, Docker, secrets, HTTPS, DNS) — that is
+  owner action, not agent work, and stays `[ ]` by design; §E is otherwise
+  fully checked. Round four §F (anonymous-history migration server half) is
+  next in document order.
 
 - 2026-08-16 — **Round four, task E4 (GHCR deploy workflow).** Done — checked
   off.
