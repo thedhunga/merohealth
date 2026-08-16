@@ -6,14 +6,17 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import {
   generateOtpCode,
   generateSessionToken,
+  GoogleIdTokenError,
   hashOtpCode,
   hashSessionToken,
   InvalidPhoneError,
+  isGoogleJwksUnreachable,
   isOtpChallengeUsable,
   isOtpResendAllowed,
   isSessionActive,
@@ -21,6 +24,7 @@ import {
   OTP_MAX_ATTEMPTS,
   OTP_TTL_MS,
   SESSION_TTL_MS,
+  verifyGoogleIdToken,
   verifyOtpCode,
 } from '@swasthya/auth';
 import type { AssuranceLevel } from '@swasthya/shared-types';
@@ -55,6 +59,24 @@ export interface VerifyOtpResult {
   patientProfileId: string | null;
   assuranceLevel: AssuranceLevel;
 }
+
+export interface VerifyGoogleInput {
+  idToken: string;
+  intent: AuthIntent;
+  displayName?: string | undefined;
+  locale?: string | undefined;
+}
+
+/**
+ * Discriminated on `status`, mirroring `HealthResearchResult`'s own
+ * `setup-required` shape (`perplexity-health.service.ts`) — a missing
+ * `GOOGLE_CLIENT_ID` is a deployment-configuration gap, not a request error,
+ * so it is a normal response the web client checks for rather than a thrown
+ * exception the client has to catch.
+ */
+export type VerifyGoogleResult =
+  | { status: 'setup-required' }
+  | ({ status: 'complete' } & VerifyOtpResult);
 
 export interface CurrentUserResult {
   subjectId: string;
@@ -185,6 +207,67 @@ export class AuthService {
       // computed `raiseAssurance('ANONYMOUS', 'REGISTERED')` regardless of
       // branch, which silently reported an already-verified person signing
       // back in as merely `REGISTERED`.
+      assuranceLevel: user.assuranceLevel,
+    };
+  }
+
+  /**
+   * Google Sign-In, the second identity provider over the same session
+   * machinery `verifyOtp` uses — same `intent` semantics (`REGISTER` fails
+   * on an existing account, `SIGN_IN` fails on a missing one), same session
+   * cookie shape, same `REGISTERED` landing rung. Never links to an existing
+   * phone-only account by matching email; a `googleSub` match is the only
+   * way this method recognises a returning user, per the schema comment on
+   * `User.googleSub`.
+   */
+  async verifyGoogleSignIn(input: VerifyGoogleInput): Promise<VerifyGoogleResult> {
+    const clientId = process.env['GOOGLE_CLIENT_ID'];
+    if (!clientId) {
+      return { status: 'setup-required' };
+    }
+
+    let identity: Awaited<ReturnType<typeof verifyGoogleIdToken>>;
+    try {
+      identity = await verifyGoogleIdToken(input.idToken, clientId);
+    } catch (error) {
+      if (!(error instanceof GoogleIdTokenError)) throw error;
+      if (isGoogleJwksUnreachable(error)) {
+        throw new ServiceUnavailableException({
+          code: 'GOOGLE_SIGNIN_UNAVAILABLE',
+          message: "Google sign-in is temporarily unavailable — try phone sign-in instead.",
+        });
+      }
+      throw new UnauthorizedException({ code: 'GOOGLE_TOKEN_INVALID', message: error.message });
+    }
+
+    let user = await this.store.findUserByGoogleSub(identity.sub);
+    if (input.intent === 'REGISTER') {
+      if (user) {
+        throw new ConflictException({ code: 'ALREADY_REGISTERED', message: 'This Google account already has an account — sign in instead' });
+      }
+      user = await this.store.createGoogleUser({ googleSub: identity.sub, email: identity.email, locale: input.locale ?? 'ne' });
+      const displayName = input.displayName?.trim() || identity.name || identity.email;
+      await this.store.createPatientProfile({ userId: user.id, displayName });
+    } else {
+      if (!user) {
+        throw new NotFoundException({ code: 'NOT_REGISTERED', message: 'No account found for this Google account — register instead' });
+      }
+    }
+
+    const now = new Date();
+    const token = generateSessionToken();
+    const tokenHash = hashSessionToken(token, authSecret());
+    const expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
+    await this.store.createSession({ userId: user.id, tokenHash, expiresAt, createdAt: now });
+
+    const patientProfile = await this.store.findPatientProfileByUserId(user.id);
+
+    return {
+      status: 'complete',
+      token,
+      expiresAt,
+      user,
+      patientProfileId: patientProfile?.id ?? null,
       assuranceLevel: user.assuranceLevel,
     };
   }

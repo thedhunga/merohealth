@@ -211,6 +211,22 @@ export class GoogleIdTokenError extends Error {
   }
 }
 
+/**
+ * Narrows a `GoogleIdTokenError` to "the JWKS endpoint itself was
+ * unreachable" (non-2xx response or the fetch throwing outright) as opposed
+ * to "the token presented was invalid" (bad signature, wrong audience,
+ * expired, unverified email, ...). A caller needs this distinction because
+ * the two failure classes deserve different HTTP treatment: the first is an
+ * outage (503, retry later, other sign-in paths unaffected), the second is a
+ * rejected credential (401, retrying the same token never helps). Matches on
+ * the message prefix both JWKS-fetch failure branches in
+ * `verifyGoogleIdToken` share, and nothing else in this function throws with
+ * that prefix.
+ */
+export function isGoogleJwksUnreachable(error: unknown): boolean {
+  return error instanceof GoogleIdTokenError && error.message.startsWith('Failed to ');
+}
+
 export interface GoogleIdentity {
   sub: string;
   email: string;
@@ -275,7 +291,19 @@ export async function verifyGoogleIdToken(
     throw new GoogleIdTokenError('Google ID token is missing a key id');
   }
 
-  const response = await fetchImpl(GOOGLE_JWKS_URL);
+  // `fetchImpl` throws (not just a non-2xx response) when the network path to
+  // Google is actually down — DNS failure, connection refused, timeout — the
+  // exact condition a caller's fault-isolation test means by "JWKS
+  // unreachable". Left unwrapped, that throw would escape as a bare
+  // `TypeError`/`DOMException` instead of the `GoogleIdTokenError` every other
+  // failure in this function produces, so a caller catching one error class
+  // would still be surprised by this one path.
+  let response: Awaited<ReturnType<typeof fetch>>;
+  try {
+    response = await fetchImpl(GOOGLE_JWKS_URL);
+  } catch (error) {
+    throw new GoogleIdTokenError(`Failed to reach Google's signing keys endpoint: ${error instanceof Error ? error.message : String(error)}`);
+  }
   if (!response.ok) {
     throw new GoogleIdTokenError(`Failed to fetch Google's signing keys: ${response.status}`);
   }

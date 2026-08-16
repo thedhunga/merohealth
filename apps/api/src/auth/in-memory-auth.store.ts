@@ -13,6 +13,7 @@ import type { AuthStore, AuthUserRecord, OtpChallengeRecord, SessionRecord } fro
 export class InMemoryAuthStore implements AuthStore {
   private readonly challenges = new Map<string, OtpChallengeRecord>();
   private readonly usersByPhone = new Map<string, AuthUserRecord>();
+  private readonly usersByGoogleSub = new Map<string, AuthUserRecord>();
   private readonly usersById = new Map<string, AuthUserRecord>();
   private readonly profilesByUserId = new Map<string, { id: string }>();
   private readonly sessionsByTokenHash = new Map<string, SessionRecord>();
@@ -57,11 +58,32 @@ export class InMemoryAuthStore implements AuthStore {
     const user: AuthUserRecord = {
       id: randomUUID(),
       phone: input.phone,
+      email: null,
+      googleSub: null,
       role: 'PATIENT',
       locale: input.locale,
       assuranceLevel: 'REGISTERED',
     };
     this.usersByPhone.set(input.phone, user);
+    this.usersById.set(user.id, user);
+    return Promise.resolve(user);
+  }
+
+  findUserByGoogleSub(googleSub: string): Promise<AuthUserRecord | null> {
+    return Promise.resolve(this.usersByGoogleSub.get(googleSub) ?? null);
+  }
+
+  createGoogleUser(input: { googleSub: string; email: string; locale: string }): Promise<AuthUserRecord> {
+    const user: AuthUserRecord = {
+      id: randomUUID(),
+      phone: null,
+      email: input.email,
+      googleSub: input.googleSub,
+      role: 'PATIENT',
+      locale: input.locale,
+      assuranceLevel: 'REGISTERED',
+    };
+    this.usersByGoogleSub.set(input.googleSub, user);
     this.usersById.set(user.id, user);
     return Promise.resolve(user);
   }

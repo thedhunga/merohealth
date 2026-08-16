@@ -59,10 +59,34 @@ describe('AuthController', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('google/verify rejects a request missing the required idToken field', async () => {
+    await expect(controller.verifyGoogle({ intent: 'SIGN_IN' }, fakeResponse() as unknown as Response)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('google/verify reports setup-required and never sets a cookie when GOOGLE_CLIENT_ID is unset', async () => {
+    delete process.env['GOOGLE_CLIENT_ID'];
+    const res = fakeResponse();
+
+    const result = await controller.verifyGoogle({ idToken: 'irrelevant', intent: 'SIGN_IN' }, res as unknown as Response);
+
+    expect(result).toEqual({ status: 'setup-required' });
+    expect(res.cookie).not.toHaveBeenCalled();
+  });
+
   it('me returns the profile derived from @CurrentUser()', () => {
     const current = {
       subjectId: 'user-1',
-      user: { id: 'user-1', phone: '9812345678', role: 'PATIENT' as const, locale: 'ne', assuranceLevel: 'REGISTERED' as const },
+      user: {
+        id: 'user-1',
+        phone: '9812345678',
+        email: null,
+        googleSub: null,
+        role: 'PATIENT' as const,
+        locale: 'ne',
+        assuranceLevel: 'REGISTERED' as const,
+      },
       patientProfileId: 'profile-1',
       assuranceLevel: 'REGISTERED' as const,
     };

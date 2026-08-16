@@ -7,6 +7,7 @@ import {
   hashOtpCode,
   hashSessionToken,
   InvalidPhoneError,
+  isGoogleJwksUnreachable,
   isOtpChallengeUsable,
   isOtpResendAllowed,
   isSessionActive,
@@ -344,5 +345,34 @@ describe('verifyGoogleIdToken', () => {
 
   it('surfaces a JWKS fetch failure as a GoogleIdTokenError rather than an unhandled rejection', async () => {
     await expect(verifyGoogleIdToken(signToken(), CLIENT_ID, fixtureFetch({}, 503))).rejects.toThrow(GoogleIdTokenError);
+  });
+
+  it('surfaces a network-level JWKS fetch failure (fetch itself throwing) as a GoogleIdTokenError, not a raw rejection', async () => {
+    const unreachable: typeof fetch = (() => Promise.reject(new TypeError('fetch failed'))) as unknown as typeof fetch;
+    await expect(verifyGoogleIdToken(signToken(), CLIENT_ID, unreachable)).rejects.toThrow(GoogleIdTokenError);
+  });
+
+  describe('isGoogleJwksUnreachable', () => {
+    it('is true for a non-2xx JWKS response', async () => {
+      const error = await verifyGoogleIdToken(signToken(), CLIENT_ID, fixtureFetch({}, 503)).catch((e: unknown) => e);
+      expect(isGoogleJwksUnreachable(error)).toBe(true);
+    });
+
+    it('is true for the fetch call itself throwing', async () => {
+      const unreachable: typeof fetch = (() => Promise.reject(new TypeError('fetch failed'))) as unknown as typeof fetch;
+      const error = await verifyGoogleIdToken(signToken(), CLIENT_ID, unreachable).catch((e: unknown) => e);
+      expect(isGoogleJwksUnreachable(error)).toBe(true);
+    });
+
+    it('is false for an invalid-token failure, e.g. an expired token', async () => {
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const token = signToken({ iat: nowSeconds - 7200, exp: nowSeconds - 3600 });
+      const error = await verifyGoogleIdToken(token, CLIENT_ID, fixtureFetch()).catch((e: unknown) => e);
+      expect(isGoogleJwksUnreachable(error)).toBe(false);
+    });
+
+    it('is false for a non-GoogleIdTokenError value', () => {
+      expect(isGoogleJwksUnreachable(new Error('unrelated'))).toBe(false);
+    });
   });
 });

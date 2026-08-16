@@ -59,6 +59,16 @@ export class PrismaAuthStore implements AuthStore {
     });
   }
 
+  async findUserByGoogleSub(googleSub: string): Promise<AuthUserRecord | null> {
+    return this.prisma.client.user.findUnique({ where: { googleSub } });
+  }
+
+  async createGoogleUser(input: { googleSub: string; email: string; locale: string }): Promise<AuthUserRecord> {
+    return this.prisma.client.user.create({
+      data: { googleSub: input.googleSub, email: input.email, role: 'PATIENT', locale: input.locale },
+    });
+  }
+
   async createPatientProfile(input: { userId: string; displayName: string }): Promise<{ id: string }> {
     return this.prisma.client.patientProfile.create({
       data: { userId: input.userId, displayName: input.displayName },

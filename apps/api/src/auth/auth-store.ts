@@ -38,6 +38,22 @@ export interface AuthUserRecord {
   // patients predate this module and have none) — honest about that here
   // rather than fabricating a value for a user this store didn't create.
   phone: string | null;
+  // Round three D — a Google-authenticated user has an email (Google refuses
+  // an unverified one, see `verifyGoogleIdToken`); a phone-only user has
+  // none. Never fabricated for a phone user, never derived from `phone`.
+  // Optional rather than required-nullable like `phone` (a deliberate
+  // exception to this file's own pattern): a dozen unrelated controller
+  // tests across the codebase hand-construct this shape for `CurrentUserResult`
+  // fixtures that predate Google sign-in and have no reason to know about
+  // it — making this field merely absent-by-default keeps those callers
+  // valid instead of forcing an unrelated mechanical edit onto every one of
+  // them.
+  email?: string | null;
+  // Set only by the Google identity provider. Nullable and independent of
+  // `phone` — see the schema comment on `User.googleSub` for why the two
+  // providers are alternative doors, not linked accounts by default. Optional
+  // for the same reason as `email` above.
+  googleSub?: string | null;
   role: UserRole;
   locale: string;
   // Never `ANONYMOUS` here — a `User` row only exists once phone + OTP has
@@ -64,6 +80,10 @@ export interface AuthStore {
   findUserByPhone(phone: string): Promise<AuthUserRecord | null>;
   findUserById(userId: string): Promise<AuthUserRecord | null>;
   createPatientUser(input: { phone: string; locale: string }): Promise<AuthUserRecord>;
+
+  /** The Google identity path's equivalent of `findUserByPhone` — looked up by `sub`, never by email, so two Google accounts that happen to share a recovery email can never collide. */
+  findUserByGoogleSub(googleSub: string): Promise<AuthUserRecord | null>;
+  createGoogleUser(input: { googleSub: string; email: string; locale: string }): Promise<AuthUserRecord>;
 
   createPatientProfile(input: { userId: string; displayName: string }): Promise<{ id: string }>;
   findPatientProfileByUserId(userId: string): Promise<{ id: string } | null>;

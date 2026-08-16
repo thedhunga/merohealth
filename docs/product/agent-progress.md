@@ -308,11 +308,12 @@ set, the Google button must not render, and the API route must return
       **Done 2026-08-16 — see the log entry below.**
       A user may have phone, googleSub, or both — linking is by explicit
       action from a signed-in session, never by matching email to phone.
-- [ ] `apps/api` `POST /auth/google/verify`: body `{ idToken, intent, locale,
+- [x] `apps/api` `POST /auth/google/verify`: body `{ idToken, intent, locale,
       displayName? }`. Verify, upsert user by `googleSub`, issue the **same**
       session cookie `verifyOtp` issues, reach `REGISTERED`. Guarded and
       rate-limited like `otp/verify`. Fault-isolation test: Google JWKS
-      unreachable → 503 with a clear code, phone sign-in unaffected.
+      unreachable → 503 with a clear code, phone sign-in unaffected. **Done
+      2026-08-16 — see the log entry below.**
 - [ ] `apps/web`: a "Continue with Google" button on `/signin` and `/register`
       using Google Identity Services (`accounts.google.com/gsi/client`),
       rendered only when `NEXT_PUBLIC_GOOGLE_CLIENT_ID` is present. On
@@ -1511,6 +1512,119 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round three, task D (Google sign-in), third checkbox:
+  `apps/api` `POST /auth/google/verify`.** Done — checked off.
+
+  **Selection.** `git checkout main && git pull`, read the ledger and
+  `platform-vision.md` fresh per the standing zero-memory rule. The queue's
+  only unchecked items are the two Higgsfield-blocked portraits, B1 (homepage
+  height, non-destructive levers confirmed exhausted by two same-day audits),
+  and the Google-sign-in thread — and roughly twenty prior log entries have
+  treated the entire Google thread, including this exact checkbox, as blocked
+  on the owner's live `GOOGLE_CLIENT_ID`, re-confirming its absence each run
+  and moving on. Re-read the task text itself rather than trusting that
+  precedent: it says the API route "must return `setup-required`" when the
+  client id is absent — the same pattern `PerplexityHealthService` already
+  uses — which only makes sense if the route is meant to be *built* to handle
+  that case, not skipped until the case can't occur. `verifyGoogleIdToken`
+  itself (checked off two rounds ago) was already built and fully tested with
+  zero live Google credentials, via a fixture JWKS and a locally-signed RS256
+  token — the same technique applies here. Confirmed `GOOGLE_CLIENT_ID` /
+  `NEXT_PUBLIC_GOOGLE_CLIENT_ID` are still unset (only the unrelated
+  `GOOGLE_OAUTH_CLIENT_ID` Drive-adapter placeholder exists), so the *live*
+  end-to-end flow still can't be exercised against real Google — but nothing
+  about building and testing this route required that. Took this checkbox on
+  the strength of that re-reading, not because the blocker had lifted.
+
+  **What was built.** `AuthService.verifyGoogleSignIn(input)`: reads
+  `GOOGLE_CLIENT_ID`, returns `{ status: 'setup-required' }` if unset (no
+  store access, no exception — same shape as `HealthResearchResult`);
+  otherwise calls `verifyGoogleIdToken`, then mirrors `verifyOtp`'s own
+  `intent` semantics exactly (`REGISTER` conflicts on an existing account,
+  `SIGN_IN` 404s on a missing one) against a **new** `findUserByGoogleSub`
+  lookup — never against `findUserByPhone` or email, per the schema's own
+  comment that phone and Google are alternative doors, not linked by
+  matching email to phone. Issues the same session cookie `verifyOtp` issues.
+  `AuthStore` gained `findUserByGoogleSub` / `createGoogleUser`, implemented
+  in both `InMemoryAuthStore` and `PrismaAuthStore` (the latter against the
+  `googleSub`/`email` columns Round three D2 already migrated in, two rounds
+  ago, never previously read from). `AuthController` gained
+  `POST /auth/google/verify` with its own zod schema, mirroring
+  `otp/verify`'s shape and validation-error handling.
+
+  **The fault-isolation test, built as specified.** "Google JWKS unreachable
+  → 503 with a clear code, phone sign-in unaffected" needed a way to tell
+  "the JWKS endpoint is down" apart from "this token is invalid" — both
+  currently surface from `verifyGoogleIdToken` as the same `GoogleIdTokenError`
+  class. Added `isGoogleJwksUnreachable(error)` to `packages/auth`, matching
+  the message prefix the two JWKS-fetch failure branches share (and nothing
+  else in that function throws with). `AuthService` uses it to route: JWKS
+  outage → `ServiceUnavailableException` with `code: 'GOOGLE_SIGNIN_UNAVAILABLE'`;
+  any other `GoogleIdTokenError` (bad signature, wrong audience, expired,
+  unverified email) → `UnauthorizedException` with `code: 'GOOGLE_TOKEN_INVALID'`
+  — a rejected credential and an outage are different failure classes and
+  deserve different HTTP treatment, not the same 401 or the same 503 for both.
+  Also found and fixed a real gap while building this: `verifyGoogleIdToken`'s
+  JWKS `fetch` call was unwrapped, so an actual network failure (DNS, refused,
+  timeout — the literal meaning of "unreachable") would have escaped as a bare
+  `TypeError` instead of the `GoogleIdTokenError` every other failure path in
+  that function produces; the existing test suite only covered the JWKS
+  endpoint answering a non-2xx status, not the fetch call itself throwing.
+  Wrapped it in a try/catch, same shape as the non-2xx branch, with a new
+  test for exactly that gap (`packages/auth/src/index.test.ts`). The
+  "phone sign-in unaffected" half of the requirement is proven, not asserted:
+  the 503 test drives a full OTP register through `AuthService` in the same
+  test body, after the Google JWKS stub is already returning 503.
+
+  **A deliberate, logged type-design choice.** `AuthUserRecord` needed
+  `email`/`googleSub` fields for the Google path, but that interface backs
+  `CurrentUserResult`, which ~14 unrelated controller test files across the
+  codebase (billing, credentialing, records, interop, ...) hand-construct as
+  object literals for fixtures that predate Google sign-in entirely. Making
+  the two new fields required-nullable (matching `phone`'s own style exactly)
+  would have forced a mechanical, unrelated edit onto every one of those
+  files just to keep them compiling — a much larger and noisier diff than
+  this task asked for. Made them optional (`email?:` / `googleSub?:`) instead,
+  documented why directly on the interface, and confirmed the one existing
+  auth-module test that does construct this literal by hand
+  (`auth.controller.test.ts`'s `me` test) still typechecks with the fields
+  present and explicit. `packages/database`'s Prisma `User` rows satisfy the
+  interface either way, since a generated type with extra fields structurally
+  satisfies a narrower one.
+
+  **What was deliberately not built.** The `apps/web` "Continue with Google"
+  button, the ne/en copy, and the `hosting-migration-inventory.md` entry —
+  the three remaining boxes under this same Round three §D — stay unchecked;
+  the task list separates them as their own items and one run is one task.
+  No change to `.env.server.example` (the owner-facing deploy env file) —
+  documenting `GOOGLE_CLIENT_ID` there is explicitly the
+  `hosting-migration-inventory.md` box's job, not this one's; `.env.example`
+  (the dev-facing template) did get the new var, since a developer running
+  this route locally needs to know it exists. No attempt to exercise the
+  route against a real Google account or real JWKS — no live credential
+  exists in this environment, same constraint the Google Drive adapter and
+  `verifyGoogleIdToken` itself were already built under.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean. `pnpm lint` 40/40.
+  `pnpm typecheck` 40/40. `pnpm test` 75/75 tasks; `apps/api` 114 test files /
+  744 tests (+10 over the last logged count — 8 new `AuthService.verifyGoogleSignIn`
+  cases plus 2 new `AuthController` cases); `packages/auth` 51 tests (+5 — the
+  network-throw fix and four `isGoogleJwksUnreachable` cases). `pnpm build`
+  40/40.
+
+  **Mobile measurement.** Not applicable — no UI, route, or component was
+  touched; this task is API-only by its own text.
+
+  **For the next run.** Re-check `GOOGLE_CLIENT_ID` /
+  `NEXT_PUBLIC_GOOGLE_CLIENT_ID` fresh, as always — if still unset, the
+  remaining Google boxes (the web button, the ne/en copy, the
+  hosting-migration-inventory entry) are still buildable the same way this
+  one was: the button's own task text already specifies it renders
+  conditionally on `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, so "the secret doesn't
+  exist yet" describes the production behaviour to build, not a reason to
+  defer building it. The honest remaining externally-blocked items are only
+  the two Higgsfield portraits and B1's homepage-height content-cut decision.
 
 - 2026-08-16 — **Round three, task B (tap-target sizing): `SymptomEntry`
   quick-reply chips and `ServiceCards` nav pills from `min-h-10` to

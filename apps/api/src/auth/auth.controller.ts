@@ -19,6 +19,13 @@ const verifyOtpSchema = z.object({
   locale: z.enum(['ne', 'en']).optional(),
 });
 
+const verifyGoogleSchema = z.object({
+  idToken: z.string().trim().min(1),
+  intent: z.enum(['SIGN_IN', 'REGISTER']),
+  displayName: z.string().trim().min(1).max(120).optional(),
+  locale: z.enum(['ne', 'en']).optional(),
+});
+
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
@@ -82,6 +89,40 @@ export class AuthController {
     return {
       token: result.token,
       userId: result.user.id,
+      phone: result.user.phone,
+      role: result.user.role,
+      locale: result.user.locale,
+      patientProfileId: result.patientProfileId,
+      assuranceLevel: result.assuranceLevel,
+    };
+  }
+
+  @Post('google/verify')
+  @ApiOperation({ summary: 'Verify a Google ID token, reaching REGISTERED and issuing a session — the same session machinery as otp/verify' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['idToken', 'intent'],
+      properties: {
+        idToken: { type: 'string' },
+        intent: { enum: ['SIGN_IN', 'REGISTER'] },
+        displayName: { type: 'string' },
+        locale: { enum: ['ne', 'en'] },
+      },
+    },
+  })
+  async verifyGoogle(@Body() body: unknown, @Res({ passthrough: true }) res: Response) {
+    const input = parseOrThrow(verifyGoogleSchema, body);
+    const result = await this.auth.verifyGoogleSignIn(input);
+    if (result.status === 'setup-required') {
+      return { status: 'setup-required' as const };
+    }
+    res.cookie(SESSION_COOKIE_NAME, result.token, sessionCookieOptions());
+    return {
+      status: 'complete' as const,
+      token: result.token,
+      userId: result.user.id,
+      email: result.user.email,
       phone: result.user.phone,
       role: result.user.role,
       locale: result.user.locale,
