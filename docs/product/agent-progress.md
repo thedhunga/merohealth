@@ -187,11 +187,11 @@ an identical session, not a parallel one.
 set, the Google button must not render, and the API route must return
 `setup-required` — the same pattern the research provider uses.
 
-- [ ] `packages/auth`: `verifyGoogleIdToken(idToken, clientId, fetchImpl?)`
+- [x] `packages/auth`: `verifyGoogleIdToken(idToken, clientId, fetchImpl?)`
       that validates signature/audience/issuer/expiry against Google's JWKS
       and returns `{ sub, email, emailVerified, name, picture }`. Reject
       unverified emails. Test with a fixture JWKS; never call the network in
-      tests.
+      tests. **Done 2026-08-16 — see the log entry below.**
 - [ ] Prisma: add nullable `googleSub String? @unique` on `User`; migration.
       A user may have phone, googleSub, or both — linking is by explicit
       action from a signed-in session, never by matching email to phone.
@@ -1396,6 +1396,106 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round three, task D (Google sign-in), first checkbox:
+  `packages/auth`'s `verifyGoogleIdToken`.** Done — checked off.
+
+  **Selection, and a correction to ~20 runs of precedent.** Re-derived the
+  first unchecked task from scratch (`grep -n "^- \[ \]"` over the whole
+  queue) rather than trusting the previous entry's "for the next run" note,
+  which is the standing 2026-08-09 rule. That grep lists, in document order:
+  the two Higgsfield-blocked portraits (line 136, still blocked —
+  `ToolSearch` again found no image-generation tool this session, consistent
+  with every prior run), B1 homepage height (line 157), then **section D,
+  Google sign-in** (lines 190–212), then section C's remaining item, the
+  launch-gate checklist (line 237). Every prior "Round three" log entry
+  going back to the branch/`main` merge jumped straight from B1 to C without
+  ever touching D, each one citing the previous entry's "C is next" rather
+  than re-deriving from the raw file. Read section D's own text closely
+  before repeating that: its "owner-supplied, do not fabricate" note applies
+  only to the live `GOOGLE_CLIENT_ID` value, and only gates two things the
+  task text says explicitly — the web button rendering and the API route
+  going live — exactly the `setup-required` pattern already used for the
+  research provider. The first D checkbox is a pure library function
+  (`packages/auth`'s `verifyGoogleIdToken`), explicitly scoped to be testable
+  against a fixture JWKS with no live credential and no network call, the
+  same way the Google Drive adapter (Round one, 2026-08-09) was built and
+  tested with zero live Google credentials in this environment. Nothing
+  about it is blocked. Best guess for how 20 runs missed it: section D sits
+  physically between B and C in the file (letters A, B, D, C, in that
+  literal order) rather than alphabetically, and the first run to reach C
+  apparently read "next" as "the next lettered section after B, skipping the
+  physically-later D" without stating that reasoning, and every entry since
+  inherited the conclusion without re-deriving it. Flagging this explicitly
+  so it doesn't happen a third time: **the queue order is the file's literal
+  top-to-bottom order, not alphabetical-by-heading-letter.** B1 (homepage
+  height) is still open and still genuinely exhausted of non-destructive
+  cuts per the 2026-08-16 entries below; not revisited this run.
+
+  **What was built.** `packages/auth/src/index.ts` gained
+  `verifyGoogleIdToken(idToken, clientId, fetchImpl?)`, a from-scratch RS256
+  JWT/JWKS verifier built on `node:crypto` directly rather than a new
+  dependency — this package has carried zero runtime dependencies since it
+  was written (its own header comment: server-only, deliberately no
+  `react-native` export), and the checks Google's docs actually require
+  (signature, issuer, audience, expiry, then reject an unverified email) fit
+  in well under 100 lines. `alg` is read from the token header but hard-
+  compared against the literal `'RS256'` rather than used to pick a
+  verification routine — the standard defence against "alg: none" /
+  algorithm-confusion, which a naive "trust the header, dispatch on it"
+  implementation would be open to. Fetches Google's JWKS
+  (`https://www.googleapis.com/oauth2/v3/certs`) via the injected
+  `fetchImpl` (default: global `fetch`), matches by `kid`, imports the RSA
+  public key with `crypto.createPublicKey({ key: jwk, format: 'jwk' })`
+  (native JWK import, no ASN.1/PEM conversion needed), and verifies with
+  `crypto.verify('RSA-SHA256', ...)`. Issuer is checked against both forms
+  Google's own guidance lists (`accounts.google.com` and
+  `https://accounts.google.com`); audience against the caller-supplied
+  `clientId`; expiry against `Date.now()` with no leeway. Returns
+  `{ sub, email, emailVerified: true, name, picture }` exactly as the task
+  specified, with `name`/`picture` as `undefined` when the token doesn't
+  carry them (both are optional Google ID token claims). New
+  `GoogleIdTokenError` class, matching the existing `InvalidPhoneError`
+  pattern in the same file.
+
+  **Tests.** 13 new cases in `packages/auth/src/index.test.ts`, all against
+  a fixture RSA key pair generated in the test file
+  (`crypto.generateKeyPairSync('rsa', ...)`) — real RS256 signing and
+  verification, zero network calls (a `fetchImpl` stand-in resolves a
+  fixture JWKS body synchronously in-memory, and one test asserts it is
+  called exactly once to make that a durable guard rather than an
+  assumption). Covers: a valid token round-trips to the right identity;
+  missing `name`/`picture` come back `undefined`; a malformed token;
+  `alg: none` rejected; a token signed by a *different* key pair than the
+  one in the fixture JWKS (proves the signature check, not just the shape
+  check, is doing the work); an unknown `kid`; wrong issuer; wrong audience;
+  an expired token; `email_verified: false`; and a JWKS-fetch failure
+  (non-2xx) surfacing as `GoogleIdTokenError` rather than an unhandled
+  rejection.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (no new dependency
+  added — confirmed `pnpm-lock.yaml` untouched by this change); `pnpm lint`
+  40/40 (two `require-await` findings on first pass, from async mock
+  functions with no `await` inside — fixed by returning `Promise.resolve()`
+  directly, matching the existing `apps/web` fetch-mock convention in
+  `gemini-health.test.ts`); `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks
+  (`packages/auth` alone: 46 tests, up from 33); `pnpm build` 40/40. No
+  user-visible copy touched (library code only), so no `messages/*.json`
+  changes. No web UI touched, so no 375px measurement applies to this run.
+
+  **For the next run.** The remaining five D checkboxes build on this in
+  order: the Prisma `googleSub` migration, the `apps/api`
+  `POST /auth/google/verify` route (guarded/rate-limited like `otp/verify`,
+  with the JWKS-unreachable fault-isolation test the task specifies), the
+  `apps/web` Google button (render-gated on `NEXT_PUBLIC_GOOGLE_CLIENT_ID`),
+  the bilingual copy, and the hosting-migration-inventory doc update. None
+  of them need a live `GOOGLE_CLIENT_ID` either, except the button's actual
+  on-screen appearance and a true end-to-end request, which the task's own
+  text already accounts for (`setup-required` when absent). The "Owner
+  steps" block just above section D in the file still needs the owner's own
+  action (Google Cloud Console → OAuth client → Vercel env vars) before the
+  feature goes live in production; that is unchanged by this run and isn't
+  something an automated run can do.
 
 - 2026-08-16 — **Round three, task C3: `GET /auth/me` web wiring — found
   already built, verification turned up a real dead-CSS-class regression

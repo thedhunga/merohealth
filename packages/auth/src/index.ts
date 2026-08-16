@@ -1,4 +1,11 @@
-import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import {
+  createHmac,
+  createPublicKey,
+  randomBytes,
+  randomInt,
+  timingSafeEqual,
+  verify as verifyRsaSignature,
+} from 'node:crypto';
 
 /**
  * Server-only, unlike `packages/identity`: an OTP secret and a session
@@ -176,4 +183,142 @@ export function parseCookieHeader(header: string | undefined | null): Record<str
     }
   }
   return entries;
+}
+
+/* ------------------------------------------------------------------ *
+ * Google Sign-In: verifying a Google-issued ID token
+ *
+ * This re-implements the small slice of RS256 JWT verification a Google ID
+ * token needs with `node:crypto` directly, rather than taking a JWT library
+ * dependency — the checks Google's own docs require (signature, issuer,
+ * audience, expiry) fit in well under a hundred lines, and this package has
+ * carried zero runtime dependencies since it was written. `alg` is
+ * hard-pinned to `RS256` rather than trusted from the token header, which is
+ * the standard defence against "alg: none" / algorithm-confusion attacks
+ * that a naive "read alg from the header and dispatch on it" implementation
+ * would be open to.
+ * ------------------------------------------------------------------ */
+
+const GOOGLE_JWKS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
+// Google's own token-verification guidance lists both forms as valid `iss`
+// values; which one appears is not something callers control.
+const GOOGLE_ISSUERS = new Set(['accounts.google.com', 'https://accounts.google.com']);
+
+export class GoogleIdTokenError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'GoogleIdTokenError';
+  }
+}
+
+export interface GoogleIdentity {
+  sub: string;
+  email: string;
+  emailVerified: true;
+  name: string | undefined;
+  picture: string | undefined;
+}
+
+interface GoogleJwk {
+  kty?: string;
+  kid?: string;
+  n?: string;
+  e?: string;
+}
+
+function base64UrlDecode(segment: string): Buffer {
+  return Buffer.from(segment, 'base64url');
+}
+
+function decodeJsonSegment(segment: string, label: string): Record<string, unknown> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(base64UrlDecode(segment).toString('utf8'));
+  } catch {
+    throw new GoogleIdTokenError(`Malformed Google ID token (${label})`);
+  }
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new GoogleIdTokenError(`Malformed Google ID token (${label})`);
+  }
+  return parsed as Record<string, unknown>;
+}
+
+/**
+ * Validates a Google-issued OpenID Connect ID token against Google's
+ * published JWKS — signature, issuer, audience, expiry — then rejects an
+ * unverified email address, since Google will issue a token for an account
+ * whose email it has not confirmed control of and this product must never
+ * turn one of those into a session. `fetchImpl` exists purely so tests can
+ * hand this a fixture JWKS instead of a real network call; real callers pass
+ * nothing and get the global `fetch`.
+ */
+export async function verifyGoogleIdToken(
+  idToken: string,
+  clientId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<GoogleIdentity> {
+  const parts = idToken.split('.');
+  if (parts.length !== 3) {
+    throw new GoogleIdTokenError('Malformed Google ID token');
+  }
+  const [headerB64, payloadB64, signatureB64] = parts;
+  if (headerB64 === undefined || payloadB64 === undefined || signatureB64 === undefined) {
+    throw new GoogleIdTokenError('Malformed Google ID token');
+  }
+
+  const header = decodeJsonSegment(headerB64, 'header');
+  if (header['alg'] !== 'RS256') {
+    throw new GoogleIdTokenError(`Unsupported Google ID token algorithm: ${String(header['alg'])}`);
+  }
+  const kid = header['kid'];
+  if (typeof kid !== 'string' || kid.length === 0) {
+    throw new GoogleIdTokenError('Google ID token is missing a key id');
+  }
+
+  const response = await fetchImpl(GOOGLE_JWKS_URL);
+  if (!response.ok) {
+    throw new GoogleIdTokenError(`Failed to fetch Google's signing keys: ${response.status}`);
+  }
+  const jwks = (await response.json()) as { keys?: GoogleJwk[] };
+  const jwk = (jwks.keys ?? []).find((key) => key.kid === kid && key.kty === 'RSA');
+  if (!jwk?.n || !jwk.e) {
+    throw new GoogleIdTokenError('No matching Google signing key for this token');
+  }
+
+  const publicKey = createPublicKey({ key: { kty: 'RSA', n: jwk.n, e: jwk.e }, format: 'jwk' });
+  const signingInput = Buffer.from(`${headerB64}.${payloadB64}`, 'utf8');
+  const signature = base64UrlDecode(signatureB64);
+  if (!verifyRsaSignature('RSA-SHA256', signingInput, publicKey, signature)) {
+    throw new GoogleIdTokenError('Google ID token signature is invalid');
+  }
+
+  const payload = decodeJsonSegment(payloadB64, 'payload');
+
+  const iss = payload['iss'];
+  if (typeof iss !== 'string' || !GOOGLE_ISSUERS.has(iss)) {
+    throw new GoogleIdTokenError(`Unexpected Google ID token issuer: ${String(iss)}`);
+  }
+  if (payload['aud'] !== clientId) {
+    throw new GoogleIdTokenError('Google ID token was issued for a different client');
+  }
+  const exp = payload['exp'];
+  if (typeof exp !== 'number' || Date.now() >= exp * 1000) {
+    throw new GoogleIdTokenError('Google ID token has expired');
+  }
+  const sub = payload['sub'];
+  if (typeof sub !== 'string' || sub.length === 0) {
+    throw new GoogleIdTokenError('Google ID token is missing a subject');
+  }
+  const email = payload['email'];
+  if (typeof email !== 'string' || payload['email_verified'] !== true) {
+    throw new GoogleIdTokenError('Google account email is not verified');
+  }
+
+  return {
+    sub,
+    email,
+    emailVerified: true,
+    name: typeof payload['name'] === 'string' ? payload['name'] : undefined,
+    picture: typeof payload['picture'] === 'string' ? payload['picture'] : undefined,
+  };
 }

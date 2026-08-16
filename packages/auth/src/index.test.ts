@@ -1,7 +1,9 @@
+import { generateKeyPairSync, sign as signRsa } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   generateOtpCode,
   generateSessionToken,
+  GoogleIdTokenError,
   hashOtpCode,
   hashSessionToken,
   InvalidPhoneError,
@@ -13,6 +15,7 @@ import {
   OTP_MAX_ATTEMPTS,
   OTP_RESEND_COOLDOWN_MS,
   parseCookieHeader,
+  verifyGoogleIdToken,
   verifyOtpCode,
 } from './index.js';
 
@@ -209,5 +212,137 @@ describe('parseCookieHeader', () => {
 
   it('ignores a pair whose value is not valid percent-encoding instead of throwing', () => {
     expect(parseCookieHeader('a=1; mero_session=%; b=2')).toEqual({ a: '1', b: '2' });
+  });
+});
+
+describe('verifyGoogleIdToken', () => {
+  const CLIENT_ID = 'test-client.apps.googleusercontent.com';
+  const KID = 'test-kid-1';
+  const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const publicJwk = publicKey.export({ format: 'jwk' }) as { kty: string; n: string; e: string };
+
+  function base64url(input: string | Buffer): string {
+    return Buffer.from(input).toString('base64url');
+  }
+
+  /** Builds and signs a real RS256 JWT against the fixture key pair above — never a real Google token. */
+  function signToken(
+    payloadOverrides: Record<string, unknown> = {},
+    headerOverrides: Record<string, unknown> = {},
+  ): string {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const header = { alg: 'RS256', kid: KID, typ: 'JWT', ...headerOverrides };
+    const payload = {
+      iss: 'https://accounts.google.com',
+      aud: CLIENT_ID,
+      sub: 'google-user-123',
+      email: 'person@example.com',
+      email_verified: true,
+      name: 'Test Person',
+      picture: 'https://example.com/photo.jpg',
+      iat: nowSeconds,
+      exp: nowSeconds + 3600,
+      ...payloadOverrides,
+    };
+    const headerB64 = base64url(JSON.stringify(header));
+    const payloadB64 = base64url(JSON.stringify(payload));
+    const signature = signRsa('RSA-SHA256', Buffer.from(`${headerB64}.${payloadB64}`), privateKey);
+    return `${headerB64}.${payloadB64}.${base64url(signature)}`;
+  }
+
+  /** A `fetch` stand-in returning the fixture JWKS (or a caller-supplied override) — no network call ever happens in this suite. */
+  function fixtureFetch(
+    body: unknown = { keys: [{ ...publicJwk, kid: KID, use: 'sig', alg: 'RS256' }] },
+    status = 200,
+  ): typeof fetch {
+    return (() =>
+      Promise.resolve({ ok: status >= 200 && status < 300, status, json: () => Promise.resolve(body) })) as unknown as typeof fetch;
+  }
+
+  it('verifies a valid token and returns the identity', async () => {
+    await expect(verifyGoogleIdToken(signToken(), CLIENT_ID, fixtureFetch())).resolves.toEqual({
+      sub: 'google-user-123',
+      email: 'person@example.com',
+      emailVerified: true,
+      name: 'Test Person',
+      picture: 'https://example.com/photo.jpg',
+    });
+  });
+
+  it('omits name/picture when the token does not carry them', async () => {
+    const token = signToken({ name: undefined, picture: undefined });
+    await expect(verifyGoogleIdToken(token, CLIENT_ID, fixtureFetch())).resolves.toMatchObject({
+      name: undefined,
+      picture: undefined,
+    });
+  });
+
+  it('never calls the network — fetchImpl is the only source of key material', async () => {
+    let calls = 0;
+    const spy: typeof fetch = ((...args: Parameters<typeof fetch>) => {
+      calls += 1;
+      return fixtureFetch()(...args);
+    }) as typeof fetch;
+    await verifyGoogleIdToken(signToken(), CLIENT_ID, spy);
+    expect(calls).toBe(1);
+  });
+
+  it('rejects a malformed token', async () => {
+    await expect(verifyGoogleIdToken('not-a-jwt', CLIENT_ID, fixtureFetch())).rejects.toThrow(GoogleIdTokenError);
+  });
+
+  it('rejects an unsupported algorithm (defence against alg-confusion)', async () => {
+    const token = signToken({}, { alg: 'none' });
+    await expect(verifyGoogleIdToken(token, CLIENT_ID, fixtureFetch())).rejects.toThrow(/algorithm/);
+  });
+
+  it('rejects a token signed by a key the JWKS does not vouch for', async () => {
+    const forged = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const header = { alg: 'RS256', kid: KID, typ: 'JWT' };
+    const payload = {
+      iss: 'https://accounts.google.com',
+      aud: CLIENT_ID,
+      sub: 'google-user-123',
+      email: 'person@example.com',
+      email_verified: true,
+      iat: nowSeconds,
+      exp: nowSeconds + 3600,
+    };
+    const headerB64 = base64url(JSON.stringify(header));
+    const payloadB64 = base64url(JSON.stringify(payload));
+    const signature = signRsa('RSA-SHA256', Buffer.from(`${headerB64}.${payloadB64}`), forged.privateKey);
+    const token = `${headerB64}.${payloadB64}.${base64url(signature)}`;
+    await expect(verifyGoogleIdToken(token, CLIENT_ID, fixtureFetch())).rejects.toThrow(/signature/);
+  });
+
+  it('rejects a token with no matching key id in the JWKS', async () => {
+    const token = signToken({}, { kid: 'some-other-kid' });
+    await expect(verifyGoogleIdToken(token, CLIENT_ID, fixtureFetch())).rejects.toThrow(/matching/);
+  });
+
+  it('rejects a wrong issuer', async () => {
+    const token = signToken({ iss: 'https://evil.example.com' });
+    await expect(verifyGoogleIdToken(token, CLIENT_ID, fixtureFetch())).rejects.toThrow(/issuer/);
+  });
+
+  it('rejects a token issued for a different client (audience mismatch)', async () => {
+    const token = signToken({ aud: 'someone-elses-client-id' });
+    await expect(verifyGoogleIdToken(token, CLIENT_ID, fixtureFetch())).rejects.toThrow(/client/);
+  });
+
+  it('rejects an expired token', async () => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const token = signToken({ iat: nowSeconds - 7200, exp: nowSeconds - 3600 });
+    await expect(verifyGoogleIdToken(token, CLIENT_ID, fixtureFetch())).rejects.toThrow(/expired/);
+  });
+
+  it('rejects an unverified email', async () => {
+    const token = signToken({ email_verified: false });
+    await expect(verifyGoogleIdToken(token, CLIENT_ID, fixtureFetch())).rejects.toThrow(/not verified/);
+  });
+
+  it('surfaces a JWKS fetch failure as a GoogleIdTokenError rather than an unhandled rejection', async () => {
+    await expect(verifyGoogleIdToken(signToken(), CLIENT_ID, fixtureFetch({}, 503))).rejects.toThrow(GoogleIdTokenError);
   });
 });
