@@ -12,6 +12,7 @@ import { DirectoryController } from './directory.controller.js';
 import { EngagementModule } from './engagement/engagement.module.js';
 import { FamilyModule } from './family/family.module.js';
 import { HealthController } from './health.controller.js';
+import { HistoryModule } from './history/history.module.js';
 import { IdentityModule } from './identity/identity.module.js';
 import { LanguageCorpusModule } from './language-corpus/language-corpus.module.js';
 import { MedicationSafetyModule } from './medication-safety/medication-safety.module.js';
@@ -48,6 +49,7 @@ import { TeleconsultationModule } from './teleconsultation/teleconsultation.modu
     LanguageCorpusModule,
     FamilyModule,
     IdentityModule,
+    HistoryModule,
   ],
   controllers: [HealthController, CompanionController, DirectoryController],
   providers: [PerplexityHealthService],

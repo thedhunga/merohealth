@@ -1051,3 +1051,41 @@ model DelegationGrant {
   @@index([delegateId])
   @@index([granterId])
 }
+
+// Round four F1 — the server half of `apps/web`'s anonymous → account
+// history migration. `anonymousId` is globally unique, not per-user: it is
+// the idempotency key `POST /history/migrate` checks before writing
+// anything, so a retried request after a dropped response (the client only
+// clears localStorage once it sees success) never double-inserts the same
+// device's exchanges. `profileSnapshot` is the anonymous profile
+// (`askingFor`/`ageBand`/`conditions`) exactly as offered, stored raw rather
+// than promoted into `TwinFact` rows here — digital-twin's confirmation
+// semantics mean a chip tap from an anonymous session is a hint, not a
+// confirmed fact, and there is no confirmation UI yet to promote it through.
+// That promotion is the next queue item, reading this column.
+model HistoryMigration {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  anonymousId     String   @unique
+  profileSnapshot Json?
+  migratedAt      DateTime @default(now())
+
+  @@index([userId])
+}
+
+// One row per anonymous exchange, attached to the account it migrated to.
+// No `anonymousId` column — `HistoryMigration` already carries the
+// idempotency key for the whole batch, and an individual exchange has
+// nothing else that would need to trace back to the device it was asked on.
+model HistoryExchange {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  askedAt   DateTime
+  question  String
+  answer    String?
+  language  String
+  outcome   String
+  createdAt DateTime @default(now())
+
+  @@index([userId, askedAt])
+}

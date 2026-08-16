@@ -60,8 +60,8 @@ ships with: force it `DOWN`, assert the rest still works.
 
 1. **Deploy `apps/api` + Postgres.** Everything else waits on this.
 2. Point `NEXT_PUBLIC_API_URL` at it. Rows 6–9 light up.
-3. Migrate anonymous history on sign-in (client half is done; server endpoint
-   is not).
+3. ~~Migrate anonymous history on sign-in.~~ Done 2026-08-16: `POST
+   /v1/history/migrate` plus the `apps/web` call after `verifyOtp` succeeds.
 4. Google sign-in (queued, needs the owner's OAuth client id).
 5. Photograph a report → record → trend, end to end for one analyte.
 6. Care directory on real data, or clearly labelled as demonstration in the UI.

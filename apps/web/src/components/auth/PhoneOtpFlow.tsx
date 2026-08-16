@@ -10,6 +10,7 @@ import { Link, useRouter } from '@/i18n/navigation';
 import { PageTemplate } from '@/components/ui/PageTemplate';
 import { Section } from '@/components/ui/Section';
 import { AuthApiError, requestOtp, verifyOtp, type AuthIntent } from '@/lib/auth-api';
+import { migrateAnonymousHistory } from '@/lib/history-api';
 import { sanitizeNextPath, switchLinkHref } from '@/lib/safe-redirect';
 
 type Step = 'phone' | 'code';
@@ -122,6 +123,11 @@ export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
         ...(intent === 'REGISTER' ? { displayName: displayName.trim() } : {}),
         locale,
       });
+      // Round four F1: now that a session cookie exists, hand over whatever
+      // was asked before signing in. Never throws — a migration failure must
+      // not block the sign-in the person is already mid-way through — and it
+      // only clears `localStorage` once the server actually has the data.
+      await migrateAnonymousHistory();
       // Leaves `submitting` true rather than resetting it — the form is
       // about to unmount as the router navigates away, and re-enabling the
       // button for the instant before that happens would just flash.

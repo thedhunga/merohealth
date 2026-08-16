@@ -163,12 +163,13 @@ lists the required degradations. A module without its outage test is not done.
 
 ### F · The journey, once the API is reachable
 
-- [ ] Anonymous-history migration, server half: `POST /v1/history/migrate`
+- [x] Anonymous-history migration, server half: `POST /v1/history/migrate`
       accepting `snapshotForMigration()`'s shape, idempotent on
       `anonymousId`, attaching exchanges and profile to the signed-in
       subject. Client calls it after `verifyOtp` (and later Google) succeeds,
       and only then calls `clearAfterMigration()`. Test the failure path: a
-      500 from the server must leave localStorage intact.
+      500 from the server must leave localStorage intact. **Done
+      2026-08-16 — see the log entry below.**
 - [ ] Anonymous profile → real profile: `askingFor`, `ageBand`, `conditions`
       land on the subject as `PATIENT_REPORTED` twin facts with the same
       confirmation semantics `digital-twin` already uses. Nothing is asserted
@@ -1477,6 +1478,80 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round four, task F1 (anonymous-history migration, server
+  half).** Done — checked off.
+
+  **Selection.** `git checkout main && git pull`, read the ledger and
+  `platform-vision.md` fresh per the standing "zero memory" rule. Round four
+  §E is fully checked; §F's first unchecked box is this one, exactly where
+  the prior run's log entry said to pick up next.
+
+  **What was built.** `POST /v1/history/migrate` in a new `apps/api`
+  `history` module, wired with the same "port + `Prisma*` adapter + in-memory
+  test fake" shape `FamilyModule` already uses (`AuthModule` for
+  `SessionAuthGuard`, `PrismaModule`, `HISTORY_STORE` token). Two new tables
+  (`packages/database`, migration `20260816010000_add_history_migration`):
+  `HistoryMigration` (unique on `anonymousId` — the idempotency key) and
+  `HistoryExchange` (one row per migrated Q&A). `PrismaHistoryStore.migrate`
+  writes both in a single `$transaction`; a unique-constraint conflict on
+  `anonymousId` (a retried request, or two tabs racing) is caught and
+  answered as `alreadyMigrated: true` rather than a duplicate insert or an
+  error — the retry-safety the client needs, since it only clears
+  `localStorage` after seeing 2xx. The profile snapshot (`ageBand`/
+  `conditions`/`askingFor`) is stored raw on `HistoryMigration.profileSnapshot`,
+  **not** promoted into `TwinFact` rows — that is the next queue item
+  precisely because digital-twin's confirmation semantics mean an anonymous
+  chip-tap is a hint, not a confirmed fact, and there is no confirmation UI
+  yet to promote it through.
+
+  On the web side: `apps/web/src/lib/history-api.ts`'s `migrateAnonymousHistory()`
+  posts `snapshotForMigration()`'s shape unmodified, never throws (a
+  migration failure must not block a sign-in already in progress), and only
+  calls `clearAfterMigration()` on a 2xx response — a 500 or a network
+  rejection leaves `localStorage` exactly as it was, verified by
+  `history-api.test.ts` with a hand-rolled `localStorage` fake (`apps/web`
+  has no jsdom anywhere; a three-method fake was enough, mirroring
+  `InMemoryHistoryStore`'s "smallest fake that satisfies the port" choice on
+  the API side). Wired into `PhoneOtpFlow.handleCodeSubmit`, awaited right
+  after `verifyOtp` succeeds and before the `router.push` that was already
+  there — Google sign-in is queued behind the owner's OAuth client id and
+  will call the same function once it lands.
+
+  **Why raw profile, not twin facts, and why no read endpoint.** The task
+  bullet says "attaching exchanges *and profile*", and the very next bullet
+  in the queue is titled "Anonymous profile → real profile" with its own,
+  separate confirmation-semantics spec — reading those as two deliberately
+  separate steps rather than one, this run built the storage half of the
+  profile hand-off (nothing is lost) and left the promotion-with-confirmation
+  half to the task that actually names it. No `GET /history` was added
+  either: the task names only the migrate endpoint, and inventing a read
+  surface nobody asked for yet would be exactly the un-asked-for abstraction
+  the working agreement warns against.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean. `pnpm lint` 40/40,
+  `pnpm typecheck` 40/40. `pnpm test`: 75/75 tasks — `@swasthya/api` 110 test
+  files / 703 tests (up from 693: 3 new files, 10 new tests), `@swasthya/web`
+  23 test files / 126 tests (up from 122: 1 new file, 4 new tests). `pnpm
+  build` 40/40, `apps/web` and `apps/mobile` both export cleanly. No live
+  Postgres in this sandbox (`docker` has no daemon here) — the migration SQL
+  was hand-authored to match the existing `add_family_grants`/
+  `add_user_google_sub` style exactly, `prisma generate`/`prisma validate`
+  both accept the schema, and `pnpm db:generate` produces a client whose
+  generated types this code compiles against, but the SQL itself is
+  unexercised against a real database until the owner's next `docker compose
+  ... migrate` run — flagging that honestly rather than claiming a
+  verification that didn't happen.
+
+  **Mobile.** No web UI screen or layout changed — `PhoneOtpFlow.tsx` gained
+  one awaited function call inside an existing submit handler, nothing
+  visual. The 375px screen-height/tap-target measurement the standing rule
+  asks for doesn't apply to a change with no rendered output; noting that
+  explicitly rather than skipping the rule silently.
+
+  **For the next run.** Round four §F's second box — "Anonymous profile →
+  real profile" — is next in document order, and now has a real column
+  (`HistoryMigration.profileSnapshot`) to read from instead of nothing.
 
 - 2026-08-16 — **Round four, task E5 (dedicated-server.md runbook).** Done —
   checked off.
