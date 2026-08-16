@@ -1516,6 +1516,80 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-16 — **Queue's three unchecked boxes re-confirmed genuinely blocked
+  again; picked the highest-value improvement to work already shipped: added
+  the missing "network unreachable" test case to `gemini-health.test.ts`,
+  closing the outage-test gap Round four's standing rule requires.** Done.
+
+  **Selection.** `git checkout main && git pull`, read the ledger and
+  `platform-vision.md` fresh, then `grep -n "^- \[ \]"` across the whole
+  file rather than trusting queue order or the prior run's summary. Same
+  three boxes as last run, each re-verified independently rather than taken
+  on faith: (1) Google sign-in — `grep -n GOOGLE_CLIENT_ID .env.example
+  .env.server.example` still shows both empty; every build-side task under
+  §D is already done, so there is nothing to build regardless. (2) The two
+  missing testimonial portraits — `ListConnectors` still reports the
+  Higgsfield connector `connected: true` but `enabledInChat: false` for this
+  session, so it cannot be invoked here. (3) The homepage-height task (B1) —
+  `git log` on `Testimonials.tsx`, `OrganizationTabs.tsx`, `ServiceCards.tsx`,
+  `PartnerMarquee.tsx` and the homepage route shows no commits since the last
+  two independent audits concluded the non-destructive levers are exhausted;
+  nothing changed that would overturn that conclusion, so it stays blocked
+  pending an owner content-cut decision.
+
+  With nothing actionable in the queue, went looking for a real, scoped,
+  low-risk improvement to already-shipped work rather than re-running a full
+  audit from scratch — the prior run's own audit had already ranked three
+  candidates it didn't pick, so checked those first instead of duplicating
+  the search. Two no longer applied: the footer's app-download links being
+  hidden past their `/app`-404 justification is a product trade-off (adds
+  ~144px back to the open B1 height goal), not a mechanical fix, so it's left
+  for whoever next touches B1 with the authority to accept that cost; the
+  nine duplicated `role="alert"` `className` strings are cosmetic and lowest
+  priority per the same audit. The third — "neither `gemini-health.test.ts`
+  nor `perplexity-health.test.ts` exercises the provider-unreachable path" —
+  turned out to be half-stale on inspection: `perplexity-health.test.ts`
+  already has a `mockRejectedValue` "fails closed when the upstream provider
+  is unavailable" test. `gemini-health.test.ts` genuinely does not — its only
+  failure-path coverage is a non-2xx response and an empty answer, both of
+  which resolve rather than reject, so the module's own `catch` block (the
+  thing that actually protects the companion route when the network itself
+  is down, not just when Google returns an error status) had zero test
+  coverage. This is exactly the standing rule from Round four §E/F ("each
+  module declares what the person sees when it is down, and ships a test
+  that forces it DOWN") applied to a module that predates that rule.
+
+  **What was built.** One test added to `gemini-health.test.ts`, mirroring
+  Perplexity's existing one: `fetchImpl` as a `vi.fn().mockRejectedValue(new
+  Error('offline'))`, asserting `researchWithGemini` still returns
+  `status: 'unavailable'`, `answer: null`, and the correct `provider` tag
+  rather than throwing past its `try/catch`. Needed `vi` added to the
+  existing `vitest` import; no other file touched. `research-provider.ts`
+  (the route's actual entry point) needed no change — it has no error
+  handling of its own because both providers already fail closed, which is
+  precisely what was unverified for Gemini until now.
+
+  **Verify.** Full gate from the repository root:
+  `pnpm install --frozen-lockfile` clean, `pnpm lint` 40/40, `pnpm typecheck`
+  40/40, `pnpm test` 75/75 tasks (`apps/api` unchanged at 114 files / 744
+  tests; `apps/web` now 27 files / 156 tests, up one test from the prior
+  run's 155), `pnpm build` 40/40 including the Next.js SSG pass and the Expo
+  web export.
+
+  **Mobile measurement.** Not applicable — no UI, route or message-file
+  changed; this was a server-module test-only change.
+
+  **For the next run.** The three standing blocked items are unchanged —
+  re-verify each fresh per the usual rule rather than trusting this note,
+  since any of the three could unblock between runs (owner sets the OAuth
+  client id, Higgsfield gets toggled on for a session, or the owner makes a
+  B1 content-cut call). Two candidates remain open from the prior run's
+  audit for whenever someone has standing to take them: re-showing the
+  footer's app-download links now that `/app` resolves (accept the ~144px
+  height cost against B1, or resolve B1 first); and extracting the nine
+  duplicated `role="alert"` error-message `className` strings into one
+  shared component (cosmetic, lowest priority).
+
 - 2026-08-16 — **Queue's three unchecked boxes all re-confirmed genuinely
   blocked; picked the highest-value improvement to work already shipped:
   the shared `Button` component's default (`md`) size measured 43px tall, one

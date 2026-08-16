@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { researchWithGemini } from './gemini-health';
 import { selectProvider } from './research-provider';
@@ -94,6 +94,16 @@ describe('researchWithGemini', () => {
       fetchImpl: fetchReturning(200, { steps: [{ type: 'model_output', content: [] }] }),
     });
     expect(empty.status).toBe('unavailable');
+  });
+
+  it('fails closed when the network is unreachable, not just on a bad response', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockRejectedValue(new Error('offline'));
+
+    const result = await researchWithGemini('x', 'en', { apiKey: 'k', fetchImpl });
+
+    expect(result.status).toBe('unavailable');
+    expect(result.answer).toBeNull();
+    expect(result.provider).toBe('gemini-grounded');
   });
 
   it('carries the Nepali disclaimer for ne and English for en', async () => {
