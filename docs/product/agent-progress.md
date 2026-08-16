@@ -176,8 +176,9 @@ longer the integration point.
 
 ### C · Gaps this inventory turned up
 
-- [ ] The four `portrait-*.webp` files were deleted while `Testimonials` still
+- [x] The four `portrait-*.webp` files were deleted while `Testimonials` still
       requests them. Confirm the fallback renders cleanly, or restore them.
+      **Done 2026-08-16 — see the log entry below.**
 - [ ] **No database has ever been run.** The Prisma schema, every repository
       and the seed have never met a real Postgres — all of it is tested against
       in-memory fakes. Bring up `compose.yaml`, migrate, seed, and fix what
@@ -1346,6 +1347,78 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round three, task C1: added a colocated regression test
+  proving `EditorialImage`'s missing-portrait fallback, ticked the
+  checkbox.** Done — checked off.
+
+  **Selection.** Ran `grep -n "^- \[" agent-progress.md | grep -v "\[x\]"`
+  over the whole queue per the 2026-08-09 standing rule. Literal first
+  unchecked item is still the two missing testimonial portraits
+  (`portrait-raju.webp`, `portrait-mina.webp`); `ls apps/web/public/imagery/`
+  again showed only `portrait-sabina.webp`/`portrait-prakash.webp`, and
+  `ToolSearch("higgsfield image generation")` again found no matching tool —
+  the same block ~15 prior runs have hit, unchanged, so not re-logged as its
+  own entry. B1 (homepage height) was next; re-read `Hero.tsx`,
+  `ServiceCards.tsx`, `OrganizationTabs.tsx` and `PartnerMarquee.tsx` fresh
+  rather than trusting the prior entry's conclusion, and confirmed all four
+  of B1's named cuts are already in place — `PartnerMarquee` isn't even
+  imported into `page.tsx` anymore (dropped, not just hidden),
+  `OrganizationTabs` is `hidden ... lg:block`, `Testimonials` is already
+  collapsed to two cards behind a toggle, `ServiceCards`' copy
+  (`"Talk to a provider any time, day or night."` etc.) is already
+  one short sentence per card. The two remaining large blocks, `Hero`
+  (969px) and `Testimonials` (873px), are the actual content the section
+  headings promise, not padding — cutting further means dropping the
+  record-story photograph or the three-step list, which is a product call
+  this agent isn't positioned to make un-prompted. Moved to C, next in
+  order. C1 ("confirm the fallback renders cleanly, or restore them") is
+  fully actionable without Higgsfield: `git log` showed it was already
+  screenshot-verified once, during the 2026-08-10 branch merge (that entry's
+  own text: "Screenshot-verified at 375px: renders as a clean circular
+  placeholder, no broken image, no layout shift... leaving that checkbox
+  unticked since it wasn't this run's assigned task"), but nothing had ever
+  turned that into a durable, automated check — restoring the files is still
+  Higgsfield-blocked, so a test is the honest way to close this one.
+
+  **What changed.** `EditorialImage` (`apps/web/src/components/ui/
+  EditorialImage.tsx`) decides photo-vs-fallback purely on `hasAsset()`
+  (`apps/web/src/lib/assets.ts`), a synchronous `fs.existsSync` check —
+  no React render is needed to exercise the branch that matters, and
+  `apps/web` has no jsdom/testing-library setup today (checked
+  `vitest.config.ts` and `package.json`; every existing `apps/web` test is
+  pure-logic, not component-render). Standing up that infrastructure for one
+  fallback check would be scope well beyond this task. Added
+  `apps/web/src/lib/assets.test.ts` (5 tests, new file) instead: asserts
+  `hasAsset` is `true` for the two portraits that exist
+  (`portrait-sabina.webp`, `portrait-prakash.webp`) and `false` for the two
+  that don't (`portrait-raju.webp`, `portrait-mina.webp`), a third test that
+  iterates `testimonialKeys` from `@/content/home` and pins the exact
+  landed/missing split so a future asset drop shows up as an intentional
+  test change rather than a silent behavior shift, plus the existing
+  path-traversal/non-absolute guard and a plain not-found case. This proves
+  the same fact the 2026-08-10 screenshot did, but as a permanent regression
+  guard rather than a one-time manual check, and against the current file
+  state rather than a snapshot in a log entry.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks (`apps/web` alone: 20 test
+  files / 103 tests, up from 19/98; `apps/api` 686 tests unchanged);
+  `pnpm build` 40/40. New test file only — no component, route or copy
+  touched, so no `messages/*.json` change.
+
+  **For the next run.** C2 ("no database has ever been run") is the next
+  item in order and, as the prior entry already judged, the highest-value
+  pick left: every package's correctness claim currently rests on in-memory
+  fakes, and `compose.yaml` has a Postgres service that has never been
+  migrated against. C3 (web `GET /auth/me` wiring) and C4 (launch-gate
+  checklist) follow it. B1 is still open and unchecked — its non-destructive
+  cuts are now genuinely exhausted per this run's fresh read of all four
+  components; the next real step is either owner sign-off on dropping the
+  Hero photograph/step-list or accepting the current ~4.5k px Nepali height
+  as the mobile floor for this layout. The portrait task (top-level and any
+  future Higgsfield-dependent item) stays blocked until either a Higgsfield
+  tool appears in `ToolSearch` or the owner drops the files in directly.
 
 - 2026-08-16 — **Round three, task B3: fixed `/app` 404ing in production by
   making `apps/web/vercel.json` invoke the combined build script directly,
