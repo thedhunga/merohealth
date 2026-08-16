@@ -30,6 +30,12 @@ interface SectionIntroProps {
    * breaking their bundle (`node:fs` has no browser build).
    */
   image?: { src: string; alt: string; objectPosition?: string };
+  /**
+   * Optional short silent loop played over `image`, which becomes its poster.
+   * Same contract as `image`: the caller resolves `hasAsset` and omits this
+   * when the file is absent. Ignored when there is no `image` to sit on.
+   */
+  video?: string;
   artCaption?: string;
   cta?: SectionIntroCta;
   /**
@@ -81,6 +87,7 @@ export function SectionIntro({
   body,
   Art,
   image,
+  video,
   artCaption,
   cta,
   tone = 'paper',
@@ -150,6 +157,27 @@ export function SectionIntro({
                     image.objectPosition ? { objectPosition: image.objectPosition } : undefined
                   }
                 />
+                {/*
+                  Ambient loop over the still. Muted + playsInline + no audio
+                  track is the only combination that autoplays reliably;
+                  reduced-motion never even requests the file, and the poster
+                  underneath is what remains wherever it does not play.
+                */}
+                {video ? (
+                  <video
+                    aria-hidden
+                    autoPlay
+                    className="absolute inset-0 size-full object-cover motion-reduce:hidden"
+                    loop
+                    muted
+                    playsInline
+                    poster={image.src}
+                    preload="metadata"
+                    tabIndex={-1}
+                  >
+                    <source src={video} type="video/mp4" />
+                  </video>
+                ) : null}
                 <div className="absolute inset-0 bg-gradient-to-t from-indigo-950/30 via-transparent to-transparent" />
               </div>
               <div className="absolute right-5 bottom-0 w-[48%] min-w-44 rounded-[1.25rem] border border-line bg-white p-3 shadow-lift sm:right-8 sm:p-4">

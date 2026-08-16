@@ -36,9 +36,13 @@ export function IndividualsPageView({ page }: { page: IndividualsPage }) {
     ...(page.image && hasAsset(page.image.src)
       ? {
           image: {
-            ...page.image,
+            src: page.image.src,
             alt: t(`${page.key}.hero.imageAlt`),
+            ...(page.image.objectPosition ? { objectPosition: page.image.objectPosition } : {}),
           },
+          // The loop rides on the still under the same presence check, so a
+          // missing mp4 degrades to the photograph — never to a black box.
+          ...(page.image.video && hasAsset(page.image.video) ? { video: page.image.video } : {}),
         }
       : {}),
   };

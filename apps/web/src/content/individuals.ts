@@ -8,7 +8,7 @@ import { HomeFirstVisit } from '@/components/art/HomeFirstVisit';
 import { VitalsTrend } from '@/components/art/VitalsTrend';
 
 type Art = ComponentType<{ className?: string }>;
-type PageImage = { src: string; objectPosition?: string };
+type PageImage = { src: string; objectPosition?: string; /** Silent loop laid over the still. */ video?: string };
 
 /** A page with no sub-services: hero + three short highlights + the shared CTA band. */
 export interface ConditionPage {
@@ -92,6 +92,7 @@ export const individualsPages: readonly IndividualsPage[] = [
     href: '/individuals/diabetes-management',
     Art: VitalsTrend,
     artPosition: 'end',
+    image: { src: '/imagery/condition-management.webp', video: '/video/loop-cuff.mp4' },
     highlightKeys: HIGHLIGHT_KEYS,
   },
   {
@@ -100,6 +101,7 @@ export const individualsPages: readonly IndividualsPage[] = [
     href: '/individuals/hypertension-management',
     Art: VitalsTrend,
     artPosition: 'start',
+    image: { src: '/imagery/condition-management.webp', video: '/video/loop-cuff.mp4' },
     highlightKeys: HIGHLIGHT_KEYS,
   },
   {

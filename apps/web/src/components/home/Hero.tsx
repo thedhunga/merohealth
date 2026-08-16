@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import { AmbientLoop } from '@/components/ui/AmbientLoop';
 import { useTranslations } from 'next-intl';
 import { ArrowUpRight, Camera, FileCheck2, Languages, TrendingUp } from 'lucide-react';
 
@@ -20,13 +20,19 @@ export function Hero() {
     >
       <div className="container-site grid items-center gap-8 sm:gap-12 lg:grid-cols-[1.05fr_.95fr] lg:gap-20">
         <div className="relative mx-auto w-full max-w-2xl lg:mx-0">
+          {/*
+            The record-story loop: a hand smoothing a creased paper report.
+            It is the product's whole idea in motion, so it earns the hero
+            slot; the private-care still stays as its poster and as the
+            fallback wherever video does not play.
+          */}
           <div className="relative aspect-[4/3] overflow-hidden rounded-[2rem] bg-indigo-950 shadow-lift">
-            <Image
+            <AmbientLoop
               alt="Illustrative scene of a woman having a private health conversation by phone"
-              className="object-cover"
-              fill
+              className="absolute inset-0"
+              poster="/imagery/mero-private-care.webp"
               sizes="(min-width: 1024px) 48vw, 100vw"
-              src="/imagery/mero-private-care.webp"
+              src="/video/loop-report.mp4"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-indigo-950/50 via-transparent to-transparent" />
             <span className="absolute top-5 left-5 inline-flex items-center gap-2 rounded-pill border border-white/25 bg-indigo-950/55 px-3.5 py-2 text-sm font-semibold text-white backdrop-blur-md">

@@ -360,7 +360,8 @@
     "diabetesManagement": {
       "hero": {
         "title": "Keep your numbers where you want them",
-        "body": "Ongoing coaching and clinician support for diabetes, with your readings and visits gathered in one place instead of scattered across paper slips."
+        "body": "Ongoing coaching and clinician support for diabetes, with your readings and visits gathered in one place instead of scattered across paper slips.",
+        "imageAlt": "The hands of an older Nepali man taking his blood pressure at home"
       },
       "highlights": {
         "items": {
@@ -382,7 +383,8 @@
     "hypertensionManagement": {
       "hero": {
         "title": "Steady care for your blood pressure",
-        "body": "Regular check-ins and clinician support to manage hypertension over the long run, with your readings kept in one running record."
+        "body": "Regular check-ins and clinician support to manage hypertension over the long run, with your readings kept in one running record.",
+        "imageAlt": "The hands of an older Nepali man taking his blood pressure at home"
       },
       "highlights": {
         "items": {
