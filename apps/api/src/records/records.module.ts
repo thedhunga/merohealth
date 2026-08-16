@@ -5,6 +5,8 @@ import { AuthModule } from '../auth/auth.module.js';
 import { EntitlementsGuard } from '../entitlements/entitlements.guard.js';
 import { FreeTierSubscriptionResolver, SUBSCRIPTION_RESOLVER } from '../entitlements/subscription-resolver.js';
 import { USAGE_READER } from '../entitlements/usage-reader.js';
+import { GeminiRecordExtractionService } from './gemini-extraction.service.js';
+import { RECORD_EXTRACTION_SERVICE } from './record-extraction.service.js';
 import { RecordsController } from './records.controller.js';
 import { RecordsRepository } from './records.repository.js';
 import { RecordsUsageReader } from './records-usage.reader.js';
@@ -46,6 +48,11 @@ function createDocumentStore(): HealthDocumentStore {
     RecordsUsageReader,
     EntitlementsGuard,
     { provide: HEALTH_DOCUMENT_STORE, useFactory: createDocumentStore },
+    // Degrades to `setup-required` on its own when `GEMINI_API_KEY` is
+    // unset — same shape as `SUBSCRIPTION_RESOLVER`'s free-tier stand-in
+    // below, always bound so `RecordsService`'s extraction step is never
+    // silently skipped in production the way an absent DI binding would.
+    { provide: RECORD_EXTRACTION_SERVICE, useClass: GeminiRecordExtractionService },
     { provide: SUBSCRIPTION_RESOLVER, useClass: FreeTierSubscriptionResolver },
     { provide: USAGE_READER, useClass: RecordsUsageReader },
   ],

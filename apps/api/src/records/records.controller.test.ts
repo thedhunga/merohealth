@@ -37,7 +37,7 @@ describe('RecordsController auth wiring', () => {
   });
 
   it('gates every read and mutation route behind SessionAuthGuard', () => {
-    const gated = ['list', 'observationsForDocument', 'timeline', 'confirm', 'correct', 'reject'];
+    const gated = ['list', 'observations', 'observationsForDocument', 'timeline', 'confirm', 'correct', 'reject'];
     for (const method of gated) {
       expect(guardsFor(method)).toEqual([SessionAuthGuard]);
     }
@@ -160,6 +160,20 @@ describe('RecordsController reads', () => {
   it('404s for observations of an unknown document', () => {
     const controller = buildController();
     expect(() => controller.observationsForDocument(currentUser, 'missing')).toThrow(NotFoundException);
+  });
+
+  it('lists every observation across the caller\'s documents, empty when there are none', async () => {
+    const controller = buildController();
+    await controller.capture(currentUser, validCapture);
+
+    const result = controller.observations(currentUser);
+    expect(result).toEqual({ items: [], total: 0 });
+  });
+
+  it('never lists another owner\'s observations from the all-observations route', () => {
+    const controller = buildController();
+    const someoneElse: CurrentUserResult = { ...currentUser, subjectId: 'owner-2' };
+    expect(controller.observations(someoneElse)).toEqual({ items: [], total: 0 });
   });
 });
 

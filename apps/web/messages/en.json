@@ -1398,6 +1398,44 @@
       "skipCta": "Not now",
       "error": "Could not save just now — you can try again next time you visit."
     },
+    "bloodPressure": {
+      "heading": "Track your blood pressure",
+      "body": "Photograph a blood pressure reading — a monitor display or a printed report — and we'll try to read the numbers for you to confirm.",
+      "documentTitle": "Blood pressure reading",
+      "uploading": "Uploading…",
+      "uploadCta": "Save this photo",
+      "noReading": "We couldn't read a blood pressure value in that photo. The photo is still saved to your record.",
+      "extractionPending": "Photo saved. Extraction will follow — check back here soon.",
+      "errors": {
+        "generic": "Something went wrong — please try again."
+      },
+      "evidence": {
+        "label": "Photo of the reading",
+        "hint": "A clear photo of the monitor display or report.",
+        "chooseFile": "Choose photo",
+        "changeFile": "Change photo"
+      },
+      "confirmation": {
+        "heading": "Is this right?",
+        "confirmCta": "Confirm",
+        "rejectCta": "Not right"
+      },
+      "chart": {
+        "empty": "No confirmed readings yet — confirm a reading above to start your trend.",
+        "legend": {
+          "systolic": "Systolic",
+          "diastolic": "Diastolic"
+        },
+        "unit": "mmHg",
+        "unitShort": "mmHg",
+        "tableCaption": "Blood pressure readings over time",
+        "table": {
+          "series": "Reading",
+          "date": "Date",
+          "value": "Value (mmHg)"
+        }
+      }
+    },
     "identityVerification": {
       "heading": "Verify your identity",
       "body": "Sharing your record with a provider and video consultations both require your identity to be checked once — separate from the phone verification you already have, and only asked for when a feature actually needs it.",

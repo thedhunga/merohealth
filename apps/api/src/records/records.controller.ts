@@ -119,6 +119,14 @@ export class RecordsController {
     return { items, total: items.length };
   }
 
+  @Get('observations')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: "List every observation across all of the caller's own documents, draft included — the source `buildAnalyteTrend` reads from" })
+  observations(@CurrentUser() user: CurrentUserResult) {
+    const items = this.records.listObservationsForOwner(user.subjectId);
+    return { items, total: items.length };
+  }
+
   @Get('documents/:documentId/observations')
   @UseGuards(SessionAuthGuard)
   @ApiOperation({ summary: 'List every observation extracted from one of the caller\'s own documents, draft included' })

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 
 import { RecordTransform } from '@/components/art/RecordTransform';
+import { BloodPressureRecord } from '@/components/account/BloodPressureRecord';
 import { DelegationForm } from '@/components/account/DelegationForm';
 import { DelegationsGrantedList } from '@/components/account/DelegationsGrantedList';
 import { IdentityVerification } from '@/components/account/IdentityVerification';
@@ -112,6 +113,8 @@ export function AccountView() {
           </div>
 
           <ProfileConfirmationCard />
+
+          <BloodPressureRecord />
 
           {user.assuranceLevel === 'IDENTITY_VERIFIED' ? null : <IdentityVerification />}
 

@@ -177,13 +177,14 @@ lists the required degradations. A module without its outage test is not done.
       hint, not a clinical fact. **Done 2026-08-16 — see the log entry below.**
 - [ ] Sign in with Google (section D, already specified). Blocked on the
       owner's OAuth client id — if it is not set, do the next task instead.
-- [ ] Photograph → record → trend, end to end for **one analyte** (blood
+- [x] Photograph → record → trend, end to end for **one analyte** (blood
       pressure, since the cuff loop and the hypertension page already exist).
       Capture on `/account`, extraction to a DRAFT observation, the
       confirmation card, then a `buildAnalyteTrend` chart on the same page.
       Use the `dataviz` skill for the chart. Only CONFIRMED points render.
       Outage test: extraction service DOWN → the photo is stored, the person
-      is told extraction will follow, nothing is lost.
+      is told extraction will follow, nothing is lost. **Done 2026-08-16 —
+      see the log entry below.**
 - [ ] Care directory honesty: every result rendered from `isFictionalDemo`
       data must carry a visible "demonstration" label in both locales. Real
       data is a partnership question, not a code task; do not fabricate it.
@@ -1478,6 +1479,161 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round four, task F4 (photograph → record → trend, blood
+  pressure end to end).** Done — checked off.
+
+  **Selection.** `git checkout main && git pull`, read the ledger and
+  `platform-vision.md` fresh. Round four §E and §F1/F2 were checked; F3
+  (Google sign-in) carries its own note — "blocked on the owner's OAuth
+  client id — if it is not set, do the next task instead" — and no live
+  `GOOGLE_CLIENT_ID`/`NEXT_PUBLIC_GOOGLE_CLIENT_ID` exists anywhere in this
+  environment (only the `.env.example` placeholder), so per that note this
+  run skipped to F4, exactly what the prior run's own "for the next run"
+  line anticipated.
+
+  **What was found.** `packages/health-records` already had everything the
+  *domain* side of this needs — `buildAnalyteTrend`, the full
+  `DocumentStatus` transition table including `STORED → EXTRACTING →
+  AWAITING_CONFIRMATION | EXTRACTION_FAILED`, and `HealthObservation`'s
+  `provenance: 'DOCUMENT_EXTRACTED'` — but nothing in `apps/api` had ever
+  called any of it: `RecordsService.captureDocument` hardcoded `status:
+  'STORED'` and no route created an observation from anywhere. The "cuff
+  loop" the task text refers to turned out to be a decorative ambient video
+  (`loop-cuff.mp4` on the hypertension marketing page), not a device
+  integration, and `packages/devices`' `DeviceSample`/Health Connect BP
+  normalisation is wired to nobody in `apps/api` — neither was a usable
+  starting point. The actual gap was the extraction pipeline itself, so this
+  run built a real (if narrowly scoped) one rather than routing around it.
+
+  **What was built.** A new `RecordExtractionService` port
+  (`apps/api/src/records/record-extraction.service.ts`) and one
+  implementation, `GeminiRecordExtractionService`, scoped on purpose to a
+  single analyte: given an image, it asks Gemini's `generateContent` (JSON-
+  schema-constrained `responseSchema`, not free text) whether a systolic +
+  diastolic mmHg reading is legibly visible, and returns real LOINC codes
+  (`8480-6`/`8462-4`) with a confidence — never fabricating a value the model
+  didn't actually report, and dropping anything outside a physiologically
+  plausible range (40–300/20–200 mmHg) as a second guard against a
+  hallucinated number reaching a DRAFT observation. Mirrors
+  `PerplexityHealthService`/`researchWithGemini`'s existing
+  `setup-required`/`unavailable`/`complete` contract exactly, including "no
+  `GEMINI_API_KEY` → never call the network."
+
+  `RecordsService.captureDocument` now runs extraction inline right after
+  upload (no job queue exists yet, so the person's own response already
+  carries the outcome) via a new `#extractIfEligible` step, gated on
+  `!clientEncrypted && contentType.startsWith('image/')` — a client-encrypted
+  (bring-your-own-storage) document is left exactly at `STORED`, since the
+  server cannot read it and extraction for those must run on-device per the
+  standing constraint. The extraction service is an **optional** third
+  constructor parameter (`@Optional() @Inject(RECORD_EXTRACTION_SERVICE)`),
+  specifically so every one of the ~15 other clinical modules' own test
+  files that call `new RecordsService(repository, store)` (interop,
+  clinical-charting, and `RecordsService`'s own controller/module-descriptor
+  tests) keep working completely unchanged — extraction simply never runs
+  for them, same as before this feature existed; only `RecordsModule` binds
+  a real implementation in production. Landed on treating
+  `EXTRACTING → AWAITING_CONFIRMATION → CONFIRMED` as the path for "extracted
+  successfully but found nothing" rather than a direct `EXTRACTING →
+  CONFIRMED` shortcut, because the latter isn't in `canTransition`'s table —
+  caught by the test suite, not by inspection, and fixed by chaining the two
+  legal transitions instead of special-casing around the table.
+
+  New `GET /v1/records/observations` (session-guarded) lists every
+  observation the caller owns across all documents — the source
+  `buildAnalyteTrend` needs and the one genuinely new read surface this task
+  required (`GET .../documents/:id/observations` already existed but is
+  scoped to one document).
+
+  On `apps/web`: `records-api.ts` (capture, fetch-all/-per-document
+  observations, confirm/reject — `credentials: 'include'`, never-throws,
+  shaped after `profile-api.ts`/`history-api.ts`) and two new components on
+  `/account`: `BloodPressureRecord` (photo capture via the existing
+  `EvidenceCapture` control, an explicit upload step, then a confirm/reject
+  card per DRAFT observation — reusing the exact chip-review shape
+  `ProfileConfirmationCard` already established) and
+  `BloodPressureTrendChart`. The chart calls `buildAnalyteTrend` twice (per
+  LOINC code) — its own `selectTrusted` filter is what makes "only CONFIRMED
+  points render" true by construction, not a second filter in the chart —
+  and hand-rolls inline SVG rather than adding a chart dependency (zero new
+  runtime deps stays the pattern `packages/auth`'s own doc comment already
+  established for this repo). Ran the `dataviz` skill first: one shared
+  y-axis in mmHg for both series (never dual-axis), colors validated with
+  `scripts/validate_palette.js` against this app's own light-mode surface —
+  indigo-600/800 and marigold-500 (the CTA accent) both failed the
+  lightness-band check for a thin 2px line, so the chart steps to
+  indigo-400/marigold-600 instead, the nearest passing siblings, all-PASS on
+  lightness band, chroma floor, CVD separation (ΔE 29–35) and contrast. 2px
+  lines, ≥8px end markers with a 2px paper-color ring, a legend (2 series),
+  a sr-only data table alongside the visual chart (the "final accessibility
+  pass" requirement), and a `<title>` hover/focus tooltip per marker in
+  place of the full crosshair spec — a deliberate scope call for a small
+  embedded chart on an account page, not a dashboard, noted here rather than
+  silently skipped. Pure coordinate math lives in
+  `apps/web/src/lib/blood-pressure-chart.ts`, unit-tested without a DOM.
+
+  **The outage test, specifically.** `records.service.test.ts` gained a
+  `BrokenExtractionService` whose `extract()` throws synchronously — the
+  same "Broken*" shape `records.fault-isolation.test.ts` already uses for
+  the repository — and asserts three things in one test: the capture call
+  that hits it does not reject (resolves `EXTRACTION_FAILED`, not an
+  exception), the document is still retrievable by id and in
+  `listDocuments`, and a sibling capture through a second, working
+  `RecordsService` instance succeeds normally — module isolation, not just
+  "didn't crash." `setup-required` (no key) and `unavailable` (reached and
+  failed) are deliberately handled identically at this layer, both landing
+  on `EXTRACTION_FAILED`: from the person's chair both mean "no draft yet,"
+  and `EXTRACTION_FAILED → EXTRACTING` stays open for a future manual retry
+  (not built this round — no retry UI exists yet, only the state that would
+  support one).
+
+  **Verify.** `pnpm install` (to add the new `@swasthya/health-records`
+  workspace dependency to `apps/web`), then `pnpm install --frozen-lockfile`
+  clean. `pnpm lint` 40/40 (one `no-floating-promises` finding on the first
+  pass, a bare `.then()` in a `useEffect` — fixed with `void`). `pnpm
+  typecheck` 40/40. `pnpm test` 75/75 tasks — `@swasthya/api` 114 test files
+  / 734 tests (up from 715: `records.service.test.ts` grew from 13 to 24
+  tests, plus two new controller-route tests and a new
+  `gemini-extraction.service.test.ts` at 9 tests, all fetch-mocked, zero
+  network calls, matching the repo's standing convention), `@swasthya/web`
+  27 test files / 152 tests (up from 133: two
+  new lib test files, `records-api.test.ts` at 11 tests and
+  `blood-pressure-chart.test.ts` at 8). `pnpm build` 40/40, `apps/web` and
+  `apps/mobile` both export cleanly. No live Postgres or `GEMINI_API_KEY` in
+  this sandbox — same honest caveat every recent entry has carried;
+  everything above is exercised against fakes/mocks, not a real Gemini call
+  or a real Postgres.
+
+  **Mobile measurement, `/account` at 375px** (Playwright, `chromium` at
+  `/opt/pw-browsers/chromium`, `auth/me` + `family/grants` + the new
+  `records/observations` route mocked so the authenticated page renders in
+  this sandbox). Before (English, git-stashed back to the pre-this-run
+  `AccountView.tsx` to get a true delta): 2979px / 812 = **3.67 screens**,
+  47 tap targets, 41 under 44px. After, with four confirmed BP observations
+  seeded so the chart actually renders: 3511px / 812 = **4.32 screens**
+  (+0.65 screens), 48 tap targets (+1), 42 under 44px (+1). The one new
+  sub-44px target is `EvidenceCapture`'s own "Choose photo" label button —
+  the identical pre-existing shortfall the 2026-08-16 F2 entry already
+  flagged on `ProfileConfirmationCard`'s "Save to my profile" button, from
+  the same shared `Button`/label sizing; not introduced fresh by this task
+  and not fixed here, consistent with that entry's own scoping. Nepali
+  locale measured the same way: 3.65 → 4.25 screens. Visually inspected a
+  full-page screenshot at 375px in both locales (a `Section` with a real
+  two-line chart, working legend, no Next.js error overlay, no raw
+  translation keys, no horizontal overflow) rather than only trusting the
+  numbers.
+
+  **For the next run.** Round four §F's remaining box is care-directory
+  honesty (demo-data labelling). §G (payment provider) waits on E and F
+  both being done, which they now are except Google sign-in, still blocked
+  on the owner's OAuth client id. Two things a future round could pick up
+  but weren't asked for here, noted rather than built speculatively: a
+  manual "retry extraction" action for a document stuck on
+  `EXTRACTION_FAILED`, and extending the confirmation UI to also show a
+  document's already-processed observations (today the confirm/reject card
+  only shows the DRAFT set from the capture that just ran, not a full
+  history view).
 
 - 2026-08-16 — **Round four, task F2 (anonymous profile → real profile).**
   Done — checked off.

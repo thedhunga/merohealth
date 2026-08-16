@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { InMemoryDocumentStore, StoragePolicyError } from '@swasthya/storage-adapters';
 import type { HealthObservation } from '@swasthya/shared-types';
 import { describe, expect, it } from 'vitest';
+import type { ExtractionResult, RecordExtractionService } from './record-extraction.service.js';
 import { RecordsRepository } from './records.repository.js';
 import { RecordsService, type CaptureDocumentInput } from './records.service.js';
 
@@ -21,10 +22,33 @@ function makeCapture(overrides: Partial<CaptureDocumentInput> = {}): CaptureDocu
   };
 }
 
-function buildService(store = new InMemoryDocumentStore('HOSTED')) {
+function buildService(store = new InMemoryDocumentStore('HOSTED'), extraction?: RecordExtractionService) {
   const repository = new RecordsRepository();
-  return { service: new RecordsService(repository, store), store, repository };
+  return { service: new RecordsService(repository, store, extraction), store, repository };
 }
+
+/** A stand-in extraction port whose result (or failure) the test controls. */
+class StubExtractionService implements RecordExtractionService {
+  constructor(private readonly result: ExtractionResult | (() => Promise<ExtractionResult>)) {}
+  extract(): Promise<ExtractionResult> {
+    return typeof this.result === 'function' ? this.result() : Promise.resolve(this.result);
+  }
+}
+
+/** Simulates the provider being genuinely down — every call rejects. */
+class BrokenExtractionService implements RecordExtractionService {
+  extract(): Promise<ExtractionResult> {
+    throw new Error('simulated extraction outage');
+  }
+}
+
+const BP_READING: ExtractionResult = {
+  status: 'complete',
+  observations: [
+    { code: '8480-6', codeSystem: 'LOINC', labelNe: 'सिस्टोलिक रक्तचाप', labelEn: 'Systolic blood pressure', value: '132', unit: 'mmHg', confidence: 0.9 },
+    { code: '8462-4', codeSystem: 'LOINC', labelNe: 'डायस्टोलिक रक्तचाप', labelEn: 'Diastolic blood pressure', value: '84', unit: 'mmHg', confidence: 0.9 },
+  ],
+};
 
 function draftObservation(overrides: Partial<HealthObservation> = {}): HealthObservation {
   return {
@@ -69,6 +93,104 @@ describe('RecordsService.captureDocument', () => {
     const { service } = buildService(new InMemoryDocumentStore('GOOGLE_DRIVE'));
     const document = await service.captureDocument(makeCapture({ clientEncrypted: true }));
     expect(document.ref.backend).toBe('GOOGLE_DRIVE');
+  });
+});
+
+describe('RecordsService.captureDocument extraction', () => {
+  it('never attempts extraction when no extraction service is wired', async () => {
+    const { service } = buildService();
+    const document = await service.captureDocument(makeCapture());
+    expect(document.status).toBe('STORED');
+  });
+
+  it('never attempts extraction on a client-encrypted document — extraction for those runs on-device', async () => {
+    const { service, repository } = buildService(new InMemoryDocumentStore('HOSTED'), new StubExtractionService(BP_READING));
+    const document = await service.captureDocument(makeCapture({ clientEncrypted: true }));
+    expect(document.status).toBe('STORED');
+    expect(repository.listObservationsForOwner('owner-1')).toHaveLength(0);
+  });
+
+  it('never attempts extraction on a document with no image content type', async () => {
+    const { service, repository } = buildService(new InMemoryDocumentStore('HOSTED'), new StubExtractionService(BP_READING));
+    const document = await service.captureDocument(makeCapture({ contentType: 'application/pdf' }));
+    expect(document.status).toBe('STORED');
+    expect(repository.listObservationsForOwner('owner-1')).toHaveLength(0);
+  });
+
+  it('creates DRAFT observations and moves the document to AWAITING_CONFIRMATION on a legible reading', async () => {
+    const { service, repository } = buildService(new InMemoryDocumentStore('HOSTED'), new StubExtractionService(BP_READING));
+    const document = await service.captureDocument(makeCapture());
+
+    expect(document.status).toBe('AWAITING_CONFIRMATION');
+    const observations = repository.listObservationsForDocument(document.id);
+    expect(observations).toHaveLength(2);
+    expect(observations.every((observation) => observation.status === 'DRAFT')).toBe(true);
+    expect(observations.every((observation) => observation.provenance === 'DOCUMENT_EXTRACTED')).toBe(true);
+    // effectiveAt comes from the person's own documentDate, never invented by the extractor.
+    expect(observations.every((observation) => observation.effectiveAt === '2026-08-01')).toBe(true);
+  });
+
+  it('falls back to capturedAt for effectiveAt when the person gave no documentDate', async () => {
+    const { service, repository } = buildService(new InMemoryDocumentStore('HOSTED'), new StubExtractionService(BP_READING));
+    const document = await service.captureDocument(makeCapture({ documentDate: null }));
+    const [observation] = repository.listObservationsForDocument(document.id);
+    expect(observation!.effectiveAt).toBe(document.capturedAt);
+  });
+
+  it('moves straight to CONFIRMED when extraction runs but finds nothing legible — nothing to review', async () => {
+    const { service } = buildService(
+      new InMemoryDocumentStore('HOSTED'),
+      new StubExtractionService({ status: 'complete', observations: [] }),
+    );
+    const document = await service.captureDocument(makeCapture());
+    expect(document.status).toBe('CONFIRMED');
+  });
+
+  it('lands on EXTRACTION_FAILED, not lost, when the provider is not configured', async () => {
+    const { service, repository } = buildService(
+      new InMemoryDocumentStore('HOSTED'),
+      new StubExtractionService({ status: 'setup-required', observations: [] }),
+    );
+    const document = await service.captureDocument(makeCapture());
+
+    expect(document.status).toBe('EXTRACTION_FAILED');
+    expect(repository.findDocument(document.id)).not.toBeNull();
+  });
+
+  it('outage test: the extraction service DOWN still stores the photo and leaves the rest of the module working', async () => {
+    const { service, repository } = buildService(new InMemoryDocumentStore('HOSTED'), new BrokenExtractionService());
+
+    // The capture that hits the broken dependency does not throw...
+    const failed = await service.captureDocument(makeCapture({ title: 'Failed extraction' }));
+    expect(failed.status).toBe('EXTRACTION_FAILED');
+    // ...nothing is lost: the document is still there, retrievable...
+    expect(service.getDocument(failed.id)).toMatchObject({ id: failed.id, title: 'Failed extraction' });
+    expect(service.listDocuments('owner-1').map((d) => d.id)).toContain(failed.id);
+    // ...and the rest of the module — a sibling capture, reads, confirm/correct/reject — is unaffected.
+    repository.saveObservation({
+      id: 'sibling-obs',
+      documentId: 'sibling-doc',
+      ownerId: 'owner-1',
+      code: '2160-0',
+      codeSystem: 'LOINC',
+      labelNe: 'क्रिएटिनिन',
+      labelEn: 'Creatinine',
+      value: '1.1',
+      unit: 'mg/dL',
+      referenceRange: null,
+      abnormalFlag: null,
+      effectiveAt: '2026-08-01',
+      status: 'DRAFT',
+      provenance: 'DOCUMENT_EXTRACTED',
+      confidence: 0.9,
+      extractionRunId: 'run-sibling',
+    });
+    expect(service.confirm('sibling-obs', 'owner-1').status).toBe('CONFIRMED');
+
+    const otherStore = new InMemoryDocumentStore('HOSTED');
+    const otherService = new RecordsService(new RecordsRepository(), otherStore);
+    const unaffected = await otherService.captureDocument(makeCapture({ ownerId: 'owner-2' }));
+    expect(unaffected.status).toBe('STORED');
   });
 });
 

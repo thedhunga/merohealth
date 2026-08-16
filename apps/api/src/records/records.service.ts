@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import {
   buildTimeline,
   confirmObservation,
   correctObservation,
   rejectObservation,
+  transitionDocument,
   type TimelineEntry,
 } from '@swasthya/health-records';
 import { assertPlacementAllowed, type DocumentBlob, type HealthDocumentStore } from '@swasthya/storage-adapters';
@@ -14,6 +15,7 @@ import type {
   HealthDocumentKind,
   HealthObservation,
 } from '@swasthya/shared-types';
+import { RECORD_EXTRACTION_SERVICE, type RecordExtractionService } from './record-extraction.service.js';
 import { RecordsRepository } from './records.repository.js';
 
 /** DI token for the storage port — bound to a concrete adapter in RecordsModule. */
@@ -37,6 +39,14 @@ export class RecordsService {
   constructor(
     private readonly repository: RecordsRepository,
     @Inject(HEALTH_DOCUMENT_STORE) private readonly store: HealthDocumentStore,
+    // Optional so every existing `new RecordsService(repository, store)` call
+    // across the other clinical modules' own test suites keeps working
+    // unchanged — extraction simply never runs for them, the same as it
+    // never ran before this feature existed. `RecordsModule` always binds a
+    // real implementation in production.
+    @Optional()
+    @Inject(RECORD_EXTRACTION_SERVICE)
+    private readonly extraction?: RecordExtractionService,
   ) {}
 
   /**
@@ -56,7 +66,7 @@ export class RecordsService {
 
     const ref = await this.store.put({ ownerId: input.ownerId, filename: input.filename, blob });
 
-    return this.repository.saveDocument({
+    const stored = this.repository.saveDocument({
       id: randomUUID(),
       ownerId: input.ownerId,
       kind: input.kind,
@@ -69,6 +79,79 @@ export class RecordsService {
       clientEncrypted: input.clientEncrypted,
       pageCount: input.pageCount,
     });
+
+    return this.#extractIfEligible(stored, input);
+  }
+
+  /**
+   * A client-encrypted document (bring-your-own storage) is unreadable here
+   * by design — "extraction for those runs on-device" — and a non-image
+   * document has nothing this extractor can read either, so both stay
+   * `STORED` exactly as capture always left them before this method existed.
+   * Everything else attempts extraction inline, synchronously, because there
+   * is no job queue in this deployment yet: the person's next paint already
+   * carries the outcome rather than a polling round-trip.
+   *
+   * `setup-required` (no provider configured) and `unavailable` (the
+   * provider was reached and failed) both land on `EXTRACTION_FAILED` here —
+   * from the person's chair both mean "no draft yet, try again later", and
+   * `EXTRACTION_FAILED → EXTRACTING` stays open for a future retry action.
+   * Nothing here can lose the document itself: every branch below returns a
+   * document that is already durably saved.
+   */
+  async #extractIfEligible(document: HealthDocument, input: CaptureDocumentInput): Promise<HealthDocument> {
+    if (!this.extraction || input.clientEncrypted || !input.contentType?.startsWith('image/')) {
+      return document;
+    }
+
+    const extracting = this.repository.saveDocument(transitionDocument(document, 'EXTRACTING'));
+
+    let result: Awaited<ReturnType<RecordExtractionService['extract']>>;
+    try {
+      result = await this.extraction.extract({ contentType: input.contentType, bytes: input.bytes });
+    } catch {
+      return this.repository.saveDocument(transitionDocument(extracting, 'EXTRACTION_FAILED'));
+    }
+
+    if (result.status !== 'complete') {
+      return this.repository.saveDocument(transitionDocument(extracting, 'EXTRACTION_FAILED'));
+    }
+    if (result.observations.length === 0) {
+      // `EXTRACTING` can only lead to `AWAITING_CONFIRMATION`/`EXTRACTION_FAILED`/`DELETED` —
+      // there is no direct `EXTRACTING → CONFIRMED` edge in the transition
+      // table — so an empty result passes through `AWAITING_CONFIRMATION`
+      // for an instant before landing on `CONFIRMED`: correct, since there
+      // is nothing left to confirm, and consistent with the table rather
+      // than a special-cased shortcut around it.
+      return this.repository.saveDocument(
+        transitionDocument(transitionDocument(extracting, 'AWAITING_CONFIRMATION'), 'CONFIRMED'),
+      );
+    }
+
+    const extractionRunId = randomUUID();
+    const effectiveAt = extracting.documentDate ?? extracting.capturedAt;
+    for (const draft of result.observations) {
+      this.repository.saveObservation({
+        id: randomUUID(),
+        documentId: extracting.id,
+        ownerId: extracting.ownerId,
+        code: draft.code,
+        codeSystem: draft.codeSystem,
+        labelNe: draft.labelNe,
+        labelEn: draft.labelEn,
+        value: draft.value,
+        unit: draft.unit,
+        referenceRange: null,
+        abnormalFlag: null,
+        effectiveAt,
+        status: 'DRAFT',
+        provenance: 'DOCUMENT_EXTRACTED',
+        confidence: draft.confidence,
+        extractionRunId,
+      });
+    }
+
+    return this.repository.saveDocument(transitionDocument(extracting, 'AWAITING_CONFIRMATION'));
   }
 
   listDocuments(ownerId: string): HealthDocument[] {

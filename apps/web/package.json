@@ -16,6 +16,7 @@
     "@swasthya/credentialing": "workspace:*",
     "@swasthya/entitlements": "workspace:*",
     "@swasthya/family": "workspace:*",
+    "@swasthya/health-records": "workspace:*",
     "@swasthya/language-corpus": "workspace:*",
     "@swasthya/shared-types": "workspace:*",
     "lucide-react": "1.30.0",
