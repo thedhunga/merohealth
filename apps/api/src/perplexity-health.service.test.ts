@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PerplexityHealthService } from './perplexity-health.service.js';
 
 describe('PerplexityHealthService', () => {
@@ -26,5 +26,37 @@ describe('PerplexityHealthService', () => {
     expect(result.disclaimer).toBe(
       'Yo samanya swasthya jankari matra ho. Yo nidan wa upachar sifaris hoina.',
     );
+  });
+
+  // The setup-required tests above never reach the network call, so the
+  // catch block that is the only thing standing between a Perplexity outage
+  // and a companion-route 500 had zero coverage — the API-side sibling of
+  // the same gap fixed in apps/web/src/server/gemini-health.test.ts.
+  describe('when the API key is configured but the network is down', () => {
+    const originalKey = process.env['PERPLEXITY_API_KEY'];
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      if (originalKey === undefined) delete process.env['PERPLEXITY_API_KEY'];
+      else process.env['PERPLEXITY_API_KEY'] = originalKey;
+    });
+
+    it('reports unavailable, keeps the disclaimer, and never throws', async () => {
+      process.env['PERPLEXITY_API_KEY'] = 'test-key';
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
+
+      const result = await new PerplexityHealthService().research('What is diabetes?', 'en');
+
+      expect(result).toEqual({
+        provider: 'perplexity-sonar',
+        status: 'unavailable',
+        answer: null,
+        citations: [],
+        relatedQuestions: [],
+        disclaimer:
+          'General health information only. This is not a diagnosis or a treatment recommendation.',
+        externalHealthHubUrl: 'https://www.perplexity.ai/health',
+      });
+    });
   });
 });

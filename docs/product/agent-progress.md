@@ -1517,6 +1517,41 @@ Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
 - 2026-08-16 — **Queue's three unchecked boxes re-confirmed genuinely blocked
+  a third time; picked the highest-value improvement to work already
+  shipped: closed the API-side counterpart of the last run's outage-test
+  gap, in `apps/api/src/perplexity-health.service.test.ts`.** Done.
+
+  **Selection.** Re-verified all three blockers independently rather than
+  trusting the prior entry: `grep GOOGLE` on both `.env.example` and
+  `.env.server.example` still shows the client id unset; `ListConnectors`
+  still reports Higgsfield `connected: true` but `enabledInChat: false` for
+  this session; `git log` on the B1 homepage-height files shows the same
+  commits the last two audits already accounted for, no new lever. So, same
+  as last run, looked for a scoped improvement to shipped work instead.
+
+  The prior run closed the outage-test gap in the **web** companion route
+  (`apps/web/src/server/gemini-health.test.ts`) but its exact sibling on the
+  **API** side had the identical hole: `apps/api/src/perplexity-health.service.ts`
+  has a `catch` block (the only thing standing between a Perplexity network
+  outage and a 500 on `POST /companion/research`) that was never exercised —
+  the three existing tests all hit the `setup-required` early return (no
+  `PERPLEXITY_API_KEY` in the test env) and never reached the network call.
+  Added a fourth test that sets the key, stubs `fetch` to reject, and asserts
+  the service still resolves with `status: 'unavailable'` and the correct
+  disclaimer rather than throwing — confirmed `companion.controller.ts`
+  passes the result straight through unchanged, so this is a real, checked
+  degradation path, not just a unit-level assertion. This is the same
+  standing rule from Round four §E/F applied to the last module of the
+  companion-route pair that didn't have it; `gemini-extraction.service.ts`
+  (the records-extraction sibling) already had this coverage on inspection,
+  so nothing else in this immediate family is missing it.
+
+  All gates green: `pnpm install --frozen-lockfile`, `pnpm lint` (40/40),
+  `pnpm typecheck` (40/40), `pnpm test` (75/75 tasks, API 114 files / 745
+  tests including the new one), `pnpm build` (40/40, 35 cached). No web UI
+  touched this run, so no mobile-viewport measurement applies.
+
+- 2026-08-16 — **Queue's three unchecked boxes re-confirmed genuinely blocked
   again; picked the highest-value improvement to work already shipped: added
   the missing "network unreachable" test case to `gemini-health.test.ts`,
   closing the outage-test gap Round four's standing rule requires.** Done.
