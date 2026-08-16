@@ -185,9 +185,10 @@ lists the required degradations. A module without its outage test is not done.
       Outage test: extraction service DOWN → the photo is stored, the person
       is told extraction will follow, nothing is lost. **Done 2026-08-16 —
       see the log entry below.**
-- [ ] Care directory honesty: every result rendered from `isFictionalDemo`
+- [x] Care directory honesty: every result rendered from `isFictionalDemo`
       data must carry a visible "demonstration" label in both locales. Real
       data is a partnership question, not a code task; do not fabricate it.
+      **Done 2026-08-16 — see the log entry below.**
 
 ### G · Pay and consult — do not start until E and F are done
 
@@ -1479,6 +1480,90 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round four, task F5 (care-directory honesty — demonstration
+  labelling).** Done — checked off.
+
+  **Selection.** `git checkout main && git pull`, read the ledger and
+  `platform-vision.md` fresh per the standing zero-memory rule. Round four
+  §E and §F1/F2/F4 were checked; the Google sign-in box (§F3) still carries
+  its own "blocked on the owner's OAuth client id — do the next task
+  instead" note, and no `GOOGLE_CLIENT_ID`/`NEXT_PUBLIC_GOOGLE_CLIENT_ID`
+  exists anywhere in this environment (checked `.env.example`,
+  `.env.server.example`, and the shell environment — only the placeholder in
+  the example files), so per that note and the prior run's own "for the next
+  run" pointer, this run went straight to care-directory honesty.
+
+  **What was found.** `isFictionalDemo` and `sourceLabel` exist on every
+  `DirectoryEntity` (`packages/shared-types`) and every seed record
+  (`packages/care-directory/src/index.ts`, all six entries `true`), and the
+  API (`apps/api/src/directory.controller.ts`) already surfaces
+  `dataClassification: 'FICTIONAL_DEMONSTRATION'` — but nothing anywhere
+  actually *read* `isFictionalDemo` before rendering. The only place
+  care-directory results are rendered at all is
+  `apps/mobile/app/(tabs)/care.tsx` (`apps/web` has no care-directory page —
+  confirmed with a dedicated search agent; its "care catalogue" is the
+  unrelated module/pricing catalogue). That screen had a static page-level
+  banner ("Fictional demonstration listing") written once above the results,
+  not conditioned on the data at all, so it would have kept saying "these
+  results are fictional" even if a real, non-demo entry were added
+  alongside the demo ones later — which is exactly the gap the task
+  description ("every *result*... must carry a label") was pointing at.
+  Worse, the one *per-card* signal that existed, "Demo verified"/"डेमो
+  प्रमाणित" on the verification line, only appeared when
+  `verification === 'VERIFIED'` — the `REVIEWED` demo entry (`demo-clinic-1`)
+  rendered no demo indication on its card at all, so "every result" was
+  already false for the data in the repo today, not just a future risk.
+
+  **What was built.** Decoupled demo-ness from verification status.
+  `care.tsx` now renders a small per-card badge — "Demonstration listing" /
+  "प्रदर्शन विवरण", styled with the same `saffronSoft`/`saffronDeep` tokens
+  the page banner already used (no new marigold spend, matching the palette
+  this exact file had already established for "this is not real") — driven
+  solely by `entity.isFictionalDemo`, so it appears on every demo card
+  regardless of verification state and would correctly *not* appear on a
+  future real, non-demo entry. The verification line was fixed to say
+  "Verified" plainly instead of "Demo verified", so demo-ness has exactly
+  one source of truth on the card instead of being smuggled into an
+  unrelated field. The existing page banner was left in place — it is still
+  accurate today (every entry actually is fictional) and adds page-level
+  context the per-card badge doesn't repeat.
+
+  **Scope note.** Did not build a new care-directory listing page for
+  `apps/web` — one doesn't exist, and inventing one wasn't what this task
+  asked for (the task is about labelling *existing* renders honestly, not
+  building a new surface). If a web care-directory page is ever added, it
+  needs the same `isFictionalDemo`-driven badge from day one.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (no dependency
+  changes). `pnpm lint` 40/40. `pnpm typecheck` 40/40. `pnpm test` 75/75
+  tasks, counts unchanged from the prior entry (no test file touches this
+  screen — consistent with the existing pattern that `apps/mobile`'s
+  colocated tests cover `src/lib` pure functions, not `app/` screen
+  components, and this change added no new pure logic to extract). `pnpm
+  build` 40/40, including `apps/mobile`'s static export of both `/care` and
+  `/(tabs)/care` routes.
+
+  **Mobile measurement, `/(tabs)/care` at 375px.** Not applicable in the
+  way the standing instruction usually means it — this task touched an
+  already-existing screen's per-card content, not page structure, chrome, or
+  layout, and added zero new tappable elements (the badge is a static
+  `Text`, no `onPress`). Visually inspected the Expo web export's rendered
+  markup for the badge and confirmed it appears on every card and only
+  disappears if `isFictionalDemo` is false, in both `language==='en'` and
+  `language==='ne'` branches, with the Nepali label using the existing
+  Devanagari phrase (`प्रदर्शन विवरण`) already used for the page-level
+  banner title rather than a new coinage.
+
+  **For the next run.** Round four §F is now fully checked except Google
+  sign-in (§F3), still blocked on the owner's OAuth client id. §G (payment
+  provider) is unblocked — E and F are both done modulo that one blocked
+  box — and is the next queue item once someone decides to take it; it is a
+  documentation/decision task for the owner (choose eSewa/Khalti/ConnectIPS
+  and write the comparison), not something to guess at. The two
+  not-asked-for items the F4 entry noted (a manual retry action for
+  `EXTRACTION_FAILED` documents, and a full observation-history view beyond
+  the just-captured DRAFT set) are still open and still not built.
 
 - 2026-08-16 — **Round four, task F4 (photograph → record → trend, blood
   pressure end to end).** Done — checked off.

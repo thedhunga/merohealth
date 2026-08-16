@@ -82,6 +82,13 @@ export default function CareScreen() {
                 <Text style={styles.nameEn}>{entity.name}</Text>
               </View>
             </View>
+            {entity.isFictionalDemo && (
+              <View style={styles.demoBadge}>
+                <Text style={styles.demoBadgeText}>
+                  {language === 'en' ? 'Demonstration listing' : 'प्रदर्शन विवरण'}
+                </Text>
+              </View>
+            )}
             <View style={styles.row}>
               <MapPin color={colors.muted} size={15} />
               <Text style={styles.meta}>
@@ -100,8 +107,8 @@ export default function CareScreen() {
               <Text style={styles.meta}>
                 {entity.verification === 'VERIFIED'
                   ? language === 'en'
-                    ? 'Demo verified'
-                    : 'डेमो प्रमाणित'
+                    ? 'Verified'
+                    : 'प्रमाणित'
                   : language === 'en'
                     ? 'Reviewed'
                     : 'समीक्षा गरिएको'}{' '}
@@ -143,6 +150,14 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   cardTop: { alignItems: 'center', flexDirection: 'row', gap: spacing.md },
+  demoBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.saffronSoft,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  demoBadgeText: { color: colors.saffronDeep, fontSize: 11, fontWeight: '900' },
   icon: {
     alignItems: 'center',
     backgroundColor: colors.mint,
