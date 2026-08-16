@@ -40,6 +40,8 @@ equivalent · **CAN DROP** — Vercel-only, delete on the way out.
 | `PERPLEXITY_API_KEY` | server only | optional | Fallback provider, paid. Only used when `GEMINI_API_KEY` is absent or `RESEARCH_PROVIDER=perplexity`. |
 | `RESEARCH_PROVIDER`, `GEMINI_MODEL` | server only | optional | Force a provider / pick a model. See `apps/web/.env.example`. |
 | `NEXT_PUBLIC_SITE_URL` (or equivalent used by `lib/seo.ts`) | build-time | **MUST update** | Sitemap, canonical and OG URLs are derived from the site URL. Change to the new domain. |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | build-time, exposed to the browser | **MUST update** on domain change | Baked into the `apps/web` bundle at build time (`GoogleSignInButton.tsx`). Google Identity Services checks the calling page's origin against the OAuth client's Authorised JavaScript origins (Google Cloud Console → Credentials) — see §6. If the client id is absent, the button renders nothing rather than breaking; see `apps/web/.env.example`. |
+| `GOOGLE_CLIENT_ID` (`apps/api`) | server only | **MUST update** on domain change | Same client id as `NEXT_PUBLIC_GOOGLE_CLIENT_ID` — `apps/api/src/auth/auth.service.ts` uses it as the expected `aud` claim when verifying the Google ID token (`packages/auth`'s `verifyGoogleIdToken`). Absent → `POST /auth/google/verify` returns `setup-required`, matching the button's own degradation. No `GOOGLE_CLIENT_SECRET` is used: this is the Google Identity Services credential flow (a signed ID token verified against Google's JWKS), not the server-side OAuth code flow. |
 | Any Vercel-injected vars (`VERCEL_URL`, `VERCEL_ENV`) | runtime | **CHECK** | `grep -rn "VERCEL_" apps/web/src` — currently none used, keep it that way. |
 | `apps/web/.env.example` | repo | **CHECK** | Source of truth for what the app expects. Keep updated. |
 
@@ -77,6 +79,7 @@ once the inline-script surface is understood.
 |---|---|---|
 | `merohealth-beta.vercel.app` | **CAN DROP** | Vercel-owned name; cannot move. Communicate the new URL. |
 | Custom domain (none yet) | **MUST set up** | Buy/point the real domain at the new host. Update `NEXT_PUBLIC_SITE_URL`, `robots.ts`, `sitemap.ts`, OG image URLs. |
+| Google OAuth client's Authorised JavaScript origins | Google Cloud Console → APIs & Services → Credentials | **MUST update** | Add the new domain (`https://<domain>`) to the same OAuth client behind `GOOGLE_CLIENT_ID` / `NEXT_PUBLIC_GOOGLE_CLIENT_ID` before removing the old Vercel origin — Google Identity Services rejects a credential request from an origin the client doesn't list, so add-then-remove, never swap in one step. No redirect URI to update: the credential flow only checks the calling origin. |
 | `robots` is `noindex` while demonstration | **CHECK** | Governed by `isDemonstrationBuild` in `lib/seo.ts`; not host-specific, but confirm the flag on the new host before flipping to index. |
 | TLS certificate | **MUST** | Vercel provisions automatically. Self-host needs Let's Encrypt / Caddy (`deploy/Caddyfile` exists) or the platform's TLS. |
 
@@ -107,3 +110,10 @@ once the inline-script surface is understood.
 - 2026-08-16 — Created during the seamless-assistant work. Vercel state at
   time of writing: Root Directory `apps/web`, protection disabled, no custom
   domain, `PERPLEXITY_API_KEY` **not set** in Production.
+- 2026-08-16 — Added `GOOGLE_CLIENT_ID` / `NEXT_PUBLIC_GOOGLE_CLIENT_ID` to §3
+  as **MUST update**, and the Google OAuth client's Authorised JavaScript
+  origins to §6 (Round three §D's last open item). Confirmed by reading
+  `auth.service.ts` and `GoogleSignInButton.tsx` that there is no
+  `GOOGLE_CLIENT_SECRET` or redirect URI in this flow — Google Identity
+  Services verifies a signed ID token client-side, so only the origin
+  allowlist matters on a domain move.

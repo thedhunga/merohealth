@@ -325,9 +325,10 @@ set, the Google button must not render, and the API route must return
       Google". Never "Sign in with Gmail" — the product is Google account,
       not mailbox. **Done 2026-08-16 — folded into the checkbox above, since
       the button cannot render without its own copy.**
-- [ ] `docs/deployment/hosting-migration-inventory.md`: add
+- [x] `docs/deployment/hosting-migration-inventory.md`: add
       `GOOGLE_CLIENT_ID` (public, build-time) and the authorised-origins /
-      redirect-URI entries as **MUST update** on domain change.
+      redirect-URI entries as **MUST update** on domain change. **Done
+      2026-08-16 — see the log entry below.**
 
 **Owner steps** (put these in the ledger log so they are not lost):
 Google Cloud Console → APIs & Services → Credentials → Create OAuth client
@@ -1514,6 +1515,61 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round three, task D's last open item: the
+  `hosting-migration-inventory.md` doc entry for Google sign-in.** Done —
+  checked off.
+
+  **Selection.** `git checkout main && git pull` (fast-forwarded from the
+  local checkout), read the ledger and `platform-vision.md` fresh per the
+  zero-memory rule, then `grep -n "^- \[ \]"` across the whole file rather
+  than trusting visual order. Four unchecked boxes, in file order: (1) Round
+  four §F's "Sign in with Google" bullet, still blocked on the owner's OAuth
+  client id — confirmed `GOOGLE_CLIENT_ID`/`NEXT_PUBLIC_GOOGLE_CLIENT_ID` are
+  still unset anywhere real (`.env.example`, `apps/web/.env.example`), and
+  every prior build-side task under this same umbrella (§D) is already done,
+  so there is nothing left to build here regardless — a pure doc/copy task
+  wouldn't be blocked by a missing secret, but there is no such task left
+  under this bullet. (2) The two missing testimonial portraits — blocked on
+  Higgsfield credits, an external account this run has no access to. (3) The
+  homepage-screens task — explicitly logged across ~18 prior entries and two
+  independent audits as blocked on an owner content-cut decision, not a code
+  task. (4) This doc entry — the one genuinely unblocked, purely mechanical
+  task in the list, so it's the one this run did.
+
+  **What was built.** Read `auth.service.ts` (`GOOGLE_CLIENT_ID` used only as
+  the expected `aud` claim when verifying the Google ID token via
+  `packages/auth`'s `verifyGoogleIdToken`) and `GoogleSignInButton.tsx`
+  (Google Identity Services' credential flow via
+  `accounts.google.com/gsi/client`, no server-side OAuth code exchange) to
+  confirm there is no `GOOGLE_CLIENT_SECRET` and no redirect URI anywhere in
+  this flow — only an origin allowlist Google checks client-side. Added two
+  rows to `hosting-migration-inventory.md` §3 (env vars) for
+  `NEXT_PUBLIC_GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_ID`, both **MUST update**
+  on domain change, and one row to §6 (domains/DNS) for the OAuth client's
+  Authorised JavaScript origins in Google Cloud Console, noting add-then-remove
+  ordering so sign-in doesn't break mid-migration. Logged the change in that
+  file's own log too.
+
+  **Verify gate.** This is a documentation-only change (two markdown files,
+  no source touched), so `pnpm lint`, `pnpm typecheck`, `pnpm test` and
+  `pnpm build` all run against an unchanged dependency graph and unchanged
+  code paths — ran them anyway per the standing rule rather than assuming;
+  all green, same counts as the prior run.
+
+  **Mobile measurement.** Not applicable — no UI changed.
+
+  **For the next run.** The three still-blocked items above are genuinely
+  blocked, not stale — re-verify `GOOGLE_CLIENT_ID` is still unset before
+  believing (1) is still blocked, since the owner could set it at any time
+  and the button/route are already built and waiting. If it's ever set, no
+  code task remains — the button will simply start rendering and the route
+  will stop returning `setup-required`. With this run, **Round three §D is
+  entirely closed** except for the owner steps already documented in the
+  ledger (Google Cloud Console client id → Vercel env vars). The queue's
+  only unblocked, actionable items are now gone; the next run should
+  re-scan `^- \[ \]` fresh rather than trusting this summary, since a task
+  can become unblocked between runs.
 
 - 2026-08-16 — **Round three, task D (Google sign-in), fourth and fifth
   checkboxes: the `apps/web` "Continue with Google" button and its copy.**
