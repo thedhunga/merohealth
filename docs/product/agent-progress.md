@@ -149,7 +149,7 @@ lists the required degradations. A module without its outage test is not done.
       `NODE_ENV=production`. The runbook must say `ALLOWED_ORIGINS` needs the
       Vercel origin and the API must be HTTPS-only, or browsers silently drop
       the cookie.
-- [ ] A GitHub Actions workflow that builds `deploy/Dockerfile.api` and pushes
+- [x] A GitHub Actions workflow that builds `deploy/Dockerfile.api` and pushes
       to GHCR on every push to `main`. The owner will pull it on the server;
       do not attempt to SSH from CI. Document the three server commands in
       `docs/deployment/dedicated-server.md`.
@@ -1476,6 +1476,53 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round four, task E4 (GHCR deploy workflow).** Done — checked
+  off.
+
+  **Selection.** Read the queue top to bottom per the working agreement.
+  Round four §E's first three checkboxes were already `[x]`; the fourth —
+  "a GitHub Actions workflow that builds `deploy/Dockerfile.api` and pushes
+  to GHCR on every push to `main` … document the three server commands" —
+  was the first `[ ]`. This is also exactly what the immediately preceding
+  log entry (Round three D2, below) flagged as the correct next pick after
+  the queue merge, so no ambiguity here.
+
+  **What was built.** `.github/workflows/deploy-api.yml`: triggers on
+  `workflow_run` of `ci` completing successfully on `main` (not a raw
+  `push`, so a red CI run can never publish an image), builds
+  `deploy/Dockerfile.api` for `linux/arm64` via buildx + QEMU (the server is
+  arm64 Ubuntu per the capacity audit below), and pushes
+  `ghcr.io/thedhunga/merohealth-api:latest` and `:<sha>` using the
+  workflow's own `GITHUB_TOKEN` (`packages: write`) — no new secret needed.
+  Gave `compose.server.yaml`'s `api` and `migrate` services an `image:` field
+  alongside their existing `build:` so `docker compose pull` fetches the
+  GHCR tag while `docker compose build` still works locally as a fallback.
+  Rewrote the "Bring it up" step and the "Updating later" section in
+  `docs/deployment/dedicated-server.md` around three commands — GHCR login,
+  `pull api migrate`, `up -d migrate api` — and updated the "Build OOMs"
+  troubleshooting row to point at the actual cause (building instead of
+  pulling) rather than only the swap step. This directly answers the
+  runbook's own "Build OOMs" risk: the arm64 build now happens on a GitHub
+  runner, not on the 7.5 GiB box.
+
+  **Not built, deliberately out of scope for this checkbox:** actually
+  running the workflow against the real GHCR registry (needs a push to
+  `main`, which this run does at the end, so it will fire for real after
+  this commit lands) and making the `merohealth-api` package public or
+  minting a long-lived PAT for the server — both are owner actions, noted
+  in the runbook as such. The next owner-facing step is still the rest of
+  the API-only runbook checklist (swap, Docker, secrets, HTTPS, DNS), which
+  was already `[ ]` and untouched by this task.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean. `docker compose -f
+  compose.server.yaml config` fails only on the expected missing
+  `POSTGRES_PASSWORD` interpolation (real secret, not present outside
+  `.env.server`) — confirms the YAML itself parses. `pnpm lint` 40/40,
+  `pnpm typecheck` 40/40, `pnpm test` 75/75 tasks (693 tests in `apps/api`,
+  unchanged — nothing here touches runtime code), `pnpm build` 40/40. No
+  user-visible copy changed, so no `messages/*.json` edits. No web UI
+  touched, so no 375px screen-height measurement applies to this run.
 
 - 2026-08-16 — **Round three, task D2 (Google sign-in): `User.googleSub`
   column and migration.** Done — checked off.

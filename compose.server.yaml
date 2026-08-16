@@ -64,6 +64,7 @@ services:
   # easier to reason about when the step that applied it has its own logs and
   # its own exit code.
   migrate:
+    image: ghcr.io/thedhunga/merohealth-api:latest
     build:
       context: .
       dockerfile: deploy/Dockerfile.api
@@ -78,6 +79,7 @@ services:
     restart: 'no'
 
   api:
+    image: ghcr.io/thedhunga/merohealth-api:latest
     build:
       context: .
       dockerfile: deploy/Dockerfile.api

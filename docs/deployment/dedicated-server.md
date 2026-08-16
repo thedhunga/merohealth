@@ -23,12 +23,20 @@ can do; none of it can be automated from CI safely.
       `POSTGRES_PASSWORD` (long and random — `openssl rand -base64 32`),
       `GEMINI_API_KEY` (same key as Vercel), and `ALLOWED_ORIGINS`
       (`https://merohealth-beta.vercel.app`, comma-add the real domain later).
-- [ ] **Bring it up.** `docker compose -f compose.server.yaml up -d postgres
-      migrate api`. Not the whole file — `web` and `caddy` are the old Expo
-      site and are not needed. Watch `migrate` finish:
-      `docker compose -f compose.server.yaml logs migrate` should end with the
-      migrations applied and exit 0. If it fails, **the API will not start**,
-      by design; fix the migration and re-run `up`.
+- [ ] **Pull the image, then bring it up.** `deploy-api.yml` builds
+      `deploy/Dockerfile.api` for arm64 and pushes it to GHCR on every `ci`
+      success on `main`, so the server never has to build it — building on
+      the host is the OOM risk the swap step above exists for. Log in once
+      (`echo "$GHCR_TOKEN" | docker login ghcr.io -u thedhunga
+      --password-stdin`, a classic PAT with `read:packages`; skip this if the
+      `merohealth-api` package is public), then
+      `docker compose -f compose.server.yaml pull api migrate && docker
+      compose -f compose.server.yaml up -d postgres migrate api`. Not the
+      whole file — `web` and `caddy` are the old Expo site and are not
+      needed. Watch `migrate` finish: `docker compose -f compose.server.yaml
+      logs migrate` should end with the migrations applied and exit 0. If it
+      fails, **the API will not start**, by design; fix the migration and
+      re-run `up`.
 - [ ] **Smoke test on the box.** `curl -s http://127.0.0.1:4000/v1/health`
       must return 200. `curl -s http://127.0.0.1:4000/docs` should serve the
       OpenAPI page.
@@ -52,15 +60,23 @@ can do; none of it can be automated from CI safely.
 
 ### Updating later
 
+Every push to `main` that passes `ci` publishes a fresh
+`ghcr.io/thedhunga/merohealth-api:latest` (see `.github/workflows/deploy-api.yml`).
+The server only ever pulls it — it never builds the image itself:
+
 ```bash
-cd /opt/mero-health && git pull && \
-docker compose -f compose.server.yaml build api && \
+echo "$GHCR_TOKEN" | docker login ghcr.io -u thedhunga --password-stdin
+docker compose -f compose.server.yaml pull api migrate
 docker compose -f compose.server.yaml up -d migrate api
 ```
 
-`migrate` re-runs and is a no-op when nothing is pending. If a future release
-adds a migration that fails, `api` stays on the previous container until it
-is fixed — that is the point of keeping them separate.
+`git pull` first if `compose.server.yaml` or `.env.server.example` changed;
+routine API updates don't need it. `migrate` re-runs and is a no-op when
+nothing is pending. If a future release adds a migration that fails, `api`
+stays on the previous image until it is fixed — that is the point of keeping
+them separate. `docker compose ... build api` still works if you ever need
+to build locally instead (e.g. testing an unmerged change), but that is the
+slow, OOM-prone path the GHCR image exists to avoid.
 
 ### If something is wrong
 
@@ -69,7 +85,7 @@ is fixed — that is the point of keeping them separate.
 | `api` never becomes healthy | `docker compose logs migrate` first — a failed migration blocks it on purpose |
 | Sign-in works on the box but not from the website | `ALLOWED_ORIGINS` missing the Vercel origin, or the API not on HTTPS |
 | `/v1/health` 200 but records routes 503 | Postgres unreachable; `docker compose ps postgres` |
-| Build OOMs | swap step skipped |
+| Build OOMs | swap step skipped, or you ran `build` instead of `pull` — the server should never build the arm64 image itself |
 
 ---
 
