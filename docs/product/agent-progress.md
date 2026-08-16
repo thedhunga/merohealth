@@ -1346,6 +1346,80 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-16 — **Round three, task B1 continued: cut `Footer`'s two
+  untouched sub-blocks — the duplicate locale switcher and the single-column
+  nav-link accordion.** Still left unchecked — real progress, target still
+  not met.
+
+  **Selection.** Re-derived the first unchecked task from the raw checkbox
+  list (`grep -n "^- \["` over the whole queue), per the standing
+  2026-08-09 process-correction rule. Literal first unchecked item is still
+  the two missing testimonial portraits (`portrait-raju.webp`,
+  `portrait-mina.webp`); confirmed via `ls apps/web/public/imagery/` that
+  only `portrait-sabina.webp`/`portrait-prakash.webp` exist, and `ToolSearch`
+  again found no Higgsfield tool in this session — the same block ~11 prior
+  runs have hit. Not re-logged as its own entry since nothing changed. Moved
+  to B1, next in order, and picked up where the 2026-08-15 `CtaBand` entry's
+  "for the next run" note left off: `Footer`'s brand column (222.75px) and
+  bottom row (316px) were the two sub-blocks nobody had touched yet.
+
+  **What changed.** Two independent cuts to `Footer.tsx`. First, the brand
+  column's `<LocaleSwitcher tone="light" />` is now `hidden sm:block` — below
+  `sm` it duplicated the switcher `MobileNav` already puts in the hamburger
+  drawer (reachable from every route at any width, not just a scroll away on
+  the homepage), so it was pure height with no lost function. Second, the
+  five-column nav-link accordion's mobile wrapper went from `flex flex-col`
+  to `grid grid-cols-2 gap-x-6` — the closed `<details>` headings now sit two
+  to a row instead of stacked, roughly halving that block's height. Verified
+  by opening one accordion at 375px: the expanding panel just grows its own
+  grid row and leaves the neighbour cell short, it doesn't misalign or
+  overlap anything (screenshot-checked in both locales, closed and with one
+  panel open). `sm` and up are unchanged in both cases, matching every prior
+  B1 pass's convention of only touching the breakpoint under measurement.
+
+  **Measured at 375×812** (`document.body.scrollHeight` / `window.innerHeight`,
+  production build via `next start`, Playwright at
+  `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`): Nepali **6.04 → 5.78
+  screens** (4901px → 4695px, **-206px**). English **6.49 → 6.24 screens**
+  (5271px → 5065px, **-206px**). `Footer` itself: 1027.75px → 821.75px (ne),
+  1070px → 864px (en) — a clean -206px in both locales, confirming the two
+  cuts are locale-size-independent (no copy changed). Target is still four to
+  five screens (3248–4060px); today's 4695px (ne) / 5065px (en) still needs
+  roughly 635–1447px / 1005–1817px more. Tap targets at 375px: unchanged —
+  no interactive element was resized, only two blocks were hidden/regrouped;
+  the accordion summaries stay at their existing `min-h-11`.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks (686 `apps/api` tests
+  alone); `pnpm build` 40/40. No new test file — `Footer.tsx` has no
+  colocated test today and this change adds no branching logic, matching
+  every other markup-only component in `apps/web`. Checked the production
+  build at 375px in both locales (closed and with one accordion panel open)
+  plus `/en/contact` (a non-homepage `Footer` consumer): no horizontal
+  overflow, no new console errors beyond the already-documented `apps/api`
+  connection-refused (no local API running).
+
+  **For the next run.** Section-by-section breakdown of the homepage at
+  375px (ne) is otherwise unchanged from the 2026-08-15 entry:
+  `SymptomEntry` 778px, `Hero`/record-story 969px, `ServiceCards` 774.5px,
+  `OrganizationTabs` 0px (hidden below `lg`), `Testimonials` 873px, `CtaBand`
+  398px, `Footer` now 821.75px (was the largest block, still is). Every named
+  sub-block across `Hero`, `Testimonials`, `ServiceCards`, `CtaBand` and now
+  `Footer`'s two easy wins has had a pass. What's left in `Footer`: the
+  bottom row (316px — download-app buttons, social icons, demo notice,
+  copyright) is the one sub-block nobody has cut yet, though it's mostly
+  already-tight content rather than an obvious collapse target. Beyond that,
+  reaching four to five screens from here needs either a genuine content cut
+  (dropping or deferring a whole section, which task B1's own text says not
+  to do — "cut, do not reorder" was about not reordering, but no remaining
+  section is purely decorative) or accepting the target may not be reachable
+  through spacing/collapsing alone. Worth a fresh look at whether B1's
+  four-to-five-screen target itself needs revisiting with the owner before
+  sinking further runs into sub-100px trims. B3 (`/app` 404 in production)
+  and the "no database has ever been run" gap (queue section C) are both
+  still open and untouched by any of these B1 passes — either is a
+  reasonable next task if a future run judges B1 exhausted.
+
 - 2026-08-15 — **Round three, task B1 continued: gave the shared `CtaBand`
   (the closing call-to-action every route can end on, including the
   homepage's `FinalCta`) a mobile spacing tier.** Still left unchecked — real

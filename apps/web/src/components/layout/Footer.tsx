@@ -45,7 +45,15 @@ export function Footer() {
               <p className="text-sm text-indigo-200">{t('addressPlaceholder')}</p>
             </div>
 
-            <LocaleSwitcher tone="light" />
+            {/*
+              Below `sm`, this duplicates the switcher `MobileNav` already puts
+              in the hamburger drawer, reachable from every route via the
+              header at any width — pure added height on the homepage with no
+              lost function, so it's hidden below `sm` and unchanged above it.
+            */}
+            <div className="hidden sm:block">
+              <LocaleSwitcher tone="light" />
+            </div>
           </div>
 
           <div className="lg:col-span-9">
@@ -56,10 +64,15 @@ export function Footer() {
               service cards. A native <details> accordion per column (same
               pattern as FaqList: no JS, expanded state is free accessibility
               via the browser) collapses that to five one-line headings.
-              `sm` and up keep the original always-open grid unchanged —
-              there's no mobile measurement motivating a change there.
+              Two columns of closed headings (345px for five stacked in one
+              column, per the 2026-08-16 measurement) roughly halve that
+              again — an opened panel just grows its own grid row, which
+              leaves its neighbour cell short rather than misaligning
+              anything. `sm` and up keep the original always-open grid
+              unchanged — there's no mobile measurement motivating a change
+              there.
             */}
-            <div className="flex flex-col sm:hidden">
+            <div className="grid grid-cols-2 gap-x-6 sm:hidden">
               {footerColumns.map((column) => (
                 <details className="group border-b border-white/15 py-3" key={column.headingKey}>
                   <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 text-xs font-bold tracking-[0.12em] text-white uppercase [&::-webkit-details-marker]:hidden">
