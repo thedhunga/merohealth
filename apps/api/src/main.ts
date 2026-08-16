@@ -1,11 +1,16 @@
 import 'reflect-metadata';
-import { NestFactory } from '@nestjs/core';
+import { HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
+import { DatabaseUnavailableFilter } from './prisma/database-unavailable.filter.js';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.setGlobalPrefix('v1');
+  // A dead database must read as a 503 outage on every data route, never as a
+  // bare 500 that looks like a bug in the route. See the filter for the
+  // fault-isolation reasoning.
+  app.useGlobalFilters(new DatabaseUnavailableFilter(app.get(HttpAdapterHost).httpAdapter));
   const allowedOrigins = (process.env['ALLOWED_ORIGINS'] ?? '')
     .split(',')
     .map((origin) => origin.trim())

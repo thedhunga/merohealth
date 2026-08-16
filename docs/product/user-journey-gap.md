@@ -1,0 +1,74 @@
+# What a person wants from this, and what they can actually do today
+
+> Written from the user's chair, then checked against production. Kept short
+> on purpose: it is a gap list, not a vision. Re-run the "today" column after
+> each round — the point is to watch it fill in.
+
+## The person
+
+Sabina, 34, Lalitpur, smartphone, reads Nepali comfortably but not medical
+English. Her mother has high blood pressure and lives two hours away. She
+opens the site at 11pm because her mother sounded unwell on the phone.
+
+## What she wants, in the order she wants it
+
+| # | She wants to… | Today (production) | Why not |
+|---|---|---|---|
+| 1 | Type or say "आमालाई टाउको दुख्यो र चक्कर आयो" and get an answer in Nepali | ✅ voice + text work; answer **blocked** | `GEMINI_API_KEY` not reaching the runtime — see probe |
+| 2 | Be stopped, clearly, if it sounds like an emergency | ✅ | deterministic, runs before any model |
+| 3 | Have the answer read aloud to her mother over the phone | ✅ where the phone has a Nepali voice | — |
+| 4 | Come back tomorrow and have it remember | ✅ on this device | anonymous history, localStorage |
+| 5 | Be asked one useful thing, not a form | ✅ | profile prompts as reactions |
+| 6 | Save it properly — sign in with phone or Google | ❌ **fails silently** | web calls `http://localhost:4000` — **the API is not deployed** |
+| 7 | Add her mother as a person she asks for | ❌ same | `packages/family` exists, unreachable |
+| 8 | Photograph her mother's BP report and have it read | ❌ same | records module exists, unreachable |
+| 9 | See her mother's BP over the last three months | ❌ same | `buildAnalyteTrend` exists, no data path |
+| 10 | Talk to a doctor tonight, pay, get a prescription | ❌ | teleconsultation/billing/prescribing exist as packages; no patient flow, no payment provider |
+| 11 | Find a clinic near her mother that is open now | ⚠️ | `care-directory` searches fictional demo data |
+| 12 | Trust that what she typed stays private | ✅ | never leaves the phone until sign-in; corpus is opt-in |
+
+## The shape of the gap
+
+Rows 6–10 are **one gap, not five**. Every one of them is domain code that is
+written, tested, and unreachable, because there is no server for the web to
+talk to. Deploying `apps/api` with a real database turns four ❌ into ✅ in one
+move and makes row 10 buildable.
+
+That is the whole priority. Nothing else on this list is worth building until
+the API is live, because it would be one more thing pointing at localhost.
+
+## Failure isolation — the standing rule for everything below
+
+Each capability is its own module behind its own port, and **each declares
+what happens when it is down**:
+
+| Module | If it fails, the person sees… | Never… |
+|---|---|---|
+| Research (Gemini/Perplexity) | "answer briefly unavailable, ask again shortly" | a blank, a crash, an off-site link |
+| Auth / API | the anonymous flow, exactly as before | a login wall, a lost question |
+| Anonymous history | the answer still shows | a lost answer |
+| Speech | the mic and Listen buttons vanish | a dead button |
+| Family / delegation | her own record still opens | a locked own-record |
+| Records / trends | the assistant answers from search, says "no records" | a fabricated number |
+| Payments (future) | "payment unavailable, here is how to reach a clinic" | a charge with no consultation |
+| Care directory | "directory unavailable" | fictional clinics presented as real |
+
+The test that keeps this true is the same one every clinical module already
+ships with: force it `DOWN`, assert the rest still works.
+
+## Order of work
+
+1. **Deploy `apps/api` + Postgres.** Everything else waits on this.
+2. Point `NEXT_PUBLIC_API_URL` at it. Rows 6–9 light up.
+3. Migrate anonymous history on sign-in (client half is done; server endpoint
+   is not).
+4. Google sign-in (queued, needs the owner's OAuth client id).
+5. Photograph a report → record → trend, end to end for one analyte.
+6. Care directory on real data, or clearly labelled as demonstration in the UI.
+7. Pay-and-consult, once a payment provider is chosen. This is the largest
+   remaining piece and the first with real money in it.
+
+## Log
+
+- 2026-08-16 — Written after finding that every authenticated web call
+  targets `localhost:4000` in production. The API has never been deployed.

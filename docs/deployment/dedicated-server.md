@@ -1,5 +1,80 @@
 # Dedicated server deployment
 
+> **Start here: the API-only runbook.** The section below gets `apps/api`
+> and Postgres live on `94.130.110.253` so the website on Vercel has something
+> to talk to. It deliberately does **not** touch the website — that stays on
+> Vercel — and it does not touch Apache's existing sites. Everything after
+> this section is the older, broader plan and background.
+
+## API-only runbook — owner steps
+
+Tick these in order. Each is something only a person with the server login
+can do; none of it can be automated from CI safely.
+
+- [ ] **Swap.** The host has 7.5 GiB and no swap. Building the ARM64 image on
+      it can OOM. Add 4 GB: `fallocate -l 4G /swapfile && chmod 600 /swapfile
+      && mkswap /swapfile && swapon /swapfile`, then add it to `/etc/fstab`.
+- [ ] **Docker.** Not installed. `curl -fsSL https://get.docker.com | sh`,
+      then `usermod -aG docker mero-deploy`. Compose v2 ships with it.
+- [ ] **Code.** `git clone https://github.com/thedhunga/merohealth
+      /opt/mero-health && cd /opt/mero-health`.
+- [ ] **Secrets.** `cp .env.server.example .env.server && chmod 600
+      .env.server`, then edit it. Three values matter:
+      `POSTGRES_PASSWORD` (long and random — `openssl rand -base64 32`),
+      `GEMINI_API_KEY` (same key as Vercel), and `ALLOWED_ORIGINS`
+      (`https://merohealth-beta.vercel.app`, comma-add the real domain later).
+- [ ] **Bring it up.** `docker compose -f compose.server.yaml up -d postgres
+      migrate api`. Not the whole file — `web` and `caddy` are the old Expo
+      site and are not needed. Watch `migrate` finish:
+      `docker compose -f compose.server.yaml logs migrate` should end with the
+      migrations applied and exit 0. If it fails, **the API will not start**,
+      by design; fix the migration and re-run `up`.
+- [ ] **Smoke test on the box.** `curl -s http://127.0.0.1:4000/v1/health`
+      must return 200. `curl -s http://127.0.0.1:4000/docs` should serve the
+      OpenAPI page.
+- [ ] **HTTPS via Apache.** The API is bound to loopback only. Add a vhost
+      for `api.<your-domain>` that proxies to `http://127.0.0.1:4000` with
+      `ProxyPreserveHost On` and `RequestHeader set X-Forwarded-Proto https`,
+      then `certbot --apache -d api.<your-domain>`. `deploy/apache-mero-health.conf`
+      is a starting point. **HTTPS is not optional**: the session cookie is
+      `SameSite=None; Secure` and browsers drop it over plain HTTP, so every
+      sign-in would silently fail.
+- [ ] **DNS.** `api.<your-domain>` → `94.130.110.253` (A record). Wait for
+      it to resolve before the certbot step.
+- [ ] **Smoke test from outside.** `curl -s https://api.<your-domain>/v1/health`
+      → 200. `curl -sI -X OPTIONS https://api.<your-domain>/v1/auth/me -H
+      "Origin: https://merohealth-beta.vercel.app"` should return
+      `Access-Control-Allow-Origin: https://merohealth-beta.vercel.app`.
+- [ ] **Point the website at it.** Vercel → merohealth → Settings →
+      Environment Variables → `NEXT_PUBLIC_API_URL` =
+      `https://api.<your-domain>` (no trailing slash) → Production →
+      redeploy. Sign-in, register, account and family light up.
+
+### Updating later
+
+```bash
+cd /opt/mero-health && git pull && \
+docker compose -f compose.server.yaml build api && \
+docker compose -f compose.server.yaml up -d migrate api
+```
+
+`migrate` re-runs and is a no-op when nothing is pending. If a future release
+adds a migration that fails, `api` stays on the previous container until it
+is fixed — that is the point of keeping them separate.
+
+### If something is wrong
+
+| Symptom | Look at |
+|---|---|
+| `api` never becomes healthy | `docker compose logs migrate` first — a failed migration blocks it on purpose |
+| Sign-in works on the box but not from the website | `ALLOWED_ORIGINS` missing the Vercel origin, or the API not on HTTPS |
+| `/v1/health` 200 but records routes 503 | Postgres unreachable; `docker compose ps postgres` |
+| Build OOMs | swap step skipped |
+
+---
+
+## Background and broader plan (older notes)
+
 Future target: `94.130.110.253`. Initial administrative login is `root`, but routine deployment should use a separate `mero-deploy` account after key access is proven.
 
 ## Credential handling

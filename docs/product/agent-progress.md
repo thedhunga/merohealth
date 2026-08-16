@@ -116,6 +116,85 @@ read that before the first task.
 
 ## Task queue
 
+# Round four — make the API real, then the journey
+
+**Read `docs/product/user-journey-gap.md` first.** It is the reason this
+round exists: every authenticated call from the live site targets
+`http://localhost:4000`. Sign-in, register, account, family, records — all of
+it is written and tested and unreachable. Nothing else is worth building until
+that is fixed, because it would be one more thing pointing at localhost.
+
+Standing rule for every task below, and it is not optional: **each module
+declares what the person sees when it is down, and ships a test that forces it
+DOWN and asserts the rest still works.** The table in `user-journey-gap.md`
+lists the required degradations. A module without its outage test is not done.
+
+### E · Deploy the API — the blocker
+
+- [x] `compose.server.yaml` has **no Postgres service** and the API uses real
+      Prisma in production, so it would boot against nothing. Add a
+      `postgres:18-alpine` service with a named volume, `DATABASE_URL` in
+      `.env.server.example`, and a `migrate` one-shot service that runs
+      `prisma migrate deploy` before `api` starts (`depends_on` with
+      `service_completed_successfully`). Do **not** run migrations from the
+      API's own startup — a failed migration must not crash-loop the API.
+- [x] `apps/api` boot must survive a **missing or unreachable database**: the
+      health endpoint answers, the OpenAPI docs serve, and every route that
+      needs the DB returns a clear 503 with a stable error code rather than
+      the process dying. Test it: start with `DATABASE_URL` pointing at a
+      closed port, hit `/v1/health` and one records route.
+- [x] CORS and cookies — already correct on inspection, nothing to build:
+      `main.ts` reads `ALLOWED_ORIGINS` (comma-separated) and
+      `sessionCookieOptions()` is `SameSite=None; Secure` whenever
+      `NODE_ENV=production`. The runbook must say `ALLOWED_ORIGINS` needs the
+      Vercel origin and the API must be HTTPS-only, or browsers silently drop
+      the cookie.
+- [ ] A GitHub Actions workflow that builds `deploy/Dockerfile.api` and pushes
+      to GHCR on every push to `main`. The owner will pull it on the server;
+      do not attempt to SSH from CI. Document the three server commands in
+      `docs/deployment/dedicated-server.md`.
+- [ ] `docs/deployment/dedicated-server.md`: an honest, ordered runbook for
+      the owner — DNS `api.<domain>` → server, `.env.server` with the real
+      values, `docker compose -f compose.server.yaml up -d`, migrate, smoke
+      test with `curl /v1/health`. Then in Vercel set
+      `NEXT_PUBLIC_API_URL=https://api.<domain>` and redeploy. Every step
+      the owner has to do by hand goes in a checkbox list at the top.
+
+### F · The journey, once the API is reachable
+
+- [ ] Anonymous-history migration, server half: `POST /v1/history/migrate`
+      accepting `snapshotForMigration()`'s shape, idempotent on
+      `anonymousId`, attaching exchanges and profile to the signed-in
+      subject. Client calls it after `verifyOtp` (and later Google) succeeds,
+      and only then calls `clearAfterMigration()`. Test the failure path: a
+      500 from the server must leave localStorage intact.
+- [ ] Anonymous profile → real profile: `askingFor`, `ageBand`, `conditions`
+      land on the subject as `PATIENT_REPORTED` twin facts with the same
+      confirmation semantics `digital-twin` already uses. Nothing is asserted
+      without the person confirming it — a chip tap on the homepage is a
+      hint, not a clinical fact.
+- [ ] Sign in with Google (section D, already specified). Blocked on the
+      owner's OAuth client id — if it is not set, do the next task instead.
+- [ ] Photograph → record → trend, end to end for **one analyte** (blood
+      pressure, since the cuff loop and the hypertension page already exist).
+      Capture on `/account`, extraction to a DRAFT observation, the
+      confirmation card, then a `buildAnalyteTrend` chart on the same page.
+      Use the `dataviz` skill for the chart. Only CONFIRMED points render.
+      Outage test: extraction service DOWN → the photo is stored, the person
+      is told extraction will follow, nothing is lost.
+- [ ] Care directory honesty: every result rendered from `isFictionalDemo`
+      data must carry a visible "demonstration" label in both locales. Real
+      data is a partnership question, not a code task; do not fabricate it.
+
+### G · Pay and consult — do not start until E and F are done
+
+- [ ] Choose and document a payment provider that actually operates in
+      Nepal (eSewa, Khalti, ConnectIPS). This is a decision for the owner;
+      write the comparison in `docs/architecture/payments.md` and stop. Do
+      not integrate a provider the owner has not chosen, and never store
+      card or wallet credentials.
+
+
 # Round three — reconcile, then finish what the owner actually asked for
 
 Take these in order. Task A blocked everything: `main` and
@@ -1396,6 +1475,29 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round four opened; API deployment made possible.** Found
+  that every authenticated web call targets `http://localhost:4000` in
+  production — `apps/api` has never been deployed, so sign-in, account,
+  family and records are all built and all unreachable. Wrote
+  `docs/product/user-journey-gap.md` from the user's chair; rows 6–10 are one
+  gap. Added Postgres and a one-shot `migrate` service to
+  `compose.server.yaml` (API depends on migrate completing; a failed
+  migration blocks the API instead of crash-looping it; DB on loopback only).
+  Rewrote `.env.server.example`. Prepended an owner runbook to
+  `docs/deployment/dedicated-server.md` — swap, Docker, secrets, `up`,
+  smoke test, Apache HTTPS proxy, `NEXT_PUBLIC_API_URL`. Added
+  `DatabaseUnavailableFilter` in `apps/api` so a dead DB returns
+  `503 DATABASE_UNAVAILABLE` + `Retry-After` on every data route rather than
+  a bare 500 (6 tests; extends Nest's `BaseExceptionFilter` so everything
+  else is untouched). CORS/cookies were already correct on inspection.
+  **Known, pre-existing:** 12 API tests fail locally with
+  `TypeError: Right-hand side of 'instanceof'` — two `@nestjs/common` copies
+  after reinstall; identical on clean `origin/main`; not a code bug.
+  **Owner-blocked:** `GEMINI_API_KEY` not visible to the Vercel runtime
+  (probe shows none) — env-var scoping in the dashboard; and the API runbook
+  needs a person with the server login. `docs/product/HANDOFF.md` written so
+  the project can be resumed cold.
 
 - 2026-08-16 — **Round three, task D (Google sign-in), first checkbox:
   `packages/auth`'s `verifyGoogleIdToken`.** Done — checked off.
