@@ -155,6 +155,12 @@ model User {
   id             String         @id @default(uuid()) @db.Uuid
   email          String?        @unique
   phone          String?        @unique
+  // Round three D2 — a user may have phone, googleSub, or both. Nullable and
+  // independent of `phone`: the two identity providers are alternative doors
+  // into the same session machinery, never linked by matching email to
+  // phone. Linking an existing phone account to Google is a later explicit
+  // action from a signed-in session, not something this column implies.
+  googleSub      String?        @unique
   role           UserRole
   locale         String         @default("ne")
   // Round two D9 — reachable only via `IdentityController.approve`'s call

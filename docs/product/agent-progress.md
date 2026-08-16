@@ -271,7 +271,8 @@ set, the Google button must not render, and the API route must return
       and returns `{ sub, email, emailVerified, name, picture }`. Reject
       unverified emails. Test with a fixture JWKS; never call the network in
       tests. **Done 2026-08-16 — see the log entry below.**
-- [ ] Prisma: add nullable `googleSub String? @unique` on `User`; migration.
+- [x] Prisma: add nullable `googleSub String? @unique` on `User`; migration.
+      **Done 2026-08-16 — see the log entry below.**
       A user may have phone, googleSub, or both — linking is by explicit
       action from a signed-in session, never by matching email to phone.
 - [ ] `apps/api` `POST /auth/google/verify`: body `{ idToken, intent, locale,
@@ -1475,6 +1476,79 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round three, task D2 (Google sign-in): `User.googleSub`
+  column and migration.** Done — checked off.
+
+  **Selection.** `grep -n "^- \[ \]"` over the whole queue per the 2026-08-09
+  standing rule. First two hits are the Higgsfield-blocked portraits (line
+  136 — `ToolSearch` again found no image-generation tool this session, the
+  same block ~18 prior runs have hit, not re-logged as its own entry) and B1
+  homepage height (line 157, still open per the 2026-08-16 entries below
+  concluding its non-destructive cuts are exhausted without owner input on
+  what content to drop; not revisited this run). D2 was next, exactly the
+  item the immediately preceding entry (`verifyGoogleIdToken`) named as "the
+  remaining five D checkboxes build on this in order," starting with the
+  Prisma migration.
+
+  **What was built.** `packages/database/prisma/schema.prisma`'s `User`
+  model gained `googleSub String? @unique`, nullable and independent of
+  `phone` per the task's own wording — a user may have phone, googleSub, or
+  both, and linking an existing phone account to Google is a later explicit
+  action from a signed-in session, never inferred from a matching email.
+  New migration `20260816000000_add_user_google_sub`
+  (`ALTER TABLE ... ADD COLUMN "googleSub" TEXT` + `CREATE UNIQUE INDEX`),
+  hand-written to match the exact SQL Prisma already generated for the
+  sibling `email`/`phone` unique columns in the init migration, since no
+  live database exists in a fresh session to run `prisma migrate dev`
+  against. Deliberately scope-limited to schema + migration only, matching
+  the task's own text: `AuthStore`/`AuthUserRecord`/`PrismaAuthStore` and the
+  `/auth/google/verify` route that will actually read/write this column are
+  the next two D checkboxes, not this one.
+
+  **Verify — this run also stood up the database the schema change needed
+  to be checked against, not just typechecked.** This container starts with
+  no Postgres role or database (confirmed via `pg_lsclusters` showing the
+  cluster `down` and `sudo -u postgres psql -l` showing only the three
+  default databases) — a fresh instance of the same one-time setup the
+  2026-08-16 C2 entry below first documented, not persistent across
+  sessions. Recreated it identically (`service postgresql start`, then the
+  `swasthya`/`swasthya` role and database via `sudo -u postgres psql`) so
+  the stock `DATABASE_URL` needed no override, then ran `prisma migrate
+  deploy`: all 8 migrations including the new one applied cleanly with no
+  errors. `prisma migrate diff --from-config-datasource --to-schema
+  prisma/schema.prisma --script` came back an empty script — the schema and
+  the applied migration agree exactly. `tsx prisma/seed.ts` against the
+  freshly migrated database also completed with zero errors (14 tables
+  seeded), confirming the new nullable column doesn't disturb the existing
+  seed data, which sets no `googleSub` for any of the four demonstration
+  users — correct, since none of them signed in with Google.
+  `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40; `pnpm typecheck`
+  40/40 (`@swasthya/database`'s own `typecheck` script runs `prisma
+  generate` first, so the regenerated client's types were exercised, not
+  stale ones); `pnpm test` 75/75 tasks, 687 tests in `apps/api` alone,
+  unchanged from before this change since nothing yet reads the new column;
+  `pnpm build` 40/40. No user-visible copy changed, so no `messages/*.json`
+  edits. No web UI touched, so no 375px screen-height measurement applies to
+  this run.
+
+  **For the next run — this selection was made under the old queue and a
+  concurrent run has since changed it.** This task was picked and the work
+  below was fully done and verified before `git push` hit a 403/non-fast-
+  forward: `origin/main` had moved ahead by one commit in the meantime (see
+  the "Round four opened" entry immediately below, pushed from a different
+  concurrent session), which prepends a whole new, higher-priority **Round
+  four** to the task queue and explicitly folds Google sign-in into it as
+  Round four §F ("Sign in with Google (section D, already specified).
+  Blocked on the owner's OAuth client id — if it is not set, do the next
+  task instead."). This column/migration is still genuinely correct and
+  useful work regardless of which round claims it. But **do not resume at
+  D3 next** — re-`grep -n "^- \[ \]"` the merged queue from scratch. At
+  merge time that literal first hit is Round four §E's GitHub Actions
+  workflow item (build `deploy/Dockerfile.api`, push to GHCR, document the
+  three server commands in `docs/deployment/dedicated-server.md`), not D3.
+  D3 (`POST /auth/google/verify`) is still the right next step *within* the
+  Google thread whenever that thread is picked up again.
 
 - 2026-08-16 — **Round four opened; API deployment made possible.** Found
   that every authenticated web call targets `http://localhost:4000` in
