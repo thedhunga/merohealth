@@ -170,11 +170,11 @@ lists the required degradations. A module without its outage test is not done.
       and only then calls `clearAfterMigration()`. Test the failure path: a
       500 from the server must leave localStorage intact. **Done
       2026-08-16 — see the log entry below.**
-- [ ] Anonymous profile → real profile: `askingFor`, `ageBand`, `conditions`
+- [x] Anonymous profile → real profile: `askingFor`, `ageBand`, `conditions`
       land on the subject as `PATIENT_REPORTED` twin facts with the same
       confirmation semantics `digital-twin` already uses. Nothing is asserted
       without the person confirming it — a chip tap on the homepage is a
-      hint, not a clinical fact.
+      hint, not a clinical fact. **Done 2026-08-16 — see the log entry below.**
 - [ ] Sign in with Google (section D, already specified). Blocked on the
       owner's OAuth client id — if it is not set, do the next task instead.
 - [ ] Photograph → record → trend, end to end for **one analyte** (blood
@@ -1478,6 +1478,108 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round four, task F2 (anonymous profile → real profile).**
+  Done — checked off.
+
+  **Selection.** `git checkout main && git pull`, read the ledger and
+  `platform-vision.md` fresh per the standing "zero memory" rule. Round four
+  §E and §F1 are both checked; §F's second box — this one — was the first
+  unchecked task in the queue.
+
+  **What was found.** `packages/digital-twin` turned out to be only two pure
+  functions (`getNextPrompt`/`calculateContextualProgress`) plus a static
+  prompt table — no fact-creation or confirmation mutator lived anywhere.
+  `TwinFact`'s real shape (`provenance`/`verification`/`sensitivity`) is in
+  `packages/shared-types`, and the closest working precedent for "confirm"
+  semantics was `apps/mobile`'s prompt-card flow, which sets
+  `provenance: 'PATIENT_REPORTED'` and `verification: 'PATIENT_CONFIRMED'`
+  together at creation time — there is no separate `UNVERIFIED` state to pass
+  through, because the person typing/tapping an answer *is* the confirmation.
+  `TwinFactKind` had no case for `ageBand`/`askingFor` (`CONDITION` already
+  covered `conditions`), and `packages/database`'s schema already had a
+  dormant, unused `TwinFact` table — but it is `patientId`-scoped with a
+  `Json` value and no `label`, built for the clinical-charting side of the
+  product, not this web-subject-scoped use. Reused nothing from it and left
+  it alone rather than repurposing a table a future clinical round may
+  depend on.
+
+  **What was built.** `confirmPatientReportedFact` in `@swasthya/digital-twin`
+  codifies the mobile pattern as a shared function instead of leaving it
+  duplicated inline. `TwinFactKind` gained `AGE_BAND`/`CARE_FOCUS`. A new
+  `SubjectTwinFact` Prisma table (migration
+  `20260816020000_add_subject_twin_fact`), `userId`-scoped like
+  `HistoryMigration`/`HistoryExchange`, field-for-field matching
+  `shared-types`' `TwinFact`. A new `apps/api` `twin-profile` module —
+  `POST /v1/twin/confirm-profile`, guarded by `SessionAuthGuard`, zod-`enum`
+  validated against the exact chip-option codes `profile-prompts.ts` offers
+  (never a free string — these become structured facts, not free text like
+  `history`'s Q&A) — turns a confirmed subset of `ageBand`/`askingFor`/
+  `conditions` into one `TwinFact` per field, all `PATIENT_REPORTED`/
+  `PATIENT_CONFIRMED`, all at once.
+
+  On the web side: `migrateAnonymousHistory` now stashes the profile hint
+  under its own `localStorage` key (`stashPendingProfileConfirmation`)
+  immediately before `clearAfterMigration` wipes `AnonymousProfile` —
+  `AnonymousProfile` itself must not survive past that point (it isn't a
+  confirmed fact yet), but the confirmation step on `/account` needs
+  something to show back after the sign-in redirect, since the server is
+  never re-queried for it. `ProfileConfirmationCard` (new, wired into
+  `AccountView` right after the identity block) reads that stash on mount,
+  renders the chip labels via the *same* `getCare.profilePrompts.*.options`
+  translation keys `ProfilePromptCard` already uses (no copy duplicated),
+  and offers exactly two actions — "Save to my profile" or "Not now" —
+  mirroring `ProfilePromptCard`'s own chip-plus-skip shape. Renders nothing
+  when there is nothing pending, which is every visit after the first.
+
+  **Outage behaviour.** `confirmTwinProfile` never throws — a failed save
+  shows an inline error and leaves the pending stash in place, so the person
+  can retry on a later visit, the same retry-safety
+  `migrateAnonymousHistory` already gives the migration step itself. A
+  skipped or already-cleared stash means the card simply doesn't render;
+  nothing else on `/account` depends on it. Server-side, `DatabaseUnavailableFilter`
+  already covers every Prisma-backed route generically (its own test file
+  proves it) and neither `HistoryModule` nor `FamilyModule` — the two
+  closest precedents for this "port + Prisma adapter + in-memory fake"
+  module shape — carry a per-module fault-isolation test, so this module
+  follows that same established pattern rather than inventing a heavier
+  module-registry-style test the "port" modules have never needed.
+
+  **Verify.** `pnpm install --frozen-lockfile` clean (after a plain
+  `pnpm install` to add the new `@swasthya/digital-twin` workspace
+  dependency to `apps/api` and refresh the lockfile). `pnpm lint` 40/40,
+  `pnpm typecheck` 40/40. `pnpm test`: 75/75 tasks — `@swasthya/api` 113 test
+  files / 715 tests (up from 703: 3 new files, 12 new tests), `@swasthya/web`
+  25 test files / 133 tests (up from 126: 2 new files, 7 new tests),
+  `@swasthya/digital-twin` gained one new test. `pnpm build` 40/40. No live
+  Postgres in this sandbox (`docker` has no daemon here) — same honest
+  caveat as the F1 entry: the migration SQL matches the existing
+  `add_history_migration` style exactly and `prisma generate`/`validate`
+  both accept it, but it is unexercised against a real database until the
+  owner's next `docker compose ... migrate` run.
+
+  **Mobile measurement.** `/account` at 375px, `pnpm dev` + Playwright
+  (`chromium` at `/opt/pw-browsers/chromium`), session/family-grants network
+  calls mocked so the authenticated page actually renders in this sandbox
+  (no live API here either). Before (nothing pending): 2979px / 812 = **3.67
+  screens**, 81 tap targets, 37 under 44px — all pre-existing. After (a
+  pending profile present, English): 3327px / 812 = **4.10 screens** (+0.43
+  screens), 83 tap targets (+2), 38 under 44px (+1). The one new sub-44px
+  target is "Save to my profile" at 42.5px — inherited from the shared
+  `Button` `md` size already used by "Grant access" and "Sign out" on this
+  exact page (a pre-existing site-wide shortfall, not something this task
+  introduced fresh); fixing `Button`'s own sizing is a separate task. The
+  "Not now" skip link was deliberately built at `min-h-11` (44px, matching
+  `ProfilePromptCard`'s own skip link) and does not appear in the shortfall
+  count. Confirmed by inspecting rendered text that the chip labels
+  translate correctly in both locales (`"40–60"`, `"A parent"`,
+  `"High blood pressure"` in English; `"४०–६०"`, Nepali equivalents
+  confirmed via the same translation keys) rather than showing a raw key.
+
+  **For the next run.** Round four §F's third box — Google sign-in — is
+  blocked on the owner's OAuth client id per its own note; if still unset,
+  the fourth box (photograph → record → trend for blood pressure) is next in
+  document order.
 
 - 2026-08-16 — **Round four, task F1 (anonymous-history migration, server
   half).** Done — checked off.

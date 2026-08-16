@@ -83,6 +83,9 @@ importers:
       '@swasthya/diagnostics-orders':
         specifier: workspace:*
         version: link:../../packages/diagnostics-orders
+      '@swasthya/digital-twin':
+        specifier: workspace:*
+        version: link:../../packages/digital-twin
       '@swasthya/engagement':
         specifier: workspace:*
         version: link:../../packages/engagement

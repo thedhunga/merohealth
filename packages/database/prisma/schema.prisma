@@ -419,6 +419,32 @@ model TwinFact {
   version        Int      @default(1)
 }
 
+// Round four F2 — a person's own confirmed self-report (age range, who
+// they usually ask for, chronic conditions) lands here only once they
+// explicitly confirm it on `/account`, never at the anonymous chip-tap
+// moment. Deliberately a separate table from `TwinFact` above rather than a
+// repurposing of it: that model is `patientId`-scoped for the
+// clinical-charting side of the product and stores `value` as `Json`; this
+// one is `userId`-scoped to the authenticated web subject (matching
+// `HistoryMigration`/`HistoryExchange`'s own `userId` convention) and its
+// columns mirror `@swasthya/shared-types`'s `TwinFact` interface
+// field-for-field.
+model SubjectTwinFact {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  kind         String
+  label        String
+  value        String
+  provenance   String
+  verification String
+  sensitivity  String
+  recordedAt   DateTime @default(now())
+  version      Int      @default(1)
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
 model TwinFactRevision {
   id              String   @id @default(uuid()) @db.Uuid
   twinFactId      String   @db.Uuid

@@ -25,6 +25,7 @@ import { RecordsModule } from './records/records.module.js';
 import { ReferralsModule } from './referrals/referrals.module.js';
 import { SchedulingModule } from './scheduling/scheduling.module.js';
 import { TeleconsultationModule } from './teleconsultation/teleconsultation.module.js';
+import { TwinProfileModule } from './twin-profile/twin-profile.module.js';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { TeleconsultationModule } from './teleconsultation/teleconsultation.modu
     FamilyModule,
     IdentityModule,
     HistoryModule,
+    TwinProfileModule,
   ],
   controllers: [HealthController, CompanionController, DirectoryController],
   providers: [PerplexityHealthService],

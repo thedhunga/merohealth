@@ -11,7 +11,10 @@ export interface SafetyAssessment {
 }
 export type TwinFactKind =
   | 'BLOOD_GROUP' | 'ALLERGY' | 'MEDICATION' | 'CONDITION'
-  | 'EMERGENCY_CONTACT' | 'PREGNANCY_STATUS' | 'ACCESSIBILITY' | 'HEALTH_GOAL';
+  | 'EMERGENCY_CONTACT' | 'PREGNANCY_STATUS' | 'ACCESSIBILITY' | 'HEALTH_GOAL'
+  // Round four F2 — the two anonymous-profile hints that aren't already a
+  // clinical fact kind. `CONDITION` above covers `conditions`.
+  | 'AGE_BAND' | 'CARE_FOCUS';
 export interface TwinFact {
   id: string;
   kind: TwinFactKind;

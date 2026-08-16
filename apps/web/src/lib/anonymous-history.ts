@@ -22,6 +22,7 @@
 
 export const ANON_HISTORY_KEY = 'mero-health:anon-history';
 export const ANON_ID_KEY = 'mero-health:anon-id';
+export const PENDING_PROFILE_KEY = 'mero-health:pending-profile-confirmation';
 
 /** Enough to be useful, small enough to migrate in one request. */
 const MAX_ENTRIES = 40;
@@ -138,6 +139,64 @@ export function clearAfterMigration(): void {
   try {
     window.localStorage.removeItem(ANON_HISTORY_KEY);
     window.localStorage.removeItem(ANON_ID_KEY);
+  } catch {
+    // Nothing to do; a stale copy on the device is the safe failure.
+  }
+}
+
+/**
+ * What `stashPendingProfileConfirmation` carries across the sign-in redirect
+ * — deliberately just the three confirmable fields, not the whole
+ * `AnonymousProfile`. `| undefined` on every field, not just `?:` — this is
+ * built from a destructured `AnonymousProfile`, whose own optional fields
+ * carry `| undefined` in their static type, matching
+ * `AnonymousProfileSnapshot`'s own reasoning in `apps/api`'s
+ * `history-store.ts` under `exactOptionalPropertyTypes`.
+ */
+export interface PendingProfileConfirmation {
+  ageBand?: string | undefined;
+  conditions?: string[] | undefined;
+  askingFor?: string | undefined;
+}
+
+/**
+ * Round four F2. `clearAfterMigration` below wipes `AnonymousProfile`
+ * entirely once the raw hint is safely stored server-side
+ * (`HistoryMigration.profileSnapshot`) — that data is not yet a `TwinFact`,
+ * and the person hasn't confirmed anything yet, so it must not survive as
+ * `AnonymousProfile` past that point. This is a deliberate, separate copy
+ * under its own key, written by `migrateAnonymousHistory` right before it
+ * clears, so `/account`'s confirmation card has something to show back after
+ * the redirect. A no-op when there is nothing worth confirming, so the key
+ * is never created empty.
+ */
+export function stashPendingProfileConfirmation(profile: AnonymousProfile): void {
+  const { ageBand, conditions, askingFor } = profile;
+  if (!ageBand && !askingFor && (!conditions || conditions.length === 0)) return;
+  try {
+    const pending: PendingProfileConfirmation = { ageBand, conditions, askingFor };
+    window.localStorage.setItem(PENDING_PROFILE_KEY, JSON.stringify(pending));
+  } catch {
+    // Quota or private mode: the confirmation step just has nothing to show
+    // — the same degradation `write()` already accepts elsewhere, and no
+    // worse than the hint never having been offered.
+  }
+}
+
+export function readPendingProfileConfirmation(): PendingProfileConfirmation | null {
+  try {
+    const raw = window.localStorage.getItem(PENDING_PROFILE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as PendingProfileConfirmation;
+  } catch {
+    return null;
+  }
+}
+
+/** Called once the person has explicitly confirmed or skipped — either way, the hint has been acted on and must not be offered again on the next visit to `/account`. */
+export function clearPendingProfileConfirmation(): void {
+  try {
+    window.localStorage.removeItem(PENDING_PROFILE_KEY);
   } catch {
     // Nothing to do; a stale copy on the device is the safe failure.
   }

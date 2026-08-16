@@ -26,6 +26,7 @@
     "@swasthya/credentialing": "workspace:*",
     "@swasthya/database": "workspace:*",
     "@swasthya/diagnostics-orders": "workspace:*",
+    "@swasthya/digital-twin": "workspace:*",
     "@swasthya/engagement": "workspace:*",
     "@swasthya/entitlements": "workspace:*",
     "@swasthya/family": "workspace:*",

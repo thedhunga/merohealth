@@ -7,6 +7,7 @@ import { RecordTransform } from '@/components/art/RecordTransform';
 import { DelegationForm } from '@/components/account/DelegationForm';
 import { DelegationsGrantedList } from '@/components/account/DelegationsGrantedList';
 import { IdentityVerification } from '@/components/account/IdentityVerification';
+import { ProfileConfirmationCard } from '@/components/account/ProfileConfirmationCard';
 import { ProfileSwitcher } from '@/components/account/ProfileSwitcher';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { PageTemplate } from '@/components/ui/PageTemplate';
@@ -109,6 +110,8 @@ export function AccountView() {
               {t(`identity.assurance.${user.assuranceLevel}`)}
             </p>
           </div>
+
+          <ProfileConfirmationCard />
 
           {user.assuranceLevel === 'IDENTITY_VERIFIED' ? null : <IdentityVerification />}
 

@@ -1391,6 +1391,13 @@
         "IDENTITY_VERIFIED": "Identity verified"
       }
     },
+    "profileConfirmation": {
+      "heading": "Save what you told us?",
+      "body": "Before you signed in, you shared a few things. Save them to your profile, or skip — nothing is kept unless you say so.",
+      "saveCta": "Save to my profile",
+      "skipCta": "Not now",
+      "error": "Could not save just now — you can try again next time you visit."
+    },
     "identityVerification": {
       "heading": "Verify your identity",
       "body": "Sharing your record with a provider and video consultations both require your identity to be checked once — separate from the phone verification you already have, and only asked for when a feature actually needs it.",

@@ -11,7 +11,7 @@
  * client is "try once, and only clear local state on success."
  */
 
-import { clearAfterMigration, snapshotForMigration } from './anonymous-history';
+import { clearAfterMigration, snapshotForMigration, stashPendingProfileConfirmation } from './anonymous-history';
 
 export interface HistoryApiErrorBody {
   code?: string;
@@ -56,6 +56,12 @@ export async function migrateAnonymousHistory(): Promise<void> {
       body: JSON.stringify(snapshot),
     });
     if (!response.ok) return;
+    // Round four F2: the raw hint just landed server-side
+    // (`HistoryMigration.profileSnapshot`) but is not yet a confirmed
+    // `TwinFact` — stash it under its own key before the line below wipes
+    // `AnonymousProfile`, so `/account` has something to offer back for an
+    // explicit confirm.
+    stashPendingProfileConfirmation(snapshot.store.profile);
     clearAfterMigration();
   } catch {
     // Network failure: leave localStorage in place, exactly like a 500 —
