@@ -415,7 +415,7 @@ export function RegisterView() {
               ) : null}
 
               {application.status === 'APPROVED' ? (
-                <p className="rounded-xl bg-jade-50 p-4 text-sm font-semibold text-forest-700" role="status">
+                <p className="rounded-xl bg-indigo-100 p-4 text-sm font-semibold text-success-700" role="status">
                   {t('status.approved')}
                 </p>
               ) : null}

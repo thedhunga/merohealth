@@ -119,10 +119,10 @@ export function AccountView() {
             onRevoked={refreshFamilyGrants}
           />
 
-          <div className="flex flex-col gap-4 rounded-2xl bg-forest-800 p-8 text-white md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-4 rounded-2xl bg-indigo-900 p-8 text-white md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="text-xl font-bold">{t('openApp.heading')}</h2>
-              <p className="mt-1 text-jade-100">{t('openApp.body')}</p>
+              <p className="mt-1 text-indigo-100">{t('openApp.body')}</p>
             </div>
             <ButtonLink external href="/app" variant="accent">
               {t('openApp.cta')}

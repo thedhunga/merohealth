@@ -184,8 +184,10 @@ longer the integration point.
       in-memory fakes. Bring up `compose.yaml`, migrate, seed, and fix what
       only a real database reveals. **Done 2026-08-16 — see the log entry
       below.**
-- [ ] `GET /auth/me` is real and tested in `apps/api`, and nothing on the web
-      ever calls it. Add the session hook and a protected landing.
+- [x] `GET /auth/me` is real and tested in `apps/api`, and nothing on the web
+      ever calls it. Add the session hook and a protected landing. **Done —
+      turned out to already be built (Round two §D2); see the log entry
+      below for the verification and the real bug it turned up.**
 - [ ] Launch gate in `docs/product/promotion-readiness.md`: what must be true
       before `robots` stops saying noindex. Copy reviewed by a qualified Nepali
       clinician, no fictional figures left anywhere, a real registered address.
@@ -1348,6 +1350,106 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-16 — **Round three, task C3: `GET /auth/me` web wiring — found
+  already built, verification turned up a real dead-CSS-class regression
+  from the palette rebrand and fixed it.** Done — checked off.
+
+  **Selection.** `grep -n "^- \[ \]"` over the whole queue per the 2026-08-09
+  standing rule. Literal first unchecked item is still the two missing
+  testimonial portraits; `ToolSearch("higgsfield image generation")` again
+  found no tool in this session, the same block ~17 prior runs have hit — not
+  re-logged as its own entry, per that established precedent. C3 was next.
+
+  **What the task turned out to be.** Read `useSession()` before writing
+  anything and it already does exactly what C3 asks: a client hook that
+  polls `GET /auth/me`, redirects an anonymous visitor to `/signin?next=...`,
+  and backs a real protected landing at `/account`
+  (`apps/web/src/components/account/AccountView.tsx`). Traced it back to
+  Round two's own log — task D2 (2026-08-10) built this exact hook, the
+  `getCurrentUser()`/`logout()` calls in `auth-api.ts`, and the `/account`
+  page, and D2's own checkbox is still `[x]` further up this file's Round two
+  §D section (worded almost identically: "a session hook that calls the
+  already-built `GET /auth/me`... a protected landing page"). Round three's
+  queue is a duplicate copy of an older draft written before D2 landed —
+  visible from Task A's own log entry describing the branch/`main` merge that
+  built this "Round three" list. Confirmed by reading the code directly
+  rather than trusting either log entry on its own: `useSession.ts`,
+  `auth-api.ts`, `AccountView.tsx`, and `apps/web/src/app/[locale]/account/
+  page.tsx` are all real, wired together, and match the D2 entry's own
+  description of what it built and deliberately left out (no header
+  sign-out button, no test file for the hook — an explicit, still-current
+  convention: `apps/web` has zero component-render tests anywhere, so adding
+  one just for this hook would be introducing a testing pattern
+  (`@testing-library/react` + jsdom) that doesn't exist anywhere in this
+  monorepo today, for a gap the repo's own precedent says isn't one).
+
+  **What verification found instead.** Reading `AccountView.tsx` closely
+  turned up a live bug: its "open the app" CTA panel used `bg-forest-800`
+  and `text-jade-100` — Tailwind classes from the pre-rebrand green palette
+  (`forest`/`jade`) that the 2026-08-08 visual-identity rebuild replaced with
+  `indigo`/`marigold` tokens. `grep` for `--color-forest\|--color-jade` in
+  `apps/web/src/styles/globals.css` returns nothing — those tokens don't
+  exist anymore, so Tailwind v4 generates no CSS rule for either class and
+  they render as plain unstyled text on a transparent background in
+  production. Grepped the whole `apps/web/src` tree for the same dead
+  classes and found four more call sites, all missed by the same rebrand:
+  `EvidenceCapture.tsx` (the upload-photo pill), `IdentityVerification.tsx`
+  (two status badges), `DelegationForm.tsx` (a success message), and
+  `RegisterView.tsx` (an approved-application badge). Same root cause, same
+  fix, one task — not scope creep.
+
+  **The fix, and why these particular replacements.** Not a blind
+  find-and-replace: split by what each element actually represents.
+  `RegisterView.tsx` already has a live precedent for a real "complete"
+  badge a few lines above the broken one (`bg-indigo-100 text-success-700`,
+  line 219, for a finished registration step) — reused that exact pairing
+  for every genuine success/approved state (`IdentityVerification`'s
+  `APPROVED` badge, `DelegationForm`'s success message, `RegisterView`'s own
+  approved badge), since `success-600/700` is this codebase's one green and
+  the art-direction rules say it must be reserved for verified/complete
+  states, never decorative use. `IdentityVerification`'s *pending* badge
+  ("Submitted — a reviewer will check this soon", not a completed state) got
+  a neutral `bg-indigo-100 text-indigo-800` instead — painting "still
+  waiting" the same green as "done" would have been a semantic misuse the
+  old jade/forest styling only got away with because forest was this app's
+  literal brand color before the rebrand, not because it meant success.
+  `EvidenceCapture`'s upload-file pill is an action trigger, not a status
+  badge, so it got the ordinary secondary-pill treatment already used
+  elsewhere (`bg-indigo-100`/`hover:bg-indigo-200`/`text-indigo-800`, e.g.
+  `ServiceCards.tsx`'s tag pills). `AccountView`'s CTA panel — a small,
+  deliberate dark block around one marigold-accent button, not a full-bleed
+  hero — became `bg-indigo-900 text-white` / `text-indigo-100`, exactly
+  matching `Section.tsx`'s existing `deep` tone and `SectionHeading`'s
+  dark-tone body-text color, so it now uses the same "one deliberate dark
+  moment" pattern already codified elsewhere rather than a bespoke color.
+  Confirmed no test anywhere asserts on the old class names
+  (`grep -rl "forest-\|jade-" **/*.test.tsx`, zero hits) and confirmed the
+  dead classes are gone repo-wide afterward (`apps/mobile` was clean too —
+  this palette drift never reached the Expo app).
+
+  **Verify.** `pnpm install --frozen-lockfile` clean; `pnpm lint` 40/40;
+  `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks; `pnpm build` 40/40. No
+  copy changed, only `className` values, so no `messages/*.json` edits
+  needed. This is a styling-only fix on an already-shipped page, not new UI,
+  so no fresh 375px screen-count measurement applies — nothing here changes
+  page height or tap-target size, only color on existing elements.
+
+  **For the next run.** C4 (the promotion-readiness launch gate) is next in
+  the Round three queue by position, but reading `promotion-readiness.md`
+  during this run showed its four named checklist items (clinician review,
+  substantiated claims, demonstration notice, registered address) were
+  already added by Round two's D3 (2026-08-10) — so C4 is very likely the
+  same kind of stale duplicate C3 turned out to be. Worth confirming by
+  reading D3's own log entry and the current doc side by side before
+  assuming there's real work left there, rather than repeating the
+  Round-three-is-a-stale-copy mistake a third time. If C4 also turns out
+  done, the queue has no real remaining unchecked work except the
+  Higgsfield-blocked portraits and B1 (homepage height, previously concluded
+  exhausted without owner input) — the next run should re-grep the whole
+  file for `- [ ]` before picking anything, and if genuinely empty, look for
+  the next highest-value improvement per the working agreement's fallback
+  rule rather than re-litigating either of those two.
 
 - 2026-08-16 — **Round three, task C2: brought up a real Postgres, ran
   migrate + seed against it, then booted the compiled `apps/api` end-to-end

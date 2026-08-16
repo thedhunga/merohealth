@@ -145,7 +145,7 @@ export function DelegationForm({ onCreated }: { onCreated: () => void }) {
           </p>
         ) : null}
         {created ? (
-          <p className="text-sm font-semibold text-forest-700" role="status">
+          <p className="text-sm font-semibold text-success-700" role="status">
             {t('success')}
           </p>
         ) : null}

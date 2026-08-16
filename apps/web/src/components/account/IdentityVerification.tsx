@@ -121,13 +121,13 @@ export function IdentityVerification() {
       </div>
 
       {request.status === 'EVIDENCE_SUBMITTED' || request.status === 'UNDER_REVIEW' ? (
-        <p className="rounded-xl bg-jade-50 p-4 text-sm font-semibold text-forest-700" role="status">
+        <p className="rounded-xl bg-indigo-100 p-4 text-sm font-semibold text-indigo-800" role="status">
           {t('status.pending')}
         </p>
       ) : null}
 
       {request.status === 'APPROVED' ? (
-        <p className="rounded-xl bg-jade-50 p-4 text-sm font-semibold text-forest-700" role="status">
+        <p className="rounded-xl bg-indigo-100 p-4 text-sm font-semibold text-success-700" role="status">
           {t('status.approved')}
         </p>
       ) : null}

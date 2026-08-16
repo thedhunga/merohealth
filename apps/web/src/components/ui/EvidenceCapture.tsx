@@ -53,7 +53,7 @@ export function EvidenceCapture({
         />
       ) : null}
       <label
-        className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-pill bg-jade-50 px-4 py-2 text-sm font-semibold text-forest-700 hover:bg-jade-100"
+        className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-pill bg-indigo-100 px-4 py-2 text-sm font-semibold text-indigo-800 hover:bg-indigo-200"
         htmlFor={id}
       >
         {captured ? changeLabel : chooseLabel}
