@@ -151,8 +151,12 @@ read that before the first task.
 
 ## K′. Duplex voice spike — gated on `GEMINI_LIVE_ENABLED=true` (owner turns on billing)
 
-- [ ] `app/api/voice/token/route.ts`: mints a Gemini **ephemeral token**
+- [x] `app/api/voice/token/route.ts`: mints a Gemini **ephemeral token**
       server-side; short TTL; returns nothing else. Never the API key.
+      **Done 2026-08-17 — see the log entry below. Route exists and is
+      wired to the real Gemini mint call, but reports itself 404 with the
+      flag off (owner has not turned on billing); the `/voice-lab` page
+      that would call it does not exist yet — next box.**
 - [ ] `/voice-lab` page (noindex, flag-gated): opens a Live session in
       Nepali with the *same* system instruction as the text path + Round
       five containment/advisory text; live transcript of both sides;
@@ -1718,6 +1722,89 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-17 — **Round six, task K′ (first box): the Gemini Live
+  ephemeral-token mint route, `/api/voice/token`.** Done. **K′'s first box
+  is now checked.** The next unchecked item in file order is K′'s second
+  box — the `/voice-lab` page itself.
+
+  **Housekeeping — same shape as every recent entry, seventh run in a row.**
+  Local `main` had diverged from `origin/main` (`git status` reported 76
+  commits only on the local side, 50 only on `origin/main` — this run's
+  divergence was two-sided rather than the "no common ancestor" shape prior
+  entries described, but the fix is the same): `git checkout -B main
+  origin/main` before reading anything, confirmed `git status` was clean
+  first so nothing local was being discarded. Flagging again, seventh time,
+  because it is still happening every run.
+
+  **What was built.** `apps/web/src/server/voice-token.ts`:
+  `mintVoiceToken(dependencies)` calls Gemini's `v1alpha/authTokens:create`
+  (the Live API's ephemeral-token surface — distinct from the `v1beta
+  interactions` endpoint the text research provider uses) with the key in
+  the `x-goog-api-key` header, never the URL or body. Requests a token
+  scoped to a single use, a 1-minute window to start a new session (so a
+  token that leaked into a log can't be reused later), and up to 30 minutes
+  once a session has actually started — the "short TTL" the box asks for.
+  Extracts a token from either `name` or `token` on Google's response
+  (defensive: this is a preview surface and the exact response shape is not
+  something this run could verify against the real API — see below) and
+  returns only `{ token, expiresAt }`; every other field of the upstream
+  response, and the API key itself, never leaves this function.
+  `apps/web/src/app/api/voice/token/route.ts` is a thin wrapper: 404 with
+  `GEMINI_LIVE_ENABLED` not the literal string `'true'` (feature reports as
+  not found, not as disabled, since the owner has not opted in), 503
+  `SETUP_REQUIRED` with the flag on but no `GEMINI_API_KEY`, 502
+  `UNAVAILABLE` on any mint failure (the real failure reason is
+  `console.error`'d server-side only — the client gets a generic message),
+  200 with the token on success. Added `GEMINI_LIVE_ENABLED` to
+  `apps/web/.env.example` with the same "owner sets this" framing as the
+  freemium price vars.
+
+  **What could not be verified — flag this for whoever does the K′ findings
+  box.** `GEMINI_LIVE_ENABLED` is unset in every environment this run has
+  access to (owner turns it on only after enabling Gemini billing), so the
+  actual mint call has never been exercised against Google's real API —
+  only against a mocked `fetch` asserting the request shape (key in the
+  header, `uses`/`newSessionExpireTime`/`expireTime` in the body) and a
+  defensive response parse. The `name`-or-`token` field guess and the exact
+  TTL semantics of `newSessionExpireTime` vs `expireTime` are my best
+  reading of Google's documented shape for this preview feature, not
+  something I could confirm live. The doc's own K′ section already expects
+  a "prove on the owner's real phone" step before this is trusted — that
+  step now additionally needs to confirm the mint call itself succeeds and
+  returns a token in the field this code expects, not just that the
+  `/voice-lab` page (next box) works end to end.
+
+  **Scope decision.** The box is one route; I did not build `/voice-lab`
+  (K′'s second box) or touch anything voice-related beyond this file pair,
+  matching the one-box-per-run pattern recent entries established. No
+  `messages/*.json` strings were needed — like the research route's own
+  error bodies, these are API-level codes/messages for a page that does not
+  exist yet, not rendered UI copy.
+
+  **Mobile measurement.** Not applicable — no page, component, or rendered
+  string changed; this is a server-only API route with no UI surface yet.
+
+  **Tests.** 8 new cases in `voice-token.test.ts` (setup-required with no
+  key and no network call; key sent only in the header, never the URL or
+  body; the exact TTL values against a fixed clock; success returns only
+  `{token, expiresAt}` even when the upstream response carries extra
+  fields; the `token`-field fallback; non-2xx → unavailable with the status
+  in the detail; unrecognised response shape → unavailable; network
+  rejection → unavailable, not a throw) and 5 in the route's own
+  `route.test.ts` (404 with the flag unset; 404 on any value other than the
+  literal `'true'`, e.g. `'yes'`; 503 setup-required; 200 with only the
+  token and expiry in the body, key confirmed absent from the response
+  text; 502 with the upstream detail confirmed absent from the response
+  text, and confirmed `console.error` was called so the detail is not just
+  dropped).
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint` (one
+  `no-unsafe-assignment` fix needed in the test file — cast the mocked
+  `fetch` body's `JSON.parse` result), `pnpm typecheck`, `pnpm test`
+  (`@swasthya/web`: 31 files / 232 tests; full monorepo: 114+ files, all
+  passing), `pnpm build` (confirmed `/api/voice/token` in the Next.js route
+  output) all green from a clean tree.
 
 - 2026-08-17 — **Round six, task L (fifth and last box): outage test for the
   freemium config.** Done. **Task L is now fully checked** — all five boxes
