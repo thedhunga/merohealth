@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ClipAlreadyResolvedError,
   CorpusConsentError,
   CURRENT_POLICY_VERSION,
+  DuplicateClipValidationError,
   MAX_VOICE_CLIP_DURATION_MS,
   MIN_VOICE_CLIP_DURATION_MS,
+  OwnClipValidationError,
   UtteranceNotAwaitingReviewError,
   VOICE_CONTRIBUTION_CONSENT_VERSION,
   ageBandOptions,
@@ -12,6 +15,7 @@ import {
   clearForTraining,
   corpusReviewQueue,
   deidentify,
+  deriveClipVerificationStatus,
   discardUtterance,
   eraseFromSnapshot,
   genderOptions,
@@ -23,17 +27,21 @@ import {
   isDuplicateVoiceClip,
   isLive,
   motherTongueOptions,
+  nextClipToValidate,
   optionalPurposes,
   purposeForUtteranceKind,
+  recordClipValidation,
   retainUtterance,
   revokeConsent,
   revokeCorpusConsent,
   utteranceIdsForOwner,
   validateVoiceClipDuration,
   versionForCorpusConsentKind,
+  type ClipValidation,
   type ConsentGrant,
   type CorpusConsentGrant,
   type CorpusUtterance,
+  type VoiceClip,
 } from './index';
 
 function grant(overrides: Partial<ConsentGrant> = {}): ConsentGrant {
@@ -502,5 +510,167 @@ describe('Voice Contribution self-report option lists', () => {
 
   it('offers a self-describe and a decline option alongside WOMAN/MAN', () => {
     expect(genderOptions).toEqual(['WOMAN', 'MAN', 'OTHER', 'PREFER_NOT_TO_SAY']);
+  });
+});
+
+function voiceClip(overrides: Partial<VoiceClip> = {}): VoiceClip {
+  return {
+    id: 'clip-1',
+    contributorId: 'contributor-1',
+    consentVersion: VOICE_CONTRIBUTION_CONSENT_VERSION,
+    taskId: 'free-speech-village',
+    taskKind: 'FREE_SPEECH',
+    selfReport: { district: 'Kathmandu', motherTongue: 'NEPALI', ageBand: '25_34', gender: null },
+    device: 'test-agent',
+    durationMs: 4_000,
+    capturedAt: '2026-08-01T00:00:00.000Z',
+    ref: { backend: 'HOSTED', externalId: 'obj-1', byteSize: 100, contentType: 'audio/webm', checksumSha256: 'abc' },
+    ...overrides,
+  };
+}
+
+function validation(overrides: Partial<ClipValidation> = {}): ClipValidation {
+  return {
+    id: 'validation-1',
+    clipId: 'clip-1',
+    validatorId: 'validator-1',
+    verdict: 'RIGHT',
+    validatedAt: '2026-08-02T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+describe('deriveClipVerificationStatus', () => {
+  it('is PENDING with no validations yet', () => {
+    expect(deriveClipVerificationStatus([])).toBe('PENDING');
+  });
+
+  it('is PENDING with a single RIGHT or WRONG vote — one vote is never decisive', () => {
+    expect(deriveClipVerificationStatus([validation({ verdict: 'RIGHT' })])).toBe('PENDING');
+    expect(deriveClipVerificationStatus([validation({ verdict: 'WRONG' })])).toBe('PENDING');
+  });
+
+  it('is VERIFIED once two validators agree RIGHT', () => {
+    const status = deriveClipVerificationStatus([
+      validation({ id: 'v1', validatorId: 'a', verdict: 'RIGHT' }),
+      validation({ id: 'v2', validatorId: 'b', verdict: 'RIGHT' }),
+    ]);
+    expect(status).toBe('VERIFIED');
+  });
+
+  it('is REJECTED once two validators agree WRONG', () => {
+    const status = deriveClipVerificationStatus([
+      validation({ id: 'v1', validatorId: 'a', verdict: 'WRONG' }),
+      validation({ id: 'v2', validatorId: 'b', verdict: 'WRONG' }),
+    ]);
+    expect(status).toBe('REJECTED');
+  });
+
+  it('stays PENDING on two agreeing UNCLEAR votes — needs a third listener, not a decision', () => {
+    const status = deriveClipVerificationStatus([
+      validation({ id: 'v1', validatorId: 'a', verdict: 'UNCLEAR' }),
+      validation({ id: 'v2', validatorId: 'b', verdict: 'UNCLEAR' }),
+    ]);
+    expect(status).toBe('PENDING');
+  });
+
+  it('stays PENDING when validators disagree, RIGHT vs WRONG', () => {
+    const status = deriveClipVerificationStatus([
+      validation({ id: 'v1', validatorId: 'a', verdict: 'RIGHT' }),
+      validation({ id: 'v2', validatorId: 'b', verdict: 'WRONG' }),
+    ]);
+    expect(status).toBe('PENDING');
+  });
+});
+
+describe('recordClipValidation', () => {
+  it('records a validation from someone other than the clip owner', () => {
+    const clip = voiceClip({ contributorId: 'contributor-1' });
+    const result = recordClipValidation(clip, [], {
+      id: 'v1',
+      clipId: clip.id,
+      validatorId: 'validator-1',
+      verdict: 'RIGHT',
+      validatedAt: '2026-08-02T00:00:00.000Z',
+    });
+    expect(result).toMatchObject({ clipId: 'clip-1', validatorId: 'validator-1', verdict: 'RIGHT' });
+  });
+
+  it('refuses a contributor validating their own clip', () => {
+    const clip = voiceClip({ contributorId: 'same-person' });
+    expect(() =>
+      recordClipValidation(clip, [], {
+        id: 'v1',
+        clipId: clip.id,
+        validatorId: 'same-person',
+        verdict: 'RIGHT',
+        validatedAt: '2026-08-02T00:00:00.000Z',
+      }),
+    ).toThrow(OwnClipValidationError);
+  });
+
+  it('refuses the same validator voting on a clip twice', () => {
+    const clip = voiceClip();
+    const existing = [validation({ id: 'v1', validatorId: 'validator-1', verdict: 'RIGHT' })];
+    expect(() =>
+      recordClipValidation(clip, existing, {
+        id: 'v2',
+        clipId: clip.id,
+        validatorId: 'validator-1',
+        verdict: 'WRONG',
+        validatedAt: '2026-08-03T00:00:00.000Z',
+      }),
+    ).toThrow(DuplicateClipValidationError);
+  });
+
+  it('refuses a vote on a clip already resolved', () => {
+    const clip = voiceClip();
+    const existing = [
+      validation({ id: 'v1', validatorId: 'a', verdict: 'RIGHT' }),
+      validation({ id: 'v2', validatorId: 'b', verdict: 'RIGHT' }),
+    ];
+    expect(() =>
+      recordClipValidation(clip, existing, {
+        id: 'v3',
+        clipId: clip.id,
+        validatorId: 'c',
+        verdict: 'RIGHT',
+        validatedAt: '2026-08-04T00:00:00.000Z',
+      }),
+    ).toThrow(ClipAlreadyResolvedError);
+  });
+});
+
+describe('nextClipToValidate', () => {
+  it('offers the oldest still-pending clip that is not the validator\'s own', () => {
+    const clips = [
+      voiceClip({ id: 'newer', contributorId: 'someone-else', capturedAt: '2026-08-05T00:00:00.000Z' }),
+      voiceClip({ id: 'older', contributorId: 'someone-else', capturedAt: '2026-08-01T00:00:00.000Z' }),
+    ];
+    const next = nextClipToValidate(clips, new Map(), 'validator-1');
+    expect(next?.id).toBe('older');
+  });
+
+  it('never offers the validator their own clip', () => {
+    const clips = [voiceClip({ id: 'mine', contributorId: 'validator-1' })];
+    expect(nextClipToValidate(clips, new Map(), 'validator-1')).toBeNull();
+  });
+
+  it('skips a clip already resolved', () => {
+    const clips = [voiceClip({ id: 'resolved', contributorId: 'someone-else' })];
+    const validationsByClip = new Map([
+      ['resolved', [validation({ id: 'v1', validatorId: 'a', verdict: 'RIGHT' }), validation({ id: 'v2', validatorId: 'b', verdict: 'RIGHT' })]],
+    ]);
+    expect(nextClipToValidate(clips, validationsByClip, 'validator-1')).toBeNull();
+  });
+
+  it('skips a clip the validator has already voted on', () => {
+    const clips = [voiceClip({ id: 'seen', contributorId: 'someone-else' })];
+    const validationsByClip = new Map([['seen', [validation({ id: 'v1', validatorId: 'validator-1', verdict: 'RIGHT' })]]]);
+    expect(nextClipToValidate(clips, validationsByClip, 'validator-1')).toBeNull();
+  });
+
+  it('returns null when nothing is eligible', () => {
+    expect(nextClipToValidate([], new Map(), 'validator-1')).toBeNull();
   });
 });

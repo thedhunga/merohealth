@@ -1,6 +1,17 @@
-import type { CorpusConsentGrant, CorpusUtterance, VoiceClip } from '@swasthya/language-corpus';
+import type { ClipValidation, CorpusConsentGrant, CorpusUtterance, VoiceClip } from '@swasthya/language-corpus';
 import { describe, expect, it } from 'vitest';
 import { LanguageCorpusRepository } from './language-corpus.repository.js';
+
+function makeClipValidation(overrides: Partial<ClipValidation> = {}): ClipValidation {
+  return {
+    id: 'validation-1',
+    clipId: 'clip-1',
+    validatorId: 'validator-1',
+    verdict: 'RIGHT',
+    validatedAt: '2026-08-17T00:00:00.000Z',
+    ...overrides,
+  };
+}
 
 function makeConsentGrant(overrides: Partial<CorpusConsentGrant> = {}): CorpusConsentGrant {
   return {
@@ -140,5 +151,42 @@ describe('LanguageCorpusRepository', () => {
 
     expect(repository.voiceClipsByContributor('owner-1')).toHaveLength(1);
     expect(repository.voiceClipsByContributor('owner-1')[0]?.durationMs).toBe(5_000);
+  });
+
+  it('finds a voice clip by id, regardless of contributor', () => {
+    const repository = new LanguageCorpusRepository();
+    repository.saveVoiceClip(makeVoiceClip({ id: 'clip-1' }));
+
+    expect(repository.findVoiceClip('clip-1')?.id).toBe('clip-1');
+    expect(repository.findVoiceClip('missing')).toBeNull();
+  });
+
+  it('lists every voice clip across all contributors', () => {
+    const repository = new LanguageCorpusRepository();
+    repository.saveVoiceClip(makeVoiceClip({ id: 'clip-1', contributorId: 'owner-1' }));
+    repository.saveVoiceClip(makeVoiceClip({ id: 'clip-2', contributorId: 'owner-2' }));
+
+    expect(repository.listVoiceClips().map((clip) => clip.id).toSorted()).toEqual(['clip-1', 'clip-2']);
+  });
+
+  it('scopes clipValidationsFor to the requested clip', () => {
+    const repository = new LanguageCorpusRepository();
+    repository.saveClipValidation(makeClipValidation({ id: 'v1', clipId: 'clip-1' }));
+    repository.saveClipValidation(makeClipValidation({ id: 'v2', clipId: 'clip-2' }));
+
+    expect(repository.clipValidationsFor('clip-1').map((validation) => validation.id)).toEqual(['v1']);
+    expect(repository.clipValidationsFor('missing')).toEqual([]);
+  });
+
+  it('groups every clip validation by clip', () => {
+    const repository = new LanguageCorpusRepository();
+    repository.saveClipValidation(makeClipValidation({ id: 'v1', clipId: 'clip-1', validatorId: 'a' }));
+    repository.saveClipValidation(makeClipValidation({ id: 'v2', clipId: 'clip-1', validatorId: 'b' }));
+    repository.saveClipValidation(makeClipValidation({ id: 'v3', clipId: 'clip-2', validatorId: 'a' }));
+
+    const byClip = repository.clipValidationsByClip();
+
+    expect(byClip.get('clip-1')?.map((validation) => validation.id).toSorted()).toEqual(['v1', 'v2']);
+    expect(byClip.get('clip-2')?.map((validation) => validation.id)).toEqual(['v3']);
   });
 });

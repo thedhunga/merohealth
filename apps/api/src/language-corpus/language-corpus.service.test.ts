@@ -276,3 +276,104 @@ describe('LanguageCorpusService submitVoiceClip', () => {
     expect(secondContributorClip.id).toBe('clip-2');
   });
 });
+
+describe('LanguageCorpusService clip validation', () => {
+  async function buildServiceWithOneClip() {
+    const service = buildService();
+    service.grantConsent('owner-1', 'VOICE_CONTRIBUTION');
+    const clip = await service.submitVoiceClip(validClip);
+    return { service, clip };
+  }
+
+  it('offers the clip to a different validator', async () => {
+    const { service, clip } = await buildServiceWithOneClip();
+    expect(service.nextClipForValidation('validator-1')?.id).toBe(clip.id);
+  });
+
+  it('never offers a contributor their own clip', async () => {
+    const { service } = await buildServiceWithOneClip();
+    expect(service.nextClipForValidation('owner-1')).toBeNull();
+  });
+
+  it('reports null when nothing is eligible', () => {
+    const service = buildService();
+    expect(service.nextClipForValidation('validator-1')).toBeNull();
+  });
+
+  it('returns the clip audio to a different validator', async () => {
+    const { service, clip } = await buildServiceWithOneClip();
+    const blob = await service.clipAudio(clip.id, 'validator-1');
+    expect(Buffer.from(blob.bytes).toString()).toBe('clip bytes');
+  });
+
+  it('refuses to hand a contributor their own clip audio', async () => {
+    const { service, clip } = await buildServiceWithOneClip();
+    await expect(service.clipAudio(clip.id, 'owner-1')).rejects.toThrow(ForbiddenException);
+  });
+
+  it('404s clip audio for an unknown clip', async () => {
+    const service = buildService();
+    await expect(service.clipAudio('missing', 'validator-1')).rejects.toThrow(NotFoundException);
+  });
+
+  it('records a validation and reports PENDING before a second vote agrees', async () => {
+    const { service, clip } = await buildServiceWithOneClip();
+
+    const { validation, status } = service.validateClip(clip.id, 'validator-1', 'RIGHT');
+
+    expect(validation).toMatchObject({ clipId: clip.id, validatorId: 'validator-1', verdict: 'RIGHT' });
+    expect(status).toBe('PENDING');
+  });
+
+  it('reports VERIFIED once two validators agree RIGHT', async () => {
+    const { service, clip } = await buildServiceWithOneClip();
+    service.validateClip(clip.id, 'validator-1', 'RIGHT');
+
+    const { status } = service.validateClip(clip.id, 'validator-2', 'RIGHT');
+
+    expect(status).toBe('VERIFIED');
+  });
+
+  it('refuses a contributor validating their own clip, as a 403 with a code', async () => {
+    const { service, clip } = await buildServiceWithOneClip();
+    try {
+      service.validateClip(clip.id, 'owner-1', 'RIGHT');
+      expect.unreachable('expected validateClip to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'OWN_CLIP_VALIDATION_FORBIDDEN' });
+    }
+  });
+
+  it('refuses the same validator voting twice, as a 400 with a code', async () => {
+    const { service, clip } = await buildServiceWithOneClip();
+    service.validateClip(clip.id, 'validator-1', 'RIGHT');
+
+    try {
+      service.validateClip(clip.id, 'validator-1', 'WRONG');
+      expect.unreachable('expected validateClip to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'CLIP_ALREADY_VALIDATED_BY_YOU' });
+    }
+  });
+
+  it('refuses a third vote on an already-resolved clip, as a 400 with a code', async () => {
+    const { service, clip } = await buildServiceWithOneClip();
+    service.validateClip(clip.id, 'validator-1', 'RIGHT');
+    service.validateClip(clip.id, 'validator-2', 'RIGHT');
+
+    try {
+      service.validateClip(clip.id, 'validator-3', 'RIGHT');
+      expect.unreachable('expected validateClip to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'CLIP_ALREADY_RESOLVED' });
+    }
+  });
+
+  it('404s validateClip for an unknown clip', () => {
+    const service = buildService();
+    expect(() => service.validateClip('missing', 'validator-1', 'RIGHT')).toThrow(NotFoundException);
+  });
+});

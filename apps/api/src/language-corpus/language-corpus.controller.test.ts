@@ -229,3 +229,50 @@ describe('LanguageCorpusController voice contribution clips', () => {
     await expect(controller.submitVoiceClip(owner1, { ...validClipBody, durationMs: 100 })).rejects.toThrow(BadRequestException);
   });
 });
+
+describe('LanguageCorpusController voice contribution validation', () => {
+  async function buildControllerWithOneClip() {
+    const controller = buildController();
+    controller.grantConsent(owner1, 'VOICE_CONTRIBUTION');
+    const clip = await controller.submitVoiceClip(owner1, validClipBody);
+    return { controller, clip };
+  }
+
+  it('offers the next clip to a different signed-in caller', async () => {
+    const { controller, clip } = await buildControllerWithOneClip();
+    expect(controller.nextForValidation(owner2)).toEqual({ clip });
+  });
+
+  it('never offers a contributor their own clip', async () => {
+    const { controller } = await buildControllerWithOneClip();
+    expect(controller.nextForValidation(owner1)).toEqual({ clip: null });
+  });
+
+  it('returns the clip audio, base64-encoded, to a different caller', async () => {
+    const { controller, clip } = await buildControllerWithOneClip();
+    const audio = await controller.clipAudio(owner2, clip.id);
+    expect(audio).toEqual({ contentType: 'audio/webm', bytesBase64: Buffer.from('clip bytes').toString('base64') });
+  });
+
+  it('refuses to hand a contributor their own clip audio', async () => {
+    const { controller, clip } = await buildControllerWithOneClip();
+    await expect(controller.clipAudio(owner1, clip.id)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('records a validation from a different caller', async () => {
+    const { controller, clip } = await buildControllerWithOneClip();
+    const { validation, status } = controller.validateClip(owner2, clip.id, { verdict: 'RIGHT' });
+    expect(validation).toMatchObject({ clipId: clip.id, validatorId: 'owner-2', verdict: 'RIGHT' });
+    expect(status).toBe('PENDING');
+  });
+
+  it('rejects a request with an invalid verdict', async () => {
+    const { controller, clip } = await buildControllerWithOneClip();
+    expect(() => controller.validateClip(owner2, clip.id, { verdict: 'MAYBE' })).toThrow(BadRequestException);
+  });
+
+  it('refuses a contributor validating their own clip, as a 403', async () => {
+    const { controller, clip } = await buildControllerWithOneClip();
+    expect(() => controller.validateClip(owner1, clip.id, { verdict: 'RIGHT' })).toThrow(ForbiddenException);
+  });
+});

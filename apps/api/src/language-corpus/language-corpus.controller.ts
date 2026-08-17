@@ -16,6 +16,7 @@ const motherTongueSchema = z.enum([
 ]);
 const ageBandSchema = z.enum(['13_17', '18_24', '25_34', '35_44', '45_59', '60_PLUS']);
 const genderSchema = z.enum(['WOMAN', 'MAN', 'OTHER', 'PREFER_NOT_TO_SAY']);
+const clipValidationVerdictSchema = z.enum(['RIGHT', 'WRONG', 'UNCLEAR']);
 
 // Same regex `SchedulingController`/`FamilyGrantsController` each carry their
 // own copy of, for the same "explicit over a library validator" reason
@@ -246,5 +247,47 @@ export class LanguageCorpusController {
       contributorId: user.subjectId,
       bytes: Buffer.from(bytesBase64, 'base64'),
     });
+  }
+
+  /**
+   * Round six §M's Validation flow box — "contributors validate others'
+   * clips". Self-service like the consent and submission routes above
+   * (`SessionAuthGuard` only, no `CorpusReviewerGuard`): judging a clip in
+   * the crowd queue is not the same trust boundary as reading de-identified
+   * health-conversation text, which is what `CorpusReviewerGuard` actually
+   * guards.
+   */
+  @Get('voice-contribution/validation/next')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: 'The next clip this caller is eligible to validate, or null when none remain' })
+  nextForValidation(@CurrentUser() user: CurrentUserResult) {
+    return { clip: this.corpus.nextClipForValidation(user.subjectId) };
+  }
+
+  /**
+   * Separate from `nextForValidation` so a clip's (potentially large) audio
+   * payload is only fetched once a validator is actually about to listen,
+   * not embedded in every `next` response — same "metadata now, bytes on
+   * demand" split `RecordsController`'s document endpoints already use.
+   * `bytesBase64` mirrors `submitVoiceClip`'s own request shape, mirrored
+   * back for the response.
+   */
+  @Get('voice-contribution/clips/:clipId/audio')
+  @UseGuards(SessionAuthGuard)
+  @ApiParam({ name: 'clipId' })
+  @ApiOperation({ summary: 'The clip audio, base64-encoded, for a validator to listen to before judging' })
+  async clipAudio(@CurrentUser() user: CurrentUserResult, @Param('clipId') clipId: string) {
+    const blob = await this.corpus.clipAudio(clipId, user.subjectId);
+    return { contentType: blob.contentType, bytesBase64: Buffer.from(blob.bytes).toString('base64') };
+  }
+
+  @Post('voice-contribution/clips/:clipId/validations')
+  @UseGuards(SessionAuthGuard)
+  @ApiParam({ name: 'clipId' })
+  @ApiOperation({ summary: "Records this caller's RIGHT/WRONG/UNCLEAR judgement of someone else's clip" })
+  @ApiBody({ schema: { type: 'object', required: ['verdict'], properties: { verdict: { enum: clipValidationVerdictSchema.options } } } })
+  validateClip(@CurrentUser() user: CurrentUserResult, @Param('clipId') clipId: string, @Body() body: unknown) {
+    const { verdict } = parseOrThrow(z.object({ verdict: clipValidationVerdictSchema }), body);
+    return this.corpus.validateClip(clipId, user.subjectId, verdict);
   }
 }

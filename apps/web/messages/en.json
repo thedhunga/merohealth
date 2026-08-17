@@ -1680,5 +1680,30 @@
       "heading": "Thank you",
       "body": "You've completed every task for now. Come back any time to contribute more."
     }
+  },
+  "voiceValidation": {
+    "loading": "Loading…",
+    "heading": "Help check Nepali recordings",
+    "intro": "Listen to a short recording someone else contributed, then say whether it's a clear, on-task recording. Two people agreeing decides it.",
+    "taskContext": {
+      "readPromptHeading": "They were asked to read this line aloud",
+      "freeSpeechHeading": "They were asked to answer this in their own words"
+    },
+    "verdict": {
+      "right": "Right",
+      "wrong": "Wrong",
+      "unclear": "Unclear",
+      "submitting": "Saving…"
+    },
+    "errors": {
+      "OWN_CLIP_VALIDATION_FORBIDDEN": "That was your own recording — skip to the next one.",
+      "CLIP_ALREADY_VALIDATED_BY_YOU": "You've already judged this one — skip to the next one.",
+      "CLIP_ALREADY_RESOLVED": "Someone else just finished judging this one — skip to the next one.",
+      "GENERIC": "Something went wrong — please try again."
+    },
+    "done": {
+      "heading": "Nothing left to check right now",
+      "body": "Come back later — new recordings arrive as people contribute."
+    }
   }
 }

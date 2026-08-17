@@ -187,8 +187,15 @@ read that before the first task.
       audio-similarity/transcript-PII gates are deferred, with reasoning, to
       the Validation flow and Release tooling boxes directly below.**
 - [ ] Reward: verified contributions → Plus minutes, through entitlements.
-- [ ] Validation flow: listen, mark right / wrong / unclear; two agreeing =
-      verified.
+      **Deferred past the Validation flow box below, out of file order —
+      see the 2026-08-17 log entry.** "Verified" has no meaning until
+      validation exists to produce it; the doc's own Build Order (§4)
+      places validation before any reward logic for the same reason. Now
+      unblocked: `deriveClipVerificationStatus` exists and
+      `LanguageCorpusRepository.clipValidationsByClip` can answer "how many
+      of this contributor's clips are VERIFIED" — take this box next.
+- [x] Validation flow: listen, mark right / wrong / unclear; two agreeing =
+      verified. **Done 2026-08-17 — see the log entry below.**
 - [ ] Release tooling: versioned export + datasheet; deletion honoured.
 - [ ] Owner decisions recorded before first release: licence; whether
       health-conversation audio (stream B) is offered at all in v1.
@@ -1731,6 +1738,141 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-17 — **Round six, task M (fifth box): the Validation flow —
+  crowd verification of Voice Contribution clips.** Done. **M's fifth box
+  is now checked.**
+
+  **Housekeeping first.** `git checkout main && git pull` hit the now-
+  familiar divergent-history failure again (see every recent entry): local
+  `main` was a stale, unrelated 76-commit ref with no merge-base against
+  `origin/main`'s real 50. `git status` was clean, so `git reset --hard
+  origin/main` (via `git checkout -B main origin/main`) and moved on.
+  Whatever seeds this container's local `main` before the first checkout is
+  still worth someone fixing at the infrastructure level — this is at least
+  the eleventh run to hit it.
+
+  **Selection.** Literal file order after M's third box (done last run) is
+  the fourth box, Reward. It does not hold up on inspection:
+  `docs/product/freemium-and-voice-corpus.md` §4 defines "verified" as the
+  *output* of crowd validation ("two agreeing validations = verified" —
+  this is what produces training-grade transcripts") and the doc's own
+  Build Order lists "Validation flow + verified-transcript pipeline" (step
+  3) strictly before any reward mechanics, which are folded into narrative
+  prose rather than given their own build-order step at all. Before this
+  run, `packages/language-corpus`'s `VoiceClip` had no verification concept
+  whatsoever — its own doc comment said as much, deliberately, to avoid
+  exactly the "field nothing populates" scaffolding this file's working
+  agreement warns against. Building Reward first would have meant inventing
+  a "verified" flag with nothing behind it. Took the fifth box, Validation
+  flow, instead — it is what makes Reward buildable at all — and left a note
+  on Reward's own line pointing here, matching the standing precedent this
+  file already sets for skipping K′'s permanently-blocked findings box.
+
+  **What was built — domain layer, `packages/language-corpus`.** Added
+  `ClipValidationVerdict` (`RIGHT | WRONG | UNCLEAR`), `ClipValidation`,
+  `ClipVerificationStatus` (`PENDING | VERIFIED | REJECTED`), and
+  `deriveClipVerificationStatus` — two agreeing `RIGHT` votes → `VERIFIED`,
+  two agreeing `WRONG` → `REJECTED` (symmetric with the doc's own rule, and
+  necessary: without it a bad recording sits `PENDING` forever, since
+  nothing else ever resolves it), two agreeing `UNCLEAR` stays `PENDING`
+  (needs a third listener, not a decision). `recordClipValidation` is the
+  one way a validation is created — refuses a contributor validating their
+  own clip (`OwnClipValidationError`), a second vote from the same
+  validator (`DuplicateClipValidationError`), or any vote once a clip is
+  already resolved (`ClipAlreadyResolvedError`) — and `nextClipToValidate`
+  picks the oldest still-`PENDING` clip a given validator is eligible for,
+  mirroring `corpusReviewQueue`'s own oldest-first convention. One
+  deliberate scope note, recorded inline: the doc's own record shape has a
+  validator judging *the transcript* against the audio, but there is still
+  no ASR step in this codebase (the doc's own Build Order places it before
+  validation, and nothing here builds it) — so today a validator judges the
+  recording itself against the task, not a transcript. Same
+  RIGHT/WRONG/UNCLEAR vocabulary either way, so an ASR-backed transcript can
+  slot in later without a migration. 15 new tests.
+
+  **What was built — `apps/api`.** `LanguageCorpusRepository` gained
+  `findVoiceClip`, `listVoiceClips`, `saveClipValidation`,
+  `clipValidationsFor`, and `clipValidationsByClip` (grouped in one pass,
+  so `nextClipForValidation` does not call `clipValidationsFor` once per
+  candidate clip). `LanguageCorpusService` gained `nextClipForValidation`
+  (no `VOICE_CONTRIBUTION`-consent check, unlike `submitVoiceClip` —
+  judging someone else's already-consented clip is not a new act of
+  contributing one's own voice), `clipAudio` (refuses a contributor their
+  own clip's bytes), and `validateClip` (maps the three domain errors to a
+  403/400 with a machine-readable `code`, the same
+  `#runTransition`-established shape the review-queue actions already use).
+  New routes on `LanguageCorpusController`, all `SessionAuthGuard`-only —
+  not `CorpusReviewerGuard`, which guards a different trust boundary (de-
+  identified health-conversation text, not a crowd-validation vote):
+  `GET voice-contribution/validation/next`, `GET
+  voice-contribution/clips/:clipId/audio` (bytes as base64 JSON, split from
+  `next` so a clip's audio is only fetched once a validator is actually
+  about to listen), `POST voice-contribution/clips/:clipId/validations`.
+  `validateClip` ended up synchronous, not `async` — nothing inside it
+  awaits anything, and `@typescript-eslint/require-await` caught that
+  during lint; removed the redundant `async`/`Promise` wrapper rather than
+  suppressing the rule. 23 new tests across repository/service/controller.
+
+  **What was built — `apps/web`.** `lib/voice-validation-api.ts`: three
+  thin client functions shaped after `voice-contribution-api.ts` — same
+  base-URL helper, same typed-error-with-`code` shape, `fetchClipAudio`
+  decoding `bytesBase64` back into a `Blob` for an `<audio>` element.
+  `components/voice-validation/VoiceValidationView.tsx`: session-gated via
+  `useSession` (redirects to `/signin?next=/validate`, same as
+  `/contribute`), no separate consent gate (see the service note above for
+  why), fetches the next clip and its audio on mount, renders task context
+  (read-prompt vs. free-speech, reusing `voiceContribution.tasks.*`'s own
+  labels) and an `<audio controls>` player, three vote buttons. All three
+  vote buttons use the `secondary` variant, not `accent` — the art
+  direction reserves marigold for "the single most important action on a
+  screen," and three co-equal judgements have no single most-important one
+  among them; noted inline so a future pass does not "fix" this into a
+  false hierarchy. A vote that races a resolution (`OWN_CLIP_VALIDATION_FORBIDDEN`
+  / `CLIP_ALREADY_VALIDATED_BY_YOU` / `CLIP_ALREADY_RESOLVED`) silently
+  advances to the next clip rather than showing an error — none of those
+  are the validator's mistake. `/validate` (new route, both locales,
+  `voiceValidation` in both `messages/*.json`): not registered in
+  `content/routes.ts`/`sitemap.ts`, the same "renders a specific signed-in
+  person's own state" reasoning `/contribute`'s own page comment already
+  gives. No test file for the view component, matching this codebase's
+  standing convention for hook/component wrappers around browser device
+  APIs (`useVoiceContributionRecorder`, `VoiceContributionView` have none
+  either) — the pure client (`voice-validation-api.ts`) and the domain
+  logic it calls both have full coverage. 6 new tests.
+
+  **Verify.** Full gate from the repository root, in order: `pnpm install
+  --frozen-lockfile` clean (`packages/database`'s `prisma generate` run
+  once first, same as every recent entry notes); `pnpm lint` clean (one
+  real catch along the way — see `validateClip`'s `async` removal above,
+  which also required dropping the now-pointless `await`s in its own
+  tests, since `@typescript-eslint/await-thenable` flags awaiting a
+  non-Promise just as readily as `require-await` flags an `async` with
+  nothing to await); `pnpm typecheck` 40/40; `pnpm test` — 804 `apps/api`
+  tests, 271 `apps/web` tests, 70 `packages/language-corpus` tests, all
+  green; `pnpm build` 40/40, confirmed `/[locale]/validate` present in the
+  build manifest for both locales.
+
+  **Mobile measurement.** Loaded `/en/validate` at 375×667 against the
+  production build with headless Chromium. Anonymous visitor: redirects to
+  `/signin?next=%2Fvalidate` immediately, exactly like `/contribute` and
+  every other session-gated page — page height 1957px (2.9 screens),
+  82 tap targets, 35 under 44px, every one of them the sitewide footer
+  (same footer, same pre-existing count, on every marketing route this
+  file has measured before — not this page's own content) or the
+  skip-to-content link. No console errors from this page's own code (the
+  `ERR_CONNECTION_REFUSED`/404 entries are `GET /auth/me` and a static
+  asset against an `apps/api` this sandbox has no live instance of,
+  expected). Same gap as every `/contribute`/`/account`-touching entry
+  before this one: could not get real numbers for the actual validation UI
+  itself (the audio player, the vote buttons) without a live `apps/api`
+  and an authenticated session — left for the next run with one.
+
+  **What the next run should pick up.** File order says Reward
+  (Round six §M's fourth box) next — now genuinely unblocked, per the note
+  left on its own line above. K′'s findings box is still permanently
+  blocked on the owner's real phone; keep skipping it per the standing
+  precedent this file documents repeatedly.
 
 - 2026-08-17 — **Round six, task M (third box): the `/contribute` Voice
   Contribution flow.** Done. **M's third box is now checked.**

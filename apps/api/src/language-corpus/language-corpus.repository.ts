@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { CorpusConsentGrant, CorpusUtterance, VoiceClip } from '@swasthya/language-corpus';
+import type { ClipValidation, CorpusConsentGrant, CorpusUtterance, VoiceClip } from '@swasthya/language-corpus';
 
 /**
  * Who touched a corpus utterance and when — language-corpus.md §5's
@@ -37,6 +37,7 @@ export class LanguageCorpusRepository {
   readonly #auditEntries: CorpusAuditEntry[] = [];
   readonly #consentGrants = new Map<string, CorpusConsentGrant>();
   readonly #voiceClips = new Map<string, VoiceClip>();
+  readonly #clipValidations = new Map<string, ClipValidation>();
 
   save(utterance: CorpusUtterance): CorpusUtterance {
     this.#utterances.set(utterance.id, utterance);
@@ -103,5 +104,39 @@ export class LanguageCorpusRepository {
   /** Every clip a contributor has already submitted — `submitVoiceClip`'s own source for the exact-duplicate checksum check. */
   voiceClipsByContributor(contributorId: string): VoiceClip[] {
     return [...this.#voiceClips.values()].filter((clip) => clip.contributorId === contributorId);
+  }
+
+  findVoiceClip(id: string): VoiceClip | null {
+    return this.#voiceClips.get(id) ?? null;
+  }
+
+  /** Every submitted clip, regardless of contributor — `nextClipForValidation`'s own source pool. */
+  listVoiceClips(): VoiceClip[] {
+    return [...this.#voiceClips.values()];
+  }
+
+  saveClipValidation(validation: ClipValidation): ClipValidation {
+    this.#clipValidations.set(validation.id, validation);
+    return validation;
+  }
+
+  clipValidationsFor(clipId: string): ClipValidation[] {
+    return [...this.#clipValidations.values()].filter((validation) => validation.clipId === clipId);
+  }
+
+  /**
+   * Every clip validation, grouped by clip — `nextClipForValidation` needs
+   * every clip's status at once to pick the next eligible one, so this
+   * groups in one pass rather than the caller calling `clipValidationsFor`
+   * once per clip.
+   */
+  clipValidationsByClip(): Map<string, ClipValidation[]> {
+    const byClip = new Map<string, ClipValidation[]>();
+    for (const validation of this.#clipValidations.values()) {
+      const forClip = byClip.get(validation.clipId) ?? [];
+      forClip.push(validation);
+      byClip.set(validation.clipId, forClip);
+    }
+    return byClip;
   }
 }

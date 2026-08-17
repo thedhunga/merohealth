@@ -650,3 +650,121 @@ export interface VoiceClip {
 export function isDuplicateVoiceClip(existingChecksums: readonly string[], checksumSha256: string): boolean {
   return existingChecksums.includes(checksumSha256);
 }
+
+/* ------------------------------------------------------------------ *
+ * Crowd validation — §4's "Crowd verification"
+ *
+ * "Contributors validate others' clips (listen; mark the transcript right /
+ * wrong / unclear). Two agreeing validations = verified." There is no
+ * transcript yet — the ASR step this doc's own Build Order places before
+ * validation has not been built — so today a validator is judging the
+ * *recording itself* (a real, on-task, intelligible clip) rather than a
+ * transcript's accuracy against it; the verdict vocabulary is unchanged, and
+ * an ASR-backed transcript can slot under the same RIGHT/WRONG/UNCLEAR
+ * verdicts later without a migration.
+ * ------------------------------------------------------------------ */
+
+export type ClipValidationVerdict = 'RIGHT' | 'WRONG' | 'UNCLEAR';
+
+export interface ClipValidation {
+  id: string;
+  clipId: string;
+  /** Never the clip's own `contributorId` — see `recordClipValidation`. */
+  validatorId: string;
+  verdict: ClipValidationVerdict;
+  validatedAt: string;
+}
+
+export type ClipVerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
+
+/**
+ * "Two agreeing validations = verified" per the doc. Symmetric for rejection:
+ * two people independently agreeing a clip is wrong is exactly as decisive as
+ * two agreeing it is right, and without this a bad recording would sit
+ * `PENDING` forever rather than ever leaving the queue. `UNCLEAR` never
+ * resolves anything by itself — two agreeing `UNCLEAR` verdicts mean the clip
+ * needs a third listener, not that a decision was reached.
+ */
+export function deriveClipVerificationStatus(validations: readonly ClipValidation[]): ClipVerificationStatus {
+  const rightCount = validations.filter((validation) => validation.verdict === 'RIGHT').length;
+  const wrongCount = validations.filter((validation) => validation.verdict === 'WRONG').length;
+  if (rightCount >= 2) return 'VERIFIED';
+  if (wrongCount >= 2) return 'REJECTED';
+  return 'PENDING';
+}
+
+export class OwnClipValidationError extends Error {
+  constructor(clipId: string) {
+    super(`A contributor cannot validate their own clip ${clipId}`);
+    this.name = 'OwnClipValidationError';
+  }
+}
+
+export class ClipAlreadyResolvedError extends Error {
+  constructor(clipId: string, status: ClipVerificationStatus) {
+    super(`Clip ${clipId} is already ${status}; no further validations are accepted`);
+    this.name = 'ClipAlreadyResolvedError';
+  }
+}
+
+export class DuplicateClipValidationError extends Error {
+  constructor(clipId: string, validatorId: string) {
+    super(`Validator ${validatorId} has already validated clip ${clipId}`);
+    this.name = 'DuplicateClipValidationError';
+  }
+}
+
+export interface RecordClipValidationInput {
+  id: string;
+  clipId: string;
+  validatorId: string;
+  verdict: ClipValidationVerdict;
+  validatedAt: string;
+}
+
+/**
+ * The single way a validation enters the record, mirroring `retainUtterance`'s
+ * "one way in, throws rather than silently refusing" shape. Checked in this
+ * order: own-clip (a fact about the two ids, cheapest to check), already
+ * resolved (nothing more to decide), already validated by this person (a
+ * duplicate vote would let one validator's two clicks fake "two agreeing").
+ */
+export function recordClipValidation(
+  clip: Pick<VoiceClip, 'id' | 'contributorId'>,
+  existingValidations: readonly ClipValidation[],
+  input: RecordClipValidationInput,
+): ClipValidation {
+  if (clip.contributorId === input.validatorId) throw new OwnClipValidationError(clip.id);
+
+  const status = deriveClipVerificationStatus(existingValidations);
+  if (status !== 'PENDING') throw new ClipAlreadyResolvedError(clip.id, status);
+
+  if (existingValidations.some((validation) => validation.validatorId === input.validatorId)) {
+    throw new DuplicateClipValidationError(clip.id, input.validatorId);
+  }
+
+  return { id: input.id, clipId: input.clipId, validatorId: input.validatorId, verdict: input.verdict, validatedAt: input.validatedAt };
+}
+
+/**
+ * The next clip a given validator is eligible to judge: not their own, not
+ * already resolved, not already voted on by them. Oldest capture first, the
+ * same "nothing waits behind one that arrived later" convention
+ * `corpusReviewQueue` above already uses for the text review queue.
+ */
+export function nextClipToValidate(
+  clips: readonly VoiceClip[],
+  validationsByClip: ReadonlyMap<string, readonly ClipValidation[]>,
+  validatorId: string,
+): VoiceClip | null {
+  const eligible = clips
+    .filter((clip) => clip.contributorId !== validatorId)
+    .filter((clip) => {
+      const existing = validationsByClip.get(clip.id) ?? [];
+      if (deriveClipVerificationStatus(existing) !== 'PENDING') return false;
+      return !existing.some((validation) => validation.validatorId === validatorId);
+    })
+    .toSorted((a, b) => a.capturedAt.localeCompare(b.capturedAt));
+
+  return eligible[0] ?? null;
+}

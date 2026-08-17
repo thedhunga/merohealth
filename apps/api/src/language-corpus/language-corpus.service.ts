@@ -3,16 +3,25 @@ import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundEx
 import {
   clearForTraining,
   corpusReviewQueue,
+  ClipAlreadyResolvedError,
+  deriveClipVerificationStatus,
   discardUtterance,
+  DuplicateClipValidationError,
   grantCorpusConsent,
   hasCorpusConsent,
   isCorpusConsentLive,
   isDuplicateVoiceClip,
+  nextClipToValidate,
+  OwnClipValidationError,
+  recordClipValidation,
   revokeCorpusConsent,
   UtteranceNotAwaitingReviewError,
   utteranceIdsForOwner,
   validateVoiceClipDuration,
   VOICE_CONTRIBUTION_CONSENT_VERSION,
+  type ClipValidation,
+  type ClipValidationVerdict,
+  type ClipVerificationStatus,
   type CorpusConsentGrant,
   type CorpusConsentKind,
   type CorpusUtterance,
@@ -242,6 +251,87 @@ export class LanguageCorpusService {
       capturedAt: now,
       ref,
     });
+  }
+
+  /**
+   * Round six §M's Validation flow box — "contributors validate others'
+   * clips". Unlike `voice-contribution/clips`' own gating, this needs no
+   * `VOICE_CONTRIBUTION` consent check: listening to and judging someone
+   * else's already-consented clip is not itself a new act of contributing
+   * one's own voice. `nextClipToValidate` already excludes the caller's own
+   * clips, clips they have already voted on, and clips already resolved.
+   */
+  nextClipForValidation(validatorId: string): VoiceClip | null {
+    return nextClipToValidate(this.repository.listVoiceClips(), this.repository.clipValidationsByClip(), validatorId);
+  }
+
+  /**
+   * The clip's audio bytes, for a validator to listen to before judging.
+   * Refuses a contributor's own clip with the same `OWN_CLIP_VALIDATION`
+   * code `validateClip` throws below — `nextClipForValidation` never hands
+   * one out, so this only bites a caller who fetched a clip id some other
+   * way.
+   */
+  async clipAudio(clipId: string, callerId: string): Promise<DocumentBlob> {
+    const clip = this.#requireVoiceClip(clipId);
+    if (clip.contributorId === callerId) {
+      throw new ForbiddenException({
+        code: 'OWN_CLIP_VALIDATION_FORBIDDEN',
+        message: 'A contributor cannot validate their own clip.',
+      });
+    }
+    return this.audioStore.get(clip.ref);
+  }
+
+  validateClip(
+    clipId: string,
+    validatorId: string,
+    verdict: ClipValidationVerdict,
+  ): { validation: ClipValidation; status: ClipVerificationStatus } {
+    const clip = this.#requireVoiceClip(clipId);
+    const existing = this.repository.clipValidationsFor(clipId);
+
+    const validation = this.#runValidationTransition(() =>
+      recordClipValidation(clip, existing, {
+        id: randomUUID(),
+        clipId,
+        validatorId,
+        verdict,
+        validatedAt: new Date().toISOString(),
+      }),
+    );
+    this.repository.saveClipValidation(validation);
+
+    return { validation, status: deriveClipVerificationStatus([...existing, validation]) };
+  }
+
+  #requireVoiceClip(clipId: string): VoiceClip {
+    const clip = this.repository.findVoiceClip(clipId);
+    if (!clip) throw new NotFoundException(`No voice clip ${clipId}`);
+    return clip;
+  }
+
+  /**
+   * Maps the three `packages/language-corpus` validation errors to the
+   * client-facing shape `#runTransition` below already establishes for the
+   * review-queue's own domain errors: a `BadRequestException`/`ForbiddenException`
+   * carrying a machine-readable `code`, not a bare 500.
+   */
+  #runValidationTransition(transition: () => ClipValidation): ClipValidation {
+    try {
+      return transition();
+    } catch (error) {
+      if (error instanceof OwnClipValidationError) {
+        throw new ForbiddenException({ code: 'OWN_CLIP_VALIDATION_FORBIDDEN', message: error.message });
+      }
+      if (error instanceof ClipAlreadyResolvedError) {
+        throw new BadRequestException({ code: 'CLIP_ALREADY_RESOLVED', message: error.message });
+      }
+      if (error instanceof DuplicateClipValidationError) {
+        throw new BadRequestException({ code: 'CLIP_ALREADY_VALIDATED_BY_YOU', message: error.message });
+      }
+      throw error;
+    }
   }
 
   #audit(utteranceId: string, reviewerId: string, action: CorpusAuditEntry['action']): void {
