@@ -52,8 +52,19 @@ const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions'
  * Flash is the free-tier workhorse and the sensible default. Pro is better
  * at Nepali register but is not free at volume; it can be selected by env
  * without a code change.
+ *
+ * A list, newest first, because Google retires model IDs for new accounts
+ * with a 404 ("no longer available to new users") and a single hard-coded
+ * name turned the whole assistant off the day that happened. On such a 404
+ * the next candidate is tried; any other failure is returned as-is. An
+ * explicit GEMINI_MODEL goes first and is still subject to the same walk.
  */
-const DEFAULT_MODEL = 'gemini-2.5-flash';
+const MODEL_CANDIDATES = ['gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash'] as const;
+
+/** Google's wording when a model ID has been withdrawn or never existed. */
+function isModelGone(status: number, body: string): boolean {
+  return status === 404 && /model|not found|no longer available/i.test(body);
+}
 
 function safeHttpUrl(value: string): string | null {
   try {
@@ -138,25 +149,44 @@ export async function researchWithGemini(
   const apiKey = dependencies.apiKey ?? process.env.GEMINI_API_KEY;
   if (!apiKey) return emptyResearch(language, 'setup-required');
 
-  try {
-    const response = await (dependencies.fetchImpl ?? fetch)(ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'x-goog-api-key': apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: dependencies.model ?? process.env.GEMINI_MODEL ?? DEFAULT_MODEL,
-        // The interactions API takes the system framing as part of the
-        // input rather than a separate system role; keep the boundary
-        // between instructions and the person's words explicit.
-        input: `${instructionsFor(language)}\n\nQuestion: ${question}`,
-        tools: [{ type: 'google_search' }],
-      }),
-      signal: AbortSignal.timeout(20_000),
-    });
+  const preferred = dependencies.model ?? process.env.GEMINI_MODEL;
+  const candidates = [...new Set([...(preferred ? [preferred] : []), ...MODEL_CANDIDATES])];
+  const fetchImpl = dependencies.fetchImpl ?? fetch;
 
-    if (!response.ok) return emptyResearch(language, 'unavailable', await describeFailure(response));
+  try {
+    let response: Response | undefined;
+    const gone: string[] = [];
+    for (const model of candidates) {
+      response = await fetchImpl(ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'x-goog-api-key': apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          // The interactions API takes the system framing as part of the
+          // input rather than a separate system role; keep the boundary
+          // between instructions and the person's words explicit.
+          input: `${instructionsFor(language)}\n\nQuestion: ${question}`,
+          tools: [{ type: 'google_search' }],
+        }),
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (response.ok) break;
+      // Only a withdrawn model ID justifies trying the next name. A bad key,
+      // a quota hit or an outage will fail the same way for every candidate
+      // and must not be retried four times.
+      const bodyText = await response.clone().text();
+      if (!isModelGone(response.status, bodyText)) break;
+      gone.push(model);
+    }
+
+    if (!response) return emptyResearch(language, 'unavailable', 'no model candidates');
+    if (!response.ok) {
+      const detail = await describeFailure(response);
+      return emptyResearch(language, 'unavailable', gone.length ? `${detail} · tried=[${gone.join(',')}]` : detail);
+    }
 
     const data = (await response.json()) as InteractionResponse;
 

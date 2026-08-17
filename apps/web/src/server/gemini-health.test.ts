@@ -121,6 +121,52 @@ describe('researchWithGemini', () => {
     expect(wrapped.diagnostic).toContain('API_KEY_INVALID');
   });
 
+  it('walks to the next model when Google says the ID is no longer available', async () => {
+    const goneBody = {
+      error: { code: 404, status: 'NOT_FOUND', message: 'This model models/gemini-3.7-flash is no longer available to new users.' },
+    };
+    const modelsTried: string[] = [];
+    const fetchImpl: typeof fetch = ((_url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { model: string };
+      modelsTried.push(body.model);
+      const ok = modelsTried.length >= 2;
+      return Promise.resolve(new Response(JSON.stringify(ok ? groundedResponse : goneBody), { status: ok ? 200 : 404 }));
+    }) as unknown as typeof fetch;
+
+    const result = await researchWithGemini('x', 'ne', { apiKey: 'k', fetchImpl });
+    expect(result.status).toBe('complete');
+    expect(modelsTried).toEqual(['gemini-3.7-flash', 'gemini-3.5-flash']);
+  });
+
+  it('puts an explicit GEMINI_MODEL first, then the built-in list', async () => {
+    const modelsTried: string[] = [];
+    const fetchImpl: typeof fetch = ((_url: unknown, init?: RequestInit) => {
+      modelsTried.push((JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { model: string }).model);
+      return Promise.resolve(new Response(JSON.stringify(groundedResponse), { status: 200 }));
+    }) as unknown as typeof fetch;
+    await researchWithGemini('x', 'ne', { apiKey: 'k', model: 'gemini-2.5-pro', fetchImpl });
+    expect(modelsTried).toEqual(['gemini-2.5-pro']);
+  });
+
+  it('does NOT retry other models on a bad key, quota or outage', async () => {
+    let calls = 0;
+    const fetchImpl: typeof fetch = (() => {
+      calls += 1;
+      return Promise.resolve(new Response(JSON.stringify({ error: { status: 'RESOURCE_EXHAUSTED' } }), { status: 429 }));
+    }) as unknown as typeof fetch;
+    const result = await researchWithGemini('x', 'ne', { apiKey: 'k', fetchImpl });
+    expect(result.status).toBe('unavailable');
+    expect(calls).toBe(1);
+  });
+
+  it('reports every model it tried when all are gone', async () => {
+    const fetchImpl: typeof fetch = (() =>
+      Promise.resolve(new Response(JSON.stringify({ error: { message: 'model not found' } }), { status: 404 }))) as unknown as typeof fetch;
+    const result = await researchWithGemini('x', 'ne', { apiKey: 'k', fetchImpl });
+    expect(result.status).toBe('unavailable');
+    expect(result.diagnostic).toContain('tried=[gemini-3.7-flash,gemini-3.5-flash,gemini-3.5-flash-lite,gemini-2.5-flash]');
+  });
+
   it('names a successful call\'s absence of diagnostic', async () => {
     const ok = await researchWithGemini('x', 'en', { apiKey: 'k', fetchImpl: fetchReturning(200, groundedResponse) });
     expect(ok.diagnostic).toBeUndefined();
