@@ -57,6 +57,19 @@ describe('researchWithGemini', () => {
     expect(String(seenBody?.input)).toContain('ज्वरो छ');
   });
 
+  it('keeps our framing out of the person\'s input, never stores at Google, and asks for low thinking', async () => {
+    let seenBody: Record<string, unknown> | undefined;
+    const spy: typeof fetch = ((_url: unknown, init?: RequestInit) => {
+      seenBody = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as Record<string, unknown>;
+      return Promise.resolve(new Response(JSON.stringify(groundedResponse), { status: 200 }));
+    }) as unknown as typeof fetch;
+    await researchWithGemini('ज्वरो छ', 'ne', { apiKey: 'k', fetchImpl: spy });
+    expect(seenBody?.input).toBe('ज्वरो छ');
+    expect(String(seenBody?.system_instruction)).toContain('Do not diagnose');
+    expect(seenBody?.store).toBe(false);
+    expect(seenBody?.generation_config).toEqual({ thinking_level: 'low' });
+  });
+
   it('extracts the answer from the model_output text block', async () => {
     const result = await researchWithGemini('ज्वरो छ', 'ne', {
       apiKey: 'k',

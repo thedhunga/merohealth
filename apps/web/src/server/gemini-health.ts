@@ -231,6 +231,40 @@ function instructionsFor(language: ResearchLanguage): string {
   ].join(' ');
 }
 
+const GROUNDED_TIMEOUT_MS = 20_000;
+const UNGROUNDED_TIMEOUT_MS = 50_000;
+
+/**
+ * One request shape for both paths, so they cannot drift.
+ *
+ * - `system_instruction` carries our framing; `input` is only the person's
+ *   words. The boundary between the two is a safety property.
+ * - `store: false`. The API persists interactions by default; these are
+ *   people's health questions and Google has no business keeping them.
+ * - `thinking_level: 'low'`. This is a phrasing task over sources (or, on
+ *   the ungrounded path, over general knowledge with instructions not to
+ *   invent). Deep reasoning buys latency, not safety, and a Nepali answer
+ *   from a thinking model was overrunning 20 s.
+ */
+function requestBody(
+  model: string,
+  language: ResearchLanguage,
+  question: string,
+  opts: { grounded: boolean },
+): Record<string, unknown> {
+  const instruction = opts.grounded
+    ? instructionsFor(language)
+    : `${instructionsFor(language)} ${ungroundedInstruction(language)}`;
+  return {
+    model,
+    system_instruction: instruction,
+    input: question,
+    store: false,
+    generation_config: { thinking_level: 'low' },
+    ...(opts.grounded ? { tools: [{ type: 'google_search' }] } : {}),
+  };
+}
+
 export async function researchWithGemini(
   question: string,
   language: ResearchLanguage,
@@ -254,15 +288,8 @@ export async function researchWithGemini(
           'x-goog-api-key': apiKey,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          model,
-          // The interactions API takes the system framing as part of the
-          // input rather than a separate system role; keep the boundary
-          // between instructions and the person's words explicit.
-          input: `${instructionsFor(language)}\n\nQuestion: ${question}`,
-          tools: [{ type: 'google_search' }],
-        }),
-        signal: AbortSignal.timeout(20_000),
+        body: JSON.stringify(requestBody(model, language, question, { grounded: true })),
+        signal: AbortSignal.timeout(GROUNDED_TIMEOUT_MS),
       });
       if (response.ok) break;
       // Only a withdrawn model ID, or a model with no allowance on this key,
@@ -289,11 +316,10 @@ export async function researchWithGemini(
       response = await fetchImpl(ENDPOINT, {
         method: 'POST',
         headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: candidates[0],
-          input: `${instructionsFor(language)} ${ungroundedInstruction(language)}\n\nQuestion: ${question}`,
-        }),
-        signal: AbortSignal.timeout(20_000),
+        body: JSON.stringify(requestBody(candidates[0], language, question, { grounded: false })),
+        // A full Nepali answer from a thinking model runs past 20 s; the
+        // route's maxDuration is set to cover this.
+        signal: AbortSignal.timeout(UNGROUNDED_TIMEOUT_MS),
       });
     }
 

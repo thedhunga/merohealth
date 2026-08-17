@@ -4,6 +4,9 @@ import type { ResearchLanguage } from '@/lib/companion-research';
 import { researchHealthQuestion } from '@/server/research-provider';
 
 export const runtime = 'nodejs';
+// Three fast grounded refusals plus one ungrounded answer from a thinking
+// model can exceed a minute's default budget on some plans; be explicit.
+export const maxDuration = 60;
 
 function parseRequest(value: unknown): { message: string; language: ResearchLanguage } | null {
   if (!value || typeof value !== 'object') return null;
