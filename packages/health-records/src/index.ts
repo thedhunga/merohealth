@@ -237,6 +237,8 @@ export interface TimelineEntry {
   observationCount: number;
   pendingCount: number;
   hasAbnormal: boolean;
+  /** Lets a client offer "retry" on EXTRACTION_FAILED without a second fetch. */
+  status: HealthDocument['status'];
 }
 
 /** Reverse-chronological record view. Deleted documents are excluded. */
@@ -264,6 +266,7 @@ export function buildTimeline(
         occurredAt: document.documentDate ?? document.capturedAt,
         observationCount: trusted.length,
         pendingCount: own.filter((observation) => observation.status === 'DRAFT').length,
+        status: document.status,
         hasAbnormal: trusted.some(
           (observation) =>
             observation.abnormalFlag === 'HIGH' ||

@@ -6,6 +6,7 @@ import {
   confirmObservation,
   listDocuments,
   listPendingConfirmations,
+  retryDocumentExtraction,
 } from './records-api';
 
 function makeDocument(overrides: Partial<HealthDocument> = {}): HealthDocument {
@@ -159,6 +160,33 @@ describe('confirmObservation', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/records/observations/obs-1/confirm',
       expect.objectContaining({ method: 'POST', body: undefined }),
+    );
+  });
+});
+
+describe('retryDocumentExtraction', () => {
+  it('posts to the retry-extraction endpoint for the given document id, with no body', async () => {
+    const retried = makeDocument({ status: 'EXTRACTING' });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, retried));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await retryDocumentExtraction('doc-1');
+
+    expect(result.status).toBe('EXTRACTING');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/records/documents/doc-1/retry-extraction',
+      expect.objectContaining({ method: 'POST', body: undefined }),
+    );
+  });
+
+  it('throws RecordsApiError, matching every other call in this file, on a non-OK response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(400, { code: 'DOCUMENT_NOT_EXTRACTION_FAILED', message: 'Not stuck' }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(retryDocumentExtraction('doc-1')).rejects.toMatchObject(
+      new RecordsApiError('Not stuck', 'DOCUMENT_NOT_EXTRACTION_FAILED', null),
     );
   });
 });

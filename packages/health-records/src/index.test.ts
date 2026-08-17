@@ -247,4 +247,10 @@ describe('buildTimeline', () => {
 
     expect(buildTimeline(documents, draftAbnormal)[0]?.hasAbnormal).toBe(false);
   });
+
+  it('carries the document status through, so a client can offer retry on EXTRACTION_FAILED', () => {
+    const documents = [makeDocument({ id: 'doc-1', status: 'EXTRACTION_FAILED' })];
+
+    expect(buildTimeline(documents, [])[0]?.status).toBe('EXTRACTION_FAILED');
+  });
 });

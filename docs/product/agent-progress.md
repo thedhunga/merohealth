@@ -1517,10 +1517,92 @@ Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
 - 2026-08-17 — **Queue's three unchecked boxes re-confirmed genuinely blocked
-  a fifth time; picked the highest-value improvement to work already
-  shipped: built the manual "retry extraction" action for a document stuck
-  on `EXTRACTION_FAILED`, backend and web UI, an open candidate the ledger
-  has named since Round four F4 (2026-08-16) but no run had picked up.**
+  a sixth time; picked the highest-value improvement to work already
+  shipped: gave `apps/mobile` the same "retry extraction" action web got last
+  run, closing the exact gap that run's own log entry named as the concrete
+  next candidate.** Done.
+
+  **Housekeeping first.** `git checkout main && git pull` again hit
+  "divergent branches, no common ancestor" against a stale container-local
+  `main` — same shape as the last two runs' entries. `git reset --hard
+  origin/main` per the standing note at the top of this file; confirmed
+  `origin/main`'s tip matched this file's own most recent entry before
+  proceeding, so nothing was lost.
+
+  **Selection.** Fresh `grep -n "^\s*- \[ \]"` across the whole file, three
+  boxes, each re-verified independently rather than trusted from the log:
+  (1) Google sign-in — `grep GOOGLE_CLIENT_ID .env.example` still shows it
+  unset; (2) the two testimonial portraits — `ListConnectors` still reports
+  Higgsfield `connected: true` but `enabledInChat: false` for this session;
+  (3) the B1 homepage-height task — `git log` on the tracked homepage/home
+  component files shows no commits since the last audits, no new lever.
+  All three genuinely blocked, not stale. The prior run's own "for the next
+  run" note named two concrete, unblocked candidates instead of a fourth
+  generic sweep: adding `document.status` to `TimelineEntry` so mobile can
+  offer the same retry action web just got, or a fuller observation-history
+  view. Took the first — smaller, more clearly scoped, and it closes a real
+  parity gap (mobile has had a persisted document/timeline view since before
+  web did, but couldn't distinguish an `EXTRACTION_FAILED` document from any
+  other). Delegated the scoping read to an `Explore` agent across
+  `packages/health-records`, `apps/mobile/app/records.tsx`,
+  `apps/mobile/src/lib/records-api.ts`, and the API's `/timeline` route
+  before writing any code, to confirm the exact shape (no DTO transform
+  layer between `buildTimeline`'s output and the wire response, so fixing
+  `TimelineEntry` alone is sufficient) and mobile's own conventions (throws
+  `RecordsApiError` rather than web's return-null-on-failure pattern; no
+  shared i18n files exist on mobile at all — every screen inlines
+  `language === 'en' ? … : …` ternaries directly, confirmed again this run).
+
+  **What was built.** `packages/health-records/src/index.ts`:
+  `TimelineEntry` gained `status: HealthDocument['status']`, and
+  `buildTimeline` now copies `document.status` straight through — one field,
+  no new logic, since the function already had the full `HealthDocument` in
+  hand and only wasn't forwarding this one property.
+  `apps/mobile/src/lib/records-api.ts`: `retryDocumentExtraction(documentId)`,
+  posting to the same `/documents/:documentId/retry-extraction` route web
+  already calls, following mobile's own throw-on-failure convention (not
+  web's null-on-failure one — confirmed these two clients genuinely disagree
+  on this and matched the file I was editing, not the file I was mirroring
+  the feature from). `apps/mobile/app/records.tsx`: `TimelineRow` now takes
+  `busy`/`onRetry`, and renders a "Try again" block — using web's exact
+  English/Nepali copy from `extractionFailed`/`retryCta` in
+  `apps/web/messages/{en,ne}.json` as the source text for mobile's inline
+  ternaries, so the two clients say the same thing even though mobile has no
+  message file to share it from — only when `entry.status ===
+  'EXTRACTION_FAILED'`, reusing the screen's existing `busyId`/`runAction`
+  shape (a sibling `retryDocument` handler, since the existing `runAction`
+  is typed around `HealthObservation` results and this one returns a
+  `HealthDocument`). A failed row also gets a `colors.danger` border so it
+  reads as needing attention at a glance, not just via the button text.
+
+  **Verify.** Full gate from the repository root: `pnpm install
+  --frozen-lockfile` clean, `pnpm lint` 40/40, `pnpm typecheck` 40/40,
+  `pnpm test` 75/75 tasks (`packages/health-records` 24 tests, up from 23 —
+  one new case asserting `status` survives `buildTimeline`;
+  `apps/mobile` 22 tests, up from 20 — two new cases in
+  `records-api.test.ts` for `retryDocumentExtraction`'s success and
+  `RecordsApiError` paths, matching that file's existing style exactly;
+  `apps/api` unchanged at 114 files / 754 tests, since nothing there
+  changed), `pnpm build` 40/40 including the Next.js SSG pass and the Expo
+  web export. Grepped for any other literal `TimelineEntry` construction
+  that the new required field might have broken — only type-only imports
+  elsewhere, no other object literal needed updating.
+
+  **Mobile measurement.** The new "Try again" button is `minHeight: 44`,
+  matching the 44px tap-target convention this same screen's
+  `actionButton`/`correctionSubmit` styles already use — no sub-44px target
+  introduced. Did not capture a fresh `document.body.scrollHeight` pass:
+  this block only renders conditionally, when a document is genuinely stuck
+  on `EXTRACTION_FAILED`, so it adds no height to the common-case screen and
+  there is no seeded document in that state to screenshot against in this
+  session (no running Postgres/API here). Worth a real device screenshot in
+  a session that has one.
+
+  **For the next run.** The three standing blockers are unchanged; re-verify
+  each fresh. The other F4 candidate — a fuller observation-history view
+  beyond the just-captured draft set — is still open. So is re-showing the
+  footer's app-download links now that `/app` resolves (a product trade-off
+  against B1's open height goal, not a mechanical fix).
   Done.
 
   **Housekeeping first.** `git checkout main && git pull` hit "divergent

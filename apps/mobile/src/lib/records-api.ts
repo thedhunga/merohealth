@@ -145,3 +145,11 @@ export function rejectObservation(observationId: string): Promise<HealthObservat
     method: 'POST',
   });
 }
+
+/** Re-runs extraction on a document stuck in EXTRACTION_FAILED, from its already-stored bytes. */
+export function retryDocumentExtraction(documentId: string): Promise<HealthDocument> {
+  return requestJson<HealthDocument>(
+    `/documents/${encodeURIComponent(documentId)}/retry-extraction`,
+    { method: 'POST' },
+  );
+}

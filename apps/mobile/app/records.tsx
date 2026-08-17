@@ -17,6 +17,7 @@ import {
   listPendingConfirmations,
   listTimeline,
   rejectObservation,
+  retryDocumentExtraction,
 } from '@/lib/records-api';
 
 export default function RecordsScreen() {
@@ -59,6 +60,24 @@ export default function RecordsScreen() {
     try {
       await action();
       setCorrectingId(null);
+      await load();
+    } catch (error) {
+      setLoadError(
+        error instanceof RecordsApiError
+          ? error.message
+          : language === 'en'
+            ? 'That action failed. Try again.'
+            : 'यो कार्य असफल भयो। फेरि प्रयास गर्नुहोस्।',
+      );
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const retryDocument = async (documentId: string) => {
+    setBusyId(documentId);
+    try {
+      await retryDocumentExtraction(documentId);
       await load();
     } catch (error) {
       setLoadError(
@@ -229,7 +248,15 @@ export default function RecordsScreen() {
                 : 'अहिलेसम्म कुनै कागजात छैन। पहिलो थप्नुहोस्।'}
             </Text>
           ) : (
-            timeline.map((entry) => <TimelineRow entry={entry} key={entry.documentId} language={language} />)
+            timeline.map((entry) => (
+              <TimelineRow
+                busy={busyId === entry.documentId}
+                entry={entry}
+                key={entry.documentId}
+                language={language}
+                onRetry={() => void retryDocument(entry.documentId)}
+              />
+            ))
           )}
         </>
       )}
@@ -237,24 +264,55 @@ export default function RecordsScreen() {
   );
 }
 
-function TimelineRow({ entry, language }: { entry: TimelineEntry; language: LanguageCode }) {
+function TimelineRow({
+  busy,
+  entry,
+  language,
+  onRetry,
+}: {
+  busy: boolean;
+  entry: TimelineEntry;
+  language: LanguageCode;
+  onRetry: () => void;
+}) {
   const kindLabel = documentKindLabel(entry.kind, language);
   const occurred = new Date(entry.occurredAt).toLocaleDateString(language === 'en' ? 'en-US' : 'ne-NP');
+  const extractionFailed = entry.status === 'EXTRACTION_FAILED';
 
   return (
-    <View style={styles.timelineRow}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.timelineTitle}>{entry.title}</Text>
-        <Text style={styles.timelineMeta}>
-          {kindLabel} · {occurred}
-        </Text>
+    <View style={[styles.timelineRow, extractionFailed && styles.timelineRowFailed]}>
+      <View style={styles.timelineRowHead}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.timelineTitle}>{entry.title}</Text>
+          <Text style={styles.timelineMeta}>
+            {kindLabel} · {occurred}
+          </Text>
+        </View>
+        {entry.pendingCount > 0 ? (
+          <View style={styles.pendingBadge}>
+            <Text style={styles.pendingBadgeText}>{entry.pendingCount}</Text>
+          </View>
+        ) : null}
+        {entry.hasAbnormal ? <AlertTriangle color={colors.danger} size={16} /> : null}
       </View>
-      {entry.pendingCount > 0 ? (
-        <View style={styles.pendingBadge}>
-          <Text style={styles.pendingBadgeText}>{entry.pendingCount}</Text>
+      {extractionFailed ? (
+        <View style={styles.retryRow}>
+          <Text style={styles.retryText}>
+            {language === 'en'
+              ? "We couldn't read this photo just now. The photo is still saved — you can try reading it again."
+              : 'हामी अहिले यो फोटो पढ्न सकेनौं। फोटो अझै सुरक्षित छ — तपाईं फेरि पढ्ने प्रयास गर्न सक्नुहुन्छ।'}
+          </Text>
+          <Pressable disabled={busy} onPress={onRetry} style={styles.retryButton}>
+            {busy ? (
+              <ActivityIndicator color={colors.primaryDark} size="small" />
+            ) : (
+              <Text style={styles.retryButtonText}>
+                {language === 'en' ? 'Try again' : 'फेरि प्रयास गर्नुहोस्'}
+              </Text>
+            )}
+          </Pressable>
         </View>
       ) : null}
-      {entry.hasAbnormal ? <AlertTriangle color={colors.danger} size={16} /> : null}
     </View>
   );
 }
@@ -340,17 +398,29 @@ const styles = StyleSheet.create({
     width: 44,
   },
   timelineRow: {
-    alignItems: 'center',
     backgroundColor: colors.surface,
     borderColor: colors.line,
     borderRadius: radii.md,
     borderWidth: 1,
-    flexDirection: 'row',
     gap: spacing.sm,
     padding: spacing.md,
   },
+  timelineRowFailed: { borderColor: colors.danger },
+  timelineRowHead: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
   timelineTitle: { color: colors.ink, fontSize: 14, fontWeight: '800' },
   timelineMeta: { color: colors.muted, fontSize: 11, marginTop: 2 },
+  retryRow: { gap: spacing.sm },
+  retryText: { color: colors.danger, fontSize: 12, lineHeight: 18 },
+  retryButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: colors.mint,
+    borderRadius: radii.sm,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+  },
+  retryButtonText: { color: colors.primaryDark, fontSize: 13, fontWeight: '900' },
   pendingBadge: {
     alignItems: 'center',
     backgroundColor: colors.primary,
