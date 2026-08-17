@@ -25,5 +25,17 @@ export function GET() {
     // Any GEMINI-prefixed name that is visible; catches a typo like
     // GEMINI_API_KEY_ or a value pasted into the name field.
     geminiLikeNames: Object.keys(process.env).filter((k) => k.toUpperCase().includes('GEMINI')),
+    // Which build is answering. Vercel injects these on every deployment;
+    // they identify the deployment, not a person, and carry no secret. They
+    // exist here because "I added the variable and redeployed" is not
+    // verifiable without knowing whether the domain is even pointed at the
+    // deployment that was rebuilt — or at this project at all.
+    deployment: {
+      env: process.env.VERCEL_ENV ?? null,
+      commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
+      branch: process.env.VERCEL_GIT_COMMIT_REF ?? null,
+      productionUrl: process.env.VERCEL_PROJECT_PRODUCTION_URL ?? null,
+      envVarCount: Object.keys(process.env).length,
+    },
   });
 }
