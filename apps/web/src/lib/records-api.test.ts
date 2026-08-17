@@ -6,6 +6,7 @@ import {
   fetchAllObservations,
   fetchDocumentObservations,
   rejectObservation,
+  retryDocumentExtraction,
 } from '@/lib/records-api';
 
 function mockFetchOnce(status: number, body: unknown = {}) {
@@ -118,5 +119,30 @@ describe('confirmObservation / rejectObservation', () => {
   it('resolves false, never throws, when fetch itself rejects', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
     expect(await rejectObservation('obs-1')).toBe(false);
+  });
+});
+
+describe('retryDocumentExtraction', () => {
+  it('posts to the retry-extraction route and resolves the updated document', async () => {
+    const document = { id: 'doc-1', status: 'AWAITING_CONFIRMATION' };
+    const fetchMock = mockFetchOnce(200, document);
+
+    const result = await retryDocumentExtraction('doc-1');
+
+    expect(result).toEqual(document);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://localhost:4000/v1/records/documents/doc-1/retry-extraction');
+    expect(init.method).toBe('POST');
+    expect(init.credentials).toBe('include');
+  });
+
+  it('resolves null, never throws, on a server error', async () => {
+    mockFetchOnce(400);
+    expect(await retryDocumentExtraction('doc-1')).toBeNull();
+  });
+
+  it('resolves null, never throws, when fetch itself rejects', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+    expect(await retryDocumentExtraction('doc-1')).toBeNull();
   });
 });

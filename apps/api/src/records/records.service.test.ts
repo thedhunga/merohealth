@@ -1,7 +1,7 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { InMemoryDocumentStore, StoragePolicyError } from '@swasthya/storage-adapters';
 import type { HealthObservation } from '@swasthya/shared-types';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ExtractionResult, RecordExtractionService } from './record-extraction.service.js';
 import { RecordsRepository } from './records.repository.js';
 import { RecordsService, type CaptureDocumentInput } from './records.service.js';
@@ -39,6 +39,17 @@ class StubExtractionService implements RecordExtractionService {
 class BrokenExtractionService implements RecordExtractionService {
   extract(): Promise<ExtractionResult> {
     throw new Error('simulated extraction outage');
+  }
+}
+
+/** Fails the first call, then succeeds — models a transient outage a manual retry recovers from. */
+class FlakyExtractionService implements RecordExtractionService {
+  #calls = 0;
+  constructor(private readonly recoveredResult: ExtractionResult) {}
+  extract(): Promise<ExtractionResult> {
+    this.#calls += 1;
+    if (this.#calls === 1) throw new Error('simulated outage, first call only');
+    return Promise.resolve(this.recoveredResult);
   }
 }
 
@@ -191,6 +202,66 @@ describe('RecordsService.captureDocument extraction', () => {
     const otherService = new RecordsService(new RecordsRepository(), otherStore);
     const unaffected = await otherService.captureDocument(makeCapture({ ownerId: 'owner-2' }));
     expect(unaffected.status).toBe('STORED');
+  });
+});
+
+describe('RecordsService.retryExtraction', () => {
+  it('re-attempts extraction on a document stuck at EXTRACTION_FAILED and lands on AWAITING_CONFIRMATION once the provider recovers', async () => {
+    const { service } = buildService(new InMemoryDocumentStore('HOSTED'), new FlakyExtractionService(BP_READING));
+    const failed = await service.captureDocument(makeCapture());
+    expect(failed.status).toBe('EXTRACTION_FAILED');
+
+    const retried = await service.retryExtraction(failed.id, 'owner-1');
+    expect(retried.status).toBe('AWAITING_CONFIRMATION');
+  });
+
+  it('lands on EXTRACTION_FAILED again, not lost, when the provider is still down on retry', async () => {
+    const { service } = buildService(new InMemoryDocumentStore('HOSTED'), new BrokenExtractionService());
+    const failed = await service.captureDocument(makeCapture());
+
+    const retried = await service.retryExtraction(failed.id, 'owner-1');
+    expect(retried.status).toBe('EXTRACTION_FAILED');
+    expect(service.getDocument(failed.id).status).toBe('EXTRACTION_FAILED');
+  });
+
+  it('does not re-upload bytes — refetches them from the store by the document’s existing ref', async () => {
+    const store = new InMemoryDocumentStore('HOSTED');
+    const { service } = buildService(store, new FlakyExtractionService(BP_READING));
+    const failed = await service.captureDocument(makeCapture());
+
+    const putSpy = vi.spyOn(store, 'put');
+    await service.retryExtraction(failed.id, 'owner-1');
+    expect(putSpy).not.toHaveBeenCalled();
+  });
+
+  it('throws NotFoundException for an unknown document, or a caller who is not its owner', async () => {
+    const { service } = buildService(new InMemoryDocumentStore('HOSTED'), new BrokenExtractionService());
+    const failed = await service.captureDocument(makeCapture());
+
+    await expect(service.retryExtraction('missing', 'owner-1')).rejects.toThrow(NotFoundException);
+    await expect(service.retryExtraction(failed.id, 'owner-2')).rejects.toThrow(NotFoundException);
+  });
+
+  it('refuses to retry a document that never reached EXTRACTION_FAILED', async () => {
+    const { service } = buildService(new InMemoryDocumentStore('HOSTED'), new StubExtractionService(BP_READING));
+    const document = await service.captureDocument(makeCapture());
+    expect(document.status).toBe('AWAITING_CONFIRMATION');
+
+    await expect(service.retryExtraction(document.id, 'owner-1')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('refuses to retry when no extraction provider is configured, without losing the document', async () => {
+    const store = new InMemoryDocumentStore('HOSTED');
+    const repository = new RecordsRepository();
+    const withExtraction = new RecordsService(repository, store, new BrokenExtractionService());
+    const failed = await withExtraction.captureDocument(makeCapture());
+
+    // Same repository/store, a service instance with no extraction wired —
+    // models the provider becoming unconfigured between the original attempt
+    // and the retry.
+    const unconfigured = new RecordsService(repository, store);
+    await expect(unconfigured.retryExtraction(failed.id, 'owner-1')).rejects.toBeInstanceOf(BadRequestException);
+    expect(unconfigured.getDocument(failed.id).status).toBe('EXTRACTION_FAILED');
   });
 });
 

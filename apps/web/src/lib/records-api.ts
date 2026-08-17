@@ -62,6 +62,25 @@ export async function captureBloodPressurePhoto(
   }
 }
 
+/**
+ * Re-attempts extraction on a document stuck on `EXTRACTION_FAILED` — the
+ * manual retry the capture-time outage message always implied was coming.
+ * Same null-on-failure shape as every other call here: a failed retry
+ * request just leaves the person able to press the button again.
+ */
+export async function retryDocumentExtraction(documentId: string): Promise<HealthDocument | null> {
+  try {
+    const response = await fetch(
+      recordsUrl(`/documents/${encodeURIComponent(documentId)}/retry-extraction`),
+      { method: 'POST', credentials: 'include' },
+    );
+    if (!response.ok) return null;
+    return (await response.json()) as HealthDocument;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchItems(path: string): Promise<HealthObservation[] | null> {
   try {
     const response = await fetch(recordsUrl(path), { credentials: 'include' });

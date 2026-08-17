@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import {
   buildTimeline,
   confirmObservation,
@@ -88,27 +88,81 @@ export class RecordsService {
    * by design — "extraction for those runs on-device" — and a non-image
    * document has nothing this extractor can read either, so both stay
    * `STORED` exactly as capture always left them before this method existed.
-   * Everything else attempts extraction inline, synchronously, because there
-   * is no job queue in this deployment yet: the person's next paint already
-   * carries the outcome rather than a polling round-trip.
-   *
-   * `setup-required` (no provider configured) and `unavailable` (the
-   * provider was reached and failed) both land on `EXTRACTION_FAILED` here —
-   * from the person's chair both mean "no draft yet, try again later", and
-   * `EXTRACTION_FAILED → EXTRACTING` stays open for a future retry action.
-   * Nothing here can lose the document itself: every branch below returns a
-   * document that is already durably saved.
+   * Everything else attempts extraction — see `#runExtraction`, shared with
+   * `retryExtraction` below since a retry is the identical operation against
+   * bytes fetched back from the store instead of bytes already in hand.
    */
   async #extractIfEligible(document: HealthDocument, input: CaptureDocumentInput): Promise<HealthDocument> {
     if (!this.extraction || input.clientEncrypted || !input.contentType?.startsWith('image/')) {
       return document;
     }
+    return this.#runExtraction(document, input.contentType, input.bytes);
+  }
 
+  /**
+   * Manual retry for a document stuck on `EXTRACTION_FAILED` — the edge the
+   * transition table has always allowed (`EXTRACTION_FAILED → EXTRACTING`)
+   * but nothing called until now. Only `EXTRACTION_FAILED` is accepted: the
+   * table also permits `STORED`/`AWAITING_CONFIRMATION`/`CONFIRMED` →
+   * `EXTRACTING`, but re-running extraction on a document that never failed
+   * is a different feature this endpoint does not claim to offer. Bytes are
+   * never re-uploaded — `document.ref` is the durable pointer `store.get`
+   * resolves back to the same blob `captureDocument` originally stored.
+   */
+  async retryExtraction(documentId: string, ownerId: string): Promise<HealthDocument> {
+    const document = this.repository.findDocument(documentId);
+    if (!document || document.ownerId !== ownerId) {
+      throw new NotFoundException(`No document ${documentId}`);
+    }
+    if (document.status !== 'EXTRACTION_FAILED') {
+      throw new BadRequestException({
+        code: 'DOCUMENT_NOT_EXTRACTION_FAILED',
+        message: `Document ${documentId} is not in EXTRACTION_FAILED (currently ${document.status})`,
+      });
+    }
+    if (!this.extraction) {
+      throw new BadRequestException({
+        code: 'EXTRACTION_NOT_CONFIGURED',
+        message: 'No extraction provider is configured',
+      });
+    }
+
+    const blob = await this.store.get(document.ref);
+    const contentType = document.ref.contentType ?? blob.contentType;
+    if (!contentType) {
+      // Can only happen if a document reached EXTRACTION_FAILED without ever
+      // being image content — not reachable through #extractIfEligible's own
+      // gate, but checked explicitly rather than trusted, since this method
+      // is a second, independent entry point into the same state.
+      throw new BadRequestException({
+        code: 'DOCUMENT_NOT_EXTRACTABLE',
+        message: `Document ${documentId} has no readable content type`,
+      });
+    }
+
+    return this.#runExtraction(document, contentType, blob.bytes);
+  }
+
+  /**
+   * Transitions `document` into `EXTRACTING` and attempts the provider call,
+   * landing on `AWAITING_CONFIRMATION`/`CONFIRMED`/`EXTRACTION_FAILED` per
+   * the outcome. Synchronous and inline because there is no job queue in
+   * this deployment yet: the caller's next paint already carries the
+   * outcome rather than a polling round-trip.
+   *
+   * `setup-required` (no provider configured) and `unavailable` (the
+   * provider was reached and failed) both land on `EXTRACTION_FAILED` here —
+   * from the person's chair both mean "no draft yet, try again later", and
+   * `EXTRACTION_FAILED → EXTRACTING` is exactly the edge `retryExtraction`
+   * uses to try again. Nothing here can lose the document itself: every
+   * branch below returns a document that is already durably saved.
+   */
+  async #runExtraction(document: HealthDocument, contentType: string, bytes: Uint8Array): Promise<HealthDocument> {
     const extracting = this.repository.saveDocument(transitionDocument(document, 'EXTRACTING'));
 
     let result: Awaited<ReturnType<RecordExtractionService['extract']>>;
     try {
-      result = await this.extraction.extract({ contentType: input.contentType, bytes: input.bytes });
+      result = await this.extraction!.extract({ contentType, bytes });
     } catch {
       return this.repository.saveDocument(transitionDocument(extracting, 'EXTRACTION_FAILED'));
     }

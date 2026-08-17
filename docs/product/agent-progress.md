@@ -1516,6 +1516,102 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-17 — **Queue's three unchecked boxes re-confirmed genuinely blocked
+  a fifth time; picked the highest-value improvement to work already
+  shipped: built the manual "retry extraction" action for a document stuck
+  on `EXTRACTION_FAILED`, backend and web UI, an open candidate the ledger
+  has named since Round four F4 (2026-08-16) but no run had picked up.**
+  Done.
+
+  **Housekeeping first.** `git checkout main && git pull` hit "divergent
+  branches, 76 vs 50 commits, no common ancestor" — this session's container
+  had a stale local `main` from before the 2026-08-15 history consolidation
+  (see the operating note at the top of this file). `origin/main`'s oldest
+  commit is literally `Merge mero-health/platform-foundation into main: one
+  history for production`, and its ledger content matched what this file
+  already says, so it is unambiguously the authoritative branch — `git reset
+  --hard origin/main` before starting. If a future run hits the same
+  "divergent, no common ancestor" message, do the same: `origin/main` wins,
+  never the stale local checkout.
+
+  **Selection.** Read the ledger and `platform-vision.md` fresh, then
+  `grep -n "^- \[ \]"` across the whole file. Same three boxes as every
+  recent run, each re-verified independently: (1) Google sign-in — still
+  blocked on `GOOGLE_CLIENT_ID`, unset in both `.env.example` and
+  `.env.server.example`; (2) the two testimonial portraits — `ListConnectors`
+  still reports Higgsfield `connected: true` but `enabledInChat: false` for
+  this session; (3) the B1 homepage-height task — unchanged, still a product
+  decision. All three genuinely blocked. Delegated a scoping read (an
+  `Explore` agent) across `packages/health-records`, `apps/api/src/records`,
+  `apps/web`'s `BloodPressureRecord.tsx`/`records-api.ts`, and
+  `apps/mobile`'s equivalents before picking between the two open F4
+  candidates ("manual retry" vs. "full observation-history view"). Retry won:
+  the domain transition (`EXTRACTION_FAILED → EXTRACTING`) already existed
+  and was unused, `document.ref` already gives back the original bytes via
+  `store.get`, and `packages/engagement`'s `retryMessage` (`FAILED → QUEUED`,
+  re-attempt inline) was an almost-exact precedent to copy the shape of.
+
+  **What was built.** `apps/api/src/records/records.service.ts`: extracted
+  the guts of `#extractIfEligible` (the transition-to-`EXTRACTING`-then-call-
+  the-provider logic) into a shared private `#runExtraction(document,
+  contentType, bytes)`, then added `retryExtraction(documentId, ownerId)` —
+  404s for an unknown document or wrong owner (same rule every other method
+  here uses), 400s with `DOCUMENT_NOT_EXTRACTION_FAILED` if the document
+  isn't actually in that state (the transition table also permits
+  `STORED`/`AWAITING_CONFIRMATION`/`CONFIRMED` → `EXTRACTING`, but this
+  endpoint only claims the failed-and-stuck case), 400s with
+  `EXTRACTION_NOT_CONFIGURED` if no provider is wired, then fetches the
+  original bytes with `store.get(document.ref)` — no re-upload — and runs
+  them through `#runExtraction`. `records.controller.ts`: `POST
+  /records/documents/:documentId/retry-extraction`, `SessionAuthGuard` only
+  (no `EntitlementsGuard`/quota — a retry doesn't create new stored-document
+  usage). `apps/web/src/lib/records-api.ts`: `retryDocumentExtraction`,
+  same null-on-failure shape as every other call in that file.
+  `BloodPressureRecord.tsx`: split the old shared `extraction-pending` phase
+  (which silently covered both "not configured" and "attempted and failed")
+  into `extraction-pending` (`STORED`, nothing to retry, unchanged message)
+  and a new `extraction-failed`/`retrying` pair with a "Try again" button
+  that calls the new route and re-branches on the result exactly like the
+  original upload handler does. New copy in both `en.json` and `ne.json`:
+  `extractionFailed`, `retryCta`, `retrying`.
+
+  **Scope decision, stated plainly.** This ships end-to-end on **web only**.
+  Mobile (`apps/mobile`) has a persisted document/timeline view already —
+  more infrastructure for "come back later and retry" than web has — but
+  `TimelineEntry` (`packages/health-records`) does not carry `document.status`
+  at all, so the mobile client cannot currently tell an `EXTRACTION_FAILED`
+  document apart from any other. Wiring retry there needs that field added
+  first (`buildTimeline` and its test), which is a second, separable piece of
+  work — left for a future run rather than folded into this one. The other
+  F4 candidate, a full observation-history view beyond the just-captured
+  draft set, is also still open and still not built.
+
+  **Verify.** Full gate from the repository root: `pnpm install
+  --frozen-lockfile` clean, `pnpm lint` 40/40, `pnpm typecheck` 40/40,
+  `pnpm test` 75/75 tasks (`apps/api` 114 files / 754 tests, up from 745 —
+  9 new: 6 in `records.service.test.ts` covering retry-succeeds,
+  retry-still-fails, no-re-upload, not-found/wrong-owner, wrong-state and
+  not-configured; 3 in `records.controller.test.ts` for the route plus the
+  `retryExtraction` guard assertion; `apps/web`'s `records-api.test.ts` +3
+  for the new client function), `pnpm build` 40/40. No component test added
+  for `BloodPressureRecord.tsx` — `apps/web` still has zero `.tsx` test files
+  and no `@testing-library/react` dependency, confirmed again this run,
+  matching every prior UI change in this module.
+
+  **Mobile measurement.** Not applicable to the web change itself — the new
+  `extraction-failed` block reuses the existing `Button` component (already
+  at the 44px `min-h-11` tap-target minimum) and the same `rounded-xl
+  bg-indigo-100 p-4` status-message shell every other phase in this
+  component already uses, so no new layout or spacing was introduced to
+  measure.
+
+  **For the next run.** The three standing blockers are unchanged; re-verify
+  each fresh. Two concrete, unblocked candidates now exist for whoever picks
+  next: (1) add `document.status` (or a narrower `extractionFailed: boolean`)
+  to `TimelineEntry` so the mobile app can offer the same retry action on its
+  own document/timeline view; (2) the full observation-history view on the
+  confirmation UI. Both are real code tasks, not owner-decision blockers.
+
 - 2026-08-17 — **Queue's three unchecked boxes re-confirmed genuinely
   blocked a fourth time; picked the highest-value improvement to work
   already shipped: extracted the nine hand-duplicated inline form-error

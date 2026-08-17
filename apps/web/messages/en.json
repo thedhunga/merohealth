@@ -1412,6 +1412,9 @@
       "uploadCta": "Save this photo",
       "noReading": "We couldn't read a blood pressure value in that photo. The photo is still saved to your record.",
       "extractionPending": "Photo saved. Extraction will follow — check back here soon.",
+      "extractionFailed": "We couldn't read this photo just now. The photo is still saved — you can try reading it again.",
+      "retryCta": "Try again",
+      "retrying": "Trying again…",
       "errors": {
         "generic": "Something went wrong — please try again."
       },

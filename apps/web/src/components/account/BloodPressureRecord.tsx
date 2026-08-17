@@ -14,6 +14,7 @@ import {
   fetchAllObservations,
   fetchDocumentObservations,
   rejectObservation,
+  retryDocumentExtraction,
 } from '@/lib/records-api';
 import { BloodPressureTrendChart } from './BloodPressureTrendChart';
 
@@ -23,6 +24,8 @@ type CaptureState =
   | { phase: 'awaiting-confirmation'; drafts: readonly HealthObservation[] }
   | { phase: 'no-reading' }
   | { phase: 'extraction-pending' }
+  | { phase: 'extraction-failed'; documentId: string }
+  | { phase: 'retrying'; documentId: string }
   | { phase: 'error' };
 
 /**
@@ -35,12 +38,14 @@ type CaptureState =
  * actually confirmed here.
  *
  * Capture always runs extraction inline (`RecordsService.captureDocument`),
- * so the response already carries the outcome — no polling. `no-reading` and
- * `extraction-pending` are deliberately different messages: the first is a
- * definite "nothing legible in that photo", the second is the outage case
- * the task asks for by name — "the photo is stored, extraction will follow,
- * nothing is lost" — covering both "not configured yet" and "the provider
- * failed", since neither loses the document either way.
+ * so the response already carries the outcome — no polling. `no-reading`,
+ * `extraction-pending` and `extraction-failed` are deliberately different
+ * messages: the first is a definite "nothing legible in that photo", the
+ * second is "no extractor is configured yet" (`STORED`, nothing to retry),
+ * and the third is `EXTRACTION_FAILED` — the provider was reached and failed
+ * — which is the one case with something to *do*: `retry-extraction` re-runs
+ * the same attempt against the same stored bytes, so `extraction-failed`
+ * carries the button. None of the three ever lose the document.
  */
 export function BloodPressureRecord() {
   const t = useTranslations('account.bloodPressure');
@@ -94,9 +99,34 @@ export function BloodPressureRecord() {
       setCapture({ phase: 'no-reading' });
       return;
     }
-    // STORED (no extraction service wired) or EXTRACTION_FAILED (attempted and failed) —
-    // the document is safe either way; only the message differs from a clean "nothing found".
+    if (document.status === 'EXTRACTION_FAILED') {
+      setCapture({ phase: 'extraction-failed', documentId: document.id });
+      return;
+    }
+    // STORED: no extraction service is configured, so there is nothing to retry.
     setCapture({ phase: 'extraction-pending' });
+  }
+
+  /** Re-runs extraction against the same stored bytes — no new upload. */
+  async function handleRetry(documentId: string) {
+    setCapture({ phase: 'retrying', documentId });
+    const document = await retryDocumentExtraction(documentId);
+
+    if (!document) {
+      setCapture({ phase: 'extraction-failed', documentId });
+      return;
+    }
+    if (document.status === 'AWAITING_CONFIRMATION') {
+      const drafts = await fetchDocumentObservations(document.id);
+      setCapture(drafts && drafts.length > 0 ? { phase: 'awaiting-confirmation', drafts } : { phase: 'error' });
+      return;
+    }
+    if (document.status === 'CONFIRMED') {
+      setCapture({ phase: 'no-reading' });
+      return;
+    }
+    // Still EXTRACTION_FAILED: the provider is still down. Stay retryable.
+    setCapture({ phase: 'extraction-failed', documentId: document.id });
   }
 
   async function handleDecision(observationId: string, decision: 'confirm' | 'reject') {
@@ -153,6 +183,20 @@ export function BloodPressureRecord() {
           <p className="rounded-xl bg-indigo-100 p-4 text-sm font-semibold text-indigo-800" role="status">
             {t('extractionPending')}
           </p>
+        ) : null}
+        {capture.phase === 'extraction-failed' || capture.phase === 'retrying' ? (
+          <div className="flex flex-col gap-3 rounded-xl bg-indigo-100 p-4" role="status">
+            <p className="text-sm font-semibold text-indigo-800">{t('extractionFailed')}</p>
+            <div>
+              <Button
+                disabled={capture.phase === 'retrying'}
+                onClick={() => void handleRetry(capture.documentId)}
+                variant="secondary"
+              >
+                {capture.phase === 'retrying' ? t('retrying') : t('retryCta')}
+              </Button>
+            </div>
+          </div>
         ) : null}
       </div>
 

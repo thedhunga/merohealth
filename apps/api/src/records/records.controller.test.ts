@@ -4,13 +4,21 @@ import { describe, expect, it } from 'vitest';
 import type { CurrentUserResult } from '../auth/auth.service.js';
 import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { EntitlementsGuard } from '../entitlements/entitlements.guard.js';
+import type { ExtractionResult, RecordExtractionService } from './record-extraction.service.js';
 import { RecordsController } from './records.controller.js';
 import { RecordsRepository } from './records.repository.js';
 import { RecordsService } from './records.service.js';
 
-function buildController(store = new InMemoryDocumentStore('HOSTED')) {
-  const service = new RecordsService(new RecordsRepository(), store);
+function buildController(store = new InMemoryDocumentStore('HOSTED'), extraction?: RecordExtractionService) {
+  const service = new RecordsService(new RecordsRepository(), store, extraction);
   return new RecordsController(service);
+}
+
+/** Simulates the provider being genuinely down — every call rejects. */
+class BrokenExtractionService implements RecordExtractionService {
+  extract(): Promise<ExtractionResult> {
+    throw new Error('simulated extraction outage');
+  }
 }
 
 // Nest's own `@UseGuards` metadata key — see `teleconsultation.controller.test.ts`
@@ -37,7 +45,16 @@ describe('RecordsController auth wiring', () => {
   });
 
   it('gates every read and mutation route behind SessionAuthGuard', () => {
-    const gated = ['list', 'observations', 'observationsForDocument', 'timeline', 'confirm', 'correct', 'reject'];
+    const gated = [
+      'list',
+      'observations',
+      'observationsForDocument',
+      'timeline',
+      'confirm',
+      'correct',
+      'reject',
+      'retryExtraction',
+    ];
     for (const method of gated) {
       expect(guardsFor(method)).toEqual([SessionAuthGuard]);
     }
@@ -200,5 +217,33 @@ describe('RecordsController observation actions', () => {
     // `listDocumentObservations` both compare against `document.ownerId`.
     const someoneElse: CurrentUserResult = { ...currentUser, subjectId: 'owner-2' };
     expect(() => controller.observationsForDocument(someoneElse, document.id)).toThrow(NotFoundException);
+  });
+});
+
+describe('RecordsController.retryExtraction', () => {
+  it('re-attempts extraction on the caller’s own EXTRACTION_FAILED document', async () => {
+    const controller = buildController(new InMemoryDocumentStore('HOSTED'), new BrokenExtractionService());
+    const failed = await controller.capture(currentUser, { ...validCapture, contentType: 'image/jpeg' });
+    expect(failed.status).toBe('EXTRACTION_FAILED');
+
+    const retried = await controller.retryExtraction(currentUser, failed.id);
+    expect(retried.status).toBe('EXTRACTION_FAILED');
+  });
+
+  it('404s for an unknown document, or a document owned by someone else', async () => {
+    const controller = buildController(new InMemoryDocumentStore('HOSTED'), new BrokenExtractionService());
+    const failed = await controller.capture(currentUser, validCapture);
+
+    await expect(controller.retryExtraction(currentUser, 'missing')).rejects.toThrow(NotFoundException);
+    const someoneElse: CurrentUserResult = { ...currentUser, subjectId: 'owner-2' };
+    await expect(controller.retryExtraction(someoneElse, failed.id)).rejects.toThrow(NotFoundException);
+  });
+
+  it('rejects retrying a document that is not EXTRACTION_FAILED', async () => {
+    const controller = buildController();
+    const document = await controller.capture(currentUser, validCapture);
+    expect(document.status).toBe('STORED');
+
+    await expect(controller.retryExtraction(currentUser, document.id)).rejects.toBeInstanceOf(BadRequestException);
   });
 });

@@ -185,4 +185,12 @@ export class RecordsController {
   reject(@CurrentUser() user: CurrentUserResult, @Param('observationId') observationId: string) {
     return this.records.reject(observationId, user.subjectId);
   }
+
+  @Post('documents/:documentId/retry-extraction')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: "Re-attempt extraction on one of the caller's own documents stuck on EXTRACTION_FAILED" })
+  @ApiParam({ name: 'documentId' })
+  retryExtraction(@CurrentUser() user: CurrentUserResult, @Param('documentId') documentId: string) {
+    return this.records.retryExtraction(documentId, user.subjectId);
+  }
 }
