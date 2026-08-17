@@ -143,3 +143,40 @@ describe('LanguageCorpusController erase', () => {
     expect(() => controller.read(reviewer, 'utterance-1')).not.toThrow();
   });
 });
+
+describe('LanguageCorpusController corpus consent', () => {
+  it('reads the user id from @CurrentUser(), never from a request parameter', () => {
+    const controller = buildController();
+    controller.grantConsent(owner1, 'VOICE_CONTRIBUTION');
+    controller.grantConsent(owner2, 'HEALTH_CONVERSATION_AUDIO');
+
+    expect(controller.consentGrants(owner1).grants.map((g) => g.kind)).toEqual(['VOICE_CONTRIBUTION']);
+    expect(controller.consentGrants(owner2).grants.map((g) => g.kind)).toEqual(['HEALTH_CONVERSATION_AUDIO']);
+  });
+
+  it('grants a kind and reflects it back through consentGrants', () => {
+    const controller = buildController();
+
+    const grant = controller.grantConsent(owner1, 'HEALTH_CONVERSATION_AUDIO');
+
+    expect(grant.userId).toBe('owner-1');
+    expect(grant.revokedAt).toBeNull();
+    expect(controller.consentGrants(owner1).total).toBe(1);
+  });
+
+  it('rejects an unknown kind before it ever reaches the service', () => {
+    const controller = buildController();
+    expect(() => controller.grantConsent(owner1, 'NOT_A_REAL_KIND')).toThrow(BadRequestException);
+    expect(() => controller.revokeConsent(owner1, 'NOT_A_REAL_KIND')).toThrow(BadRequestException);
+  });
+
+  it('revokes a granted kind, still visible in the audit trail with revokedAt set', () => {
+    const controller = buildController();
+    controller.grantConsent(owner1, 'HEALTH_CONVERSATION_AUDIO');
+
+    const { grants } = controller.revokeConsent(owner1, 'HEALTH_CONVERSATION_AUDIO');
+
+    expect(grants[0]?.revokedAt).not.toBeNull();
+    expect(controller.consentGrants(owner1).grants[0]?.revokedAt).not.toBeNull();
+  });
+});

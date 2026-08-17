@@ -1,6 +1,18 @@
-import type { CorpusUtterance } from '@swasthya/language-corpus';
+import type { CorpusConsentGrant, CorpusUtterance } from '@swasthya/language-corpus';
 import { describe, expect, it } from 'vitest';
 import { LanguageCorpusRepository } from './language-corpus.repository.js';
+
+function makeConsentGrant(overrides: Partial<CorpusConsentGrant> = {}): CorpusConsentGrant {
+  return {
+    id: 'consent-1',
+    userId: 'owner-1',
+    kind: 'HEALTH_CONVERSATION_AUDIO',
+    version: 'consent-copy-v1',
+    grantedAt: '2026-08-01T00:00:00.000Z',
+    revokedAt: null,
+    ...overrides,
+  };
+}
 
 function makeUtterance(overrides: Partial<CorpusUtterance> = {}): CorpusUtterance {
   return {
@@ -76,5 +88,23 @@ describe('LanguageCorpusRepository', () => {
     expect(deleted).toEqual(['a']);
     expect(repository.find('a')).toBeNull();
     expect(repository.find('b')).not.toBeNull();
+  });
+
+  it('scopes consentGrantsFor to the requested user, never returning another user’s grants', () => {
+    const repository = new LanguageCorpusRepository();
+    repository.saveConsentGrant(makeConsentGrant({ id: 'consent-1', userId: 'owner-1' }));
+    repository.saveConsentGrant(makeConsentGrant({ id: 'consent-2', userId: 'owner-2' }));
+
+    expect(repository.consentGrantsFor('owner-1').map((grant) => grant.id)).toEqual(['consent-1']);
+    expect(repository.consentGrantsFor('someone-else')).toEqual([]);
+  });
+
+  it('overwrites rather than duplicates a consent grant on a second save with the same id', () => {
+    const repository = new LanguageCorpusRepository();
+    repository.saveConsentGrant(makeConsentGrant({ id: 'consent-1', revokedAt: null }));
+    repository.saveConsentGrant(makeConsentGrant({ id: 'consent-1', revokedAt: '2026-08-05T00:00:00.000Z' }));
+
+    expect(repository.consentGrantsFor('owner-1')).toHaveLength(1);
+    expect(repository.consentGrantsFor('owner-1')[0]?.revokedAt).toBe('2026-08-05T00:00:00.000Z');
   });
 });

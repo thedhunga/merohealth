@@ -4,6 +4,7 @@ import {
   CorpusConsentError,
   CURRENT_POLICY_VERSION,
   UtteranceNotAwaitingReviewError,
+  VOICE_CONTRIBUTION_CONSENT_VERSION,
   buildSnapshot,
   clearForTraining,
   corpusReviewQueue,
@@ -11,14 +12,20 @@ import {
   discardUtterance,
   eraseFromSnapshot,
   grantConsent,
+  grantCorpusConsent,
+  hasCorpusConsent,
   hasPurpose,
+  isCorpusConsentLive,
   isLive,
   optionalPurposes,
   purposeForUtteranceKind,
   retainUtterance,
   revokeConsent,
+  revokeCorpusConsent,
   utteranceIdsForOwner,
+  versionForCorpusConsentKind,
   type ConsentGrant,
+  type CorpusConsentGrant,
   type CorpusUtterance,
 } from './index';
 
@@ -130,6 +137,82 @@ describe('grantConsent and revokeConsent', () => {
 
     grants = [...grants, grantConsent('MODEL_TRAINING_TEXT', 'user-1', '2026-01-20T00:00:00.000Z')];
     expect(hasPurpose(grants, 'MODEL_TRAINING_TEXT', '2026-01-21T00:00:00.000Z')).toBe(true);
+    expect(grants).toHaveLength(2);
+  });
+});
+
+function corpusGrant(overrides: Partial<CorpusConsentGrant> = {}): CorpusConsentGrant {
+  return {
+    id: 'cc-1',
+    userId: 'user-1',
+    kind: 'HEALTH_CONVERSATION_AUDIO',
+    version: CURRENT_POLICY_VERSION,
+    grantedAt: '2026-01-01T00:00:00.000Z',
+    revokedAt: null,
+    ...overrides,
+  };
+}
+
+describe('versionForCorpusConsentKind', () => {
+  it('stamps VOICE_CONTRIBUTION with its own copy version, never the health-conversation one', () => {
+    expect(versionForCorpusConsentKind('VOICE_CONTRIBUTION')).toBe(VOICE_CONTRIBUTION_CONSENT_VERSION);
+  });
+
+  it('stamps HEALTH_CONVERSATION_AUDIO with the shared policy version', () => {
+    expect(versionForCorpusConsentKind('HEALTH_CONVERSATION_AUDIO')).toBe(CURRENT_POLICY_VERSION);
+  });
+});
+
+describe('grantCorpusConsent and revokeCorpusConsent', () => {
+  const at = '2026-02-01T00:00:00.000Z';
+
+  it('grants a kind, live as of now, stamped with the version for that kind', () => {
+    const g = grantCorpusConsent('cc-1', 'user-1', 'VOICE_CONTRIBUTION', at);
+
+    expect(g).toEqual({
+      id: 'cc-1',
+      userId: 'user-1',
+      kind: 'VOICE_CONTRIBUTION',
+      version: VOICE_CONTRIBUTION_CONSENT_VERSION,
+      grantedAt: at,
+      revokedAt: null,
+    });
+    expect(isCorpusConsentLive(g, at)).toBe(true);
+  });
+
+  it('revokes the live grant for a kind without touching other kinds', () => {
+    const grants = [
+      corpusGrant({ id: 'cc-1', kind: 'VOICE_CONTRIBUTION' }),
+      corpusGrant({ id: 'cc-2', kind: 'HEALTH_CONVERSATION_AUDIO' }),
+    ];
+
+    const revoked = revokeCorpusConsent(grants, 'VOICE_CONTRIBUTION', at);
+
+    expect(hasCorpusConsent(revoked, 'VOICE_CONTRIBUTION', at)).toBe(false);
+    expect(hasCorpusConsent(revoked, 'HEALTH_CONVERSATION_AUDIO', at)).toBe(true);
+  });
+
+  it('sets revokedAt rather than deleting the row', () => {
+    const revoked = revokeCorpusConsent([corpusGrant()], 'HEALTH_CONVERSATION_AUDIO', at);
+    expect(revoked).toHaveLength(1);
+    expect(revoked[0]?.revokedAt).toBe(at);
+  });
+
+  it('is a no-op when nothing is currently live for that kind', () => {
+    const alreadyRevoked = [corpusGrant({ revokedAt: '2026-01-15T00:00:00.000Z' })];
+    expect(revokeCorpusConsent(alreadyRevoked, 'HEALTH_CONVERSATION_AUDIO', at)).toEqual(alreadyRevoked);
+  });
+
+  it('round-trips through hasCorpusConsent: grant then revoke then grant again', () => {
+    let grants: CorpusConsentGrant[] = [];
+    grants = [...grants, grantCorpusConsent('cc-1', 'user-1', 'HEALTH_CONVERSATION_AUDIO', '2026-01-01T00:00:00.000Z')];
+    expect(hasCorpusConsent(grants, 'HEALTH_CONVERSATION_AUDIO', '2026-01-02T00:00:00.000Z')).toBe(true);
+
+    grants = revokeCorpusConsent(grants, 'HEALTH_CONVERSATION_AUDIO', '2026-01-10T00:00:00.000Z');
+    expect(hasCorpusConsent(grants, 'HEALTH_CONVERSATION_AUDIO', '2026-01-11T00:00:00.000Z')).toBe(false);
+
+    grants = [...grants, grantCorpusConsent('cc-2', 'user-1', 'HEALTH_CONVERSATION_AUDIO', '2026-01-20T00:00:00.000Z')];
+    expect(hasCorpusConsent(grants, 'HEALTH_CONVERSATION_AUDIO', '2026-01-21T00:00:00.000Z')).toBe(true);
     expect(grants).toHaveLength(2);
   });
 });

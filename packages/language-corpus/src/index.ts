@@ -122,6 +122,74 @@ export function revokeConsent(
   );
 }
 
+/**
+ * Which audio stream a person has opted into, per
+ * `docs/product/freemium-and-voice-corpus.md` §4 — distinct from
+ * `ConsentPurpose` above. That axis is *why* text/voice from an ordinary
+ * health conversation may be retained once it happens; this axis is *which
+ * stream* a person has opted into in the first place, before any capture
+ * happens. `VOICE_CONTRIBUTION` is the separate Common-Voice-style flow
+ * (§4 stream A, non-health, read prompts and free speech).
+ * `HEALTH_CONVERSATION_AUDIO` is the opt-in to keep the raw recording of a
+ * person's own health conversations (§4 stream B) — a materially bigger
+ * commitment than `MODEL_TRAINING_VOICE` above, which only ever covers a
+ * de-identified transcript, never the recording itself.
+ */
+export type CorpusConsentKind = 'VOICE_CONTRIBUTION' | 'HEALTH_CONVERSATION_AUDIO';
+
+export interface CorpusConsentGrant {
+  id: string;
+  userId: string;
+  kind: CorpusConsentKind;
+  /** Wording version the person actually agreed to — see `versionForCorpusConsentKind`. */
+  version: string;
+  grantedAt: string;
+  /** Set the moment it is withdrawn. Never delete the row — the row history is the audit trail. */
+  revokedAt: string | null;
+}
+
+/**
+ * Each kind is stamped against its own copy version, never a client-supplied
+ * value — the same reason `VOICE_CONTRIBUTION_CONSENT_VERSION`'s own doc
+ * comment gives: a recording kept without a version-stamped basis at
+ * capture time is unusable afterwards, so the caller derives the version
+ * from the kind rather than trusting whatever a request sends.
+ */
+export function versionForCorpusConsentKind(kind: CorpusConsentKind): string {
+  return kind === 'VOICE_CONTRIBUTION' ? VOICE_CONTRIBUTION_CONSENT_VERSION : CURRENT_POLICY_VERSION;
+}
+
+export function isCorpusConsentLive(grant: CorpusConsentGrant, at: string): boolean {
+  const t = Date.parse(at);
+  if (Number.isNaN(t) || Date.parse(grant.grantedAt) > t) return false;
+  return grant.revokedAt === null || Date.parse(grant.revokedAt) > t;
+}
+
+export function hasCorpusConsent(grants: readonly CorpusConsentGrant[], kind: CorpusConsentKind, at: string): boolean {
+  return grants.some((grant) => grant.kind === kind && isCorpusConsentLive(grant, at));
+}
+
+/** Building a fresh row rather than reviving a revoked one keeps the history honest — same reasoning as `grantConsent` above. */
+export function grantCorpusConsent(id: string, userId: string, kind: CorpusConsentKind, now: string): CorpusConsentGrant {
+  return { id, userId, kind, version: versionForCorpusConsentKind(kind), grantedAt: now, revokedAt: null };
+}
+
+/**
+ * Revokes a kind by setting `revokedAt` on whichever grant is currently live
+ * for it — never by deleting the row. A no-op when nothing is live for that
+ * kind, since there is nothing to revoke and this must stay safe to call
+ * from a toggle a person can flip either direction at any time. Mirrors
+ * `revokeConsent` above exactly; kept separate because it operates on
+ * `kind`, not `purpose`, and the two are not interchangeable.
+ */
+export function revokeCorpusConsent(
+  grants: readonly CorpusConsentGrant[],
+  kind: CorpusConsentKind,
+  now: string,
+): CorpusConsentGrant[] {
+  return grants.map((grant) => (grant.kind === kind && isCorpusConsentLive(grant, now) ? { ...grant, revokedAt: now } : grant));
+}
+
 /* ------------------------------------------------------------------ *
  * De-identification
  * ------------------------------------------------------------------ */

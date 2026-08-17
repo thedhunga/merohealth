@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 
 import { RecordTransform } from '@/components/art/RecordTransform';
 import { BloodPressureRecord } from '@/components/account/BloodPressureRecord';
+import { CorpusConsentToggle } from '@/components/account/CorpusConsentToggle';
 import { DelegationForm } from '@/components/account/DelegationForm';
 import { DelegationsGrantedList } from '@/components/account/DelegationsGrantedList';
 import { IdentityVerification } from '@/components/account/IdentityVerification';
@@ -14,6 +15,7 @@ import { Button, ButtonLink } from '@/components/ui/Button';
 import { PageTemplate } from '@/components/ui/PageTemplate';
 import { Section } from '@/components/ui/Section';
 import { useRouter } from '@/i18n/navigation';
+import { useCorpusConsent } from '@/hooks/useCorpusConsent';
 import { useFamilyGrants } from '@/hooks/useFamilyGrants';
 import { useSession } from '@/hooks/useSession';
 import { buildActingSubjects, resolveActingSubject } from '@/lib/acting-subjects';
@@ -41,6 +43,7 @@ export function AccountView() {
 
   const user = session.status === 'authenticated' ? session.user : null;
   const [familyGrants, refreshFamilyGrants] = useFamilyGrants(user !== null);
+  const [corpusConsent, refreshCorpusConsent] = useCorpusConsent(user !== null);
 
   const actingSubjects = useMemo(() => {
     if (!user) return [];
@@ -123,6 +126,11 @@ export function AccountView() {
           <DelegationsGrantedList
             grants={familyGrants.status === 'loaded' ? familyGrants.grants.delegationsGranted : []}
             onRevoked={refreshFamilyGrants}
+          />
+
+          <CorpusConsentToggle
+            onChanged={refreshCorpusConsent}
+            state={corpusConsent.status === 'loaded' ? { grants: corpusConsent.grants } : 'loading'}
           />
 
           <div className="flex flex-col gap-4 rounded-2xl bg-indigo-900 p-8 text-white md:flex-row md:items-center md:justify-between">

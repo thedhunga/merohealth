@@ -147,3 +147,69 @@ describe('LanguageCorpusService erase', () => {
     expect(service.erase('nobody-here').erasedUtteranceIds).toEqual([]);
   });
 });
+
+describe('LanguageCorpusService corpus consent', () => {
+  it('grants a kind, stamped with the version for that kind', () => {
+    const service = buildService();
+
+    const grant = service.grantConsent('owner-1', 'VOICE_CONTRIBUTION');
+
+    expect(grant.userId).toBe('owner-1');
+    expect(grant.kind).toBe('VOICE_CONTRIBUTION');
+    expect(grant.version).toBe('voice-contribution-consent-v1');
+    expect(grant.revokedAt).toBeNull();
+    expect(service.consentGrantsFor('owner-1')).toEqual([grant]);
+  });
+
+  it('is idempotent — granting an already-live kind returns the existing row rather than a duplicate', () => {
+    const service = buildService();
+
+    const first = service.grantConsent('owner-1', 'HEALTH_CONVERSATION_AUDIO');
+    const second = service.grantConsent('owner-1', 'HEALTH_CONVERSATION_AUDIO');
+
+    expect(second).toEqual(first);
+    expect(service.consentGrantsFor('owner-1')).toHaveLength(1);
+  });
+
+  it('revokes the live grant for a kind without touching another kind or another user', () => {
+    const service = buildService();
+    service.grantConsent('owner-1', 'VOICE_CONTRIBUTION');
+    service.grantConsent('owner-1', 'HEALTH_CONVERSATION_AUDIO');
+    service.grantConsent('owner-2', 'HEALTH_CONVERSATION_AUDIO');
+
+    service.revokeConsent('owner-1', 'HEALTH_CONVERSATION_AUDIO');
+
+    const grants = service.consentGrantsFor('owner-1');
+    expect(grants.find((g) => g.kind === 'HEALTH_CONVERSATION_AUDIO')?.revokedAt).not.toBeNull();
+    expect(grants.find((g) => g.kind === 'VOICE_CONTRIBUTION')?.revokedAt).toBeNull();
+    expect(service.consentGrantsFor('owner-2')[0]?.revokedAt).toBeNull();
+  });
+
+  it('is a no-op to revoke a kind that was never granted', () => {
+    const service = buildService();
+    expect(service.revokeConsent('owner-1', 'VOICE_CONTRIBUTION')).toEqual([]);
+  });
+
+  it('keeps a revoked grant in consentGrantsFor rather than deleting it — the audit trail', () => {
+    const service = buildService();
+    const granted = service.grantConsent('owner-1', 'HEALTH_CONVERSATION_AUDIO');
+
+    service.revokeConsent('owner-1', 'HEALTH_CONVERSATION_AUDIO');
+
+    const grants = service.consentGrantsFor('owner-1');
+    expect(grants).toHaveLength(1);
+    expect(grants[0]?.id).toBe(granted.id);
+    expect(grants[0]?.revokedAt).not.toBeNull();
+  });
+
+  it('re-granting after a revoke creates a fresh row rather than reviving the old one', () => {
+    const service = buildService();
+    const first = service.grantConsent('owner-1', 'VOICE_CONTRIBUTION');
+    service.revokeConsent('owner-1', 'VOICE_CONTRIBUTION');
+
+    const second = service.grantConsent('owner-1', 'VOICE_CONTRIBUTION');
+
+    expect(second.id).not.toBe(first.id);
+    expect(service.consentGrantsFor('owner-1')).toHaveLength(2);
+  });
+});

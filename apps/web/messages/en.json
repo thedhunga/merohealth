@@ -1538,6 +1538,16 @@
         "revoking": "Revoking…"
       }
     },
+    "corpusConsent": {
+      "heading": "Keep the audio of your health conversations",
+      "body": "The assistant already keeps a text transcript of your health conversations. This is a separate, bigger step: keeping the recording itself — your actual voice — stored apart from your identity, to help make the Nepali assistant more accurate. Off by default, and turning it off never limits any part of the app.",
+      "onLabel": "On",
+      "offLabel": "Off",
+      "revocable": "You can turn this off at any time. Recordings already used stay documented as such; nothing new is kept once it's off.",
+      "errors": {
+        "GENERIC": "Something went wrong — please try again."
+      }
+    },
     "openApp": {
       "heading": "Open the Mero Health app",
       "body": "Your health record, documents and assistant live there.",

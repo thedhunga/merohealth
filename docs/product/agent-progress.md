@@ -176,9 +176,9 @@ read that before the first task.
       terms; versioned; explains purpose (train a Nepali speech model), that
       it is optional, revocable, and not required for any service. **Done
       2026-08-17 — see the log entry below.**
-- [ ] `apps/api`: `Consent { userId, kind: VOICE_CONTRIBUTION |
+- [x] `apps/api`: `Consent { userId, kind: VOICE_CONTRIBUTION |
       HEALTH_CONVERSATION_AUDIO, version, grantedAt, revokedAt }`; toggle
-      in account; audit trail.
+      in account; audit trail. **Done 2026-08-17 — see the log entry below.**
 - [ ] Voice Contribution flow (`/contribute`): read prompts + free-speech
       tasks; district / mother tongue / age band self-report; MediaRecorder
       capture; upload to object storage on the server; quality gates.
@@ -1727,6 +1727,127 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-17 — **Round six, task M (second box): the `apps/api` corpus-consent
+  `Consent` record — toggle in account, audit trail.** Done. **M's second box
+  is now checked.**
+
+  **Housekeeping first.** `git checkout main && git pull` failed the same way
+  the last several entries reported: local `main` (a stale ref, no common
+  ancestor with `origin/main` per `git merge-base`) vs. the real `origin/main`
+  history. `git status` was clean, so `git reset --hard origin/main` — ninth
+  run in a row hitting this; still worth someone looking at why this
+  container's local `main` starts stale rather than as a real clone of
+  `origin/main`.
+
+  **Why this box was actually doable, against the previous run's own
+  caution.** The 2026-08-17 K′-second-box entry grouped this box with "needs
+  either the owner's phone, an owner decision, or the API server deployed"
+  and told the next run to re-verify rather than trust that note. Re-verified
+  it: `docs/product/freemium-and-voice-corpus.md` §5 does say the dedicated
+  API server blocks "all of it," but `apps/api/src/language-corpus/` already
+  contradicts a literal reading of that for this specific box — its own
+  `LanguageCorpusRepository` is an explicitly documented "process-local
+  stand-in for a real store" (no Prisma, no live Postgres) that already backs
+  a real `SessionAuthGuard`-protected controller for utterance ingest, a
+  review queue and an audit log. The blocker is genuinely real for anything
+  needing actual persistence across restarts or multiple instances (payments,
+  the `/contribute` upload pipeline); it is not real for a consent toggle
+  that can honestly ship on the same in-memory pattern this exact module
+  already ships on. Confirmed with a dispatched research agent first, citing
+  file/line evidence, before writing any code — not assumed.
+
+  **What was built.** `packages/language-corpus` gained the domain layer:
+  `CorpusConsentKind` ('VOICE_CONTRIBUTION' | 'HEALTH_CONVERSATION_AUDIO'),
+  `CorpusConsentGrant`, `versionForCorpusConsentKind` (derives the version
+  server-side from the kind — `VOICE_CONTRIBUTION_CONSENT_VERSION` or
+  `CURRENT_POLICY_VERSION` — never trusting a client-supplied version, the
+  same reasoning the former constant's own doc comment already gives),
+  `isCorpusConsentLive`, `hasCorpusConsent`, `grantCorpusConsent`,
+  `revokeCorpusConsent`. Deliberately a second, parallel set to the existing
+  `ConsentGrant`/`grantConsent`/`revokeConsent`: that axis is *why* text/voice
+  from an already-happened conversation may be retained; this axis is *which
+  audio stream* a person opted into before any capture happens, and
+  `HEALTH_CONVERSATION_AUDIO` is a materially bigger commitment (the raw
+  recording, not a de-identified transcript) than `MODEL_TRAINING_VOICE`
+  already covers — conflating them would have understated what the toggle
+  actually does.
+
+  `apps/api/src/language-corpus/` (not a new module — extended the existing
+  one, since it already owns this exact "corpus" domain and its
+  `SessionAuthGuard`/audit-trail conventions): `LanguageCorpusRepository`
+  gained `saveConsentGrant`/`consentGrantsFor`; `LanguageCorpusService`
+  gained `consentGrantsFor`/`grantConsent` (idempotent — a second grant call
+  while one is live returns the existing row)/`revokeConsent` (idempotent —
+  a no-op on nothing live, same as the domain function it wraps);
+  `LanguageCorpusController` gained `GET /language-corpus/consent`,
+  `POST /language-corpus/consent/:kind/grant`,
+  `POST /language-corpus/consent/:kind/revoke`, all `SessionAuthGuard`-only
+  (self-service, never `CorpusReviewerGuard` — a person's own consent, not a
+  reviewer decision) with the user id always from `@CurrentUser()`, never a
+  request parameter. **No separate audit-log table** — the grant row history
+  itself (never deleted, `revokedAt` set rather than the row removed, a fresh
+  row on re-grant) already is the audit trail, the same reasoning
+  `ConsentGrant.revokedAt`'s own doc comment gives; documented why inline
+  rather than duplicating the utterance module's `CorpusAuditEntry` shape for
+  a case where there's no "who else touched this" question to answer (the
+  actor is always the data subject, never a reviewer). No Prisma schema
+  change either — deliberately matches this module's own existing
+  process-local convention rather than reaching for persistence nothing else
+  in this module has yet; also sidesteps a real naming collision the research
+  agent flagged (`schema.prisma` already has an unrelated `Consent` model for
+  a different, dead-code "stream B" concept).
+
+  **Account UI — half the toggle.** Only `HEALTH_CONVERSATION_AUDIO` is
+  offered in `AccountView.tsx` (via new `CorpusConsentToggle.tsx`,
+  `useCorpusConsent.ts`, `lib/corpus-consent-api.ts`) — `VOICE_CONTRIBUTION`
+  has no UI yet because `/contribute` doesn't exist (M's third box), the same
+  "content ahead of its caller" shape `VOICE_CONTRIBUTION_CONSENT_VERSION`
+  already established. The toggle switch is the exact accessibility pattern
+  `DataConsentView.tsx` already uses (native checkbox, no custom ARIA role);
+  unlike that page, this one is backed by a real account rather than
+  browser-tab-only state, and degrades the same way `useFamilyGrants` already
+  does — `loading`/`error` both collapse to "off, disabled" rather than
+  guessing a state this run cannot confirm, or blocking the rest of the page.
+  New copy in both `messages/*.json` under `account.corpusConsent` — plain
+  Nepali first, explains the audio-vs-transcript distinction explicitly so it
+  reads as a real second permission, not a rewording of the existing one.
+
+  **Verify.** Full gate from the repository root: `pnpm install
+  --frozen-lockfile` clean, `pnpm lint` clean (one real catch: `expect.any(String)`
+  inside a `toEqual` spread tripped `@typescript-eslint/no-unsafe-assignment`
+  in a new test — rewritten as separate assertions rather than suppressed),
+  `pnpm typecheck` 40/40, `pnpm test` — 769 `apps/api` tests, 260 `apps/web`
+  tests, 45 `packages/language-corpus` tests, all green, `pnpm build` 40/40.
+
+  **Mobile measurement.** Tried to measure `/account` at 375px with headless
+  Chromium before/after, the way this file's standing rule asks. Couldn't get
+  a real number: `/account` requires a live session (`useSession` redirects
+  to `/signin` the instant `session.status !== 'authenticated'`), and this
+  sandbox has no live `apps/api` + Postgres to sign in against — the same gap
+  roughly a dozen prior `/account`-touching entries have each left open for
+  "the next run with a live database." What I *can* say honestly: the new
+  `CorpusConsentToggle` card is built from the identical markup shape as the
+  existing `DelegationsGrantedList` card immediately above it in the page
+  (same `rounded-2xl bg-sand/70 p-6` container, one heading, one body
+  paragraph, one switch row, one small print line) — so its footprint is
+  roughly one more `DelegationsGrantedList`-sized card, not a new kind of
+  weight this page hasn't already paid for elsewhere. No tap target under
+  44px was introduced: the switch's hit target is the full `<label>` wrapping
+  icon + text + switch, the same wrapper `DataConsentView.tsx`'s existing
+  toggle already uses at its current size, unchanged here.
+
+  **For the next run.** M's third box (`/contribute` Voice Contribution flow:
+  read prompts, free-speech tasks, `MediaRecorder` capture, upload to object
+  storage on the server) is next in file order and is now genuinely blocked
+  for real this time — "upload to object storage on the server" needs actual
+  server-side storage, not a process-local map, so the "extend the existing
+  process-local module" trick this run used does not carry forward. K′'s
+  third box (owner's phone) and §N payments (owner's provider choice) are
+  still blocked exactly as the last several entries described; re-verify
+  before skipping, per this file's own standing rule. A real click-through of
+  the new toggle against a live `apps/api` + Postgres + a signed-in session
+  is still owed, same as the family-grants revoke button before it.
 
 - 2026-08-17 — **Round six, task M (first box): Voice Contribution consent
   copy, ne/en.** Done.

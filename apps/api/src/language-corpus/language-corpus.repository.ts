@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { CorpusUtterance } from '@swasthya/language-corpus';
+import type { CorpusConsentGrant, CorpusUtterance } from '@swasthya/language-corpus';
 
 /**
  * Who touched a corpus utterance and when — language-corpus.md §5's
@@ -35,6 +35,7 @@ export interface CorpusAuditEntry {
 export class LanguageCorpusRepository {
   readonly #utterances = new Map<string, CorpusUtterance>();
   readonly #auditEntries: CorpusAuditEntry[] = [];
+  readonly #consentGrants = new Map<string, CorpusConsentGrant>();
 
   save(utterance: CorpusUtterance): CorpusUtterance {
     this.#utterances.set(utterance.id, utterance);
@@ -73,5 +74,23 @@ export class LanguageCorpusRepository {
     return this.#auditEntries
       .filter((entry) => entry.utteranceId === utteranceId)
       .toSorted((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+  }
+
+  /**
+   * No separate audit-entry log for consent, unlike the utterance one above:
+   * a consent grant is always acted on by the person it belongs to, never a
+   * reviewer acting on someone else's data, so there is no "who else looked
+   * at this" question to answer. The grant row history itself — never
+   * deleted, `revokedAt` set rather than the row removed — already is the
+   * audit trail, the same reasoning `CorpusConsentGrant.revokedAt`'s own doc
+   * comment in `packages/language-corpus` gives.
+   */
+  saveConsentGrant(grant: CorpusConsentGrant): CorpusConsentGrant {
+    this.#consentGrants.set(grant.id, grant);
+    return grant;
+  }
+
+  consentGrantsFor(userId: string): CorpusConsentGrant[] {
+    return [...this.#consentGrants.values()].filter((grant) => grant.userId === userId);
   }
 }

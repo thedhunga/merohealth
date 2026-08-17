@@ -4,8 +4,13 @@ import {
   clearForTraining,
   corpusReviewQueue,
   discardUtterance,
+  grantCorpusConsent,
+  isCorpusConsentLive,
+  revokeCorpusConsent,
   UtteranceNotAwaitingReviewError,
   utteranceIdsForOwner,
+  type CorpusConsentGrant,
+  type CorpusConsentKind,
   type CorpusUtterance,
 } from '@swasthya/language-corpus';
 import { LanguageCorpusRepository, type CorpusAuditEntry } from './language-corpus.repository.js';
@@ -117,6 +122,32 @@ export class LanguageCorpusService {
   auditLog(utteranceId: string): readonly CorpusAuditEntry[] {
     this.#require(utteranceId);
     return this.repository.listAuditEntries(utteranceId);
+  }
+
+  /** Every corpus-consent grant for this user, live or revoked — the full history is the audit trail (see the repository's own doc comment on why). */
+  consentGrantsFor(userId: string): readonly CorpusConsentGrant[] {
+    return this.repository.consentGrantsFor(userId);
+  }
+
+  /**
+   * Idempotent: a second grant call while one is already live returns the
+   * existing row rather than creating a duplicate, the same "check live
+   * before adding" rule `apps/web`'s `DataConsentView` already applies
+   * client-side for `packages/language-corpus`'s other `ConsentGrant`.
+   */
+  grantConsent(userId: string, kind: CorpusConsentKind): CorpusConsentGrant {
+    const now = new Date().toISOString();
+    const live = this.repository.consentGrantsFor(userId).find((grant) => grant.kind === kind && isCorpusConsentLive(grant, now));
+    if (live) return live;
+    return this.repository.saveConsentGrant(grantCorpusConsent(randomUUID(), userId, kind, now));
+  }
+
+  /** Idempotent on a kind with nothing currently live — `revokeCorpusConsent` itself is a no-op in that case, per its own doc comment. */
+  revokeConsent(userId: string, kind: CorpusConsentKind): readonly CorpusConsentGrant[] {
+    const now = new Date().toISOString();
+    const updated = revokeCorpusConsent(this.repository.consentGrantsFor(userId), kind, now);
+    for (const grant of updated) this.repository.saveConsentGrant(grant);
+    return updated;
   }
 
   #audit(utteranceId: string, reviewerId: string, action: CorpusAuditEntry['action']): void {

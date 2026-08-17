@@ -9,6 +9,7 @@ import { LanguageCorpusService } from './language-corpus.service.js';
 
 const utteranceKindSchema = z.enum(['USER_MESSAGE', 'CORRECTION', 'VOICE_TRANSCRIPT']);
 const localeSchema = z.enum(['ne', 'en', 'ne-Latn']);
+const corpusConsentKindSchema = z.enum(['VOICE_CONTRIBUTION', 'HEALTH_CONVERSATION_AUDIO']);
 
 // Same regex `SchedulingController`/`FamilyGrantsController` each carry their
 // own copy of, for the same "explicit over a library validator" reason
@@ -137,5 +138,42 @@ export class LanguageCorpusController {
   auditLog(@Param('utteranceId') utteranceId: string) {
     const items = this.corpus.auditLog(utteranceId);
     return { items, total: items.length };
+  }
+
+  /**
+   * Self-service only, unlike the reviewer routes above — a person's own
+   * consent for the two audio streams `docs/product/freemium-and-voice-corpus.md`
+   * §4 describes, so every route here takes only `SessionAuthGuard`, never
+   * `CorpusReviewerGuard`, and the user id always comes from `@CurrentUser()`
+   * — the same "never a client-supplied id" rule `erase` above already
+   * follows. `grants` always includes revoked rows: that full history is the
+   * audit trail (see `LanguageCorpusRepository.saveConsentGrant`'s own doc
+   * comment for why no separate log exists).
+   */
+  @Get('consent')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: 'Every corpus-consent grant for the signed-in user, including revoked ones' })
+  consentGrants(@CurrentUser() user: CurrentUserResult) {
+    const grants = this.corpus.consentGrantsFor(user.subjectId);
+    return { grants, total: grants.length };
+  }
+
+  @Post('consent/:kind/grant')
+  @UseGuards(SessionAuthGuard)
+  @ApiParam({ name: 'kind', enum: corpusConsentKindSchema.options })
+  @ApiOperation({ summary: 'Grants one corpus-consent kind for the signed-in user; idempotent if already live' })
+  grantConsent(@CurrentUser() user: CurrentUserResult, @Param('kind') kind: string) {
+    const parsed = parseOrThrow(corpusConsentKindSchema, kind);
+    return this.corpus.grantConsent(user.subjectId, parsed);
+  }
+
+  @Post('consent/:kind/revoke')
+  @UseGuards(SessionAuthGuard)
+  @ApiParam({ name: 'kind', enum: corpusConsentKindSchema.options })
+  @ApiOperation({ summary: 'Revokes one corpus-consent kind for the signed-in user; idempotent if already revoked or never granted' })
+  revokeConsent(@CurrentUser() user: CurrentUserResult, @Param('kind') kind: string) {
+    const parsed = parseOrThrow(corpusConsentKindSchema, kind);
+    const grants = this.corpus.revokeConsent(user.subjectId, parsed);
+    return { grants };
   }
 }
