@@ -1148,11 +1148,16 @@
     },
     "gridHeading": "Compare plans",
     "gridBody": "Every price and module below comes straight from the plan catalogue — nothing here is written by hand.",
+    "safetyBanner": "Safety is never paid for. Emergency detection, basic answers and the safety advisory are free on every plan, always.",
     "perMonth": "/month",
     "cardCta": "Get started",
     "includedHeading": "What's included",
     "limitsHeading": "Usage limits",
     "unlimited": "Unlimited",
+    "voiceMinutes": {
+      "label": "Voice conversation (minutes/month)",
+      "unset": "Minutes soon"
+    },
     "footnote": "Bring-your-own storage stays free on every plan — hosted storage, extraction, device sync, sharing, provider export and teleconsultation are the modules that separate the tiers.",
     "modules": {
       "ASSISTANT": {

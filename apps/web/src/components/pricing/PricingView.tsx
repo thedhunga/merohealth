@@ -1,12 +1,18 @@
 import { formatPrice, plans } from '@swasthya/entitlements';
-import { Check, Minus } from 'lucide-react';
+import { Check, Mic, Minus, ShieldCheck } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 
 import { WorkplaceInvestment } from '@/components/art/WorkplaceInvestment';
 import { ButtonLink } from '@/components/ui/Button';
 import { PageTemplate } from '@/components/ui/PageTemplate';
 import { Section, SectionHeading } from '@/components/ui/Section';
-import { formatQuotaValue, PRICING_MODULE_ORDER, PRICING_QUOTA_ORDER } from '@/content/pricing';
+import {
+  formatFreemiumMinutes,
+  formatQuotaValue,
+  getFreemiumVoiceMinutesForTier,
+  PRICING_MODULE_ORDER,
+  PRICING_QUOTA_ORDER,
+} from '@/content/pricing';
 import type { Locale } from '@/i18n/routing';
 import { cn } from '@/lib/cn';
 
@@ -47,6 +53,11 @@ export function PricingView() {
           title={t('gridHeading')}
         />
 
+        <p className="mx-auto mt-8 flex max-w-2xl items-center justify-center gap-3 rounded-xl border border-indigo-100 bg-indigo-50 px-5 py-4 text-center text-sm font-semibold text-indigo-800">
+          <ShieldCheck aria-hidden className="size-5 shrink-0 text-indigo-600" />
+          {t('safetyBanner')}
+        </p>
+
         <ul className="mt-12 grid gap-6 lg:grid-cols-3">
           {plans.map((plan) => (
             <li key={plan.tier}>
@@ -68,6 +79,16 @@ export function PricingView() {
                     <span className="text-ink-soft">{t('perMonth')}</span>
                   ) : null}
                 </div>
+
+                <p className="flex items-center gap-2 text-sm font-semibold text-indigo-700">
+                  <Mic aria-hidden className="size-4 shrink-0" />
+                  {t('voiceMinutes.label')}:{' '}
+                  {formatFreemiumMinutes(
+                    getFreemiumVoiceMinutesForTier(plan.tier),
+                    locale,
+                    t('voiceMinutes.unset'),
+                  )}
+                </p>
 
                 <ButtonLink
                   className="w-full justify-center"

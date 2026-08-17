@@ -89,6 +89,34 @@ describe('FREEMIUM_VOICE_CONFIG', () => {
   });
 });
 
+describe('getFreemiumVoiceMinutesForTier', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('maps FREE to the trial allowance and PLUS/PRO to their own monthly minutes', async () => {
+    vi.stubEnv('NEXT_PUBLIC_TRIAL_MINUTES_FREE', '10');
+    vi.stubEnv('NEXT_PUBLIC_MINUTES_PLUS', '120');
+    vi.stubEnv('NEXT_PUBLIC_MINUTES_PRO', '400');
+
+    const { getFreemiumVoiceMinutesForTier } = await import('./pricing');
+    expect(getFreemiumVoiceMinutesForTier('FREE')).toBe(10);
+    expect(getFreemiumVoiceMinutesForTier('PLUS')).toBe(120);
+    expect(getFreemiumVoiceMinutesForTier('PRO')).toBe(400);
+  });
+
+  it('is null for every tier when the owner has not set the config yet', async () => {
+    const { getFreemiumVoiceMinutesForTier } = await import('./pricing');
+    expect(getFreemiumVoiceMinutesForTier('FREE')).toBeNull();
+    expect(getFreemiumVoiceMinutesForTier('PLUS')).toBeNull();
+    expect(getFreemiumVoiceMinutesForTier('PRO')).toBeNull();
+  });
+});
+
 describe('formatFreemiumPriceNpr', () => {
   it('returns the caller-supplied price-soon label when the price is unset', () => {
     expect(formatFreemiumPriceNpr(null, 'ne', 'मूल्य छिट्टै')).toBe('मूल्य छिट्टै');

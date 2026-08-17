@@ -1,5 +1,5 @@
 import { getPlan } from '@swasthya/entitlements';
-import type { QuotaDimension } from '@swasthya/shared-types';
+import type { PlanTier, QuotaDimension } from '@swasthya/shared-types';
 
 /**
  * Canonical module display order for the pricing comparison grid.
@@ -77,6 +77,23 @@ export const FREEMIUM_VOICE_CONFIG: FreemiumVoiceConfig = {
     minutesPerMonth: readPositiveInt(process.env['NEXT_PUBLIC_MINUTES_PRO']),
   },
 };
+
+/**
+ * The `/pricing` cards need one voice-minutes figure per tier, not the whole
+ * config shape — FREE shows the trial allowance, PLUS and PRO show their own
+ * monthly minutes. Centralised here (rather than a switch in the component)
+ * so the FREE↔trial mapping is defined once and covered by a test.
+ */
+export function getFreemiumVoiceMinutesForTier(tier: PlanTier): number | null {
+  switch (tier) {
+    case 'FREE':
+      return FREEMIUM_VOICE_CONFIG.trialMinutesFree;
+    case 'PLUS':
+      return FREEMIUM_VOICE_CONFIG.plus.minutesPerMonth;
+    case 'PRO':
+      return FREEMIUM_VOICE_CONFIG.pro.minutesPerMonth;
+  }
+}
 
 /** Named placeholders the ledger task calls out by name — all sourced from the one config above. */
 export const TRIAL_MINUTES_FREE = FREEMIUM_VOICE_CONFIG.trialMinutesFree;

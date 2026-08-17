@@ -130,8 +130,9 @@ read that before the first task.
       single config; NPR formatting; **owner sets the numbers** — do not
       invent them, ship the page with a visible "मूल्य छिट्टै" (price soon)
       state until set. **Done 2026-08-17 — see the log entry below.**
-- [ ] `/pricing` page, mobile-first, both locales, image-led per the design
-      rules; three cards; "safety is always free" stated plainly.
+- [x] `/pricing` page, mobile-first, both locales, image-led per the design
+      rules; three cards; "safety is always free" stated plainly. **Done
+      2026-08-17 — see the log entry below.**
 - [ ] Upsell card component for the dialogue box: one Nepali sentence with
       the price, shown *after* a first voice answer and when trial minutes
       run out; dismissible; never on arrival; never for emergency content.
@@ -1709,6 +1710,74 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-17 — **Round six, task L (second box): the `/pricing` page renders
+  the freemium-voice config and states "safety is never paid for."** Done.
+
+  **Housekeeping, same shape again.** Local `main` at container start was a
+  stale ref (76 commits, `git merge-base main origin/main` came back empty —
+  no common ancestor, not just "behind"), left over from setup rather than
+  unpushed work. `git status` was clean, so per the note the previous run
+  left in this log: `git reset --hard origin/main` and move on. Worth saying
+  again for whichever run hits this next, since it has now recurred three
+  runs straight — the fix is always the same two checks (`git status`
+  clean, `git merge-base` empty) followed by the reset, never a merge.
+
+  **Selection.** Round five J/I/H all checked. Round six task L's first box
+  (`pricing.ts`) was checked by the previous run, which explicitly deferred
+  the page itself — that was the first unchecked box in file order, so it
+  is what this run took.
+
+  **What was built.** `apps/web/src/components/pricing/PricingView.tsx`
+  already existed and already rendered three cards (one per
+  `@swasthya/entitlements` tier) with real, owner-set module prices — that
+  surface predates Round six and was left untouched. Round six's table adds
+  a *second* freemium axis on the same three tiers (trial/Plus/Pro **voice
+  minutes**), which the page did not show at all. Added: (1) a
+  `getFreemiumVoiceMinutesForTier(tier)` helper in `pricing.ts` mapping
+  FREE → `trialMinutesFree`, PLUS/PRO → their own `minutesPerMonth`, tested
+  for both the owner-set and all-unset cases; (2) a voice-minutes line on
+  each card between the price and the CTA button, using the existing
+  `formatFreemiumMinutes` formatter — currently every plan shows "मिनेट
+  छिट्टै" / "Minutes soon" since the owner has not set the env vars yet,
+  which is the honest state, not a guessed number; (3) a standalone
+  "सुरक्षा कहिल्यै तिर्नुपर्दैन…" / "Safety is never paid for…" banner
+  (`ShieldCheck` icon, `indigo-50` card, plain sentence — not the marigold
+  accent, since it is not a call to action) placed between the section
+  heading and the plan grid, stating the freemium doc's principle 1
+  plainly rather than leaving it implied by the footnote. Four new message
+  keys (`pricing.safetyBanner`, `pricing.voiceMinutes.label`,
+  `pricing.voiceMinutes.unset`) added to both `messages/ne.json` and
+  `en.json` — no copy hardcoded in the component.
+
+  **Mobile measurement at 375px (both locales, full page including the
+  shared header/footer, not just the new content).** `/pricing` (ne):
+  scrollHeight 5087px ≈ 7.6 screens, 84 tap targets, 36 under 44px,
+  no horizontal overflow. `/en/pricing`: scrollHeight 5260px ≈ 7.9 screens,
+  84 tap targets, 34 under 44px, no horizontal overflow. The small-target
+  count is unchanged by this run — those are the shared nav/footer links
+  and the existing module-grid checkmark rows, not the banner or the new
+  voice-minutes line (its own CTA button measured 269×44px, at the floor,
+  not under it). Screenshotted both locales at 375px: the safety banner and
+  the voice-minutes row render inside the card, wrap cleanly in both
+  scripts, and the "मिनेट छिट्टै"/"Minutes soon" placeholder reads as a
+  placeholder rather than a number. Did not attempt to fix the pre-existing
+  small tap targets or page length — out of scope for this task and not
+  something to fold into an unrelated commit.
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm
+  typecheck`, `pnpm test` (`@swasthya/web`: 29 files / 203 tests; full
+  monorepo run also green), `pnpm build` all green from a clean tree.
+
+  **For the next run:** task L's remaining three boxes — the dialogue-box
+  upsell card (one Nepali sentence with the price, shown after a first
+  voice answer and when trial minutes run out), on-device trial-minute
+  metering in `lib/anonymous-history.ts`, and the config-missing outage
+  test. The outage test is cheap now: `FREEMIUM_VOICE_CONFIG` already
+  degrades to all-null with no env vars, and this run's screenshots are
+  effectively that state already — a `describe`-level test asserting
+  `PricingView` renders the unset labels rather than throwing would close
+  that box in one pass.
 
 - 2026-08-17 — **Round six, task L (first box): `apps/web/src/content/
   pricing.ts` freemium-voice config.** Done.
