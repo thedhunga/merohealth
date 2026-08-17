@@ -1569,5 +1569,13 @@
       "fallback": "This may be an emergency. Go to the nearest appropriate hospital or contact a locally verified emergency service.",
       "restart": "Start a new session"
     }
+  },
+  "voiceContribution": {
+    "consent": {
+      "heading": "Help build a Nepali speech model",
+      "body": "When you contribute a voice recording — reading a prompt or speaking freely — we keep the recording itself, separate from your health conversations, to help train a Nepali speech-recognition model.",
+      "optional": "Contributing is entirely optional and never required to use any part of Mero Health. Choosing not to changes nothing about the app.",
+      "revocable": "You can withdraw at any time. Withdrawing removes your recordings from every future release; anything already released stays documented as such."
+    }
   }
 }

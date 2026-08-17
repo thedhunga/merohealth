@@ -79,6 +79,24 @@ export function hasPurpose(
 export const CURRENT_POLICY_VERSION = 'consent-copy-v1';
 
 /**
+ * Wording version for the *Voice Contribution* consent copy —
+ * `messages.voiceContribution.consent` in `apps/web` — kept separate from
+ * `CURRENT_POLICY_VERSION` above because it governs a different flow.
+ * `CURRENT_POLICY_VERSION` stamps `ConsentGrant`s for opting *existing*
+ * health conversations into training (§4 stream B of
+ * `docs/product/freemium-and-voice-corpus.md`); this stamps consent for the
+ * separate, not-yet-built Common-Voice-style flow that records someone
+ * reading a prompt or speaking freely, purely to train a Nepali speech
+ * model (§4 stream A). Not wired into a `ConsentGrant` yet — the `/contribute`
+ * page and its own API-side consent record (Round six §M's later boxes) do
+ * not exist yet — but the copy needs a stable version identifier from the
+ * moment it ships, per this file's own note on why consent cannot be built
+ * later: a recording kept without a version-stamped basis at capture time
+ * is unusable afterwards, however carefully the engineering catches up.
+ */
+export const VOICE_CONTRIBUTION_CONSENT_VERSION = 'voice-contribution-consent-v1';
+
+/**
  * Grants a purpose. Building a fresh row rather than reviving a revoked one
  * keeps the history honest: a person who turns training off and back on has
  * two grants on record, not one edited row that hides the gap.

@@ -172,9 +172,10 @@ read that before the first task.
 
 ## M. Corpus — consent first, then capture (needs the API server)
 
-- [ ] Consent copy, ne/en, plain register, in `messages/*` — separate from
+- [x] Consent copy, ne/en, plain register, in `messages/*` — separate from
       terms; versioned; explains purpose (train a Nepali speech model), that
-      it is optional, revocable, and not required for any service.
+      it is optional, revocable, and not required for any service. **Done
+      2026-08-17 — see the log entry below.**
 - [ ] `apps/api`: `Consent { userId, kind: VOICE_CONTRIBUTION |
       HEALTH_CONVERSATION_AUDIO, version, grantedAt, revokedAt }`; toggle
       in account; audit trail.
@@ -1726,6 +1727,81 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-17 — **Round six, task M (first box): Voice Contribution consent
+  copy, ne/en.** Done.
+
+  **Housekeeping first.** Local `main` at container start was a stale ref
+  with no common ancestor to `origin/main` (`git merge-base` came back
+  empty). `git status` was clean, so per the standing note at the top of
+  this file and the last several runs' entries: `git reset --hard
+  origin/main` and move on.
+
+  **Selection.** Fresh `grep -n "^\s*- \[ \]"` across the whole file: the
+  literal first unchecked box is K′'s third box (findings write-up), which
+  the immediately preceding log entry already documents as needing the
+  owner's real phone and `GEMINI_LIVE_ENABLED` billing — not something a
+  scheduled run can produce without inventing measurements, which the
+  standing constraints forbid outright. Round five's own task K (the
+  voice-architecture doc, also "Stop; owner decides") sits permanently
+  unchecked in exactly the same way, superseded in practice by the owner's
+  later direction rather than ever ticked — same shape here. Took the next
+  box instead: Round six §M's first item, consent copy for the *Voice
+  Contribution* flow.
+
+  **Scope check before writing anything.** `packages/language-corpus`
+  already has a full consent system (`ConsentPurpose`, `ConsentGrant`,
+  `CURRENT_POLICY_VERSION`, `grantConsent`/`revokeConsent`) wired to
+  `apps/web`'s `/legal/data-consent` (`DataConsentView.tsx`) and
+  `apps/mobile`'s `app/consent.tsx`. Read it closely before assuming this
+  box was already done: that system's `modelTrainingVoice` purpose is for
+  the *transcribed text* of a health conversation's voice turns ("not the
+  recording itself" — its own English copy says so explicitly), i.e. §4
+  stream B of `docs/product/freemium-and-voice-corpus.md`. Task M's box is
+  §4 stream A — a separate, not-yet-built Common-Voice-style flow
+  (`/contribute`, item 181, still unchecked) that keeps the *actual audio
+  recording* to train a Nepali speech-recognition model. Confirmed no
+  existing copy covers this before writing new copy, rather than either
+  skipping the box as already-done or duplicating existing strings.
+
+  **What was built.** `apps/web/messages/en.json` and `ne.json`: new
+  `voiceContribution.consent` namespace (`heading`, `body`, `optional`,
+  `revocable`) — purpose stated plainly (train a Nepali speech model, kept
+  separate from health conversations), optional and never a condition of
+  any service, revocable with the same "already-released stays documented"
+  nuance the doc's own deletion section specifies (never invented). No
+  `/contribute` page exists yet to render it — same "content ahead of its
+  caller" shape task L's config and upsell-card boxes already established
+  this round — so the keys currently have no consumer, which is expected.
+  `packages/language-corpus/src/index.ts`: added
+  `VOICE_CONTRIBUTION_CONSENT_VERSION`, a version constant for this specific
+  copy, colocated with (but deliberately not merged into)
+  `CURRENT_POLICY_VERSION` — the two govern different flows and item 178
+  (the future `apps/api` `Consent` entity with its own `VOICE_CONTRIBUTION`
+  kind) is what will eventually consume it. Not wired into `ConsentGrant`;
+  that type models stream B only.
+
+  **Verify.** Full gate from the repository root: `pnpm install
+  --frozen-lockfile` clean, `pnpm lint` 40/40, `pnpm typecheck` 40/40,
+  `pnpm test` 75/75 tasks (no new test file — a plain string constant with
+  no producing function has nothing to assert beyond what typecheck already
+  covers, same reasoning `CURRENT_POLICY_VERSION` itself was never given a
+  standalone test for), `pnpm build` 40/40.
+
+  **Mobile measurement.** Not applicable — `git diff --stat` confirms the
+  diff is two message files, one `packages/` source file, and this ledger;
+  no component, page, or route changed, so there is nothing new to render
+  or measure at 375px.
+
+  **For the next run.** K′'s third box and Round six §N (payments) and §M's
+  remaining boxes (`apps/api` Consent entity onward, item 178) all need
+  either the owner's phone, an owner decision, or the API server deployed —
+  re-verify each is still genuinely blocked before skipping past it, per
+  this file's own standing rule, rather than trusting this note. If all are
+  still blocked, Round three's three standing blockers (Google sign-in env
+  var, two testimonial portraits, homepage screen count) are further down
+  in file order and were last independently re-verified in the entries
+  around 2026-08-17 above the Round three heading.
 
 - 2026-08-17 — **Round six, task K′ (second box): the `/voice-lab` page
   itself.** Done. **K′'s second box is now checked.** The next unchecked
