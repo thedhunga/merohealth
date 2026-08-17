@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { REWARD_VERIFIED_CLIPS_PER_MONTH } from '@swasthya/language-corpus';
 
 import { RecordTransform } from '@/components/art/RecordTransform';
 import { BloodPressureRecord } from '@/components/account/BloodPressureRecord';
@@ -132,6 +133,30 @@ export function AccountView() {
             onChanged={refreshCorpusConsent}
             state={corpusConsent.status === 'loaded' ? { grants: corpusConsent.grants } : 'loading'}
           />
+
+          {/*
+            `/contribute` and `/validate` (Round six §M) have been fully built for
+            several runs — capture, reward, crowd validation, release tooling —
+            but neither route was ever linked from anywhere in the product, so a
+            real person could only reach them by typing the URL. This is the one
+            in-app entry point; both stay out of `content/routes.ts`/the sitemap
+            deliberately (each page's own comment explains why), which is a
+            search-indexing decision, not a "no navigation" one.
+          */}
+          <div className="flex flex-col gap-3 rounded-2xl bg-sand/70 p-6 ring-1 ring-line">
+            <h2 className="text-xl font-bold text-ink">{t('voiceContribution.heading')}</h2>
+            <p className="text-ink-soft">
+              {t('voiceContribution.body', { count: REWARD_VERIFIED_CLIPS_PER_MONTH })}
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <ButtonLink href="/contribute" variant="primary">
+                {t('voiceContribution.cta')}
+              </ButtonLink>
+              <ButtonLink href="/validate" variant="secondary">
+                {t('voiceContribution.validateCta')}
+              </ButtonLink>
+            </div>
+          </div>
 
           <div className="flex flex-col gap-4 rounded-2xl bg-indigo-900 p-8 text-white md:flex-row md:items-center md:justify-between">
             <div>

@@ -1548,6 +1548,12 @@
         "GENERIC": "Something went wrong — please try again."
       }
     },
+    "voiceContribution": {
+      "heading": "Contribute your voice",
+      "body": "Read a short line or answer a question in your own words to help train a Nepali speech model — kept separate from your health conversations. {count} verified recordings earn a month of Plus.",
+      "cta": "Start contributing",
+      "validateCta": "Help verify recordings"
+    },
     "openApp": {
       "heading": "Open the Mero Health app",
       "body": "Your health record, documents and assistant live there.",

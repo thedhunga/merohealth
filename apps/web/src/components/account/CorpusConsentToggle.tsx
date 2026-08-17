@@ -15,9 +15,8 @@ const KIND = 'HEALTH_CONVERSATION_AUDIO';
  * §4 stream B: "a clear toggle, off by default, ... shown in the account
  * page". Only `HEALTH_CONVERSATION_AUDIO` is offered here, not
  * `VOICE_CONTRIBUTION` (stream A) — that flow is a separate, non-health
- * `/contribute` page that does not exist yet (Round six §M's next box), the
- * same "content ahead of its caller" shape `VOICE_CONTRIBUTION_CONSENT_VERSION`
- * already established in `packages/language-corpus` before anything called it.
+ * `/contribute` page with its own consent gate; `AccountView` links to it
+ * directly rather than duplicating a second toggle for it here.
  *
  * A single native `<input type="checkbox">` switch, the same accessibility
  * shape `DataConsentView.tsx` already established for the same reason: a

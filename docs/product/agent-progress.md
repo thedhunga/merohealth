@@ -1738,6 +1738,102 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-17 — **Exhausted-queue improvement: link `/contribute` and
+  `/validate` from the account page — Round six §M's whole feature was
+  unreachable in the product.** Done.
+
+  **Housekeeping first.** Local `main` at container start was a stale
+  76-commit ref sharing no `git merge-base` with `origin/main`'s real 50 —
+  the same divergent-history shape at least thirteen prior entries report.
+  `git status` was clean, so `git checkout -B main origin/main` and moved on.
+
+  **Selection.** Fresh `grep -n "^\s*- \[ \]"` across the whole file: seven
+  boxes total, every one of them re-verified genuinely blocked this run —
+  K′'s findings box (`GEMINI_LIVE_ENABLED` is still commented out in
+  `apps/web/.env.example`, so there is still no billing-enabled phone to
+  measure on), §M's licence/stream-B decision, §N payments (provider not
+  chosen), Round five's task K (superseded by the owner's later direction,
+  same reasoning the immediately preceding run recorded), the two missing
+  testimonial portraits (blocked on Higgsfield credits, an external
+  resource), the Google-sign-in-credential box in Round four §F (code is
+  done; blocked on the owner's actual `GOOGLE_CLIENT_ID`), and Round three's
+  own homepage-height box (its own 2026-08-16 status note says two
+  independent audits already agreed further cuts mean dropping real content
+  — "a product call, not a code task" — and invites a *new* lever, not a
+  repeat of an already-closed one). No new lever presented itself there, so
+  per this file's own working agreement for an exhausted queue: picked the
+  highest-value improvement to work already shipped instead.
+
+  **What was found.** `/contribute` (read prompts, free-speech tasks,
+  `MediaRecorder` capture, quality gates, reward) and `/validate` (crowd
+  verification — listen, mark right/wrong/unclear) have been fully built
+  and gated green across roughly six prior runs — the entirety of Round six
+  §M. Neither route is registered in `content/routes.ts`/the sitemap, which
+  both pages' own comments explain deliberately (account-scoped, not public
+  marketing content). But a *deliberate SEO exclusion* had, in practice,
+  become total unreachability: `grep` for `contribute`/`validate` hrefs
+  across `apps/web/src` turned up nothing outside each feature's own files.
+  `CorpusConsentToggle.tsx`'s own doc comment still said the `/contribute`
+  page "does not exist yet" — stale from the run that wrote it, before a
+  later run built the page and never came back to link it. Every hour this
+  ledger's last six runs spent on capture, reward, crowd validation and
+  release tooling was unreachable by a real signed-in person before this.
+
+  **What was built.** One in-app entry point, on the account page, next to
+  the existing corpus-consent toggle (both are the voice-corpus feature
+  area, so this groups with it rather than living somewhere unrelated): a
+  card with a heading, one line of body copy, and two `ButtonLink`s to
+  `/contribute` and `/validate`. The body copy states "{count} verified
+  recordings earn a month of Plus" — `{count}` is `REWARD_VERIFIED_CLIPS_PER_MONTH`
+  (20) imported from `@swasthya/language-corpus`, the same single-sourced-
+  constant pattern `content/pricing.ts` already uses for `TRIAL_MINUTES_FREE`,
+  rather than a second hardcoded "20" that could drift from the real value.
+  The reward figure itself is transcribed from `freemium-and-voice-corpus.md`
+  §4's own worked example ("20 verified recordings → 1 month Plus"), not
+  invented — this is the first place that number has ever reached a user-
+  facing string; every prior run left the reward mechanism real but silent.
+  New copy in both `messages/en.json` and `ne.json` under
+  `account.voiceContribution`. Corrected `CorpusConsentToggle.tsx`'s stale
+  comment to say what is actually true now. `ButtonLink`'s `md` size is
+  `min-h-11` (44px) unconditionally, so both new tap targets clear the
+  minimum without a separate check.
+
+  **Verify.** Full gate from the repository root: `pnpm install
+  --frozen-lockfile` clean; `pnpm lint` 40/40; `pnpm typecheck` 40/40;
+  `pnpm test` 75/75 tasks, no test file added or needed (matches every
+  other `apps/web` component under `src/components`, which unit-tests logic
+  only, never markup); `pnpm build` 40/40. Fresh `next start` at 375px,
+  Playwright (`/opt/pw-browsers/chromium`): homepage unchanged at 5.61
+  screens (ne) / 6.07 (en) — this run touched no homepage file, so this is
+  a baseline reconfirmation, not a regression check; `/pricing`, `/contribute`
+  and `/voice-lab` each have exactly one under-44px element outside the
+  footer (the sr-only skip-link, which is invisible until focused and not a
+  real tap target), confirming the tap-target backlog this ledger has
+  tracked across two dozen entries is genuinely a footer/mega-menu-links
+  story, not a widespread problem in newer pages. **`/account` itself could
+  not be rendered signed-in this run** — `docker` has no daemon in this
+  container (`dial unix /var/run/docker.sock: connect: no such file or
+  directory`), so `compose.yaml`'s Postgres could not come up the way the
+  2026-08-16 database run did, and `useSession` redirects an unauthenticated
+  visitor straight to `/signin` (confirmed: hitting `/account` with no API
+  reachable does exactly that, no crash, no console error beyond the two
+  already-documented pre-existing ones). The new card reuses the exact
+  `rounded-2xl bg-sand/70 p-6 ring-1 ring-line` shell `CorpusConsentToggle`
+  already ships in that same sign-in-gated page, which earlier runs have
+  verified at 375px, so this is a reasoned extrapolation, not a guess — but
+  a real signed-in click-through of `/account` is still owed, same as the
+  family-grants revoke button and the corpus-consent toggle before it.
+
+  **For the next run.** All seven standing blockers are unchanged; re-verify
+  each before skipping past it rather than trusting this note forever, per
+  this file's own rule. If still exhausted, either bring up a working
+  Postgres in whatever container the next run gets and finally close out
+  that "real click-through owed" debt across `/account`'s several
+  session-gated cards at once, or find something else already-shipped worth
+  strengthening. Someone should still fix the divergent-`main` situation at
+  the infrastructure level — this is at least the fourteenth run to
+  document hitting it.
+
 - 2026-08-17 — **Round six, task M's last box: Release tooling — versioned
   export + datasheet; deletion honoured.** Done. **Every box in Round six
   §M is now checked.**
