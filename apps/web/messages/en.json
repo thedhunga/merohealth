@@ -1158,6 +1158,7 @@
       "label": "Voice conversation (minutes/month)",
       "unset": "Minutes soon"
     },
+    "priceSoon": "Price soon",
     "footnote": "Bring-your-own storage stays free on every plan — hosted storage, extraction, device sync, sharing, provider export and teleconsultation are the modules that separate the tiers.",
     "modules": {
       "ASSISTANT": {
@@ -1320,6 +1321,11 @@
       "heading": "Keep these answers?",
       "body": "Sign in with your phone number and everything you asked so far joins your history.",
       "cta": "Sign in"
+    },
+    "upsell": {
+      "body": "Want more conversations, spoken? Get Plus — {price}/month.",
+      "cta": "See Plus",
+      "dismiss": "Dismiss"
     }
   },
   "auth": {

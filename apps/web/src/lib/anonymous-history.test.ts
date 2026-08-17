@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   clearPendingProfileConfirmation,
+  dismissUpsell,
+  isUpsellDismissed,
   readPendingProfileConfirmation,
   recordExchange,
   stashPendingProfileConfirmation,
@@ -56,6 +58,44 @@ describe('pending profile confirmation', () => {
 
   it('reads null when nothing was ever stashed', () => {
     expect(readPendingProfileConfirmation()).toBeNull();
+  });
+});
+
+describe('upsell dismissal — round six task L', () => {
+  it('is not dismissed until dismissUpsell is called', () => {
+    expect(isUpsellDismissed()).toBe(false);
+
+    dismissUpsell();
+
+    expect(isUpsellDismissed()).toBe(true);
+  });
+
+  it('treats a localStorage failure as not dismissed, never as dismissed', () => {
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: () => {
+          throw new Error('SecurityError');
+        },
+        setItem: () => {},
+        removeItem: () => {},
+      },
+    });
+
+    expect(isUpsellDismissed()).toBe(false);
+  });
+
+  it('does not throw when setItem fails (quota or private mode)', () => {
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: () => null,
+        setItem: () => {
+          throw new Error('QuotaExceededError');
+        },
+        removeItem: () => {},
+      },
+    });
+
+    expect(() => dismissUpsell()).not.toThrow();
   });
 });
 

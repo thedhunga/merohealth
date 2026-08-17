@@ -133,9 +133,13 @@ read that before the first task.
 - [x] `/pricing` page, mobile-first, both locales, image-led per the design
       rules; three cards; "safety is always free" stated plainly. **Done
       2026-08-17 — see the log entry below.**
-- [ ] Upsell card component for the dialogue box: one Nepali sentence with
+- [x] Upsell card component for the dialogue box: one Nepali sentence with
       the price, shown *after* a first voice answer and when trial minutes
       run out; dismissible; never on arrival; never for emergency content.
+      **Done 2026-08-17 for the voice-answer trigger — see the log entry
+      below. The "trial minutes run out" trigger is deferred to the very
+      next box (on-device metering), which does not exist yet; the card
+      component itself already accepts being shown from any caller.**
 - [ ] On-device metering of duplex trial minutes against the anonymous id
       (`lib/anonymous-history.ts` gains `usage`), migrated with history.
 - [ ] Outage test: config missing → page renders with "price soon", nothing
@@ -1710,6 +1714,95 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-17 — **Round six, task L (third box): the dialogue-box upsell
+  card, voice-answer trigger.** Done for the trigger this box actually
+  specifies as buildable today; the "trial minutes run out" half is
+  deferred — see below.
+
+  **Housekeeping, same shape again.** Local `main` at container start was a
+  stale ref with no common ancestor to `origin/main` (`git merge-base` came
+  back empty), `git status` was clean, so per the last several entries:
+  `git reset --hard origin/main` and move on. Fourth run in a row hitting
+  this exact shape — the fix is unchanged.
+
+  **Selection.** Round five J/I/H and task L's first two boxes (`pricing.ts`
+  config, `/pricing` page) were all checked. The third box — the upsell
+  card itself — was the first unchecked item in file order.
+
+  **Scope decision.** The box's own text bundles two triggers together:
+  "after a first voice answer" and "when trial minutes run out." Only the
+  first is buildable today — `docs/product/freemium-and-voice-corpus.md`'s
+  own build order puts metering and the card in the same step, but the
+  ledger split them into two boxes, and the very next box
+  ("On-device metering of duplex trial minutes... `lib/anonymous-history.ts`
+  gains `usage`") is what would make the second trigger possible; that data
+  does not exist yet. Building the card with only the trigger that has real
+  data, rather than fabricating a minutes-remaining check against a field
+  that isn't tracked, matches "invent nothing." The component itself takes
+  no opinion on why it's being shown, so the metering task can add a second
+  `setShowUpsell(true)` call site without touching this one.
+
+  **What was built.** `UpsellCard` in `GetCareFlow.tsx`: one sentence
+  (`getCare.upsell.body`, `{price}` interpolated from `PRICE_PLUS_NPR` via
+  the already-existing-but-unused `formatFreemiumPriceNpr`, which honestly
+  renders "मूल्य छिट्टै"/"Price soon" until the owner sets the env var — the
+  same placeholder text `pricing.test.ts` already asserts), a "Plus
+  हेर्नुहोस्"/"See Plus" link to `/pricing`, and a close button. Wired into
+  `submitQuestion`'s existing `if (answered && body.research?.answer)`
+  branch — the same branch that already gates `pendingPrompt`/
+  `suggestSignIn` — via `if (spoken && !isUpsellDismissed()) setShowUpsell(true)`.
+  That branch only runs on a real, complete research answer
+  (`/api/companion/research` returns `research: null` for both the
+  emergency-interrupt and off-topic paths — checked the route directly), so
+  "never for emergency content" holds structurally, not just by the
+  `phase === 'result'` render guard. Dismissal is a new pair of functions in
+  `anonymous-history.ts` (`isUpsellDismissed`/`dismissUpsell`, a bare
+  localStorage flag, try/catch-degrades-safe like every other function in
+  that file) — persisted, not per-session, so "dismissible" means dismissed
+  forever, matching the product's existing "never nagging" stance elsewhere
+  in the same doc. Placed in the post-answer stack between the profile
+  prompt and the sign-in suggestion (mutually exclusive with the latter —
+  showing two marigold cards stacked after one answer is exactly the kind
+  of clutter the mobile constraint exists to prevent). Added
+  `pricing.priceSoon` (reused by the card, sourced once) and
+  `getCare.upsell.{body,cta,dismiss}` to both `messages/ne.json` and
+  `en.json`. Tests added to `anonymous-history.test.ts` for the new
+  dismiss functions (not-dismissed-by-default, dismiss-persists,
+  read-failure degrades to false, write-failure doesn't throw) — no new
+  component test file, matching this repo's existing convention of zero
+  `.test.tsx` files under `apps/web/src/components` (no jsdom configured;
+  only `lib`/`content` pure logic is unit-tested here).
+
+  **Mobile measurement at 375px.** Could not trigger `phase === 'result'`
+  live — that needs a real model answer and no API key is configured in
+  this environment — so measured the card's actual compiled markup by
+  injecting the exact classNames/content it renders into the live
+  `/ne/get-care` page's own results container via Playwright, rather than
+  guessing at sizes from the Tailwind scale. Card: 148px tall, right edge at
+  335px inside a 375px viewport (no horizontal overflow), added 164px
+  (~0.2 screens) to page height once shown. Both interactive elements hit
+  exactly the 44px floor: the "Plus हेर्नुहोस्" link measured 98×44px, the
+  dismiss button 44×44px. `/get-care` idle-state baseline (unchanged by
+  this run, recorded for the next run's comparison): `/ne/get-care`
+  2037px ≈ 2.5 screens, 36 sub-44px targets; `/en/get-care` 2199px ≈ 2.7
+  screens, 34 sub-44px targets — all of them the pre-existing footer
+  mega-menu links already flagged in prior entries, not touched here.
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm
+  typecheck`, `pnpm test` (`@swasthya/web` anonymous-history + pricing
+  suites green; full monorepo run also green, 114 files / 757+ tests),
+  `pnpm build` all green from a clean tree.
+
+  **For the next run:** task L's remaining two boxes. On-device trial-minute
+  metering (`lib/anonymous-history.ts` gains `usage`) is next in file order
+  and is also the box that unlocks the "trial minutes run out" trigger this
+  run deferred — once a remaining-minutes figure exists, add a second
+  `setShowUpsell(true)` call site keyed off it, next to the one this run
+  added. The config-missing outage test (last box) is still cheap:
+  `FREEMIUM_VOICE_CONFIG` already degrades to all-null with no env vars,
+  and both this run's and the previous run's screenshots are effectively
+  that state already.
 
 - 2026-08-17 — **Round six, task L (second box): the `/pricing` page renders
   the freemium-voice config and states "safety is never paid for."** Done.

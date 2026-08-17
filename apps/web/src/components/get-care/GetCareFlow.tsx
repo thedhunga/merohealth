@@ -17,6 +17,7 @@ import {
   Volume2,
   ShieldCheck,
   TriangleAlert,
+  X,
 } from 'lucide-react';
 
 import type {
@@ -27,13 +28,16 @@ import type {
 } from '@/lib/companion-research';
 import { consumeCareQuestion } from '@/lib/get-care-session';
 import {
+  dismissUpsell,
   history,
+  isUpsellDismissed,
   markPromptAsked,
   profile,
   recordExchange,
   shouldSuggestSignIn,
   updateProfile,
 } from '@/lib/anonymous-history';
+import { formatFreemiumPriceNpr, PRICE_PLUS_NPR } from '@/content/pricing';
 import { nextProfilePrompt, type ProfilePrompt } from '@/lib/profile-prompts';
 import { Link } from '@/i18n/navigation';
 import { useSpeechPlayback } from '@/hooks/useSpeechPlayback';
@@ -68,6 +72,7 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
   const [response, setResponse] = useState<CompanionResearchResponse | null>(null);
   const [pendingPrompt, setPendingPrompt] = useState<ProfilePrompt | null>(null);
   const [suggestSignIn, setSuggestSignIn] = useState(false);
+  const [showUpsell, setShowUpsell] = useState(false);
   // One id per conversation session — regenerated on `reset()` — so the
   // saved history and the thread UI can both group turns asked in one
   // sitting. `useState(() => ...)` rather than a module-level call: the id
@@ -166,6 +171,14 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
         const answeredCount = history().filter((e) => e.outcome === 'answered').length;
         setPendingPrompt(nextProfilePrompt(message, answeredCount, profile()));
         setSuggestSignIn(shouldSuggestSignIn());
+        // Round six, task L: the moment the value is felt — right after the
+        // first spoken answer, per docs/product/freemium-and-voice-corpus.md
+        // §2. Only ever reached on a real answer (never emergency/off-topic,
+        // which return `research: null` and skip this whole branch), and
+        // never shown twice once dismissed.
+        if (spoken && !isUpsellDismissed()) {
+          setShowUpsell(true);
+        }
       } else {
         setPendingPrompt(null);
       }
@@ -357,9 +370,11 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
 
                 {/*
                   Reactions to the answer, below it and after it. Profile
-                  prompt first (one question, skippable), then the sign-in
-                  suggestion — never both on a first visit, and never before
-                  a real answer has been given.
+                  prompt first (one question, skippable), then the upsell
+                  card (Round six L — only after a voice answer, dismissible),
+                  then the sign-in suggestion — never more than one of these
+                  three at once, and never before a real answer has been
+                  given.
                 */}
                 {phase === 'result' && pendingPrompt ? (
                   <ProfilePromptCard
@@ -368,7 +383,16 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
                     prompt={pendingPrompt}
                   />
                 ) : null}
-                {phase === 'result' && !pendingPrompt && suggestSignIn ? (
+                {phase === 'result' && !pendingPrompt && showUpsell ? (
+                  <UpsellCard
+                    locale={locale}
+                    onDismiss={() => {
+                      setShowUpsell(false);
+                      dismissUpsell();
+                    }}
+                  />
+                ) : null}
+                {phase === 'result' && !pendingPrompt && !showUpsell && suggestSignIn ? (
                   <SignInSuggestion />
                 ) : null}
               </div>
@@ -789,6 +813,51 @@ function SignInSuggestion() {
       >
         {t('cta')}
       </Link>
+    </div>
+  );
+}
+
+/**
+ * Round six, task L: one Nepali sentence with the price, offered — never
+ * imposed — after the first voice answer. `PRICE_PLUS_NPR` reads `null`
+ * until the owner sets it (`apps/web/.env.example`), in which case the
+ * sentence honestly says "price soon" rather than a guessed number, matching
+ * `/pricing`'s own placeholder convention. The close button is the only
+ * dismiss control anywhere in this flow — `onDismiss` both hides it for the
+ * rest of this session and persists the choice so it never nags again.
+ */
+function UpsellCard({
+  locale,
+  onDismiss,
+}: {
+  locale: ResearchLanguage;
+  onDismiss: () => void;
+}) {
+  const t = useTranslations('getCare.upsell');
+  const pricingT = useTranslations('pricing');
+  const price = formatFreemiumPriceNpr(PRICE_PLUS_NPR, locale, pricingT('priceSoon'));
+
+  return (
+    <div className="mt-4 flex items-start gap-3 rounded-2xl border border-marigold-300 bg-marigold-100/60 p-4">
+      <p className="flex-1 text-sm leading-relaxed font-semibold text-ink">
+        {t('body', { price })}
+      </p>
+      <div className="flex shrink-0 items-center gap-1">
+        <Link
+          className="inline-flex min-h-11 items-center justify-center rounded-pill bg-indigo-800 px-4 text-sm font-bold text-white hover:bg-indigo-700"
+          href="/pricing"
+        >
+          {t('cta')}
+        </Link>
+        <button
+          aria-label={t('dismiss')}
+          className="grid size-11 shrink-0 place-items-center rounded-full text-ink-soft hover:bg-white/70"
+          onClick={onDismiss}
+          type="button"
+        >
+          <X aria-hidden className="size-4" />
+        </button>
+      </div>
     </div>
   );
 }

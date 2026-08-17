@@ -23,6 +23,7 @@
 export const ANON_HISTORY_KEY = 'mero-health:anon-history';
 export const ANON_ID_KEY = 'mero-health:anon-id';
 export const PENDING_PROFILE_KEY = 'mero-health:pending-profile-confirmation';
+export const UPSELL_DISMISSED_KEY = 'mero-health:upsell-dismissed';
 
 /** Enough to be useful, small enough to migrate in one request. */
 const MAX_ENTRIES = 40;
@@ -236,4 +237,29 @@ export function clearPendingProfileConfirmation(): void {
 export function shouldSuggestSignIn(): boolean {
   const answered = read().exchanges.filter((e) => e.outcome === 'answered').length;
   return answered >= 2;
+}
+
+/**
+ * Round six, task L: the upsell card shown in the dialogue after a first
+ * voice answer is dismissible, once, forever — never nagging. A separate
+ * top-level key rather than a field on `AnonymousProfile`: dismissal is a UI
+ * preference, not part of the person's health profile, and must survive
+ * independently of whatever `clearAfterMigration` does to the history/profile
+ * store.
+ */
+export function isUpsellDismissed(): boolean {
+  try {
+    return window.localStorage.getItem(UPSELL_DISMISSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function dismissUpsell(): void {
+  try {
+    window.localStorage.setItem(UPSELL_DISMISSED_KEY, '1');
+  } catch {
+    // Quota or private mode: the card simply offers itself again next visit
+    // — no worse than the dismiss button never having existed.
+  }
 }
