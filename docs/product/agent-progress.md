@@ -1738,6 +1738,113 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-17 — **Exhausted-queue improvement: fixed a real Devanagari
+  matra-clipping regression on the homepage `<h1>`, plus hardcoded
+  (untranslated) alt text on the three homepage hero/card images.** Done.
+
+  **Housekeeping first.** Local `main` at container start was again a stale
+  ref sharing no `git merge-base` with `origin/main` (this container's
+  variant: `git checkout main && git pull` failed on "need to specify how
+  to reconcile divergent branches" after the fetch force-updated the local
+  `origin/main` tracking ref) — at least the fifteenth run to hit some
+  variant of this. `git status` was clean, so `git reset --hard origin/main`
+  and moved on. **Someone should fix this at the infrastructure level** —
+  it is pure overhead at this point, every run re-derives the same
+  conclusion.
+
+  **Selection.** Fresh `grep -n "^\s*- \[ \]"`: the same seven boxes as the
+  immediately preceding run, all re-verified genuinely still blocked —
+  `GEMINI_LIVE_ENABLED` is still commented out in `apps/web/.env.example`
+  (K′'s findings box), `NEXT_PUBLIC_GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_ID` are
+  still empty (Round four §F), `portrait-raju.webp` is still missing next to
+  the two portraits that do exist (Round three §B), and §M's licence
+  decision, §N payments, Round five's task K and Round three's
+  homepage-height box are unchanged for the reasons the last several
+  entries already gave in detail. Per the preceding run's own note, tried
+  its suggested next step — bringing up Postgres to close out the
+  `/account` signed-in click-through debt. This container's `dockerd`
+  actually starts (previous runs' containers had no daemon at all), but
+  `docker compose up -d` then fails pulling every image
+  (`postgres:18-alpine`, `redis:8-alpine`, `minio/minio`) with a `403
+  Forbidden` from `production.cloudfront.docker.com` through this
+  container's network policy — a different failure mode than "no daemon",
+  same practical outcome. Recorded here so the next run doesn't re-attempt
+  the identical dead end without knowing why it dies differently this time.
+  Pivoted to the fallback: find something else already-shipped worth
+  strengthening. Delegated a read-only audit (Explore subagent) against the
+  standing constraints and art direction, scoped to a scan for the classes
+  of bug those rules exist to prevent — it came back with three candidates;
+  took the highest-impact one (the other two — hardcoded English "eyebrow"
+  labels on two secondary `apps/mobile` screens — are noted below for
+  whoever picks up next).
+
+  **What was found and fixed.**
+  `apps/web/src/components/home/SymptomEntry.tsx`'s hero `<h1>` (the
+  homepage's single most-viewed element, on the default Nepali locale) had
+  `leading-[1.08]` in its `className`. `globals.css` sets `line-height:
+  1.34` under `:lang(ne)` specifically to keep Devanagari matras from being
+  clipped at display sizes — the art-direction doc names this exact
+  regression class ("Never set a `leading-*` utility on a heading"). The
+  utility class won on specificity over the `:lang(ne)` rule at every
+  breakpoint, including the `text-[4.5rem]` desktop size, silently
+  reintroducing the bug the rule exists to prevent. Removed the utility;
+  computed line-height for the Nepali `<h1>` measured 56.816px on a
+  42.4px font (a clean 1.34, matching the base rule) before commit, versus
+  47.488px (a clipped 1.08) with the bug — confirmed with a headless
+  Chromium check, not just a visual read. English was incidentally affected
+  too (1.08 instead of the correct 1.12) and is now also correct.
+
+  Same audit turned up three homepage images with raw English string
+  literals in their `alt` props — `SymptomEntry.tsx`, `Hero.tsx`, and
+  `ServiceCards.tsx` — bypassing `next-intl` entirely, unlike every other
+  image in the app. This is a literal "never hardcode copy in a component"
+  violation, and a real one: a Nepali-locale visitor on a screen reader
+  heard English alt text on the homepage. None of the three needed
+  invented copy — all three images (`mero-family-report.webp`,
+  `mero-private-care.webp`, `mero-community-care.webp`) are already used
+  elsewhere in the app with a correctly-translated `imageAlt` key
+  (`company.about.hero.imageAlt`, `individuals.mentalHealth.hero.imageAlt`,
+  `organizations.ourApproach.hero.imageAlt` respectively), so the fix
+  reused those exact ne/en strings under new keys in the `home.hero`/
+  `home.services` namespace (`imageAlt`, `recordImageAlt`,
+  `featuredImageAlt`) rather than inventing new wording — verified with the
+  same headless check that each `<img>`'s rendered `alt` now matches the
+  locale.
+
+  **Verify.** Full gate from the repository root: `pnpm install
+  --frozen-lockfile` clean; `pnpm lint` 40/40; `pnpm typecheck` 40/40;
+  `pnpm test` 75/75 tasks (824 API tests plus every other package, none
+  added — this is markup/CSS-only, matching the project's own convention of
+  not unit-testing static JSX); `pnpm build` 40/40. `next start` against
+  the production build, headless Chromium (`/opt/pw-browsers/chromium` via
+  the system Playwright at `/opt/node22/lib/node_modules/playwright`) at
+  375px: homepage height 5.72 screens (ne) / 6.16 (en) — essentially
+  unchanged from the last run's 5.61/6.07 baseline, since this change
+  touches line-height and `alt` text only, not layout; no horizontal
+  overflow either locale; both `<h1>` line-heights confirmed as above; both
+  `imageAlt` strings confirmed rendering in the active locale. Console
+  showed only the two already-documented pre-existing entries (missing
+  story-video source, `apps/api` connection-refused since the API isn't
+  running in this check) — nothing new.
+
+  **For the next run.** All seven standing blockers are unchanged;
+  re-verify each before skipping past it. Postgres/docker-compose is now a
+  confirmed dead end in this specific way (image pulls blocked by network
+  policy, not just a missing daemon) — don't re-attempt it identically;
+  the `/account` signed-in click-through debt (family-grants revoke button,
+  corpus-consent toggle, voice-contribution card) is still owed and needs
+  either a working local Postgres or some other route to an authenticated
+  session. If still exhausted, the audit this run ran also surfaced two
+  smaller, real issues not yet fixed: hardcoded English "eyebrow" labels
+  with no Nepali branch in `apps/mobile/app/consultation.tsx` (lines with
+  `"PRIVATE VIDEO ROOM · PREVIEW"` and `"CLINICIAN PARTICIPANT"`) and
+  `apps/mobile/app/(tabs)/learn.tsx` (`"INTERACTIVE WALKTHROUGH"` and
+  `"READABLE TRANSCRIPT"`) — the surrounding code in both files already
+  uses a `language === 'en' ? '...' : '...'` ternary for every other string,
+  so this is inconsistent with the file's own convention, not a missing
+  feature. Needs four short, genuine Nepali translations (no invented
+  facts), same mechanical shape as this run's fix.
+
 - 2026-08-17 — **Exhausted-queue improvement: link `/contribute` and
   `/validate` from the account page — Round six §M's whole feature was
   unreachable in the product.** Done.

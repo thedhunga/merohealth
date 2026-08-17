@@ -68,7 +68,7 @@ export function ServiceCards() {
                   {isFeatured ? (
                     <>
                       <Image
-                        alt="Illustrative scene of a clinician reviewing information with an older patient"
+                        alt={t('featuredImageAlt')}
                         className="object-cover object-[38%_center] transition-transform duration-700 group-hover:scale-[1.025] motion-reduce:transform-none"
                         fill
                         sizes="(min-width: 1024px) 58vw, 100vw"

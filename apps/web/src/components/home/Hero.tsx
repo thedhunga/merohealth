@@ -28,7 +28,7 @@ export function Hero() {
           */}
           <div className="relative aspect-[4/3] overflow-hidden rounded-[2rem] bg-indigo-950 shadow-lift">
             <AmbientLoop
-              alt="Illustrative scene of a woman having a private health conversation by phone"
+              alt={t('recordImageAlt')}
               className="absolute inset-0"
               poster="/imagery/mero-private-care.webp"
               sizes="(min-width: 1024px) 48vw, 100vw"

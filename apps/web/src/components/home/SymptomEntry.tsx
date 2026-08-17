@@ -36,7 +36,7 @@ export function SymptomEntry() {
       className="relative isolate min-h-[46rem] overflow-hidden bg-indigo-950 text-white sm:min-h-[50rem] lg:min-h-[46rem]"
     >
       <Image
-        alt="Illustrative scene of a Nepali family reviewing a health report together"
+        alt={hero('imageAlt')}
         className="object-cover object-[68%_center] lg:object-center"
         fill
         priority
@@ -58,7 +58,7 @@ export function SymptomEntry() {
           </span>
 
           <h1
-            className="mt-7 max-w-[12ch] text-[2.65rem] leading-[1.08] text-balance sm:text-6xl lg:text-[4.5rem]"
+            className="mt-7 max-w-[12ch] text-[2.65rem] text-balance sm:text-6xl lg:text-[4.5rem]"
             id="home-hero-heading"
           >
             {hero('title')}
