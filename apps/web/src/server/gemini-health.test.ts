@@ -148,15 +148,45 @@ describe('researchWithGemini', () => {
     expect(modelsTried).toEqual(['gemini-2.5-pro']);
   });
 
-  it('does NOT retry other models on a bad key, quota or outage', async () => {
+  it('does NOT retry other models when a real (non-zero) quota is used up', async () => {
     let calls = 0;
+    const exhausted = {
+      error: {
+        status: 'RESOURCE_EXHAUSTED',
+        message: 'You exceeded your current quota',
+        details: [
+          { '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', quotaValue: '250' }] },
+          { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '31s' },
+        ],
+      },
+    };
     const fetchImpl: typeof fetch = (() => {
       calls += 1;
-      return Promise.resolve(new Response(JSON.stringify({ error: { status: 'RESOURCE_EXHAUSTED' } }), { status: 429 }));
+      return Promise.resolve(new Response(JSON.stringify(exhausted), { status: 429 }));
     }) as unknown as typeof fetch;
     const result = await researchWithGemini('x', 'ne', { apiKey: 'k', fetchImpl });
     expect(result.status).toBe('unavailable');
     expect(calls).toBe(1);
+    expect(result.diagnostic).toContain('quota[GenerateRequestsPerDayPerProjectPerModel-FreeTier=250]');
+    expect(result.diagnostic).toContain('retry 31s');
+  });
+
+  it('DOES move on when a model has a zero quota on this key (not in the free tier)', async () => {
+    const zero = {
+      error: {
+        status: 'RESOURCE_EXHAUSTED',
+        details: [{ '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [{ quotaId: 'FreeTier', quotaValue: '0' }] }],
+      },
+    };
+    const modelsTried: string[] = [];
+    const fetchImpl: typeof fetch = ((_url: unknown, init?: RequestInit) => {
+      modelsTried.push((JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { model: string }).model);
+      const ok = modelsTried.length >= 3;
+      return Promise.resolve(new Response(JSON.stringify(ok ? groundedResponse : zero), { status: ok ? 200 : 429 }));
+    }) as unknown as typeof fetch;
+    const result = await researchWithGemini('x', 'ne', { apiKey: 'k', fetchImpl });
+    expect(result.status).toBe('complete');
+    expect(modelsTried).toEqual(['gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite']);
   });
 
   it('reports every model it tried when all are gone', async () => {

@@ -103,15 +103,53 @@ function emptyResearch(
  * `status` word and `reason` code, and a short slice of the message. Keys
  * never appear in these bodies, but the slice is capped regardless.
  */
+interface GoogleErrorDetail {
+  reason?: string;
+  violations?: { quotaId?: string; quotaValue?: string; quotaMetric?: string }[];
+  retryDelay?: string;
+}
+interface GoogleError {
+  status?: string;
+  message?: string;
+  details?: GoogleErrorDetail[];
+}
+
+function parseGoogleError(text: string): GoogleError | undefined {
+  try {
+    const parsed = JSON.parse(text) as { error?: GoogleError } | { error?: GoogleError }[];
+    return Array.isArray(parsed) ? parsed[0]?.error : parsed.error;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Quota violations Google attached to a 429, as `quotaId=value` pairs. */
+function quotaViolations(e: GoogleError | undefined): { quotaId: string; quotaValue: string }[] {
+  return (e?.details ?? [])
+    .flatMap((d) => d.violations ?? [])
+    .map((v) => ({ quotaId: v.quotaId ?? v.quotaMetric ?? '?', quotaValue: v.quotaValue ?? '?' }));
+}
+
+/**
+ * A 429 whose limit is literally zero means this model has no allowance on
+ * this key at all (typically: not in the free tier). That is a per-model
+ * fact, so the next candidate is worth trying. A non-zero limit means the
+ * allowance is used up and every model will likely say the same — stop.
+ */
+function isModelNotAllowed(status: number, e: GoogleError | undefined): boolean {
+  return status === 429 && quotaViolations(e).some((v) => v.quotaValue === '0');
+}
+
 async function describeFailure(response: Response): Promise<string> {
   let detail = '';
   try {
-    const text = await response.text();
-    const parsed = JSON.parse(text) as { error?: { status?: string; message?: string; details?: { reason?: string }[] } } | { error?: unknown }[];
-    const err = Array.isArray(parsed) ? parsed[0]?.error : parsed.error;
-    const e = err as { status?: string; message?: string; details?: { reason?: string }[] } | undefined;
-    const reason = e?.details?.find((d) => d?.reason)?.reason;
-    detail = [e?.status, reason, e?.message?.slice(0, 160)].filter(Boolean).join(' · ');
+    const e = parseGoogleError(await response.text());
+    const reason = e?.details?.find((d) => d.reason)?.reason;
+    const quotas = quotaViolations(e).map((v) => `${v.quotaId}=${v.quotaValue}`).join(',');
+    const retry = e?.details?.find((d) => d.retryDelay)?.retryDelay;
+    detail = [e?.status, reason, quotas && `quota[${quotas}]`, retry && `retry ${retry}`, e?.message?.slice(0, 160)]
+      .filter(Boolean)
+      .join(' · ');
   } catch {
     detail = '';
   }
@@ -178,7 +216,7 @@ export async function researchWithGemini(
       // a quota hit or an outage will fail the same way for every candidate
       // and must not be retried four times.
       const bodyText = await response.clone().text();
-      if (!isModelGone(response.status, bodyText)) break;
+      if (!isModelGone(response.status, bodyText) && !isModelNotAllowed(response.status, parseGoogleError(bodyText))) break;
       gone.push(model);
     }
 
