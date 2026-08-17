@@ -1738,6 +1738,83 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-17 — **Exhausted-queue improvement: translated the four hardcoded
+  English "eyebrow" labels the previous run's audit had flagged and left for
+  next time, in `apps/mobile/app/consultation.tsx` and
+  `apps/mobile/app/(tabs)/learn.tsx`.** Done.
+
+  **Housekeeping first.** Local `main` at container start again shared no
+  `git merge-base` with `origin/main` — the same divergent-history shape at
+  least sixteen prior entries report (this container: `git checkout main`
+  warned about leaving 50 commits behind not connected to any branch, then
+  `git pull` failed with "need to specify how to reconcile divergent
+  branches" once the fetch force-updated the local `origin/main` tracking
+  ref). `git status` was clean, so `git reset --hard origin/main` and moved
+  on. Still worth fixing at the infrastructure level, per every recent
+  entry's note.
+
+  **Selection.** Fresh `grep -n "^\s*- \[ \]"`: the same seven boxes as the
+  last several runs, all re-verified genuinely still blocked —
+  `GEMINI_LIVE_ENABLED` is still commented out in `apps/web/.env.example`
+  (K′'s findings box), `GOOGLE_CLIENT_ID`/`NEXT_PUBLIC_GOOGLE_CLIENT_ID` are
+  still empty in `.env.example`/`.env.server.example`/`apps/web/.env.example`
+  (Round four §F), `portrait-raju.webp`/`portrait-mina.webp` are still
+  missing next to the two portraits that do exist (Round three §B), and §M's
+  licence decision, §N payments, Round five's task K, and Round three's
+  homepage-height box are unchanged for the reasons the preceding entries
+  already gave in detail. Took the immediately preceding run's own
+  for-the-next-run pointer instead: two files with hardcoded English
+  "eyebrow" labels its audit had found but not yet fixed.
+
+  **What was found and fixed.** `apps/mobile/app/consultation.tsx` had
+  `"PRIVATE VIDEO ROOM · PREVIEW"` (the room header eyebrow) and
+  `"CLINICIAN PARTICIPANT"` (the remote-tile kicker) as raw string literals,
+  with no Nepali branch — every other string in the file already uses a
+  `language === 'en' ? '...' : '...'` ternary. `apps/mobile/app/(tabs)/learn.tsx`
+  had the same shape for `"INTERACTIVE WALKTHROUGH"` (the walkthrough
+  player badge) and `"READABLE TRANSCRIPT"` (the transcript disclosure
+  head). All four now branch on `language` like their neighbours. No case
+  transform exists in either stylesheet (`roomEyebrow`, `remoteKicker`,
+  `playerBadgeText`, `transcriptLabel` set only color/size/weight/spacing),
+  so the uppercase in the English strings is literal, not CSS — the Nepali
+  side stays plain-case Nepali, matching how every other Nepali string in
+  both files is written (Devanagari has no uppercase). Nepali wordings:
+  "निजी भिडियो कोठा · पूर्वावलोकन" (room eyebrow — reuses "पूर्वावलोकन" for
+  "preview," already used elsewhere in the same file), "चिकित्सक सहभागी"
+  (clinician participant), "अन्तरक्रियात्मक वाकथ्रु" (interactive walkthrough
+  — reuses "वाकथ्रु" for "walkthrough" from the file's own "Restart
+  walkthrough" string two lines away), "पढ्न मिल्ने ट्रान्सक्रिप्ट" (readable
+  transcript). No invented facts — these are UI chrome labels, not clinical
+  content.
+
+  **Verify.** Full gate from the repository root: `pnpm install
+  --frozen-lockfile` clean; `pnpm lint` 40/40; `pnpm typecheck` 40/40;
+  `pnpm test` 75/75 tasks (824 API tests, none added — this mirrors the
+  project's existing convention of not unit-testing static JSX ternaries,
+  same as the identical-shape fix two entries above); `pnpm build` 40/40,
+  including the Expo web export.
+
+  **Mobile measurement.** Not applicable to the usual 375px web sweep —
+  `git diff --stat` confirms both changed files are `apps/mobile` screens,
+  not `apps/web`; these labels are markup-only text swaps with no layout or
+  tap-target change, so there is nothing new to measure on the phone
+  breakpoint.
+
+  **For the next run.** All seven standing blockers are unchanged;
+  re-verify each before skipping past it. Postgres/docker-compose is still
+  the confirmed dead end the immediately preceding entry describes (image
+  pulls blocked by network policy) — don't re-attempt it identically. The
+  `/account` signed-in click-through debt (family-grants revoke button,
+  corpus-consent toggle, voice-contribution card) is still owed and still
+  needs either a working local Postgres or another route to an
+  authenticated session. The audit-flagged mobile hardcoded-string backlog
+  that fed the last two runs is now empty as far as this run found — if the
+  queue is still exhausted next time, run a fresh audit rather than assuming
+  more of the same class remain.
+
+- 2026-08-17 — **Exhausted-queue improvement: fixed a real Devanagari
+run needs to know.
+
 - 2026-08-17 — **Exhausted-queue improvement: fixed a real Devanagari
   matra-clipping regression on the homepage `<h1>`, plus hardcoded
   (untranslated) alt text on the three homepage hero/card images.** Done.

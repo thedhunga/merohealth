@@ -74,7 +74,9 @@ export default function ConsultationPreviewScreen() {
             <ArrowLeft color="white" size={21} />
           </Pressable>
           <View style={styles.roomMeta}>
-            <Text style={styles.roomEyebrow}>PRIVATE VIDEO ROOM · PREVIEW</Text>
+            <Text style={styles.roomEyebrow}>
+              {language === 'en' ? 'PRIVATE VIDEO ROOM · PREVIEW' : 'निजी भिडियो कोठा · पूर्वावलोकन'}
+            </Text>
             <Text style={styles.roomTitle}>
               {language === 'en' ? 'Consultation experience' : 'परामर्श अनुभव'}
             </Text>
@@ -98,7 +100,9 @@ export default function ConsultationPreviewScreen() {
               <View style={styles.clinicianAvatar}>
                 <Stethoscope color={colors.primaryDark} size={46} strokeWidth={1.7} />
               </View>
-              <Text style={styles.remoteKicker}>CLINICIAN PARTICIPANT</Text>
+              <Text style={styles.remoteKicker}>
+                {language === 'en' ? 'CLINICIAN PARTICIPANT' : 'चिकित्सक सहभागी'}
+              </Text>
               <Text style={styles.remoteTitle}>
                 {language === 'en'
                   ? 'A verified professional would appear here.'

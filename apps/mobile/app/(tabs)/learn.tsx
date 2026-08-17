@@ -106,7 +106,9 @@ export default function LearnScreen() {
         <View style={styles.playerHeader}>
           <View style={styles.playerBadge}>
             <View style={[styles.playerDot, { backgroundColor: currentStep.accent }]} />
-            <Text style={styles.playerBadgeText}>INTERACTIVE WALKTHROUGH</Text>
+            <Text style={styles.playerBadgeText}>
+              {language === 'en' ? 'INTERACTIVE WALKTHROUGH' : 'अन्तरक्रियात्मक वाकथ्रु'}
+            </Text>
           </View>
           <Text style={styles.playerCounter}>
             {walkthroughIndex + 1} / {walkthroughSteps.length}
@@ -262,7 +264,9 @@ export default function LearnScreen() {
               {open ? (
                 <View style={styles.transcript}>
                   <View style={styles.transcriptHead}>
-                    <Text style={styles.transcriptLabel}>READABLE TRANSCRIPT</Text>
+                    <Text style={styles.transcriptLabel}>
+                      {language === 'en' ? 'READABLE TRANSCRIPT' : 'पढ्न मिल्ने ट्रान्सक्रिप्ट'}
+                    </Text>
                     <Pressable
                       accessibilityLabel={
                         language === 'en' ? 'Listen to this lesson' : 'यो पाठ सुन्नुहोस्'
