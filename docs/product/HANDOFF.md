@@ -46,7 +46,7 @@ before anything else when answers say `setup-required`.
 
 | Broken | Cause | Fix |
 |---|---|---|
-| Answers return `setup-required` | `GEMINI_API_KEY` is not visible to the Vercel runtime — probe shows `geminiLikeNames: []` | Owner: Vercel → merohealth → Settings → Env Vars → confirm the var is scoped to **Production** and in the right project → redeploy. Then hit the probe. |
+| Answers return `unavailable` with `diagnostic: HTTP 429 … probe[interactions-ungrounded=200 …]` | **Search grounding is not in Gemini's free tier.** Key is present and valid (probe: `provider: gemini`, key `true`); a plain model call succeeds; every grounded call is refused on quota, on all current Flash models and both endpoints. Verified live 2026-08-17. | Owner decision, one of: (a) enable billing on the Google Cloud project behind the key — grounded, cited answers as designed; (b) set `RESEARCH_ALLOW_UNGROUNDED=true` in Vercel Production and redeploy — answers from model memory, labelled `gemini-ungrounded`, no citations, stronger disclaimer. Default is off; the assistant is silent until one is chosen. Diagnostics: any failing `/api/companion/research` call now returns a sanitised `diagnostic` string saying exactly why. |
 | Sign-in / register / account / family | Web calls `NEXT_PUBLIC_API_URL`, unset → `http://localhost:4000`. **The API has never been deployed.** | Follow the API-only runbook in `docs/deployment/dedicated-server.md`, then set `NEXT_PUBLIC_API_URL` in Vercel. |
 | Google sign-in | Not built; needs an OAuth client id only the owner can create | Spec is in the ledger, section D. |
 | `/app` 404 | The Expo build is never published — the script that copies it lives in the root `vercel.json`, which Vercel doesn't read (Root Directory is `apps/web`) | Ledger, Round three B3. |
@@ -73,6 +73,18 @@ before anything else when answers say `setup-required`.
 12. `apps/api`: `DatabaseUnavailableFilter` — a dead DB returns
     `503 DATABASE_UNAVAILABLE` + `Retry-After` on every data route instead
     of a bare 500. 6 tests. Registered in `main.ts`.
+
+## Owner's product direction, 2026-08-17 (now Round five in the ledger)
+
+Fully voice-interactive — "like talking with a real medical professional"
+once the microphone is used; the conversation saved as history; the
+conversation contained to health; and whenever advice is dispensed or a
+common medicine is named, a clear advisory that the person must see a
+doctor or authorised health worker before acting, and that this is for the
+patient's research only. **None of that exists yet**: today it is one
+question → one answer, no turn memory, no containment, no medicine
+advisory, single-utterance dictation. The ledger's Round five specifies it
+in the deliberate order advisory → containment → conversation.
 
 ## Standing rules (do not undo these)
 

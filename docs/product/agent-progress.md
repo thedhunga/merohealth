@@ -116,6 +116,124 @@ read that before the first task.
 
 ## Task queue
 
+# Round five — a voice conversation, contained and advised
+
+> Owner's words, 2026-08-17: "this app has to be totally voice interactive,
+> like talking with a real medical professional once the user uses the
+> microphone option — the script saved as history. Contain the conversation
+> within the medical/health domain, and any time advice is dispensed or a
+> common medicine identified, a clear advisory that the person needs to see a
+> doctor or authorised medical personnel before following it; this is only
+> for research purposes for the patient."
+>
+> Verified against the code the same day: today `/get-care` is one question →
+> one answer. There is no conversation memory between turns, no off-topic
+> containment, no medicine-mention advisory, and dictation is one utterance
+> (`continuous = false`). Every item below is a gap, not a polish.
+
+Ordering rule: **J before I before H.** The advisory (J) is a safety
+property and must exist before the assistant talks more; containment (I)
+must exist before it listens continuously; only then make it conversational
+(H). Each item is a module with its own outage test — if the advisory
+detector throws, the answer still renders with the *generic* advisory; if
+containment throws, the question is treated as health (fail open on
+helpfulness, never on safety text).
+
+## J. Advisory whenever advice or a medicine appears — deterministic, never generated
+
+- [ ] `packages/clinical-safety`: add `detectAdvisoryTriggers(answerText, lang)`
+      → `{ medicines: string[]; givesAdvice: boolean }`. Two deterministic
+      lists, both languages, both scripts (Devanagari and romanised Nepali):
+      (a) common medicines in Nepal — paracetamol/cetamol, ibuprofen,
+      ORS/जीवनजल, cetirizine, omeprazole/pantoprazole, amoxicillin,
+      azithromycin, metformin, amlodipine, losartan, salbutamol, zinc,
+      iron/folic acid, albendazole — plus generic patterns (`-cillin`,
+      `-mycin`, `-prazole`, `-olol`, `-sartan`, `mg`, `टेबलेट`, `क्याप्सुल`);
+      (b) advice verbs — take/लिनुहोस्/खानुहोस्, dose/मात्रा, apply/लगाउनुहोस्,
+      stop/बन्द गर्नुहोस्, increase/decrease. This is a word list about
+      *language*, not a clinical claim; "invent no facts" does not apply.
+- [ ] Fixed advisory copy in `messages/ne.json` and `en.json` under
+      `getCare.advisory` — two variants: `medicine` (names the medicine(s)
+      detected) and `advice`. Nepali first, plain register: यो जानकारी
+      अनुसन्धान र बुझाइका लागि मात्र हो। कुनै पनि औषधि लिनु वा यो सल्लाह
+      पालना गर्नुअघि चिकित्सक वा अधिकृत स्वास्थ्यकर्मीलाई भेट्नुहोस्।
+- [ ] `/api/companion/research` route: run the detector on every complete
+      answer; return `advisory: { kind, medicines }`. Never let the model
+      write the advisory — it is appended by us, verbatim, from messages.
+- [ ] `GetCareFlow` answer panel: render the advisory as its own marigold
+      block *above* the citations, and **speak it** as part of Listen /
+      auto-speak. Save it into the history entry so the transcript shows it.
+- [ ] Outage test: detector throws → answer still renders with the generic
+      `advice` advisory; nothing else changes.
+- [ ] 30-case fixture (Nepali/English/mixed script) with expected triggers.
+
+## I. Keep the conversation inside health — before the model, and after
+
+- [ ] `packages/intent-router`: add `classifyDomain(text, lang)` →
+      `'HEALTH' | 'HEALTH_ADJACENT' | 'OFF_TOPIC' | 'UNSURE'`. Deterministic:
+      health lexicon (symptoms, body parts, medicines, tests, conditions —
+      both languages), plus obvious off-topic lexicons (weather, sports,
+      politics, homework, code, finance, entertainment). `UNSURE` goes to
+      the model with the containment instruction; only clear `OFF_TOPIC`
+      is answered by template.
+- [ ] Template reply for `OFF_TOPIC` in messages: म स्वास्थ्यसम्बन्धी
+      प्रश्नमा मात्र सहयोग गर्न सक्छु — तपाईंको स्वास्थ्यबारे के जान्न
+      चाहनुहुन्छ? Warm, one line, no lecture. Spoken too.
+- [ ] Model instruction (both providers, identical text): answer only
+      health and wellbeing questions; for anything else reply with the
+      single sentence in the template. Post-check the answer with the same
+      classifier; if the model drifted, replace with the template.
+- [ ] Emergency interception stays first — before classification.
+- [ ] Outage test: classifier throws → treated as `HEALTH` (fail open on
+      helpfulness; the advisory from J still applies).
+- [ ] 40-case fixture including tricky adjacent cases: "my daughter is sad"
+      (HEALTH_ADJACENT → answer with care), "who won the match" (OFF_TOPIC),
+      "how do I cook dal for a diabetic" (HEALTH_ADJACENT).
+
+## H. Conversation, not query — voice in, voice out, memory of the last turns
+
+- [ ] Conversation session: `lib/anonymous-history.ts` gains
+      `conversationId`; each turn is stored with `{role, text, spokenIn:
+      boolean, advisory?}`. The existing anon→account migration
+      (`POST /v1/history/migrate`) carries whole conversations.
+- [ ] `/api/companion/research` accepts `turns: {role, text}[]` (last 6,
+      capped chars). Instruction: "Continue this conversation; refer to
+      what the person already said; ask one clarifying question when the
+      answer genuinely depends on it (duration, age, pregnancy, other
+      medicines)." Emergency interception runs on *every* turn.
+- [ ] `useSpeechDictation`: a **conversation mode** — `continuous = true`,
+      `interimResults = true`, end-of-utterance on 1.2 s silence, then send;
+      after the answer is spoken, re-open the mic automatically for the next
+      turn. Tap to stop. Barge-in: starting to speak cancels playback.
+- [ ] Auto-speak: when the question came in by voice, the answer (and the
+      advisory) is spoken without pressing Listen. Nepali voice when
+      present; if the device has no Nepali voice, show the text and say so
+      once, in Nepali, in the UI — do not read Nepali in an English voice.
+- [ ] Thread UI in the dialogue box: bubbles, the advisory block after any
+      answer that triggers it, a persistent "यो कुराकानी सुरक्षित छ" note
+      once history is saved, sign-in suggestion unchanged.
+- [ ] Outage tests: speech APIs absent → text mode, no error toast;
+      history write fails → conversation continues in memory.
+
+## K. Real-time voice — owner decision, document only
+
+- [ ] `docs/product/voice-architecture.md`: Web Speech API (free, browser-
+      dependent, patchy Nepali TTS on Android) vs server STT/TTS vs Gemini
+      Live (`gemini-3.1-flash-live-preview` — true real-time turn-taking,
+      needs billing). Requirements, what each can and cannot do for a
+      Nepali speaker on a mid-range Android phone, and cost *sources* (link
+      the pricing pages; do not state prices). Stop; owner decides.
+
+## Owner decisions outstanding (blocking answers today)
+
+- **Search grounding is not in Gemini's free tier.** Live probe on the
+  production key: plain call 200, every grounded call 429, on all current
+  Flash models and both endpoints. Either **enable billing** on the Google
+  Cloud project behind `GEMINI_API_KEY` (grounded, cited answers — the
+  design), or set **`RESEARCH_ALLOW_UNGROUNDED=true`** in Vercel (answers
+  from model memory, labelled, no citations, stronger disclaimer). Default
+  is off; the assistant is silent until one is chosen.
+
 # Round four — make the API real, then the journey
 
 **Read `docs/product/user-journey-gap.md` first.** It is the reason this
@@ -1515,6 +1633,8 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-17 — **Gemini live in production; grounding is the wall.** Key visible after the owner rescoped it (probe now self-describes: env, commit, production URL). First real Nepali question: 404, gemini-2.5-flash withdrawn for new accounts → provider now walks current Flash models. Then 429 on every grounded call while a plain call is 200, on all three 3.x Flash models and both endpoints: **search grounding is not in the free tier on this key.** Failures now return a sanitised diagnostic (status, reason, quota, what was tried, side-probe results). Added owner-gated RESEARCH_ALLOW_UNGROUNDED fallback (labelled, no citations, stronger disclaimer; default off). 23 provider tests. Owner decision recorded in Round five. **Round five opened** from the owner voice-conversation directive; J → I → H order is deliberate. Reminder: pnpm test in apps/api still has 12 pre-existing instanceof failures (see HANDOFF) — not a regression.
 
 - 2026-08-17 — **Queue's three unchecked boxes re-confirmed genuinely blocked
   a seventh time; picked the highest-value improvement to work already
