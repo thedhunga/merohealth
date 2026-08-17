@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   clearForTraining,
   corpusReviewQueue,
@@ -7,6 +7,7 @@ import {
   deriveClipVerificationStatus,
   discardUtterance,
   DuplicateClipValidationError,
+  earnsRewardMonth,
   grantCorpusConsent,
   hasCorpusConsent,
   isCorpusConsentLive,
@@ -30,6 +31,7 @@ import {
   type VoiceContributionTaskKind,
 } from '@swasthya/language-corpus';
 import type { DocumentBlob, HealthDocumentStore } from '@swasthya/storage-adapters';
+import { SUBSCRIPTION_GRANT_STORE, type SubscriptionGrantStore } from '../entitlements/subscription-grant.store.js';
 import { LanguageCorpusRepository, type CorpusAuditEntry } from './language-corpus.repository.js';
 
 /** DI token for the Voice Contribution audio store — bound to a concrete adapter in LanguageCorpusModule. */
@@ -61,9 +63,12 @@ export interface SubmitVoiceClipInput {
 
 @Injectable()
 export class LanguageCorpusService {
+  private readonly logger = new Logger(LanguageCorpusService.name);
+
   constructor(
     private readonly repository: LanguageCorpusRepository,
     @Inject(VOICE_CLIP_AUDIO_STORE) private readonly audioStore: HealthDocumentStore,
+    @Inject(SUBSCRIPTION_GRANT_STORE) private readonly subscriptionGrants: SubscriptionGrantStore,
   ) {}
 
   /**
@@ -283,11 +288,11 @@ export class LanguageCorpusService {
     return this.audioStore.get(clip.ref);
   }
 
-  validateClip(
+  async validateClip(
     clipId: string,
     validatorId: string,
     verdict: ClipValidationVerdict,
-  ): { validation: ClipValidation; status: ClipVerificationStatus } {
+  ): Promise<{ validation: ClipValidation; status: ClipVerificationStatus }> {
     const clip = this.#requireVoiceClip(clipId);
     const existing = this.repository.clipValidationsFor(clipId);
 
@@ -302,7 +307,36 @@ export class LanguageCorpusService {
     );
     this.repository.saveClipValidation(validation);
 
-    return { validation, status: deriveClipVerificationStatus([...existing, validation]) };
+    const status = deriveClipVerificationStatus([...existing, validation]);
+    if (status === 'VERIFIED') await this.#rewardContributorIfMilestone(clip.contributorId);
+
+    return { validation, status };
+  }
+
+  /**
+   * §4's "Reward, don't coerce": every `REWARD_VERIFIED_CLIPS_PER_MONTH`th
+   * verified clip earns the contributor a month of Plus, via the real
+   * `Subscription` row (`SubscriptionGrantStore`) — not a flag nothing else
+   * reads. Best-effort: a grant failure (the subscription store's own DB
+   * down, say) must never mask that the *validation* itself already
+   * succeeded — the vote is recorded either way, so this only logs.
+   */
+  async #rewardContributorIfMilestone(contributorId: string): Promise<void> {
+    const verifiedClipCount = this.#verifiedClipCount(contributorId);
+    if (!earnsRewardMonth(verifiedClipCount)) return;
+
+    try {
+      await this.subscriptionGrants.grantPlusMonths(contributorId, 1);
+    } catch (error) {
+      this.logger.warn(`Reward grant failed for contributor ${contributorId}: ${String(error)}`);
+    }
+  }
+
+  /** Every clip this contributor has had crowd-resolved `VERIFIED` — `#rewardContributorIfMilestone`'s own trigger source. */
+  #verifiedClipCount(contributorId: string): number {
+    return this.repository
+      .voiceClipsByContributor(contributorId)
+      .filter((clip) => deriveClipVerificationStatus(this.repository.clipValidationsFor(clip.id)) === 'VERIFIED').length;
   }
 
   #requireVoiceClip(clipId: string): VoiceClip {

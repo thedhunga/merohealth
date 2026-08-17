@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common';
 import { InMemoryDocumentStore, type HealthDocumentStore } from '@swasthya/storage-adapters';
 import { MinioDocumentStore, minioConfigFromEnv } from '@swasthya/storage-adapters/hosted';
 import { AuthModule } from '../auth/auth.module.js';
+import { SUBSCRIPTION_GRANT_STORE } from '../entitlements/subscription-grant.store.js';
+import { PrismaModule } from '../prisma/prisma.module.js';
+import { PrismaSubscriptionGrantStore } from '../entitlements/prisma-subscription-grant.store.js';
 import { CorpusReviewerGuard } from './corpus-reviewer.guard.js';
 import { LanguageCorpusController } from './language-corpus.controller.js';
 import { LanguageCorpusRepository } from './language-corpus.repository.js';
@@ -35,15 +38,24 @@ function createVoiceClipAudioStore(): HealthDocumentStore {
  * now reads `request.authUser`, which only `SessionAuthGuard` populates, so
  * every reviewer route runs `@UseGuards(SessionAuthGuard, CorpusReviewerGuard)`
  * in that order.
+ *
+ * `PrismaModule` is `@Global()` already; imported explicitly anyway so this
+ * module stays self-sufficient if it is ever tested or reused on its own,
+ * the same redundant-import reasoning `FamilyModule` gives for its own copy.
+ * `SUBSCRIPTION_GRANT_STORE` bound here (not a shared `EntitlementsModule`)
+ * because this is the only module that grants a corpus-contribution reward
+ * today — the same "own its own port binding" shape `RecordsModule` uses for
+ * `SUBSCRIPTION_RESOLVER`/`USAGE_READER`.
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, PrismaModule],
   controllers: [LanguageCorpusController],
   providers: [
     LanguageCorpusRepository,
     LanguageCorpusService,
     CorpusReviewerGuard,
     { provide: VOICE_CLIP_AUDIO_STORE, useFactory: createVoiceClipAudioStore },
+    { provide: SUBSCRIPTION_GRANT_STORE, useClass: PrismaSubscriptionGrantStore },
   ],
 })
 export class LanguageCorpusModule {}

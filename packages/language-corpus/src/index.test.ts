@@ -8,6 +8,7 @@ import {
   MAX_VOICE_CLIP_DURATION_MS,
   MIN_VOICE_CLIP_DURATION_MS,
   OwnClipValidationError,
+  REWARD_VERIFIED_CLIPS_PER_MONTH,
   UtteranceNotAwaitingReviewError,
   VOICE_CONTRIBUTION_CONSENT_VERSION,
   ageBandOptions,
@@ -17,6 +18,7 @@ import {
   deidentify,
   deriveClipVerificationStatus,
   discardUtterance,
+  earnsRewardMonth,
   eraseFromSnapshot,
   genderOptions,
   grantConsent,
@@ -580,6 +582,28 @@ describe('deriveClipVerificationStatus', () => {
       validation({ id: 'v2', validatorId: 'b', verdict: 'WRONG' }),
     ]);
     expect(status).toBe('PENDING');
+  });
+});
+
+describe('earnsRewardMonth', () => {
+  it('does not earn a reward at zero verified clips', () => {
+    expect(earnsRewardMonth(0)).toBe(false);
+  });
+
+  it('does not earn a reward below the threshold', () => {
+    expect(earnsRewardMonth(REWARD_VERIFIED_CLIPS_PER_MONTH - 1)).toBe(false);
+  });
+
+  it('earns a reward exactly at the threshold', () => {
+    expect(earnsRewardMonth(REWARD_VERIFIED_CLIPS_PER_MONTH)).toBe(true);
+  });
+
+  it('does not earn a reward again until the next multiple', () => {
+    expect(earnsRewardMonth(REWARD_VERIFIED_CLIPS_PER_MONTH + 1)).toBe(false);
+  });
+
+  it('earns a second reward at the second multiple', () => {
+    expect(earnsRewardMonth(REWARD_VERIFIED_CLIPS_PER_MONTH * 2)).toBe(true);
   });
 });
 

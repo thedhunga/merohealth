@@ -286,7 +286,7 @@ export class LanguageCorpusController {
   @ApiParam({ name: 'clipId' })
   @ApiOperation({ summary: "Records this caller's RIGHT/WRONG/UNCLEAR judgement of someone else's clip" })
   @ApiBody({ schema: { type: 'object', required: ['verdict'], properties: { verdict: { enum: clipValidationVerdictSchema.options } } } })
-  validateClip(@CurrentUser() user: CurrentUserResult, @Param('clipId') clipId: string, @Body() body: unknown) {
+  async validateClip(@CurrentUser() user: CurrentUserResult, @Param('clipId') clipId: string, @Body() body: unknown) {
     const { verdict } = parseOrThrow(z.object({ verdict: clipValidationVerdictSchema }), body);
     return this.corpus.validateClip(clipId, user.subjectId, verdict);
   }

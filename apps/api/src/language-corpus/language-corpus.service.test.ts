@@ -1,6 +1,8 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { REWARD_VERIFIED_CLIPS_PER_MONTH } from '@swasthya/language-corpus';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
+import { InMemorySubscriptionGrantStore } from '../entitlements/in-memory-subscription-grant.store.js';
 import { LanguageCorpusRepository } from './language-corpus.repository.js';
 import { LanguageCorpusService, type IngestUtteranceInput, type SubmitVoiceClipInput } from './language-corpus.service.js';
 
@@ -16,8 +18,8 @@ const validIngest: IngestUtteranceInput = {
   awaitingHumanReview: true,
 };
 
-function buildService() {
-  return new LanguageCorpusService(new LanguageCorpusRepository(), new InMemoryDocumentStore('HOSTED'));
+function buildService(subscriptionGrants = new InMemorySubscriptionGrantStore()) {
+  return new LanguageCorpusService(new LanguageCorpusRepository(), new InMemoryDocumentStore('HOSTED'), subscriptionGrants);
 }
 
 const validClip: SubmitVoiceClipInput = {
@@ -145,7 +147,7 @@ describe('LanguageCorpusService erase', () => {
     // keyed on an id, so the repository is inspected directly here rather
     // than through that method.
     const repository = new LanguageCorpusRepository();
-    const service = new LanguageCorpusService(repository, new InMemoryDocumentStore('HOSTED'));
+    const service = new LanguageCorpusService(repository, new InMemoryDocumentStore('HOSTED'), new InMemorySubscriptionGrantStore());
     service.ingest({ ...validIngest, id: 'a', ownerId: 'owner-1' });
 
     service.erase('owner-1');
@@ -319,7 +321,7 @@ describe('LanguageCorpusService clip validation', () => {
   it('records a validation and reports PENDING before a second vote agrees', async () => {
     const { service, clip } = await buildServiceWithOneClip();
 
-    const { validation, status } = service.validateClip(clip.id, 'validator-1', 'RIGHT');
+    const { validation, status } = await service.validateClip(clip.id, 'validator-1', 'RIGHT');
 
     expect(validation).toMatchObject({ clipId: clip.id, validatorId: 'validator-1', verdict: 'RIGHT' });
     expect(status).toBe('PENDING');
@@ -327,9 +329,9 @@ describe('LanguageCorpusService clip validation', () => {
 
   it('reports VERIFIED once two validators agree RIGHT', async () => {
     const { service, clip } = await buildServiceWithOneClip();
-    service.validateClip(clip.id, 'validator-1', 'RIGHT');
+    await service.validateClip(clip.id, 'validator-1', 'RIGHT');
 
-    const { status } = service.validateClip(clip.id, 'validator-2', 'RIGHT');
+    const { status } = await service.validateClip(clip.id, 'validator-2', 'RIGHT');
 
     expect(status).toBe('VERIFIED');
   });
@@ -337,7 +339,7 @@ describe('LanguageCorpusService clip validation', () => {
   it('refuses a contributor validating their own clip, as a 403 with a code', async () => {
     const { service, clip } = await buildServiceWithOneClip();
     try {
-      service.validateClip(clip.id, 'owner-1', 'RIGHT');
+      await service.validateClip(clip.id, 'owner-1', 'RIGHT');
       expect.unreachable('expected validateClip to throw');
     } catch (error) {
       expect(error).toBeInstanceOf(ForbiddenException);
@@ -347,10 +349,10 @@ describe('LanguageCorpusService clip validation', () => {
 
   it('refuses the same validator voting twice, as a 400 with a code', async () => {
     const { service, clip } = await buildServiceWithOneClip();
-    service.validateClip(clip.id, 'validator-1', 'RIGHT');
+    await service.validateClip(clip.id, 'validator-1', 'RIGHT');
 
     try {
-      service.validateClip(clip.id, 'validator-1', 'WRONG');
+      await service.validateClip(clip.id, 'validator-1', 'WRONG');
       expect.unreachable('expected validateClip to throw');
     } catch (error) {
       expect(error).toBeInstanceOf(BadRequestException);
@@ -360,11 +362,11 @@ describe('LanguageCorpusService clip validation', () => {
 
   it('refuses a third vote on an already-resolved clip, as a 400 with a code', async () => {
     const { service, clip } = await buildServiceWithOneClip();
-    service.validateClip(clip.id, 'validator-1', 'RIGHT');
-    service.validateClip(clip.id, 'validator-2', 'RIGHT');
+    await service.validateClip(clip.id, 'validator-1', 'RIGHT');
+    await service.validateClip(clip.id, 'validator-2', 'RIGHT');
 
     try {
-      service.validateClip(clip.id, 'validator-3', 'RIGHT');
+      await service.validateClip(clip.id, 'validator-3', 'RIGHT');
       expect.unreachable('expected validateClip to throw');
     } catch (error) {
       expect(error).toBeInstanceOf(BadRequestException);
@@ -372,8 +374,94 @@ describe('LanguageCorpusService clip validation', () => {
     }
   });
 
-  it('404s validateClip for an unknown clip', () => {
+  it('404s validateClip for an unknown clip', async () => {
     const service = buildService();
-    expect(() => service.validateClip('missing', 'validator-1', 'RIGHT')).toThrow(NotFoundException);
+    await expect(service.validateClip('missing', 'validator-1', 'RIGHT')).rejects.toThrow(NotFoundException);
+  });
+});
+
+describe('LanguageCorpusService clip validation — Reward', () => {
+  /** Submits and fully verifies `count` distinct clips for `contributorId`, each judged RIGHT by two distinct validators. */
+  async function verifyClips(service: LanguageCorpusService, contributorId: string, count: number) {
+    service.grantConsent(contributorId, 'VOICE_CONTRIBUTION');
+    for (let i = 0; i < count; i++) {
+      const clip = await service.submitVoiceClip({
+        ...validClip,
+        id: `${contributorId}-clip-${i}`,
+        contributorId,
+        bytes: Buffer.from(`clip bytes ${contributorId} ${i}`),
+      });
+      await service.validateClip(clip.id, `${contributorId}-validator-a`, 'RIGHT');
+      await service.validateClip(clip.id, `${contributorId}-validator-b`, 'RIGHT');
+    }
+  }
+
+  it('grants no reward below the threshold', async () => {
+    const grants = new InMemorySubscriptionGrantStore();
+    const service = buildService(grants);
+
+    await verifyClips(service, 'owner-1', REWARD_VERIFIED_CLIPS_PER_MONTH - 1);
+
+    expect(grants.grants).toEqual([]);
+  });
+
+  it('grants a month of Plus the moment the threshold is crossed', async () => {
+    const grants = new InMemorySubscriptionGrantStore();
+    const service = buildService(grants);
+
+    await verifyClips(service, 'owner-1', REWARD_VERIFIED_CLIPS_PER_MONTH);
+
+    expect(grants.grants).toEqual([{ ownerId: 'owner-1', months: 1 }]);
+  });
+
+  it('grants a second month at the second multiple, not a third in between', async () => {
+    const grants = new InMemorySubscriptionGrantStore();
+    const service = buildService(grants);
+
+    await verifyClips(service, 'owner-1', REWARD_VERIFIED_CLIPS_PER_MONTH * 2);
+
+    expect(grants.grants).toEqual([
+      { ownerId: 'owner-1', months: 1 },
+      { ownerId: 'owner-1', months: 1 },
+    ]);
+  });
+
+  it('never rewards a REJECTED clip', async () => {
+    const grants = new InMemorySubscriptionGrantStore();
+    const service = buildService(grants);
+    service.grantConsent('owner-1', 'VOICE_CONTRIBUTION');
+    const clip = await service.submitVoiceClip({ ...validClip, contributorId: 'owner-1' });
+
+    await service.validateClip(clip.id, 'validator-1', 'WRONG');
+    await service.validateClip(clip.id, 'validator-2', 'WRONG');
+
+    expect(grants.grants).toEqual([]);
+  });
+
+  it('does not count a different contributor’s verified clips towards this one’s reward', async () => {
+    const grants = new InMemorySubscriptionGrantStore();
+    const service = buildService(grants);
+
+    await verifyClips(service, 'owner-1', REWARD_VERIFIED_CLIPS_PER_MONTH - 1);
+    await verifyClips(service, 'owner-2', 1);
+
+    expect(grants.grants).toEqual([]);
+  });
+
+  it('still reports VERIFIED, and does not throw, when the reward grant itself fails', async () => {
+    const grants = new InMemorySubscriptionGrantStore(new Error('subscription store unreachable'));
+    const service = buildService(grants);
+    await verifyClips(service, 'owner-1', REWARD_VERIFIED_CLIPS_PER_MONTH - 1);
+    const clip = await service.submitVoiceClip({
+      ...validClip,
+      id: 'owner-1-final',
+      contributorId: 'owner-1',
+      bytes: Buffer.from('final clip bytes'),
+    });
+
+    await service.validateClip(clip.id, 'validator-a', 'RIGHT');
+    const { status } = await service.validateClip(clip.id, 'validator-b', 'RIGHT');
+
+    expect(status).toBe('VERIFIED');
   });
 });

@@ -747,6 +747,30 @@ export function recordClipValidation(
 }
 
 /**
+ * §4's own worked example: "Contributions earn Plus minutes (e.g. 20
+ * verified recordings → 1 month Plus)." Transcribed from
+ * `docs/product/freemium-and-voice-corpus.md`, not invented here.
+ */
+export const REWARD_VERIFIED_CLIPS_PER_MONTH = 20;
+
+/**
+ * Whether a contributor's *total* verified-clip count, immediately after one
+ * more clip resolved `VERIFIED`, has just crossed a reward threshold —
+ * "Reward, don't coerce" per §4. Takes the count after the triggering clip
+ * rather than keeping a separate "months already paid out" ledger:
+ * `recordClipValidation` refuses any further vote on an already-resolved
+ * clip (`ClipAlreadyResolvedError`), so a given clip becomes `VERIFIED` at
+ * most once ever, which means a contributor's verified count only ever goes
+ * up by exactly one per triggering event and so passes through every
+ * multiple of the threshold exactly once. A caller that checks this once per
+ * newly-`VERIFIED` clip can never double-grant and never needs its own
+ * record of what has already been paid out.
+ */
+export function earnsRewardMonth(verifiedClipCountAfter: number): boolean {
+  return verifiedClipCountAfter > 0 && verifiedClipCountAfter % REWARD_VERIFIED_CLIPS_PER_MONTH === 0;
+}
+
+/**
  * The next clip a given validator is eligible to judge: not their own, not
  * already resolved, not already voted on by them. Oldest capture first, the
  * same "nothing waits behind one that arrived later" convention

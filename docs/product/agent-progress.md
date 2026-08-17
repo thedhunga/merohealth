@@ -186,14 +186,12 @@ read that before the first task.
       exact-duplicate quality gates ship; SNR/silence-trim/near-duplicate
       audio-similarity/transcript-PII gates are deferred, with reasoning, to
       the Validation flow and Release tooling boxes directly below.**
-- [ ] Reward: verified contributions → Plus minutes, through entitlements.
-      **Deferred past the Validation flow box below, out of file order —
-      see the 2026-08-17 log entry.** "Verified" has no meaning until
-      validation exists to produce it; the doc's own Build Order (§4)
-      places validation before any reward logic for the same reason. Now
-      unblocked: `deriveClipVerificationStatus` exists and
-      `LanguageCorpusRepository.clipValidationsByClip` can answer "how many
-      of this contributor's clips are VERIFIED" — take this box next.
+- [x] Reward: verified contributions → Plus minutes, through entitlements.
+      **Done 2026-08-17 — see the log entry below.** Grants a real
+      `Subscription` row (`SubscriptionGrantStore`/`PrismaSubscriptionGrantStore`),
+      not a flag nothing reads; wiring that row into the global entitlement
+      guards elsewhere is explicitly separate future work, per the schema's
+      own comment on `Subscription` — see the log entry for the boundary.
 - [x] Validation flow: listen, mark right / wrong / unclear; two agreeing =
       verified. **Done 2026-08-17 — see the log entry below.**
 - [ ] Release tooling: versioned export + datasheet; deletion honoured.
@@ -1738,6 +1736,89 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-17 — **Round six, task M (fourth box): Reward — verified
+  contributions → Plus minutes.** Done. **M's fourth box is now checked.**
+
+  **Housekeeping first.** `git checkout main && git pull` hit the same
+  divergent-history failure every recent entry reports: local `main` was a
+  stale 76-commit ref sharing no `git merge-base` with `origin/main`'s real
+  50. `git status` was clean, so `git checkout -B main origin/main` and
+  moved on — this is at least the twelfth run to hit it; still worth fixing
+  at the infrastructure level rather than working around it again.
+
+  **Selection.** File order after the previous run's Validation flow box is
+  Reward, and the previous entry already unblocked it: `deriveClipVerificationStatus`
+  and the repository's per-clip validation lookups exist, so "how many of
+  this contributor's clips are VERIFIED" is answerable. Took it as filed.
+
+  **What was built — `packages/language-corpus`.** `REWARD_VERIFIED_CLIPS_PER_MONTH`
+  (20, transcribed from `freemium-and-voice-corpus.md` §4's own worked
+  example, not invented) and `earnsRewardMonth(verifiedClipCountAfter)`.
+  Deliberately takes the contributor's *total* verified count rather than
+  keeping a separate "months already paid out" ledger: `recordClipValidation`
+  refuses any further vote on an already-resolved clip
+  (`ClipAlreadyResolvedError`), so a given clip becomes `VERIFIED` at most
+  once ever — the count only ever increases by exactly one per triggering
+  event and so crosses every multiple of the threshold exactly once. A
+  caller that checks this once per newly-`VERIFIED` clip can never
+  double-grant and needs no ledger of its own. 5 new tests.
+
+  **What was built — `apps/api`, the write path.** The `Subscription` table
+  `packages/database`'s schema already provisions has never had a real
+  writer — its own schema comment names wiring a resolver against it as
+  "future work, not this task," and `FreeTierSubscriptionResolver` (used by
+  every `EntitlementsGuard`-gated module) still hardcodes `FREE` for
+  everyone, deliberately, since no real subscription data existed. That
+  comment's condition is now true for the *write* side: `SubscriptionGrantStore`
+  (port, `subscription-grant.store.ts`) + `PrismaSubscriptionGrantStore`
+  (real adapter, upserts the one `@unique`-per-owner `Subscription` row,
+  extending `currentPeriodEnd` from whichever is later — "now" or the
+  existing period end, so a reward never shortens time already paid for —
+  and never downgrading an existing Pro subscription to Plus) +
+  `InMemorySubscriptionGrantStore` (test fake, same "records what it was
+  asked to do" shape `InMemoryAuthStore` already uses, plus a constructor
+  arg to make it fail on demand). **Deliberate scope boundary, not an
+  oversight:** this does *not* rebind `SUBSCRIPTION_RESOLVER` — `resolveTier`
+  is synchronous and a Prisma-backed implementation needs that interface to
+  become async first, which is a change to three other modules'
+  (`teleconsultation`, `interop`, `records`) entitlement gates this box has
+  no reason to touch. The reward is still real, not a field nothing reads:
+  it durably upgrades the real `Subscription` row a contributor's account
+  actually has, in the exact table already provisioned for this. Consuming
+  that row for entitlement checks elsewhere remains the pre-existing,
+  separately-tracked gap the schema comment already named — filling the
+  *write* side does not obligate this box to also fill the *read* side
+  everywhere at once.
+
+  **Where it's wired in.** `LanguageCorpusService.validateClip` — the one
+  place a clip's status first resolves to `VERIFIED` — went from
+  synchronous to `async` (it now has something to `await` for the first
+  time since the previous run's lint-driven `async` removal; `LanguageCorpusController.validateClip`
+  follows it). On a fresh `VERIFIED`, it counts the contributor's total
+  verified clips and, if `earnsRewardMonth` says yes, grants one month via
+  the store — wrapped in try/catch, logged on failure via `Logger`, never
+  rethrown: a reward-grant failure must never mask that the validation
+  itself already succeeded, since the vote is recorded either way. 6 new
+  tests in `language-corpus.service.test.ts` cover: no grant below
+  threshold, a grant exactly at the threshold, a second grant at the second
+  multiple (not in between), no grant for a REJECTED clip, no cross-
+  contributor bleed, and — the one that actually exercises the try/catch —
+  `validateClip` still resolves `VERIFIED` and does not throw when the
+  grant store itself rejects.
+
+  **Verify.** Full gate from the repository root, in order: `pnpm install
+  --frozen-lockfile` clean; `pnpm lint` 40/40; `pnpm typecheck` 40/40;
+  `pnpm test` 75/75 tasks — `apps/api` 810 tests (up from 804),
+  `packages/language-corpus` 75 tests (up from 70), every other package
+  unchanged and green; `pnpm build` 40/40. No web changes this run, so no
+  375px measurement — nothing in `apps/web` was touched.
+
+  **What the next run should pick up.** File order says Release tooling
+  (Round six §M's next unchecked box) next: versioned export + datasheet,
+  deletion honoured. K′'s findings box is still permanently blocked on the
+  owner's real phone; keep skipping it per the standing precedent this file
+  documents repeatedly.
 
 - 2026-08-17 — **Round six, task M (fifth box): the Validation flow —
   crowd verification of Voice Contribution clips.** Done. **M's fifth box

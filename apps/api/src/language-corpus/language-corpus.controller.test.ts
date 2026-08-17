@@ -2,13 +2,14 @@ import { BadRequestException, ForbiddenException, NotFoundException } from '@nes
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
 import type { CurrentUserResult } from '../auth/auth.service.js';
+import { InMemorySubscriptionGrantStore } from '../entitlements/in-memory-subscription-grant.store.js';
 import { LanguageCorpusController } from './language-corpus.controller.js';
 import { LanguageCorpusRepository } from './language-corpus.repository.js';
 import { LanguageCorpusService } from './language-corpus.service.js';
 
 function buildController() {
   return new LanguageCorpusController(
-    new LanguageCorpusService(new LanguageCorpusRepository(), new InMemoryDocumentStore('HOSTED')),
+    new LanguageCorpusService(new LanguageCorpusRepository(), new InMemoryDocumentStore('HOSTED'), new InMemorySubscriptionGrantStore()),
   );
 }
 
@@ -261,18 +262,18 @@ describe('LanguageCorpusController voice contribution validation', () => {
 
   it('records a validation from a different caller', async () => {
     const { controller, clip } = await buildControllerWithOneClip();
-    const { validation, status } = controller.validateClip(owner2, clip.id, { verdict: 'RIGHT' });
+    const { validation, status } = await controller.validateClip(owner2, clip.id, { verdict: 'RIGHT' });
     expect(validation).toMatchObject({ clipId: clip.id, validatorId: 'owner-2', verdict: 'RIGHT' });
     expect(status).toBe('PENDING');
   });
 
   it('rejects a request with an invalid verdict', async () => {
     const { controller, clip } = await buildControllerWithOneClip();
-    expect(() => controller.validateClip(owner2, clip.id, { verdict: 'MAYBE' })).toThrow(BadRequestException);
+    await expect(controller.validateClip(owner2, clip.id, { verdict: 'MAYBE' })).rejects.toThrow(BadRequestException);
   });
 
   it('refuses a contributor validating their own clip, as a 403', async () => {
     const { controller, clip } = await buildControllerWithOneClip();
-    expect(() => controller.validateClip(owner1, clip.id, { verdict: 'RIGHT' })).toThrow(ForbiddenException);
+    await expect(controller.validateClip(owner1, clip.id, { verdict: 'RIGHT' })).rejects.toThrow(ForbiddenException);
   });
 });
