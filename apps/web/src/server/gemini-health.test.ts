@@ -194,7 +194,7 @@ describe('researchWithGemini', () => {
       Promise.resolve(new Response(JSON.stringify({ error: { message: 'model not found' } }), { status: 404 }))) as unknown as typeof fetch;
     const result = await researchWithGemini('x', 'ne', { apiKey: 'k', fetchImpl });
     expect(result.status).toBe('unavailable');
-    expect(result.diagnostic).toContain('tried=[gemini-3.7-flash,gemini-3.5-flash,gemini-3.5-flash-lite,gemini-2.5-flash]');
+    expect(result.diagnostic).toContain('tried=[gemini-3.7-flash,gemini-3.5-flash,gemini-3.5-flash-lite]');
   });
 
   it('on a detail-less 429 walks every model, then probes what exactly is refused', async () => {
@@ -206,9 +206,9 @@ describe('researchWithGemini', () => {
     }) as unknown as typeof fetch;
     const result = await researchWithGemini('x', 'ne', { apiKey: 'k', fetchImpl });
     expect(result.status).toBe('unavailable');
-    // four grounded attempts, then one ungrounded interactions probe and one legacy grounded probe
-    expect(urls).toEqual(['interactions+tools', 'interactions+tools', 'interactions+tools', 'interactions+tools', 'interactions', 'legacy+tools']);
-    expect(result.diagnostic).toContain('tried=[gemini-3.7-flash,gemini-3.5-flash,gemini-3.5-flash-lite,gemini-2.5-flash]');
+    // three grounded attempts, then one ungrounded interactions probe and one legacy grounded probe
+    expect(urls).toEqual(['interactions+tools', 'interactions+tools', 'interactions+tools', 'interactions', 'legacy+tools']);
+    expect(result.diagnostic).toContain('tried=[gemini-3.7-flash,gemini-3.5-flash,gemini-3.5-flash-lite]');
     expect(result.diagnostic).toContain('probe[interactions-ungrounded=429 generateContent-grounded=429]');
   });
 

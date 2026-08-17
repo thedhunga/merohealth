@@ -59,7 +59,7 @@ const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions'
  * the next candidate is tried; any other failure is returned as-is. An
  * explicit GEMINI_MODEL goes first and is still subject to the same walk.
  */
-const MODEL_CANDIDATES = ['gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash'] as const;
+const MODEL_CANDIDATES = ['gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite'] as const;
 
 /** Google's wording when a model ID has been withdrawn or never existed. */
 function isModelGone(status: number, body: string): boolean {
@@ -224,6 +224,7 @@ export async function researchWithGemini(
   try {
     let response: Response | undefined;
     const gone: string[] = [];
+    let refusedOnQuota = false;
     for (const model of candidates) {
       response = await fetchImpl(ENDPOINT, {
         method: 'POST',
@@ -242,11 +243,13 @@ export async function researchWithGemini(
         signal: AbortSignal.timeout(20_000),
       });
       if (response.ok) break;
-      // Only a withdrawn model ID justifies trying the next name. A bad key,
-      // a quota hit or an outage will fail the same way for every candidate
-      // and must not be retried four times.
+      // Only a withdrawn model ID, or a model with no allowance on this key,
+      // justifies trying the next name. A bad key or an outage will fail the
+      // same way for every candidate and must not be retried.
       const bodyText = await response.clone().text();
-      if (!isModelGone(response.status, bodyText) && !isModelNotAllowed(response.status, parseGoogleError(bodyText))) break;
+      const notAllowed = isModelNotAllowed(response.status, parseGoogleError(bodyText));
+      if (!isModelGone(response.status, bodyText) && !notAllowed) break;
+      if (notAllowed) refusedOnQuota = true;
       gone.push(model);
     }
 
@@ -254,7 +257,7 @@ export async function researchWithGemini(
     if (!response.ok) {
       let detail = await describeFailure(response);
       if (gone.length) detail += ` · tried=[${gone.join(',')}]`;
-      if (response.status === 429 && gone.length === candidates.length && candidates[0]) {
+      if (refusedOnQuota && gone.length === candidates.length && candidates[0]) {
         detail += ` · ${await probeQuotaShape(fetchImpl, apiKey, candidates[0])}`;
       }
       return emptyResearch(language, 'unavailable', detail);
