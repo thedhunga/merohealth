@@ -125,11 +125,11 @@ read that before the first task.
 
 ## L. Freemium surface (no server needed)
 
-- [ ] `apps/web/src/content/pricing.ts`: tier content from the doc's table,
+- [x] `apps/web/src/content/pricing.ts`: tier content from the doc's table,
       prices/minutes as named placeholders (`PRICE_PLUS_NPR` …) read from a
       single config; NPR formatting; **owner sets the numbers** — do not
       invent them, ship the page with a visible "मूल्य छिट्टै" (price soon)
-      state until set.
+      state until set. **Done 2026-08-17 — see the log entry below.**
 - [ ] `/pricing` page, mobile-first, both locales, image-led per the design
       rules; three cards; "safety is always free" stated plainly.
 - [ ] Upsell card component for the dialogue box: one Nepali sentence with
@@ -1709,6 +1709,71 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-17 — **Round six, task L (first box): `apps/web/src/content/
+  pricing.ts` freemium-voice config.** Done.
+
+  **Housekeeping, again.** Same divergence shape the last few entries
+  describe: local `main` was a stale, *unrelated* ref (76 commits, no
+  common ancestor with `origin/main`'s 50) left over from container setup,
+  not unpushed work — confirmed with `git status` (clean) and `git
+  merge-base` (empty, not just "behind"). This time origin/main's tip
+  (`12ca951`) was also where the initial detached HEAD already sat, so
+  there was nothing to reconcile — `git checkout -B main origin/main` and
+  done, no unshallow, no per-commit `--contains` audit needed like the H
+  entry's run. **For the next run:** if `git merge-base` between local and
+  `origin/main` comes back empty (not merely non-fast-forward), that is a
+  stale local ref, not real divergence — check `git status` is clean and
+  reset straight to `origin/main` rather than trying to merge it.
+
+  **Selection.** Round five J/I/H are all checked, so Round six is
+  unblocked per its own header. Read `docs/product/freemium-and-voice-
+  corpus.md` §2 first, as instructed. Took the first unchecked box only
+  (task L's `pricing.ts` line) — its own next box is the `/pricing` page
+  that would consume this, a separate, larger task.
+
+  **What was built.** `apps/web/src/content/pricing.ts` already existed,
+  but for a *different* pricing surface — the module-catalogue tiers from
+  `@swasthya/entitlements` (real, owner-set prices, 499/1499 NPR, already
+  live on `/pricing`). Round six's table (trial/Plus/Pro **voice minutes**)
+  is a second, additive freemium axis on the same three tiers, not a
+  replacement, so I extended the same file rather than overwriting it.
+  Added `FREEMIUM_VOICE_CONFIG` plus the five named constants the ledger
+  calls out (`TRIAL_MINUTES_FREE`, `PRICE_PLUS_NPR`, `MINUTES_PLUS`,
+  `PRICE_PRO_NPR`, `MINUTES_PRO`), each read once from a `NEXT_PUBLIC_*` env
+  var (new entries in `apps/web/.env.example`, all blank) and `null` when
+  unset or non-numeric/non-positive — mirrors the existing
+  `NEXT_PUBLIC_GOOGLE_CLIENT_ID` "public, build-time, unset degrades
+  gracefully" pattern rather than inventing a new one. Two formatters,
+  `formatFreemiumPriceNpr` and `formatFreemiumMinutes`, both take the
+  "price soon" / unset label as a caller-supplied argument (a translation,
+  once the page exists) rather than hardcoding copy in this file — same
+  shape as the existing `formatQuotaValue`'s `unlimitedLabel`, and it means
+  this run added no new user-visible strings and touched neither
+  `messages/ne.json` nor `en.json`. `formatFreemiumPriceNpr` matches
+  `@swasthya/entitlements`'s own "रु X" / "Rs X" style rather than
+  `Intl.NumberFormat` currency style, so the two pricing surfaces will read
+  consistently once both are on the page. Tests: config resolves to all-null
+  with no env vars set, resolves to the owner-set values when they are set
+  (via `vi.resetModules()` + dynamic re-import, since the config is only
+  ever read once at module load — same as any other baked-in `NEXT_PUBLIC_`
+  value), and a malformed value (`'not-a-number'`, `'-5'`) degrades to
+  `null` rather than throwing; both formatters covered for the set/unset
+  cases. No UI, no component, no page touched — mobile screen-height /
+  tap-target measurement does not apply to this run; that work belongs to
+  task L's next (unstarted) box, `/pricing` itself.
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm
+  typecheck`, `pnpm test` (958 tests, all packages), `pnpm build` all green
+  from a clean tree.
+
+  **For the next run:** task L's remaining four boxes are next in file
+  order — the `/pricing` page itself (render `FREEMIUM_VOICE_CONFIG`
+  alongside the existing module grid, "price soon" state, "safety is always
+  free" stated plainly, the two new message keys this run deliberately
+  deferred), the dialogue-box upsell card, on-device trial-minute metering
+  in `lib/anonymous-history.ts`, and the config-missing outage test (which
+  needs the page to exist first).
 
 - 2026-08-17 — **Round five, task H: conversation, not query — voice in,
   voice out, memory of the last turns.** Done — all six checkboxes, the
