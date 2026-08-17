@@ -1,5 +1,6 @@
 import { assessSafety, getSafetyTemplate } from '@swasthya/clinical-safety';
 
+import { computeAdvisory } from '@/lib/advisory';
 import type { ResearchLanguage } from '@/lib/companion-research';
 import { researchHealthQuestion } from '@/server/research-provider';
 
@@ -48,17 +49,19 @@ export async function POST(request: Request) {
 
   if (assessment.interruptConversation) {
     return Response.json(
-      { assessment, template, research: null },
+      { assessment, template, research: null, advisory: null },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   }
 
+  const research = await researchHealthQuestion(input.message, input.language);
+  const advisory =
+    research.status === 'complete' && research.answer
+      ? computeAdvisory(research.answer, input.language)
+      : null;
+
   return Response.json(
-    {
-      assessment,
-      template: null,
-      research: await researchHealthQuestion(input.message, input.language),
-    },
+    { assessment, template: null, research, advisory },
     { headers: { 'Cache-Control': 'no-store' } },
   );
 }

@@ -12,6 +12,7 @@ import {
   Mic,
   RotateCcw,
   Search,
+  Stethoscope,
   Volume2,
   ShieldCheck,
   TriangleAlert,
@@ -20,6 +21,7 @@ import {
 import type {
   CompanionResearchResponse,
   HealthResearch,
+  ResearchAdvisory,
   ResearchLanguage,
 } from '@/lib/companion-research';
 import { consumeCareQuestion } from '@/lib/get-care-session';
@@ -90,6 +92,10 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
         answer: answered ? (body.research?.answer ?? null) : null,
         language: locale,
         outcome: emergency ? 'emergency' : answered ? 'answered' : 'unavailable',
+        // Only ever set alongside a real answer, so the saved transcript
+        // shows the same warning the person saw, not a stray one attached
+        // to a refusal or an unavailable state.
+        ...(answered && body.advisory ? { advisory: body.advisory } : {}),
       });
 
       // One skippable profile question, only when there is a real answer to
@@ -228,6 +234,7 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
                   ) : null}
                   {phase === 'result' && response?.research ? (
                     <ResearchPanel
+                      advisory={response.advisory}
                       key="result"
                       locale={locale}
                       research={response.research}
@@ -343,23 +350,52 @@ function EmergencyPanel({
   );
 }
 
+/** `Intl.ListFormat` gives a grammatically correct "X, Y and Z" / "X, Y र Z" join, matching `BloodPressureTrendChart.tsx`'s locale-to-BCP-47 mapping. */
+function formatMedicineList(medicines: readonly string[], locale: ResearchLanguage): string {
+  return new Intl.ListFormat(locale === 'ne' ? 'ne-NP' : 'en-US', {
+    style: 'long',
+    type: 'conjunction',
+  }).format(medicines);
+}
+
+function AdvisoryBlock({ text }: { text: string }) {
+  return (
+    <p className="mt-6 flex gap-2 rounded-xl bg-marigold-100 p-4 text-sm leading-relaxed font-semibold text-marigold-900" role="note">
+      <Stethoscope aria-hidden className="mt-0.5 size-4 shrink-0" />
+      {text}
+    </p>
+  );
+}
+
 function ResearchPanel({
+  advisory,
   research,
   reset,
   submitQuestion,
   locale,
 }: {
+  advisory: ResearchAdvisory | null;
   research: HealthResearch;
   reset: () => void;
   submitQuestion: (question: string) => Promise<void>;
   locale: ResearchLanguage;
 }) {
   const t = useTranslations('getCare');
+  const advisoryT = useTranslations('getCare.advisory');
   const playback = useSpeechPlayback(locale);
 
   if (research.status !== 'complete' || !research.answer) {
     return <SetupPanel research={research} reset={reset} />;
   }
+
+  const advisoryText = advisory
+    ? advisory.kind === 'medicine'
+      ? advisoryT('medicine', { medicines: formatMedicineList(advisory.medicines, locale) })
+      : advisoryT('advice')
+    : null;
+  // Spoken as one utterance with the answer, so Listen (and, later, auto-speak)
+  // never lets the warning go unheard just because it renders as a separate block.
+  const spokenText = advisoryText ? `${research.answer} ${advisoryText}` : research.answer;
 
   return (
     <Panel className="bg-white ring-1 ring-line">
@@ -382,7 +418,7 @@ function ResearchPanel({
                 ? 'bg-indigo-100 text-indigo-800'
                 : 'text-indigo-800 hover:bg-indigo-50',
             )}
-            onClick={() => playback.toggle(research.answer ?? '')}
+            onClick={() => playback.toggle(spokenText ?? '')}
             type="button"
           >
             <Volume2 aria-hidden className="size-4" />
@@ -392,6 +428,8 @@ function ResearchPanel({
       </div>
       <h2 className="mt-4 text-2xl">{t('result.heading')}</h2>
       <p className="mt-4 whitespace-pre-wrap text-base leading-7">{research.answer}</p>
+
+      {advisoryText ? <AdvisoryBlock text={advisoryText} /> : null}
 
       {research.citations.length > 0 ? (
         <div className="mt-7 border-t border-line pt-6">

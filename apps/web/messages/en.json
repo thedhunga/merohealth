@@ -1252,6 +1252,10 @@
       "listen": "Listen",
       "listenStop": "Stop"
     },
+    "advisory": {
+      "medicine": "This information is for research and understanding only. Before taking {medicines}, see a doctor or an authorised health worker.",
+      "advice": "This information is for research and understanding only. Before taking any medicine or following this advice, see a doctor or an authorised health worker."
+    },
     "setup": {
       "heading": "Answers are briefly unavailable",
       "body": "Your question is safe, but we could not prepare an answer just now. Please try again shortly. If it feels urgent, speak to a nearby health worker."

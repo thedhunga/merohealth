@@ -57,3 +57,108 @@ export function getSafetyTemplate(templateId: string, language: LanguageCode): s
   if (!(templateId in approvedSafetyTemplates)) return null;
   return approvedSafetyTemplates[templateId as SafetyTemplateId][language];
 }
+
+/**
+ * `detectAdvisoryTriggers` looks at a completed *answer*, not the person's
+ * question — `assessSafety` above interrupts before an answer exists at all;
+ * this runs after one, to decide whether it needs a "see a health worker"
+ * line attached. Answers are only ever generated in `ne` or `en` (never
+ * romanised `ne-Latn`), so this takes the narrower two-way type rather than
+ * `LanguageCode`.
+ */
+export type AdvisoryLanguage = 'ne' | 'en';
+export interface AdvisoryTriggers {
+  /** Display names of medicines found, in `lang`, deduplicated, first-seen order. */
+  medicines: string[];
+  /** Whether the text instructs an action — take, apply, stop, adjust a dose. */
+  givesAdvice: boolean;
+}
+interface MedicineEntry {
+  en: string;
+  ne: string;
+  patterns: RegExp[];
+}
+// A word list about *language* — brand and generic drug names as they are
+// written — not a clinical claim, so "invent no facts" does not apply here,
+// same as the ledger task that specified this list says explicitly.
+const medicines: readonly MedicineEntry[] = [
+  { en: 'paracetamol', ne: 'प्यारासिटामोल', patterns: [/paracetamol/i, /\bcetamol\b/i, /प्यारासिटामोल/u, /सिटामोल/u] },
+  { en: 'ibuprofen', ne: 'आइबुप्रोफेन', patterns: [/ibuprofen/i, /आइबुप्रोफेन/u] },
+  { en: 'ORS', ne: 'जीवनजल (ORS)', patterns: [/\bORS\b/i, /oral rehydration/i, /जीवनजल/u] },
+  { en: 'cetirizine', ne: 'सेटिरिजिन', patterns: [/cetirizine/i, /सेटिरिजिन/u] },
+  { en: 'omeprazole', ne: 'ओमेप्राजोल', patterns: [/omeprazole/i, /ओमेप्राजोल/u] },
+  { en: 'pantoprazole', ne: 'प्यान्टोप्राजोल', patterns: [/pantoprazole/i, /प्यान्टोप्राजोल/u] },
+  { en: 'amoxicillin', ne: 'एमोक्सिसिलिन', patterns: [/amoxicillin/i, /एमोक्सिसिलिन/u] },
+  { en: 'azithromycin', ne: 'एजिथ्रोमाइसिन', patterns: [/azithromycin/i, /एजिथ्रोमाइसिन/u] },
+  { en: 'metformin', ne: 'मेटफर्मिन', patterns: [/metformin/i, /मेटफर्मिन/u] },
+  { en: 'amlodipine', ne: 'एम्लोडिपिन', patterns: [/amlodipine/i, /एम्लोडिपिन/u] },
+  { en: 'losartan', ne: 'लोसार्टान', patterns: [/losartan/i, /लोसार्टान/u] },
+  { en: 'salbutamol', ne: 'साल्बुटामोल', patterns: [/salbutamol/i, /साल्बुटामोल/u] },
+  { en: 'zinc', ne: 'जिंक', patterns: [/\bzinc\b/i, /जिंक/u, /जिङ्क/u] },
+  { en: 'iron/folic acid', ne: 'आइरन/फोलिक एसिड', patterns: [/iron.{0,12}folic/i, /folic acid/i, /आइरन.{0,12}फोलिक/u, /फोलिक एसिड/u] },
+  { en: 'albendazole', ne: 'एल्बेन्डाजोल', patterns: [/albendazole/i, /एल्बेन्डाजोल/u] },
+];
+// Catches a medicine not on the named list above — pharmaceutical suffixes
+// are conventionally shared across a whole drug class, so a name this list
+// has never heard of still reads as "probably a medicine." टेबलेट/क्याप्सुल
+// (tablet/capsule) and a bare "<number> mg" catch the dosage-form wording
+// itself when no specific drug name is even given.
+const genericMedicinePatterns: readonly RegExp[] = [
+  /\w+cillin\b/i,
+  /\w+mycin\b/i,
+  /\w+prazole\b/i,
+  /\w+olol\b/i,
+  /\w+sartan\b/i,
+  /\d+\s?mg\b/i,
+  /टेबलेट/u,
+  /क्याप्सुल/u,
+];
+// English, Devanagari, and romanised Nepali, in that order — matched
+// regardless of `lang`, unlike the medicine names below, because whether the
+// text instructs an action is the safety-relevant fact and must not be
+// missed just because the model mixed a Nepali verb into an English answer.
+const adviceVerbPatterns: readonly RegExp[] = [
+  /\btake\b/i,
+  /\bdos(e|age|ing)\b/i,
+  /\bapply\b/i,
+  /\bstop taking\b/i,
+  /\bincrease\b/i,
+  /\bdecrease\b/i,
+  /लिनुहोस्/u,
+  /खानुहोस्/u,
+  /मात्रा/u,
+  /लगाउनुहोस्/u,
+  /बन्द गर्नुहोस्/u,
+  /बढाउनुहोस्/u,
+  /घटाउनुहोस्/u,
+  /linuhos/i,
+  /khanuhos/i,
+  /\bmatra\b/i,
+  /lagaunuhos/i,
+  /banda garnuhos/i,
+  /badhaunuhos/i,
+  /ghataunuhos/i,
+];
+export function detectAdvisoryTriggers(answerText: string, lang: AdvisoryLanguage): AdvisoryTriggers {
+  const normalized = answerText.normalize('NFKC');
+  // Keyed by the lower-cased display name so a named match (e.g.
+  // "amoxicillin") and a generic-pattern match on the same word (`-cillin`)
+  // collapse into one entry instead of naming the same medicine twice.
+  const found = new Map<string, string>();
+  for (const entry of medicines) {
+    if (entry.patterns.some((pattern) => pattern.test(normalized))) {
+      const display = entry[lang];
+      found.set(display.toLowerCase(), display);
+    }
+  }
+  for (const pattern of genericMedicinePatterns) {
+    const match = normalized.match(pattern);
+    if (!match) continue;
+    const key = match[0].toLowerCase();
+    if (!found.has(key)) found.set(key, match[0]);
+  }
+  return {
+    medicines: [...found.values()],
+    givesAdvice: adviceVerbPatterns.some((pattern) => pattern.test(normalized)),
+  };
+}

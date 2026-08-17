@@ -36,6 +36,14 @@ export interface AnonymousExchange {
   language: string;
   /** What we already know from the profile prompts, if answered. */
   outcome: 'answered' | 'emergency' | 'unavailable';
+  /**
+   * The advisory attached to `answer`, if any — so the saved transcript
+   * still shows the "see a health worker" warning, not just the answer it
+   * was attached to. Absent rather than `null` on an old entry: no
+   * migration runs over what is already in localStorage, so a pre-existing
+   * entry simply has no opinion on whether it warranted one.
+   */
+  advisory?: { kind: 'medicine' | 'advice'; medicines: string[] };
 }
 
 export interface AnonymousProfile {

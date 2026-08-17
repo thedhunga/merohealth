@@ -36,6 +36,19 @@ export interface HealthResearch {
   diagnostic?: string;
 }
 
+/**
+ * Present only when the completed answer named a medicine or gave
+ * instruction-shaped advice ("take", "stop", a dose). Computed by the route
+ * from the answer text via `detectAdvisoryTriggers` — never by the model —
+ * so a health question about medicines can never talk its way out of the
+ * warning. `medicine` names what was detected; `advice` is the generic
+ * variant for instruction-shaped text that named nothing specific.
+ */
+export interface ResearchAdvisory {
+  kind: 'medicine' | 'advice';
+  medicines: string[];
+}
+
 export interface CompanionResearchResponse {
   assessment: {
     riskLevel: string;
@@ -45,4 +58,5 @@ export interface CompanionResearchResponse {
   };
   template: string | null;
   research: HealthResearch | null;
+  advisory: ResearchAdvisory | null;
 }

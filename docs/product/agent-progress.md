@@ -141,7 +141,7 @@ helpfulness, never on safety text).
 
 ## J. Advisory whenever advice or a medicine appears — deterministic, never generated
 
-- [ ] `packages/clinical-safety`: add `detectAdvisoryTriggers(answerText, lang)`
+- [x] `packages/clinical-safety`: add `detectAdvisoryTriggers(answerText, lang)`
       → `{ medicines: string[]; givesAdvice: boolean }`. Two deterministic
       lists, both languages, both scripts (Devanagari and romanised Nepali):
       (a) common medicines in Nepal — paracetamol/cetamol, ibuprofen,
@@ -152,20 +152,29 @@ helpfulness, never on safety text).
       (b) advice verbs — take/लिनुहोस्/खानुहोस्, dose/मात्रा, apply/लगाउनुहोस्,
       stop/बन्द गर्नुहोस्, increase/decrease. This is a word list about
       *language*, not a clinical claim; "invent no facts" does not apply.
-- [ ] Fixed advisory copy in `messages/ne.json` and `en.json` under
+      **Done 2026-08-17 — see the log entry below.**
+- [x] Fixed advisory copy in `messages/ne.json` and `en.json` under
       `getCare.advisory` — two variants: `medicine` (names the medicine(s)
       detected) and `advice`. Nepali first, plain register: यो जानकारी
       अनुसन्धान र बुझाइका लागि मात्र हो। कुनै पनि औषधि लिनु वा यो सल्लाह
       पालना गर्नुअघि चिकित्सक वा अधिकृत स्वास्थ्यकर्मीलाई भेट्नुहोस्।
-- [ ] `/api/companion/research` route: run the detector on every complete
+      **Done 2026-08-17 — see the log entry below.**
+- [x] `/api/companion/research` route: run the detector on every complete
       answer; return `advisory: { kind, medicines }`. Never let the model
       write the advisory — it is appended by us, verbatim, from messages.
-- [ ] `GetCareFlow` answer panel: render the advisory as its own marigold
+      **Done 2026-08-17 — see the log entry below.**
+- [x] `GetCareFlow` answer panel: render the advisory as its own marigold
       block *above* the citations, and **speak it** as part of Listen /
       auto-speak. Save it into the history entry so the transcript shows it.
-- [ ] Outage test: detector throws → answer still renders with the generic
-      `advice` advisory; nothing else changes.
-- [ ] 30-case fixture (Nepali/English/mixed script) with expected triggers.
+      **Done 2026-08-17 — auto-speak itself does not exist until task H;
+      the advisory is folded into the one speech path that exists today
+      (the Listen button) so it is ready the moment H adds the other. See
+      the log entry below.**
+- [x] Outage test: detector throws → answer still renders with the generic
+      `advice` advisory; nothing else changes. **Done 2026-08-17 — see the
+      log entry below.**
+- [x] 30-case fixture (Nepali/English/mixed script) with expected triggers.
+      **Done 2026-08-17 — see the log entry below.**
 
 ## I. Keep the conversation inside health — before the model, and after
 
@@ -1627,6 +1636,150 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-17 — **Round five, task J: the advisory that must appear whenever
+  an answer names a medicine or gives instruction-shaped advice.** Done —
+  all six checkboxes.
+
+  **Housekeeping went wrong, then was corrected mid-run — worth reading if
+  you hit "diverged, no common ancestor" too.** Started before this file's
+  own most-recent shallow-clone-trap entries existed in this run's context,
+  so `git reset --hard origin/main` was run on the "no common ancestor"
+  reading, after backing up local `main` to a throwaway branch first. Only
+  afterward did reading this file's own log surface the shallow-clone
+  explanation; ran `git fetch --unshallow` retroactively and confirmed with
+  `git merge-base --is-ancestor <backup> origin/main` that the stale local
+  branch really was a pure ancestor of `origin/main` — the reset was
+  equivalent to a fast-forward, so nothing was lost, but only because this
+  branch's actual history happened to cooperate, not because the check ran
+  first. Spent real effort writing up a consolidated log entry for eight
+  previously-unlogged Gemini-diagnostic commits (`ed9a373`…`aa5f1e7`) — then
+  `git fetch origin main` mid-session showed a **new commit had just landed**
+  (`ab04eaa`) that already did the same reconciliation (in `HANDOFF.md`) and
+  opened **Round five** from a fresh owner directive. Dropped the redundant
+  work rather than push a duplicate: `git stash`, fast-forwarded to
+  `ab04eaa`, dropped the stash. **For the next run:** two lessons. First,
+  read this file's log *before* running the sync commands the top-level
+  instructions open with, not after — the safety check is only useful
+  before the destructive command. Second, re-fetch and diff against
+  `origin/main` before pushing anything, even mid-run — another session can
+  land real work while this one is still thinking, and duplicating it wastes
+  the run.
+
+  **Selection.** With `ab04eaa` merged, `docs/product/agent-progress.md`
+  opens with a new **Round five** ahead of Round four, from the owner's own
+  words: full voice conversation, contained to health, with a mandatory
+  advisory whenever advice or a medicine is dispensed — none of which exists
+  today. Ordering is deliberate, J → I → H: the advisory is a safety
+  property and must exist before the assistant talks more. `detectAdvisoryTriggers`
+  (task J's first box) was the genuine first unchecked box in the whole
+  file. Treated all six of J's boxes as one task, matching how Round four's
+  §E was one commit for four boxes — they compose into a single shippable
+  feature (detector → copy → route → UI → outage test → fixture) and a
+  detector with nothing calling it is not a real deliverable.
+
+  **What was built.** `packages/clinical-safety/src/index.ts`:
+  `detectAdvisoryTriggers(answerText, lang: 'ne' | 'en')` →
+  `{ medicines: string[]; givesAdvice: boolean }`, styled exactly after
+  `assessSafety`'s existing pattern in the same file (flat arrays of
+  `RegExp`, NFKC normalisation, no classes). A 15-entry named-medicine list
+  (English + Devanagari patterns per entry, e.g. paracetamol/cetamol/
+  प्यारासिटामोल/सिटामोल) plus eight generic patterns (`-cillin`, `-mycin`,
+  `-prazole`, `-olol`, `-sartan`, `\d+mg`, टेबलेट, क्याप्सुल) that catch a
+  drug not on the named list. `lang` picks which of each entry's two
+  display names (`en`/`ne`) comes back — the one place the parameter
+  actually matters, since advice-verb matching runs both languages and
+  both scripts unconditionally (an answer can mix a Nepali verb into an
+  English sentence, and missing that would be the unsafe failure mode).
+  Named-list matches are deduped against generic-pattern matches on the
+  same word via a lower-cased key, named winning (checked first) — so
+  "Omeprazole" doesn't appear twice just because it happens to end in
+  `-prazole`, which is also a real drug-class suffix. 57 tests pass in the
+  package including a 30-case `it.each` fixture (10 English named
+  medicines, 8 Devanagari named medicines, 4 romanised-Nepali advice-verb-
+  only cases, 4 generic-pattern-only cases, 3 mixed-script cases, 1 benign
+  negative) plus dedup and question-not-answer regression tests.
+
+  `apps/web/src/lib/advisory.ts` (new): `computeAdvisory(answer, language,
+  detect = detectAdvisoryTriggers)` picks `kind: 'medicine'` when a medicine
+  was named (even if the text also instructs an action — more specific
+  wins), `kind: 'advice'` for instruction-shaped text naming nothing
+  specific, `null` for neither. `detect` is injectable — same
+  `dependencies.fetchImpl ?? fetch` pattern `gemini-health.ts` already
+  uses for `fetchImpl` — so the **outage test** (a throwing detector still
+  produces the generic `advice` advisory, never `null`) needs no module
+  mocking; `vi.mock` is not used anywhere in this repo and this keeps that
+  true. `apps/web/src/lib/companion-research.ts`: `CompanionResearchResponse`
+  gains `advisory: ResearchAdvisory | null`, a sibling of `research` (it's
+  computed by the route from the answer, not part of any provider's own
+  return shape). `apps/web/src/app/api/companion/research/route.ts`: runs
+  `computeAdvisory` only when `research.status === 'complete' &&
+  research.answer`; the model itself never writes advisory text — only the
+  fixed copy in messages does, per the ledger's own "never let the model
+  write the advisory" instruction.
+
+  `apps/web/messages/{ne,en}.json`: `getCare.advisory.medicine` (`{medicines}`
+  interpolation, a plain joined string, not ICU list syntax — no existing
+  precedent for that in this repo) and `.advice`, inserted as a sibling of
+  `result`/`setup` at the same nesting depth. Nepali `advice` copy is the
+  ledger's own verbatim text; `medicine` and both English variants were
+  drafted to match its register since the ledger only spelled out the one
+  string. `GetCareFlow.tsx`: a new `AdvisoryBlock` (marigold, `role="note"`,
+  a `Stethoscope` icon, reusing the existing disclaimer block's `bg-marigold-100`
+  styling) renders between the answer paragraph and the citations list —
+  literally above the citations, as specified. `Intl.ListFormat` joins
+  multiple medicine names grammatically ("X, Y and Z" / "X, Y र Z"), locale-
+  mapped the same way `BloodPressureTrendChart.tsx` already maps `ne`/`en`
+  to `ne-NP`/`en-US`. The Listen button's `playback.toggle(...)` call now
+  speaks the advisory text appended to the answer, computed once and shared
+  between the button and the visible block rather than translated twice.
+  `apps/web/src/lib/anonymous-history.ts`: `AnonymousExchange` gains an
+  optional `advisory` field, set only alongside a real answered exchange, so
+  the saved transcript shows the same warning the person saw. Deliberately
+  **not** threaded through `apps/api`'s `/v1/history/migrate` DTO — its zod
+  schema (`exchangeSchema`, no `.strict()`) silently drops unknown keys, so
+  nothing breaks, but the advisory itself does not yet survive sign-in
+  migration. Left as an explicit, named gap rather than silently accepted:
+  a real omission, not a blocker for this task, which is about the
+  anonymous session's own transcript.
+
+  **Verify.** Full gate from the repository root: `pnpm install
+  --frozen-lockfile` clean (from a fresh install — the prior entry's "12
+  pre-existing `instanceof` failures" note is `HANDOFF.md`'s documented
+  post-reinstall class-identity artifact, not persistent; this run's own
+  `apps/api` suite was 754/754 clean), `pnpm lint` 40/40, `pnpm typecheck`
+  40/40, `pnpm test` 75/75 tasks (`packages/clinical-safety` +57 tests,
+  `apps/web` +13 across `advisory.test.ts` and the extended
+  `route.test.ts`), `pnpm build` 40/40. Had to `pnpm --filter
+  @swasthya/clinical-safety build` once mid-run: `apps/web`'s test runner
+  resolves the workspace package via its built `dist/` (`package.json`'s
+  `default` export condition), not `src/`, so a source-only change to a
+  dependency package is invisible to a dependent's tests until it's
+  rebuilt — the monorepo `pnpm build`/`pnpm test` at the root handles this
+  via turbo's task graph, but running a dependent package's tests directly
+  and in isolation, the way this run did while iterating, does not.
+
+  **Mobile measurement, `/get-care` at 375px**, both locales, via Playwright
+  against the pre-installed chromium (`/opt/pw-browsers/chromium`) with the
+  research route mocked to return a completed answer naming paracetamol —
+  the real API is not answering in production yet (Round five's own
+  "Owner decisions outstanding" section), so this is the only way to see
+  the feature render at all right now. English: 3.14 → 3.32 screens
+  (+0.18, +147px). Nepali: 2.90 → 3.08 screens (+0.18, +147px). Tap targets
+  unchanged at 83 total / 76 under 44px before and after (all pre-existing,
+  in the footer nav — the advisory block is a `<p>` and an icon, zero new
+  interactive elements). No horizontal overflow in either locale.
+  Screenshots confirm the marigold block sits correctly above the citation
+  list in both languages with no truncated Devanagari matras.
+
+  **For the next run.** Round five's own "Owner decisions outstanding"
+  section is still open (billing or `RESEARCH_ALLOW_UNGROUNDED`) — the
+  advisory now exists but cannot be seen by a real visitor until an answer
+  can be produced at all. Task I (off-topic containment) is next in the
+  J → I → H order; do not start H (multi-turn voice) before it. The
+  `advisory` field not surviving `/v1/history/migrate` (noted above) is a
+  small, real, named gap — worth picking up explicitly rather than assuming
+  it was an oversight.
 
 - 2026-08-17 — **Gemini live in production; grounding is the wall.** Key visible after the owner rescoped it (probe now self-describes: env, commit, production URL). First real Nepali question: 404, gemini-2.5-flash withdrawn for new accounts → provider now walks current Flash models. Then 429 on every grounded call while a plain call is 200, on all three 3.x Flash models and both endpoints: **search grounding is not in the free tier on this key.** Failures now return a sanitised diagnostic (status, reason, quota, what was tried, side-probe results). Added owner-gated RESEARCH_ALLOW_UNGROUNDED fallback (labelled, no citations, stronger disclaimer; default off). 23 provider tests. Owner decision recorded in Round five. **Round five opened** from the owner voice-conversation directive; J → I → H order is deliberate. Reminder: pnpm test in apps/api still has 12 pre-existing instanceof failures (see HANDOFF) — not a regression.
 
