@@ -116,6 +116,67 @@ read that before the first task.
 
 ## Task queue
 
+# Round six — freemium on purpose, duplex voice, and a spoken-Nepali corpus
+
+> Owner direction 2026-08-17. Full reasoning and the rules that make it safe
+> are in `docs/product/freemium-and-voice-corpus.md` — read it before taking
+> any item here. **Do Round five J → I → H first**; these items either sit
+> on top of them or wait for the server.
+
+## L. Freemium surface (no server needed)
+
+- [ ] `apps/web/src/content/pricing.ts`: tier content from the doc's table,
+      prices/minutes as named placeholders (`PRICE_PLUS_NPR` …) read from a
+      single config; NPR formatting; **owner sets the numbers** — do not
+      invent them, ship the page with a visible "मूल्य छिट्टै" (price soon)
+      state until set.
+- [ ] `/pricing` page, mobile-first, both locales, image-led per the design
+      rules; three cards; "safety is always free" stated plainly.
+- [ ] Upsell card component for the dialogue box: one Nepali sentence with
+      the price, shown *after* a first voice answer and when trial minutes
+      run out; dismissible; never on arrival; never for emergency content.
+- [ ] On-device metering of duplex trial minutes against the anonymous id
+      (`lib/anonymous-history.ts` gains `usage`), migrated with history.
+- [ ] Outage test: config missing → page renders with "price soon", nothing
+      else breaks.
+
+## K′. Duplex voice spike — gated on `GEMINI_LIVE_ENABLED=true` (owner turns on billing)
+
+- [ ] `app/api/voice/token/route.ts`: mints a Gemini **ephemeral token**
+      server-side; short TTL; returns nothing else. Never the API key.
+- [ ] `/voice-lab` page (noindex, flag-gated): opens a Live session in
+      Nepali with the *same* system instruction as the text path + Round
+      five containment/advisory text; live transcript of both sides;
+      **emergency watcher** on transcripts → cancel + play our fixed
+      template; falls back to conversation mode (H) if the socket fails.
+- [ ] Findings section in the doc: Nepali in/out quality, interruption,
+      latency, behaviour on 3G — measured on the owner's phone. Stop; owner
+      decides go/no-go for making duplex the default mic behaviour.
+
+## M. Corpus — consent first, then capture (needs the API server)
+
+- [ ] Consent copy, ne/en, plain register, in `messages/*` — separate from
+      terms; versioned; explains purpose (train a Nepali speech model), that
+      it is optional, revocable, and not required for any service.
+- [ ] `apps/api`: `Consent { userId, kind: VOICE_CONTRIBUTION |
+      HEALTH_CONVERSATION_AUDIO, version, grantedAt, revokedAt }`; toggle
+      in account; audit trail.
+- [ ] Voice Contribution flow (`/contribute`): read prompts + free-speech
+      tasks; district / mother tongue / age band self-report; MediaRecorder
+      capture; upload to object storage on the server; quality gates.
+- [ ] Reward: verified contributions → Plus minutes, through entitlements.
+- [ ] Validation flow: listen, mark right / wrong / unclear; two agreeing =
+      verified.
+- [ ] Release tooling: versioned export + datasheet; deletion honoured.
+- [ ] Owner decisions recorded before first release: licence; whether
+      health-conversation audio (stream B) is offered at all in v1.
+
+## N. Payments (owner picks provider — Round four G comparison first)
+
+- [ ] After the owner chooses eSewa / Khalti / ConnectIPS: server-side
+      checkout + webhook → entitlement upgrade; receipts in Nepali; refunds
+      path documented. Nothing client-side ever holds a payment secret.
+
 # Round five — a voice conversation, contained and advised
 
 > Owner's words, 2026-08-17: "this app has to be totally voice interactive,

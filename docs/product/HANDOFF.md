@@ -26,6 +26,7 @@ and eventually pays to consult a clinician. The full intent is in
 | The build queue the cloud agent works from | `docs/product/agent-progress.md` |
 | Vercel-exit checklist | `docs/deployment/hosting-migration-inventory.md` |
 | Asset prompts (Gemini/Veo) | `docs/product/asset-brief-veo.md` |
+| Freemium, duplex voice, spoken-Nepali corpus — plan and rules | `docs/product/freemium-and-voice-corpus.md` |
 
 Live site: **https://merohealth-beta.vercel.app**
 Config probe (safe, public): **`/api/companion/research/health`** — reports
