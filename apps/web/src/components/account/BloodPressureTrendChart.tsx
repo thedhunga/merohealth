@@ -4,7 +4,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { buildAnalyteTrend } from '@swasthya/health-records';
 import type { HealthObservation } from '@swasthya/shared-types';
 
-import { buildBloodPressureChartLayout } from '@/lib/blood-pressure-chart';
+import { buildBloodPressureChartLayout, pairBloodPressureReadings } from '@/lib/blood-pressure-chart';
 
 const SYSTOLIC_CODE = '8480-6';
 const DIASTOLIC_CODE = '8462-4';
@@ -24,12 +24,17 @@ const DIASTOLIC_COLOR = '#c97a12';
  * person hasn't reviewed yet never appears here, satisfying "only CONFIRMED
  * points render" by construction rather than a second filter in this file.
  *
- * Renders nothing (a plain empty-state message) until there are at least two
- * points to compare — this is a small embedded chart on `/account`, not a
+ * Renders nothing (a plain empty-state message) until there is at least one
+ * confirmed reading — this is a small embedded chart on `/account`, not a
  * dashboard, so it skips the full interaction spec (crosshair, filters) in
- * favour of a `<title>` hover/focus tooltip per marker and a sr-only data
- * table, per the dataviz skill's "final accessibility pass" requirement that
- * a table view always exists alongside the visual chart.
+ * favour of a `<title>` hover/focus tooltip per marker for the visual chart,
+ * plus a real, visible history list below it (`pairBloodPressureReadings`)
+ * rather than a sr-only table: a `<title>` tooltip is undiscoverable on a
+ * touch device, so a sighted phone visitor previously had no way to read an
+ * exact past value as text. The visible list satisfies the dataviz skill's
+ * "a table view always exists alongside the visual chart" requirement more
+ * usefully than a hidden one would, and doubles as the chart's accessible
+ * equivalent for screen-reader users too.
  */
 export function BloodPressureTrendChart({ observations }: { observations: readonly HealthObservation[] }) {
   const t = useTranslations('account.bloodPressure.chart');
@@ -48,8 +53,7 @@ export function BloodPressureTrendChart({ observations }: { observations: readon
     day: 'numeric',
   });
 
-  const allRows = [...(systolicTrend?.points ?? []), ...(diastolicTrend?.points ?? [])]
-    .map((point, index) => ({ ...point, seriesLabel: index < (systolicTrend?.points.length ?? 0) ? t('legend.systolic') : t('legend.diastolic') }));
+  const readings = pairBloodPressureReadings(systolicTrend?.points ?? [], diastolicTrend?.points ?? []);
 
   return (
     <div className="flex flex-col gap-3">
@@ -65,7 +69,7 @@ export function BloodPressureTrendChart({ observations }: { observations: readon
         <span>{t('unit')}</span>
       </div>
 
-      {/* Decorative relative to the sr-only table below, which carries the same data as real text. */}
+      {/* Decorative relative to the visible history list below, which carries the same data as real text. */}
       <svg aria-hidden className="h-auto w-full" viewBox={`0 0 ${layout.width} ${layout.height}`}>
         {layout.yTicks.map((tick) => (
           <g key={tick.value}>
@@ -114,26 +118,36 @@ export function BloodPressureTrendChart({ observations }: { observations: readon
         ))}
       </svg>
 
-      {/* Screen-reader table view of the same data — the dataviz skill's accessibility pass requires one alongside every chart. */}
-      <table className="sr-only">
-        <caption>{t('tableCaption')}</caption>
-        <thead>
-          <tr>
-            <th scope="col">{t('table.series')}</th>
-            <th scope="col">{t('table.date')}</th>
-            <th scope="col">{t('table.value')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {allRows.map((row) => (
-            <tr key={`${row.seriesLabel}-${row.effectiveAt}`}>
-              <td>{row.seriesLabel}</td>
-              <td>{dateFormatter.format(new Date(row.effectiveAt))}</td>
-              <td>{row.value}</td>
+      {/*
+        Real, visible history — not sr-only — newest first, so a phone
+        visitor can read an exact past value without hovering a marker.
+        Doubles as the chart's accessible text equivalent.
+      */}
+      <div>
+        <h3 className="text-sm font-semibold text-ink">{t('history.heading')}</h3>
+        <table className="mt-2 w-full text-sm">
+          <thead>
+            <tr className="text-left text-ink-soft">
+              <th className="py-1 pr-3 font-medium" scope="col">{t('history.date')}</th>
+              <th className="py-1 pr-3 font-medium" scope="col">{t('history.systolic')}</th>
+              <th className="py-1 font-medium" scope="col">{t('history.diastolic')}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {readings.map((row) => (
+              <tr className="border-t border-line" key={row.effectiveAt}>
+                <td className="py-1.5 pr-3 text-ink">{dateFormatter.format(new Date(row.effectiveAt))}</td>
+                <td className="py-1.5 pr-3 text-ink">
+                  {row.systolic !== null ? `${row.systolic} ${t('unitShort')}` : t('history.notRecorded')}
+                </td>
+                <td className="py-1.5 text-ink">
+                  {row.diastolic !== null ? `${row.diastolic} ${t('unitShort')}` : t('history.notRecorded')}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

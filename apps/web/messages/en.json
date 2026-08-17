@@ -1437,11 +1437,12 @@
         },
         "unit": "mmHg",
         "unitShort": "mmHg",
-        "tableCaption": "Blood pressure readings over time",
-        "table": {
-          "series": "Reading",
+        "history": {
+          "heading": "Your readings",
           "date": "Date",
-          "value": "Value (mmHg)"
+          "systolic": "Systolic",
+          "diastolic": "Diastolic",
+          "notRecorded": "—"
         }
       }
     },

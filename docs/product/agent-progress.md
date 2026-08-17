@@ -1517,6 +1517,108 @@ Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
 - 2026-08-17 — **Queue's three unchecked boxes re-confirmed genuinely blocked
+  a seventh time; picked the highest-value improvement to work already
+  shipped: a real, visible blood-pressure reading history on `/account`,
+  replacing the sr-only-only table the prior F4 entry flagged as a gap.**
+  Done.
+
+  **Housekeeping first.** `git checkout main && git pull` hit the same
+  "divergent branches, no common ancestor" shape the last several runs'
+  entries describe — this session's container had a `main` at `9bdf548`
+  (76 commits) while `origin/main` was at `1e5fc63` (50 commits), with no
+  common ancestor visible. Unlike those prior entries, did not
+  `git reset --hard origin/main` on faith — ran `git fetch --unshallow`
+  first, since the "no common ancestor" was suspicious enough to verify
+  rather than assume. With full history, `git merge-base main origin/main`
+  resolved to `9bdf548` itself — this container's `main` **was** an ancestor
+  of `origin/main`, and the apparent divergence was purely a shallow-clone
+  artifact (the shallow boundary commit was being read as history's root).
+  `git merge --ff-only origin/main` fast-forwarded cleanly with zero
+  conflicts and zero risk of losing anything. **Worth recording for the next
+  run:** if "divergent, no common ancestor" appears again, try
+  `git fetch --unshallow` before reaching for `git reset --hard` — a hard
+  reset is fine when it's genuinely warranted, but this run found no
+  genuine divergence at all once the full history was visible, only a
+  shallow-clone illusion of one.
+
+  **Selection.** Read the ledger and `platform-vision.md` fresh, then
+  independently re-verified all three standing boxes rather than trusting
+  the log: (1) Google sign-in — `grep GOOGLE_CLIENT_ID .env.example` still
+  shows it unset; (2) the two testimonial portraits — `ListConnectors`
+  still reports Higgsfield `connected: true` but `enabledInChat: false` for
+  this session; (3) the B1 homepage-height task — `git log` on the tracked
+  homepage/home component files shows no commits since the last two
+  independent audits (only the unrelated tap-target fix). All three
+  genuinely blocked, not stale.
+
+  With nothing actionable in the queue, took up the concrete, previously-
+  named candidate from the 2026-08-16 F4 entry: "extending the confirmation
+  UI to also show a document's already-processed observations (today the
+  confirm/reject card only shows the DRAFT set from the capture that just
+  ran, not a full history view)." Read `BloodPressureTrendChart.tsx` and its
+  doc comment first — the chart already renders a `<table className="sr-only">`
+  with every confirmed reading, but genuinely invisible to a sighted user,
+  and the chart's own per-marker value is only reachable via a `<title>`
+  hover/focus tooltip, which is undiscoverable on a touch device. So a phone
+  visitor — almost everyone here — had no way to read an exact past BP
+  value as text at all. That's the real gap, not a missing feature so much
+  as a wrong accessibility primitive.
+
+  **What was built.** `apps/web/src/lib/blood-pressure-chart.ts`:
+  `pairBloodPressureReadings(systolic, diastolic)`, a pure function pairing
+  the two series by exact `effectiveAt` match (both sides come from the
+  same extraction run against the same photo, so this holds) into
+  newest-first rows, each `{ effectiveAt, systolic: number | null,
+  diastolic: number | null }` — a timestamp present on only one side (a
+  corrected or since-rejected sibling) gets its own row instead of being
+  silently dropped. `BloodPressureTrendChart.tsx`: replaced the sr-only
+  table with a real, visible "Your readings" list below the chart —
+  a genuine `<table>`, Date/Systolic/Diastolic columns, most recent first
+  — and removed the now-redundant sr-only markup entirely, since a visible
+  list already serves as the chart's accessible text equivalent (a sighted
+  list plus a hidden duplicate of the same data would just double-announce
+  it to screen-reader users). New copy in both message files:
+  `account.bloodPressure.chart.history.{heading,date,systolic,diastolic,
+  notRecorded}`, replacing the old `tableCaption`/`table.*` keys those
+  routes no longer use.
+
+  **Verify.** Full gate from the repository root: `pnpm install
+  --frozen-lockfile` clean, `pnpm lint` 40/40, `pnpm typecheck` 40/40,
+  `pnpm test` 75/75 tasks (`apps/web` 27 files / 163 tests, +4 for
+  `pairBloodPressureReadings` in `blood-pressure-chart.test.ts`: empty
+  input, exact-timestamp pairing, newest-first ordering opposite the
+  chart's own oldest-first plotting, and a timestamp present on only one
+  side keeping its own row), `pnpm build` 40/40.
+
+  **Mobile measurement, `/account` at 375px**, both locales (Playwright,
+  `chromium` at `/opt/pw-browsers/chromium`, `auth/me` + `family/grants` +
+  `records/observations` mocked with three seeded confirmed readings so
+  both the chart and the new list actually render — same approach the
+  2026-08-16 F4 entry used). Learned the hard way that swapping files via
+  `git stash`/`pop` under a running `next dev` does not reliably invalidate
+  its cached message-file read (`MISSING_MESSAGE` errors referencing keys
+  that were, on disk, genuinely present) — a full server restart was needed
+  between the before/after captures to get a trustworthy number; noting
+  this so a future run doesn't chase a phantom bug from a stale dev-server
+  cache the way a much earlier entry chased a phantom `fullPage` screenshot
+  bug. Clean before/after with a fresh server each time: English 4.33 →
+  4.53 screens (+0.20), Nepali 4.25 → 4.46 screens (+0.21) — the real cost
+  of making a previously-`sr-only` table visible, in the same spirit the
+  2026-08-16 F4 entry itself accepted +0.65 screens for the whole chart
+  feature. Tap targets unchanged (88 total, 39 under 44px in English / 41 in
+  Nepali, both figures identical before and after) — a `<table>` of static
+  text introduces no new interactive elements. No horizontal overflow, no
+  Next.js error overlay, no raw translation keys, in either locale.
+
+  **For the next run.** The three standing blockers are unchanged; re-verify
+  each fresh. The other named candidate from 2026-08-16 F4 (mobile's own
+  document/timeline retry action) was already picked up and shipped by the
+  very next run after that entry, so it's no longer open. No new concrete,
+  unblocked candidate is named here — a future run doing the same
+  independent-verification sweep may need to look wider than the last few
+  runs' "for the next run" notes, which are now largely exhausted.
+
+- 2026-08-17 — **Queue's three unchecked boxes re-confirmed genuinely blocked
   a sixth time; picked the highest-value improvement to work already
   shipped: gave `apps/mobile` the same "retry extraction" action web got last
   run, closing the exact gap that run's own log entry named as the concrete

@@ -46,6 +46,40 @@ export interface BloodPressureChartLayout {
   xTicks: readonly ChartTick[];
 }
 
+export interface PairedReading {
+  effectiveAt: string;
+  /** `null` when only one side of the pair was confirmed for this timestamp. */
+  systolic: number | null;
+  diastolic: number | null;
+}
+
+/**
+ * One row per confirmed reading, newest first, for a real (not screen-reader-
+ * only) history list next to the chart — the chart's own `<title>` hover
+ * tooltip is undiscoverable on a touch device, so this is the only place a
+ * phone visitor can read an exact past value as text. Systolic and diastolic
+ * are paired by exact `effectiveAt` match, which holds because both come
+ * from the same extraction run against the same photo; a timestamp present
+ * on only one side (a corrected or since-rejected sibling) still gets its
+ * own row rather than being dropped.
+ */
+export function pairBloodPressureReadings(
+  systolic: readonly AnalytePointLike[],
+  diastolic: readonly AnalytePointLike[],
+): readonly PairedReading[] {
+  const byTimestamp = new Map<string, PairedReading>();
+  for (const point of systolic) {
+    byTimestamp.set(point.effectiveAt, { effectiveAt: point.effectiveAt, systolic: point.value, diastolic: null });
+  }
+  for (const point of diastolic) {
+    const existing = byTimestamp.get(point.effectiveAt);
+    if (existing) existing.diastolic = point.value;
+    else byTimestamp.set(point.effectiveAt, { effectiveAt: point.effectiveAt, systolic: null, diastolic: point.value });
+  }
+
+  return [...byTimestamp.values()].sort((a, b) => Date.parse(b.effectiveAt) - Date.parse(a.effectiveAt));
+}
+
 const WIDTH = 600;
 const HEIGHT = 220;
 const PLOT = { left: 40, right: 12, top: 12, bottom: 28 };

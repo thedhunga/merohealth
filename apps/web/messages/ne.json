@@ -1437,11 +1437,12 @@
         },
         "unit": "mmHg",
         "unitShort": "mmHg",
-        "tableCaption": "समयसँगै रक्तचाप रिडिङहरू",
-        "table": {
-          "series": "रिडिङ",
+        "history": {
+          "heading": "तपाईंका रिडिङहरू",
           "date": "मिति",
-          "value": "मान (mmHg)"
+          "systolic": "सिस्टोलिक",
+          "diastolic": "डायस्टोलिक",
+          "notRecorded": "—"
         }
       }
     },

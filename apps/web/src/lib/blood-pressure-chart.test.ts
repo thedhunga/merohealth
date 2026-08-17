@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildBloodPressureChartLayout } from '@/lib/blood-pressure-chart';
+import { buildBloodPressureChartLayout, pairBloodPressureReadings } from '@/lib/blood-pressure-chart';
 
 describe('buildBloodPressureChartLayout', () => {
   it('returns null when both series are empty — nothing confirmed yet', () => {
@@ -89,5 +89,41 @@ describe('buildBloodPressureChartLayout', () => {
       expect(marker.y).toBeGreaterThanOrEqual(layout!.plot.top);
       expect(marker.y).toBeLessThanOrEqual(layout!.height - layout!.plot.bottom);
     }
+  });
+});
+
+describe('pairBloodPressureReadings', () => {
+  it('returns nothing when both series are empty', () => {
+    expect(pairBloodPressureReadings([], [])).toEqual([]);
+  });
+
+  it('pairs systolic and diastolic by exact timestamp match', () => {
+    const rows = pairBloodPressureReadings(
+      [{ value: 132, effectiveAt: '2026-08-01T00:00:00Z' }],
+      [{ value: 84, effectiveAt: '2026-08-01T00:00:00Z' }],
+    );
+    expect(rows).toEqual([{ effectiveAt: '2026-08-01T00:00:00Z', systolic: 132, diastolic: 84 }]);
+  });
+
+  it('sorts newest first, opposite of the chart which plots oldest first', () => {
+    const rows = pairBloodPressureReadings(
+      [
+        { value: 140, effectiveAt: '2026-08-01T00:00:00Z' },
+        { value: 120, effectiveAt: '2026-08-10T00:00:00Z' },
+      ],
+      [],
+    );
+    expect(rows.map((row) => row.effectiveAt)).toEqual(['2026-08-10T00:00:00Z', '2026-08-01T00:00:00Z']);
+  });
+
+  it('gives a timestamp present on only one side its own row instead of dropping it', () => {
+    const rows = pairBloodPressureReadings(
+      [{ value: 132, effectiveAt: '2026-08-01T00:00:00Z' }],
+      [{ value: 84, effectiveAt: '2026-07-20T00:00:00Z' }],
+    );
+    expect(rows).toEqual([
+      { effectiveAt: '2026-08-01T00:00:00Z', systolic: 132, diastolic: null },
+      { effectiveAt: '2026-07-20T00:00:00Z', systolic: null, diastolic: 84 },
+    ]);
   });
 });
