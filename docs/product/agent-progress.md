@@ -226,13 +226,7 @@ helpfulness, never on safety text).
 
 ## Owner decisions outstanding (blocking answers today)
 
-- **Search grounding is not in Gemini's free tier.** Live probe on the
-  production key: plain call 200, every grounded call 429, on all current
-  Flash models and both endpoints. Either **enable billing** on the Google
-  Cloud project behind `GEMINI_API_KEY` (grounded, cited answers — the
-  design), or set **`RESEARCH_ALLOW_UNGROUNDED=true`** in Vercel (answers
-  from model memory, labelled, no citations, stronger disclaimer). Default
-  is off; the assistant is silent until one is chosen.
+- **Search grounding is not in Gemini's free tier — owner chose option B (2026-08-17), now live.** Answers are ungrounded by default: labelled gemini-ungrounded, no citations, stronger disclaimer, ~5 s. The grounded path is still tried first on every call and takes over automatically once billing is enabled on the Google project. RESEARCH_ALLOW_UNGROUNDED=false fails closed. Nothing for the agent to do here.
 
 # Round four — make the API real, then the journey
 
