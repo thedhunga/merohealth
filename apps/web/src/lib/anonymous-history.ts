@@ -20,6 +20,8 @@
  * Capped and pruned so it cannot grow without bound on a low-storage phone.
  */
 
+import { TRIAL_MINUTES_FREE } from '@/content/pricing';
+
 export const ANON_HISTORY_KEY = 'mero-health:anon-history';
 export const ANON_ID_KEY = 'mero-health:anon-id';
 export const PENDING_PROFILE_KEY = 'mero-health:pending-profile-confirmation';
@@ -74,13 +76,45 @@ export interface AnonymousProfile {
   askedPrompts: string[];
 }
 
+/**
+ * Round six, task L: the free tier's monthly trial allowance of duplex
+ * voice minutes (`TRIAL_MINUTES_FREE`), metered on-device against the
+ * anonymous id. `monthKey` (`YYYY-MM`, UTC) is what makes the counter a
+ * *monthly* allowance rather than a lifetime one — a stored bucket from a
+ * past month reads as zero without anything having to run on a schedule to
+ * reset it.
+ */
+export interface VoiceUsage {
+  monthKey: string;
+  secondsUsed: number;
+}
+
 interface Store {
   version: 1;
   exchanges: AnonymousExchange[];
   profile: AnonymousProfile;
+  usage: VoiceUsage;
 }
 
-const empty = (): Store => ({ version: 1, exchanges: [], profile: { askedPrompts: [] } });
+function currentMonthKey(): string {
+  return new Date().toISOString().slice(0, 7);
+}
+
+const emptyUsage = (): VoiceUsage => ({ monthKey: currentMonthKey(), secondsUsed: 0 });
+
+function normalizeUsage(raw: unknown): VoiceUsage {
+  if (
+    raw &&
+    typeof raw === 'object' &&
+    typeof (raw as VoiceUsage).monthKey === 'string' &&
+    typeof (raw as VoiceUsage).secondsUsed === 'number'
+  ) {
+    return raw as VoiceUsage;
+  }
+  return emptyUsage();
+}
+
+const empty = (): Store => ({ version: 1, exchanges: [], profile: { askedPrompts: [] }, usage: emptyUsage() });
 
 function read(): Store {
   try {
@@ -92,6 +126,9 @@ function read(): Store {
       version: 1,
       exchanges: parsed.exchanges,
       profile: { askedPrompts: [], ...(parsed.profile ?? {}) },
+      // Absent on any store written before this field existed — reads as a
+      // fresh, empty allowance for the current month rather than failing.
+      usage: normalizeUsage(parsed.usage),
     };
   } catch {
     return empty();
@@ -262,4 +299,58 @@ export function dismissUpsell(): void {
     // Quota or private mode: the card simply offers itself again next visit
     // — no worse than the dismiss button never having existed.
   }
+}
+
+/**
+ * Round six, task L: on-device metering for the free tier's monthly trial
+ * minutes of duplex voice. Recorded inside the same `Store` as `exchanges`
+ * and `profile`, not a separate top-level key like `UPSELL_DISMISSED_KEY`
+ * above — this *is* part of the person's history in the sense that matters
+ * here: `snapshotForMigration` must carry a running total across sign-in the
+ * same way it already carries the exchanges themselves, so someone who used
+ * five of their trial minutes anonymously does not see the counter reset to
+ * zero the moment they create an account.
+ *
+ * Nothing calls this yet. Today's spoken conversation (task H) runs on the
+ * browser's own free Web Speech API, not the billed Gemini Live duplex
+ * session this allowance is actually for (task K′, still a flag-gated spike
+ * with no shipped page). Metering the free Web Speech conversation against
+ * this allowance would silently start capping a feature that is unlimited
+ * for everyone today — a product change nobody has asked for, not a data-
+ * layer task. So this exists as the ledger box asked for it — the counter
+ * and its migration — ready for K′ to call the moment duplex actually spends
+ * a person's minutes.
+ */
+export function recordVoiceUsageSeconds(seconds: number): void {
+  if (!Number.isFinite(seconds) || seconds <= 0) return;
+  const store = read();
+  const usage = store.usage.monthKey === currentMonthKey() ? store.usage : emptyUsage();
+  store.usage = { monthKey: usage.monthKey, secondsUsed: usage.secondsUsed + seconds };
+  write(store);
+}
+
+/** Seconds of duplex voice used so far this calendar month; 0 the instant a new month starts. */
+export function voiceUsageSecondsThisMonth(): number {
+  const usage = read().usage;
+  return usage.monthKey === currentMonthKey() ? usage.secondsUsed : 0;
+}
+
+/**
+ * Minutes left of the free tier's monthly trial allowance, or `null` when
+ * the owner has not set `TRIAL_MINUTES_FREE` yet. Mirrors every other unset
+ * freemium value in this product (`formatFreemiumMinutes` and friends):
+ * "we don't know the limit" is a distinct state from "the limit is zero,"
+ * and must never be read as though someone had exhausted an allowance
+ * nobody has actually configured.
+ */
+export function remainingTrialMinutes(): number | null {
+  if (TRIAL_MINUTES_FREE === null) return null;
+  const usedMinutes = voiceUsageSecondsThisMonth() / 60;
+  return Math.max(0, TRIAL_MINUTES_FREE - usedMinutes);
+}
+
+/** True only once a real, owner-set trial allowance has actually run out. */
+export function hasExhaustedTrialMinutes(): boolean {
+  const remaining = remainingTrialMinutes();
+  return remaining !== null && remaining <= 0;
 }

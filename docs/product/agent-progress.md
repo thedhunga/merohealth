@@ -140,8 +140,11 @@ read that before the first task.
       below. The "trial minutes run out" trigger is deferred to the very
       next box (on-device metering), which does not exist yet; the card
       component itself already accepts being shown from any caller.**
-- [ ] On-device metering of duplex trial minutes against the anonymous id
+- [x] On-device metering of duplex trial minutes against the anonymous id
       (`lib/anonymous-history.ts` gains `usage`), migrated with history.
+      **Done 2026-08-17 — see the log entry below. Metering exists but has
+      no caller yet; wiring it to an actual voice session is deferred, see
+      the entry for why.**
 - [ ] Outage test: config missing → page renders with "price soon", nothing
       else breaks.
 
@@ -1714,6 +1717,83 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-17 — **Round six, task L (fourth box): on-device metering of the
+  free tier's trial voice minutes, `lib/anonymous-history.ts` gains `usage`.**
+  Done, for the data layer. No caller wired yet — see the scope decision.
+
+  **Housekeeping, same shape yet again.** Local `main` had no common ancestor
+  with `origin/main` (`git merge-base` empty) though `git status` was clean —
+  the recurring stale-container-ref shape every recent entry describes.
+  `git reset --hard origin/main` and proceeded; fifth run in a row hitting
+  this, still the same fix.
+
+  **Selection.** Round five J/I/H and task L's first three boxes (config,
+  `/pricing` page, upsell card) were all checked. This box — on-device
+  metering — was the first unchecked item in file order.
+
+  **Scope decision — the one thing worth flagging.** The freemium table
+  meters *duplex* voice (Gemini Live, task K′), which is not built: K′ is
+  still every box unchecked, gated behind `GEMINI_LIVE_ENABLED`, with no
+  `/voice-lab` page to even spike it from. Today's only real spoken feature
+  is task H's conversation mode, which runs on the browser's own free Web
+  Speech API — unmetered, unlimited, for everyone, by design. Wiring this
+  run's counter to *that* feature would have been the wrong kind of easy: it
+  would silently start capping something the product has never charged for,
+  which is a policy change nobody asked for, not a data-layer task. So this
+  run built exactly what the ledger box names — the counter and its
+  migration — and left it uncalled, same reasoning the previous run used to
+  defer the second upsell trigger it could not yet build honestly. The next
+  real step is K′ itself; once a duplex session exists, metering it is one
+  `recordVoiceUsageSeconds` call site here, not a second data-layer build.
+
+  **What was built.** `anonymous-history.ts`: a `VoiceUsage` field
+  (`{ monthKey, secondsUsed }`) added to `Store` alongside `exchanges` and
+  `profile` — deliberately *inside* the same object rather than a separate
+  top-level key like `UPSELL_DISMISSED_KEY`, because this box explicitly asks
+  for it to migrate *with* history: `snapshotForMigration` already hands the
+  whole `Store` to `/v1/history/migrate` as one JSON body, and the route's
+  own zod schema already strips unknown keys by design (the same mechanism
+  that already drops the client-only `id`/`askedPrompts` fields) — so
+  `usage` now rides along in that payload with no server change needed, and
+  `clearAfterMigration` already wipes the whole blob, so the local copy is
+  gone post-migration exactly like everything else. Four new functions:
+  `recordVoiceUsageSeconds` (accumulates, ignores non-positive/non-finite
+  input, resets the bucket on a new `monthKey` rather than carrying a stale
+  total forward), `voiceUsageSecondsThisMonth` (reads, 0 across a month
+  boundary), `remainingTrialMinutes` (owner's `TRIAL_MINUTES_FREE` minus
+  used, floored at 0, `null` — not 0 — when the owner hasn't set it, so "no
+  known limit" can never render as "limit already hit"), and
+  `hasExhaustedTrialMinutes`. `monthKey` is `YYYY-MM` from `toISOString()`
+  (UTC), matching `askedAt`'s own UTC convention elsewhere in this file.
+
+  **Tests.** 13 new cases in `anonymous-history.test.ts`: accumulation,
+  invalid-input rejection, month rollover (`vi.setSystemTime` across a
+  month boundary, confirming the post-rollover bucket starts fresh rather
+  than adding to the stale total), the migrate/clear round-trip
+  (`snapshotForMigration().store.usage` → `clearAfterMigration` → back to
+  zero), the localStorage-write-failure outage case, and the
+  `TRIAL_MINUTES_FREE` unset/set behaviour — the `set` cases use the same
+  `vi.resetModules()` + `vi.stubEnv` + dynamic re-import shape
+  `pricing.test.ts`'s own `FREEMIUM_VOICE_CONFIG` describe already
+  established, since the value is read once at module load.
+
+  **Mobile measurement.** Not applicable — no component, page, or message
+  file changed; `git status` confirms the diff is two `lib/` files only.
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm
+  typecheck`, `pnpm test` (`@swasthya/web`: 29 files / 217 tests; full
+  monorepo: 114+ files, all green), `pnpm build` all green from a clean
+  tree.
+
+  **For the next run:** task L's last box — the config-missing outage test
+  for `/pricing` — is still the cheapest remaining item (`FREEMIUM_VOICE_CONFIG`
+  already degrades to all-null with no env vars; a `describe`-level test
+  asserting `PricingView` renders the unset labels closes it in one pass).
+  Separately, and not blocking that box: K′ (duplex voice spike) is what
+  would give this run's metering an actual caller — it is still gated on
+  `GEMINI_LIVE_ENABLED=true`, which is an owner decision (turning on Gemini
+  billing), not something to flip from here.
 
 - 2026-08-17 — **Round six, task L (third box): the dialogue-box upsell
   card, voice-answer trigger.** Done for the trigger this box actually
