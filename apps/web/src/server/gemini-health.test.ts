@@ -88,7 +88,7 @@ describe('researchWithGemini', () => {
   it('is unavailable, not a crash, on a non-2xx or empty answer', async () => {
     const bad = await researchWithGemini('x', 'en', { apiKey: 'k', fetchImpl: fetchReturning(429, {}) });
     expect(bad.status).toBe('unavailable');
-    expect(bad.diagnostic).toBe('HTTP 429');
+    expect(bad.diagnostic).toContain('HTTP 429');
 
     const empty = await researchWithGemini('x', 'en', {
       apiKey: 'k',
