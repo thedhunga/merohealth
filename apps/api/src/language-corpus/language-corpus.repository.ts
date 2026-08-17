@@ -115,6 +115,28 @@ export class LanguageCorpusRepository {
     return [...this.#voiceClips.values()];
   }
 
+  /**
+   * The Voice Contribution leg of a right-to-erasure request — separate from
+   * `deleteMany` above because voice clips live in their own map, distinct
+   * from the health-conversation utterances that method covers. Also removes
+   * every validation cast on a deleted clip: a validation carries no
+   * identifying data about the contributor (only `validatorId` and a
+   * verdict), so this is not itself required for privacy, but a validation
+   * pointing at a clip id that no longer resolves to anything is orphaned
+   * data this repository has no other reason to keep. Returns the deleted
+   * clips themselves, not just their ids: the caller needs each one's `ref`
+   * to delete the actual audio bytes from the audio store, since a row
+   * disappearing from this map does not by itself free the object it points to.
+   */
+  deleteVoiceClipsFor(contributorId: string): VoiceClip[] {
+    const toDelete = this.voiceClipsByContributor(contributorId);
+    for (const clip of toDelete) {
+      this.#voiceClips.delete(clip.id);
+      for (const validation of this.clipValidationsFor(clip.id)) this.#clipValidations.delete(validation.id);
+    }
+    return toDelete;
+  }
+
   saveClipValidation(validation: ClipValidation): ClipValidation {
     this.#clipValidations.set(validation.id, validation);
     return validation;

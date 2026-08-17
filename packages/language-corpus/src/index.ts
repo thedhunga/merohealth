@@ -792,3 +792,191 @@ export function nextClipToValidate(
 
   return eligible[0] ?? null;
 }
+
+/* ------------------------------------------------------------------ *
+ * Release tooling — §4's "Releases: versioned (`nepali-speech-v0.1`), with
+ * a datasheet (who, where, how consented, known gaps)" and "Deletion: a
+ * contributor's request removes clips from storage and from every future
+ * release; releases already made are documented as such."
+ * ------------------------------------------------------------------ */
+
+/**
+ * Everything belonging to one contributor's Voice Contribution clips, for a
+ * deletion request — mirrors `utteranceIdsForOwner` above exactly, for the
+ * same reason: the caller owns the storage (and the audio bytes an id here
+ * points to), this only names what to remove.
+ */
+export function voiceClipIdsForContributor(
+  clips: readonly VoiceClip[],
+  contributorId: string,
+): readonly string[] {
+  return clips.filter((clip) => clip.contributorId === contributorId).map((clip) => clip.id);
+}
+
+/**
+ * One clip's row in a release — the doc's own §4 pipeline record shape
+ * (`{clipId, contributorId (pseudonymous), consentVersion, task, ...,
+ * district, motherTongue, ageBand, gender?, device, durationMs, ...}`),
+ * flattened for a downstream trainer rather than re-exporting `VoiceClip`
+ * as-is: `selfReport` is unnested, since a release is a data product, not
+ * this codebase's internal domain shape.
+ */
+export interface VoiceCorpusReleaseClip {
+  clipId: string;
+  contributorId: string;
+  consentVersion: string;
+  taskId: string;
+  taskKind: VoiceContributionTaskKind;
+  district: string;
+  motherTongue: MotherTongue;
+  ageBand: AgeBand;
+  gender: Gender | null;
+  device: string;
+  durationMs: number;
+  capturedAt: string;
+  ref: StoredRef;
+}
+
+export interface VoiceCorpusRelease {
+  version: string;
+  releasedAt: string;
+  clips: readonly VoiceCorpusReleaseClip[];
+  /** Excluded counts, so a release can be explained rather than just trusted — mirrors `CorpusSnapshot.excluded` above. */
+  excluded: {
+    /** Still PENDING, or resolved REJECTED — "two agreeing validations = verified" is what §4 calls "what produces training-grade transcripts," so a release ships VERIFIED clips only. */
+    notVerified: number;
+    /** Removed after this release object was built, by `eraseFromVoiceCorpusRelease` — see there. */
+    erased: number;
+  };
+}
+
+/**
+ * Builds one versioned release: every clip currently `VERIFIED` by crowd
+ * validation, reshaped for shipping. Takes `clips` fresh from the caller
+ * rather than a cached list, so a clip already deleted for an erasure
+ * request is already absent here — deletion is honoured by construction for
+ * every release built after the request, with this function needing no
+ * knowledge that a deletion happened. `eraseFromVoiceCorpusRelease` below is
+ * for the harder case §4 also names: a release object already handed to a
+ * training pipeline before the request arrived.
+ */
+export function buildVoiceCorpusRelease(
+  clips: readonly VoiceClip[],
+  validationsByClip: ReadonlyMap<string, readonly ClipValidation[]>,
+  version: string,
+  releasedAt: string,
+): VoiceCorpusRelease {
+  let notVerified = 0;
+  const released: VoiceCorpusReleaseClip[] = [];
+
+  for (const clip of clips) {
+    const status = deriveClipVerificationStatus(validationsByClip.get(clip.id) ?? []);
+    if (status !== 'VERIFIED') {
+      notVerified += 1;
+      continue;
+    }
+    released.push({
+      clipId: clip.id,
+      contributorId: clip.contributorId,
+      consentVersion: clip.consentVersion,
+      taskId: clip.taskId,
+      taskKind: clip.taskKind,
+      district: clip.selfReport.district,
+      motherTongue: clip.selfReport.motherTongue,
+      ageBand: clip.selfReport.ageBand,
+      gender: clip.selfReport.gender,
+      device: clip.device,
+      durationMs: clip.durationMs,
+      capturedAt: clip.capturedAt,
+      ref: clip.ref,
+    });
+  }
+
+  return { version, releasedAt, clips: released, excluded: { notVerified, erased: 0 } };
+}
+
+/**
+ * Removes one contributor from a release already built — the "releases
+ * already made are documented as such" leg of §4's deletion rule, mirroring
+ * `eraseFromSnapshot` above exactly, for the same reason: a release is a
+ * value here, not a store, so whoever persists or ships one is responsible
+ * for calling this on every copy it still holds and re-persisting the
+ * result. No caller does yet — `apps/api`'s language-corpus module builds a
+ * release on demand and does not persist one — the same "ready for whichever
+ * future store needs it" shape `eraseFromSnapshot`'s own doc comment
+ * describes for the text-utterance side of this same problem.
+ */
+export function eraseFromVoiceCorpusRelease(release: VoiceCorpusRelease, contributorId: string): VoiceCorpusRelease {
+  const kept = release.clips.filter((clip) => clip.contributorId !== contributorId);
+  const removed = release.clips.length - kept.length;
+  if (removed === 0) return release;
+
+  return {
+    ...release,
+    clips: kept,
+    excluded: { ...release.excluded, erased: release.excluded.erased + removed },
+  };
+}
+
+/**
+ * Known, sourced limitations of today's pipeline — not invented, transcribed
+ * from the doc comments already on `validateVoiceClipDuration`,
+ * `isDuplicateVoiceClip`, and this file's own crowd-validation section
+ * header, which is where each gap is actually true and explained. A
+ * datasheet's whole purpose is to say what is *not* known about the data, so
+ * restating a real, already-documented limitation here is what "invent no
+ * facts" requires, not what it forbids.
+ */
+export const VOICE_CORPUS_KNOWN_GAPS: readonly string[] = [
+  'Quality gates run today: minimum/maximum duration and exact-checksum duplicate detection only. No SNR floor, silence trim, or audio near-duplicate similarity check yet.',
+  'A validator judges the recording itself against the task, not a transcript: no ASR step exists yet, so there is no draft transcript and no profanity/PII scan on one.',
+  'District, mother tongue, age band and gender are self-reported at capture time and not independently verified.',
+  "District is free text, not standardized against an official list of Nepal's districts or local units.",
+];
+
+/** Counts per distinct value, keyed by whatever value each item actually had — no zero-filled categories, since a release with zero clips from a given district should not claim it "measured" that district. */
+function countBy<T extends string>(values: readonly T[]): Partial<Record<T, number>> {
+  const counts: Partial<Record<T, number>> = {};
+  for (const value of values) counts[value] = (counts[value] ?? 0) + 1;
+  return counts;
+}
+
+export interface VoiceCorpusDatasheet {
+  version: string;
+  releasedAt: string;
+  clipCount: number;
+  totalDurationMs: number;
+  /** "how consented" — every consent-copy version represented in this release. */
+  consentVersions: readonly string[];
+  /** "who" */
+  byMotherTongue: Readonly<Partial<Record<MotherTongue, number>>>;
+  byAgeBand: Readonly<Partial<Record<AgeBand, number>>>;
+  byGender: Readonly<Partial<Record<Gender | 'UNSPECIFIED', number>>>;
+  /** "where" — self-reported district, so keys are whatever contributors typed, not a fixed list. */
+  byDistrict: Readonly<Partial<Record<string, number>>>;
+  byTaskKind: Readonly<Partial<Record<VoiceContributionTaskKind, number>>>;
+  knownGaps: readonly string[];
+}
+
+/**
+ * The datasheet §4 requires alongside every release: "who, where, how
+ * consented, known gaps." Built from the release's own clips, so it always
+ * describes exactly what was shipped — including whatever an earlier
+ * `eraseFromVoiceCorpusRelease` call already removed, since that call
+ * returns a new `clips` array this reads rather than mutating one in place.
+ */
+export function buildVoiceCorpusDatasheet(release: VoiceCorpusRelease): VoiceCorpusDatasheet {
+  return {
+    version: release.version,
+    releasedAt: release.releasedAt,
+    clipCount: release.clips.length,
+    totalDurationMs: release.clips.reduce((sum, clip) => sum + clip.durationMs, 0),
+    consentVersions: [...new Set(release.clips.map((clip) => clip.consentVersion))].toSorted(),
+    byMotherTongue: countBy(release.clips.map((clip) => clip.motherTongue)),
+    byAgeBand: countBy(release.clips.map((clip) => clip.ageBand)),
+    byGender: countBy(release.clips.map((clip) => clip.gender ?? 'UNSPECIFIED')),
+    byDistrict: countBy(release.clips.map((clip) => clip.district)),
+    byTaskKind: countBy(release.clips.map((clip) => clip.taskKind)),
+    knownGaps: VOICE_CORPUS_KNOWN_GAPS,
+  };
+}

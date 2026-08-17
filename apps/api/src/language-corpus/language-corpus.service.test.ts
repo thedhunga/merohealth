@@ -465,3 +465,86 @@ describe('LanguageCorpusService clip validation — Reward', () => {
     expect(status).toBe('VERIFIED');
   });
 });
+
+describe('LanguageCorpusService eraseVoiceClips', () => {
+  async function submitVerifiedClip(service: LanguageCorpusService, contributorId: string, id: string) {
+    service.grantConsent(contributorId, 'VOICE_CONTRIBUTION');
+    const clip = await service.submitVoiceClip({ ...validClip, id, contributorId, bytes: Buffer.from(`bytes ${id}`) });
+    await service.validateClip(clip.id, 'validator-a', 'RIGHT');
+    await service.validateClip(clip.id, 'validator-b', 'RIGHT');
+    return clip;
+  }
+
+  it('removes every clip belonging to the contributor, leaving another contributor untouched', async () => {
+    const service = buildService();
+    await submitVerifiedClip(service, 'owner-1', 'clip-1');
+    await submitVerifiedClip(service, 'owner-2', 'clip-2');
+
+    const { erasedClipIds } = await service.eraseVoiceClips('owner-1');
+
+    expect(erasedClipIds).toEqual(['clip-1']);
+    await expect(service.clipAudio('clip-1', 'validator-1')).rejects.toThrow(NotFoundException);
+    expect(await service.clipAudio('clip-2', 'validator-1')).toBeDefined();
+  });
+
+  it('deletes the underlying audio bytes, not just the metadata row', async () => {
+    const audioStore = new InMemoryDocumentStore('HOSTED');
+    const service = new LanguageCorpusService(new LanguageCorpusRepository(), audioStore, new InMemorySubscriptionGrantStore());
+    service.grantConsent('owner-1', 'VOICE_CONTRIBUTION');
+    const clip = await service.submitVoiceClip(validClip);
+
+    await service.eraseVoiceClips('owner-1');
+
+    await expect(audioStore.get(clip.ref)).rejects.toThrow();
+  });
+
+  it('is a no-op for a contributor with nothing in the corpus', async () => {
+    const service = buildService();
+    expect(await service.eraseVoiceClips('nobody-here')).toEqual({ erasedClipIds: [] });
+  });
+});
+
+describe('LanguageCorpusService release and datasheet', () => {
+  it('ships only VERIFIED clips as of the moment the release is built', async () => {
+    const service = buildService();
+    service.grantConsent('owner-1', 'VOICE_CONTRIBUTION');
+    const verified = await service.submitVoiceClip(validClip);
+    await service.validateClip(verified.id, 'validator-a', 'RIGHT');
+    await service.validateClip(verified.id, 'validator-b', 'RIGHT');
+    await service.submitVoiceClip({ ...validClip, id: 'clip-pending', bytes: Buffer.from('pending bytes') });
+
+    const release = service.buildRelease('nepali-speech-v0.1', '2026-08-17T00:00:00.000Z');
+
+    expect(release.clips.map((c) => c.clipId)).toEqual(['clip-1']);
+    expect(release.version).toBe('nepali-speech-v0.1');
+    expect(release.excluded.notVerified).toBe(1);
+  });
+
+  it('already excludes an erased contributor\'s clips, since eraseVoiceClips removes them from the repository first', async () => {
+    const service = buildService();
+    service.grantConsent('owner-1', 'VOICE_CONTRIBUTION');
+    const verified = await service.submitVoiceClip(validClip);
+    await service.validateClip(verified.id, 'validator-a', 'RIGHT');
+    await service.validateClip(verified.id, 'validator-b', 'RIGHT');
+
+    await service.eraseVoiceClips('owner-1');
+    const release = service.buildRelease('nepali-speech-v0.1', '2026-08-17T00:00:00.000Z');
+
+    expect(release.clips).toEqual([]);
+  });
+
+  it('builds a datasheet summarising the release just built', async () => {
+    const service = buildService();
+    service.grantConsent('owner-1', 'VOICE_CONTRIBUTION');
+    const clip = await service.submitVoiceClip(validClip);
+    await service.validateClip(clip.id, 'validator-a', 'RIGHT');
+    await service.validateClip(clip.id, 'validator-b', 'RIGHT');
+
+    const release = service.buildRelease('nepali-speech-v0.1', '2026-08-17T00:00:00.000Z');
+    const datasheet = service.datasheet(release);
+
+    expect(datasheet.clipCount).toBe(1);
+    expect(datasheet.byDistrict).toEqual({ Kathmandu: 1 });
+    expect(datasheet.knownGaps.length).toBeGreaterThan(0);
+  });
+});

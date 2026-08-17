@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
+  buildVoiceCorpusDatasheet,
+  buildVoiceCorpusRelease,
   clearForTraining,
   corpusReviewQueue,
   ClipAlreadyResolvedError,
@@ -29,6 +31,8 @@ import {
   type VoiceClip,
   type VoiceClipSelfReport,
   type VoiceContributionTaskKind,
+  type VoiceCorpusDatasheet,
+  type VoiceCorpusRelease,
 } from '@swasthya/language-corpus';
 import type { DocumentBlob, HealthDocumentStore } from '@swasthya/storage-adapters';
 import { SUBSCRIPTION_GRANT_STORE, type SubscriptionGrantStore } from '../entitlements/subscription-grant.store.js';
@@ -156,6 +160,47 @@ export class LanguageCorpusService {
     }
 
     return { erasedUtteranceIds };
+  }
+
+  /**
+   * A contributor's Voice Contribution right-to-erasure request — separate
+   * from `erase` above because Voice Contribution clips (§4 stream A) are a
+   * distinct pipeline with its own storage (`audioStore`), not the
+   * repository-only `#utterances` map that method covers. Deletes the audio
+   * bytes before the metadata row, not after: if this is interrupted between
+   * the two, a retry re-lists the same still-present row and safely deletes
+   * the (already-gone) bytes again, whereas deleting the row first and then
+   * losing the bytes step would leak storage nothing can find its way back
+   * to. `LanguageCorpusRepository.deleteVoiceClipsFor`'s own doc comment
+   * covers the second half — the metadata and validation rows.
+   */
+  async eraseVoiceClips(contributorId: string): Promise<{ erasedClipIds: readonly string[] }> {
+    const clips = this.repository.voiceClipsByContributor(contributorId);
+    for (const clip of clips) {
+      await this.audioStore.delete(clip.ref);
+    }
+    const erased = this.repository.deleteVoiceClipsFor(contributorId);
+    return { erasedClipIds: erased.map((clip) => clip.id) };
+  }
+
+  /**
+   * Round six §M's Release tooling box — "versioned export + datasheet."
+   * Built on demand from the repository's live state, never persisted here:
+   * a clip already erased by `eraseVoiceClips` above is already absent from
+   * `listVoiceClips()` by the time this runs, so deletion is honoured by
+   * construction — this method needs no knowledge that an erasure happened.
+   * `buildVoiceCorpusRelease`'s own doc comment covers the harder case, a
+   * release already handed to a training pipeline before an erasure request
+   * arrives, which is why `eraseFromVoiceCorpusRelease` exists as a pure
+   * function ready for whichever future release *store* needs it.
+   */
+  buildRelease(version: string, releasedAt: string): VoiceCorpusRelease {
+    return buildVoiceCorpusRelease(this.repository.listVoiceClips(), this.repository.clipValidationsByClip(), version, releasedAt);
+  }
+
+  /** The datasheet §4 requires alongside every release — "who, where, how consented, known gaps" — computed from the release `buildRelease` just built. */
+  datasheet(release: VoiceCorpusRelease): VoiceCorpusDatasheet {
+    return buildVoiceCorpusDatasheet(release);
   }
 
   /** The accountability trail §5 depends on: who read this utterance and who decided it, and when. */

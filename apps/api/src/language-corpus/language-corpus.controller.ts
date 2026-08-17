@@ -1,5 +1,5 @@
-import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, UseGuards } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import type { CurrentUserResult } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -289,5 +289,50 @@ export class LanguageCorpusController {
   async validateClip(@CurrentUser() user: CurrentUserResult, @Param('clipId') clipId: string, @Body() body: unknown) {
     const { verdict } = parseOrThrow(z.object({ verdict: clipValidationVerdictSchema }), body);
     return this.corpus.validateClip(clipId, user.subjectId, verdict);
+  }
+
+  /**
+   * A Voice Contribution right-to-erasure request — self-service like
+   * `submitVoiceClip` above, mirroring `erase`'s own "path id must match the
+   * caller's own session identity, or 404 rather than 403" shape: never
+   * confirm whose data exists to a caller who isn't its owner.
+   */
+  @Delete('voice-contribution/contributors/:contributorId')
+  @UseGuards(SessionAuthGuard)
+  @ApiParam({ name: 'contributorId' })
+  @ApiOperation({
+    summary:
+      "A right-to-erasure request: removes every Voice Contribution clip belonging to the signed-in caller's own record from storage and from any future release",
+  })
+  async eraseVoiceClips(@CurrentUser() user: CurrentUserResult, @Param('contributorId') contributorId: string) {
+    const parsed = z.string().trim().min(1).safeParse(contributorId);
+    if (!parsed.success) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'contributorId is required' });
+    }
+    if (parsed.data !== user.subjectId) {
+      throw new NotFoundException({ code: 'CONTRIBUTOR_NOT_FOUND', message: `No Voice Contribution data for contributor ${parsed.data}` });
+    }
+    const { erasedClipIds } = await this.corpus.eraseVoiceClips(user.subjectId);
+    return { erasedClipIds, erasedCount: erasedClipIds.length };
+  }
+
+  /**
+   * Round six §M's Release tooling box. Reviewer-gated like the review-queue
+   * routes, not self-service: this ships every currently-`VERIFIED` clip's
+   * audio reference and self-reported demographics to whoever is about to
+   * package a training set, which is a different trust boundary from a
+   * contributor submitting or validating one clip of their own.
+   */
+  @Get('voice-contribution/release')
+  @UseGuards(SessionAuthGuard, CorpusReviewerGuard)
+  @ApiOperation({ summary: 'Builds one versioned release of every currently-VERIFIED Voice Contribution clip, with its datasheet' })
+  @ApiQuery({ name: 'version', required: true, example: 'nepali-speech-v0.1' })
+  release(@Query('version') version?: string) {
+    const parsed = z.string().trim().min(1).max(100).safeParse(version);
+    if (!parsed.success) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'version is required, e.g. nepali-speech-v0.1' });
+    }
+    const release = this.corpus.buildRelease(parsed.data, new Date().toISOString());
+    return { release, datasheet: this.corpus.datasheet(release) };
   }
 }

@@ -277,3 +277,63 @@ describe('LanguageCorpusController voice contribution validation', () => {
     await expect(controller.validateClip(owner1, clip.id, { verdict: 'RIGHT' })).rejects.toThrow(ForbiddenException);
   });
 });
+
+describe('LanguageCorpusController voice contribution erasure', () => {
+  async function submitAndVerify(controller: LanguageCorpusController, owner: CurrentUserResult, id: string) {
+    controller.grantConsent(owner, 'VOICE_CONTRIBUTION');
+    const clip = await controller.submitVoiceClip(owner, { ...validClipBody, id, bytesBase64: Buffer.from(`bytes ${id}`).toString('base64') });
+    await controller.validateClip(reviewer, clip.id, { verdict: 'RIGHT' });
+    await controller.validateClip(owner2, clip.id, { verdict: 'RIGHT' });
+    return clip;
+  }
+
+  it("erases every clip for the signed-in caller's own record and reports how many", async () => {
+    const controller = buildController();
+    await submitAndVerify(controller, owner1, 'clip-1');
+
+    const result = await controller.eraseVoiceClips(owner1, 'owner-1');
+
+    expect(result).toEqual({ erasedClipIds: ['clip-1'], erasedCount: 1 });
+    await expect(controller.clipAudio(owner2, 'clip-1')).rejects.toThrow(NotFoundException);
+  });
+
+  it('rejects a blank contributorId rather than silently erasing nothing', async () => {
+    const controller = buildController();
+    await expect(controller.eraseVoiceClips(owner1, '   ')).rejects.toThrow(BadRequestException);
+  });
+
+  it("404s rather than erasing another contributor's clips, even for a signed-in caller", async () => {
+    const controller = buildController();
+    await submitAndVerify(controller, owner1, 'clip-1');
+
+    await expect(controller.eraseVoiceClips(owner2, 'owner-1')).rejects.toThrow(NotFoundException);
+    // Confirms the attacker-shaped call above actually erased nothing.
+    await expect(controller.clipAudio(owner2, 'clip-1')).resolves.toBeDefined();
+  });
+});
+
+describe('LanguageCorpusController release', () => {
+  it('builds a release of VERIFIED clips with a matching datasheet, for a reviewer', async () => {
+    const controller = buildController();
+    const clip = await submitAndVerify(controller, owner1, 'clip-1');
+
+    const { release, datasheet } = controller.release('nepali-speech-v0.1');
+
+    expect(release.clips.map((c) => c.clipId)).toEqual([clip.id]);
+    expect(release.version).toBe('nepali-speech-v0.1');
+    expect(datasheet.clipCount).toBe(1);
+  });
+
+  it('rejects a request with no version', () => {
+    const controller = buildController();
+    expect(() => controller.release(undefined)).toThrow(BadRequestException);
+  });
+
+  async function submitAndVerify(controller: LanguageCorpusController, owner: CurrentUserResult, id: string) {
+    controller.grantConsent(owner, 'VOICE_CONTRIBUTION');
+    const clip = await controller.submitVoiceClip(owner, { ...validClipBody, id, bytesBase64: Buffer.from(`bytes ${id}`).toString('base64') });
+    await controller.validateClip(reviewer, clip.id, { verdict: 'RIGHT' });
+    await controller.validateClip(owner2, clip.id, { verdict: 'RIGHT' });
+    return clip;
+  }
+});

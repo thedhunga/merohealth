@@ -11,8 +11,11 @@ import {
   REWARD_VERIFIED_CLIPS_PER_MONTH,
   UtteranceNotAwaitingReviewError,
   VOICE_CONTRIBUTION_CONSENT_VERSION,
+  VOICE_CORPUS_KNOWN_GAPS,
   ageBandOptions,
   buildSnapshot,
+  buildVoiceCorpusDatasheet,
+  buildVoiceCorpusRelease,
   clearForTraining,
   corpusReviewQueue,
   deidentify,
@@ -20,6 +23,7 @@ import {
   discardUtterance,
   earnsRewardMonth,
   eraseFromSnapshot,
+  eraseFromVoiceCorpusRelease,
   genderOptions,
   grantConsent,
   grantCorpusConsent,
@@ -39,7 +43,9 @@ import {
   utteranceIdsForOwner,
   validateVoiceClipDuration,
   versionForCorpusConsentKind,
+  voiceClipIdsForContributor,
   type ClipValidation,
+  type ClipValidationVerdict,
   type ConsentGrant,
   type CorpusConsentGrant,
   type CorpusUtterance,
@@ -696,5 +702,150 @@ describe('nextClipToValidate', () => {
 
   it('returns null when nothing is eligible', () => {
     expect(nextClipToValidate([], new Map(), 'validator-1')).toBeNull();
+  });
+});
+
+describe('voiceClipIdsForContributor', () => {
+  it('names only the given contributor\'s clip ids', () => {
+    const clips = [
+      voiceClip({ id: 'a', contributorId: 'contributor-1' }),
+      voiceClip({ id: 'b', contributorId: 'contributor-2' }),
+      voiceClip({ id: 'c', contributorId: 'contributor-1' }),
+    ];
+    expect(voiceClipIdsForContributor(clips, 'contributor-1')).toEqual(['a', 'c']);
+  });
+
+  it('returns an empty list for a contributor with no clips', () => {
+    expect(voiceClipIdsForContributor([], 'contributor-1')).toEqual([]);
+  });
+});
+
+function twoAgreeingValidations(clipId: string, verdict: ClipValidationVerdict = 'RIGHT'): ClipValidation[] {
+  return [
+    validation({ id: `${clipId}-v1`, clipId, validatorId: 'validator-a', verdict }),
+    validation({ id: `${clipId}-v2`, clipId, validatorId: 'validator-b', verdict }),
+  ];
+}
+
+describe('buildVoiceCorpusRelease', () => {
+  it('ships only VERIFIED clips, excluding PENDING and REJECTED', () => {
+    const clips = [voiceClip({ id: 'verified' }), voiceClip({ id: 'pending' }), voiceClip({ id: 'rejected' })];
+    const validationsByClip = new Map([
+      ['verified', twoAgreeingValidations('verified', 'RIGHT')],
+      ['pending', [validation({ id: 'p1', clipId: 'pending', validatorId: 'validator-a', verdict: 'RIGHT' })]],
+      ['rejected', twoAgreeingValidations('rejected', 'WRONG')],
+    ]);
+
+    const release = buildVoiceCorpusRelease(clips, validationsByClip, 'nepali-speech-v0.1', '2026-08-17T00:00:00.000Z');
+
+    expect(release.clips.map((c) => c.clipId)).toEqual(['verified']);
+    expect(release.excluded).toEqual({ notVerified: 2, erased: 0 });
+  });
+
+  it('flattens selfReport into the release row, alongside version and release timing', () => {
+    const clips = [
+      voiceClip({ id: 'verified', selfReport: { district: 'Ilam', motherTongue: 'THARU', ageBand: '35_44', gender: 'WOMAN' } }),
+    ];
+    const validationsByClip = new Map([['verified', twoAgreeingValidations('verified')]]);
+
+    const release = buildVoiceCorpusRelease(clips, validationsByClip, 'nepali-speech-v0.1', '2026-08-17T00:00:00.000Z');
+
+    expect(release.clips[0]).toMatchObject({
+      clipId: 'verified',
+      district: 'Ilam',
+      motherTongue: 'THARU',
+      ageBand: '35_44',
+      gender: 'WOMAN',
+      consentVersion: VOICE_CONTRIBUTION_CONSENT_VERSION,
+    });
+    expect(release.version).toBe('nepali-speech-v0.1');
+    expect(release.releasedAt).toBe('2026-08-17T00:00:00.000Z');
+  });
+
+  it('is empty, with nothing marked erased, when no clip has any validation yet', () => {
+    const release = buildVoiceCorpusRelease([voiceClip()], new Map(), 'nepali-speech-v0.1', '2026-08-17T00:00:00.000Z');
+    expect(release.clips).toEqual([]);
+    expect(release.excluded).toEqual({ notVerified: 1, erased: 0 });
+  });
+});
+
+function releaseClip(clipId: string, contributorId: string) {
+  return {
+    clipId,
+    contributorId,
+    consentVersion: VOICE_CONTRIBUTION_CONSENT_VERSION,
+    taskId: 'task-1',
+    taskKind: 'FREE_SPEECH' as const,
+    district: 'Kathmandu',
+    motherTongue: 'NEPALI' as const,
+    ageBand: '25_34' as const,
+    gender: null,
+    device: 'test-agent',
+    durationMs: 4_000,
+    capturedAt: '2026-08-01T00:00:00.000Z',
+    ref: { backend: 'HOSTED' as const, externalId: clipId, byteSize: 1, contentType: 'audio/webm', checksumSha256: clipId },
+  };
+}
+
+describe('eraseFromVoiceCorpusRelease', () => {
+  it('removes every clip belonging to the given contributor, leaving others', () => {
+    const release = {
+      version: 'nepali-speech-v0.1',
+      releasedAt: '2026-08-17T00:00:00.000Z',
+      clips: [releaseClip('a', 'contributor-1'), releaseClip('b', 'contributor-2')],
+      excluded: { notVerified: 0, erased: 0 },
+    };
+
+    const erased = eraseFromVoiceCorpusRelease(release, 'contributor-1');
+
+    expect(erased.clips.map((c) => c.clipId)).toEqual(['b']);
+    expect(erased.excluded.erased).toBe(1);
+  });
+
+  it('is a no-op, returning the identical object, for a contributor with nothing in the release', () => {
+    const release = {
+      version: 'nepali-speech-v0.1',
+      releasedAt: '2026-08-17T00:00:00.000Z',
+      clips: [releaseClip('a', 'contributor-1')],
+      excluded: { notVerified: 0, erased: 0 },
+    };
+    expect(eraseFromVoiceCorpusRelease(release, 'nobody-here')).toBe(release);
+  });
+});
+
+describe('buildVoiceCorpusDatasheet', () => {
+  it('summarises who, where, how consented and known gaps from the release', () => {
+    const clips = [
+      voiceClip({ id: 'a', selfReport: { district: 'Kathmandu', motherTongue: 'NEPALI', ageBand: '25_34', gender: 'WOMAN' }, durationMs: 3_000 }),
+      voiceClip({ id: 'b', selfReport: { district: 'Kathmandu', motherTongue: 'THARU', ageBand: '25_34', gender: null }, durationMs: 5_000 }),
+    ];
+    const validationsByClip = new Map([
+      ['a', twoAgreeingValidations('a')],
+      ['b', twoAgreeingValidations('b')],
+    ]);
+    const release = buildVoiceCorpusRelease(clips, validationsByClip, 'nepali-speech-v0.1', '2026-08-17T00:00:00.000Z');
+
+    const datasheet = buildVoiceCorpusDatasheet(release);
+
+    expect(datasheet.clipCount).toBe(2);
+    expect(datasheet.totalDurationMs).toBe(8_000);
+    expect(datasheet.consentVersions).toEqual([VOICE_CONTRIBUTION_CONSENT_VERSION]);
+    expect(datasheet.byMotherTongue).toEqual({ NEPALI: 1, THARU: 1 });
+    expect(datasheet.byDistrict).toEqual({ Kathmandu: 2 });
+    expect(datasheet.byGender).toEqual({ WOMAN: 1, UNSPECIFIED: 1 });
+    expect(datasheet.knownGaps).toBe(VOICE_CORPUS_KNOWN_GAPS);
+  });
+
+  it('reflects an erasure already applied to the release', () => {
+    const clips = [voiceClip({ id: 'a', contributorId: 'contributor-1' }), voiceClip({ id: 'b', contributorId: 'contributor-2' })];
+    const validationsByClip = new Map([
+      ['a', twoAgreeingValidations('a')],
+      ['b', twoAgreeingValidations('b')],
+    ]);
+    const release = buildVoiceCorpusRelease(clips, validationsByClip, 'nepali-speech-v0.1', '2026-08-17T00:00:00.000Z');
+
+    const datasheet = buildVoiceCorpusDatasheet(eraseFromVoiceCorpusRelease(release, 'contributor-1'));
+
+    expect(datasheet.clipCount).toBe(1);
   });
 });

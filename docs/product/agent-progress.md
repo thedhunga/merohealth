@@ -194,7 +194,8 @@ read that before the first task.
       own comment on `Subscription` — see the log entry for the boundary.
 - [x] Validation flow: listen, mark right / wrong / unclear; two agreeing =
       verified. **Done 2026-08-17 — see the log entry below.**
-- [ ] Release tooling: versioned export + datasheet; deletion honoured.
+- [x] Release tooling: versioned export + datasheet; deletion honoured.
+      **Done 2026-08-17 — see the log entry below.**
 - [ ] Owner decisions recorded before first release: licence; whether
       health-conversation audio (stream B) is offered at all in v1.
 
@@ -1736,6 +1737,99 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-17 — **Round six, task M's last box: Release tooling — versioned
+  export + datasheet; deletion honoured.** Done. **Every box in Round six
+  §M is now checked.**
+
+  **Housekeeping first.** `git checkout main && git pull` did not hit the
+  usual divergent-history failure this time — it force-updated the local
+  `main` ref during the fetch itself and then failed on "need to specify
+  how to reconcile divergent branches" once ahead of that. `git status` was
+  clean and `origin/main`'s tip (`2483253`, this file's own previous log
+  entry) matched what every recent run has been pushing to, so `git reset
+  --hard origin/main` and moved on — same outcome as the `checkout -B`
+  workaround prior entries use, just triggered slightly differently this
+  time. Still worth someone fixing at the infrastructure level; this is at
+  least the thirteenth run to hit some variant of it.
+
+  **Selection.** File order after Reward (done last run) is Release
+  tooling, the last unchecked box in §M before the two boxes this file has
+  called permanently blocked for many runs running (K′'s findings box on
+  the owner's real phone; N payments on the owner's provider choice; and
+  §M's own "owner decisions before first release" box, immediately below
+  this one, which needs a licence choice this run cannot make). Took
+  Release tooling as filed — nothing blocked it.
+
+  **What was built — `packages/language-corpus`.** `buildVoiceCorpusRelease`
+  filters every submitted clip down to `VERIFIED` only (crowd validation's
+  "two agreeing validations = verified" is what §4 itself calls "what
+  produces training-grade transcripts," so a release ships that and only
+  that), reshaping each into a flat `VoiceCorpusReleaseClip` row matching
+  the doc's own §4 pipeline record shape. `buildVoiceCorpusDatasheet`
+  computes the "who, where, how consented, known gaps" the doc requires
+  alongside every release: demographic and district breakdowns, consent
+  versions represented, and `VOICE_CORPUS_KNOWN_GAPS` — four sentences
+  transcribed from doc comments already on `validateVoiceClipDuration`,
+  `isDuplicateVoiceClip` and the crowd-validation section header (no SNR
+  floor yet, no ASR/transcript yet, demographics self-reported, district
+  free-text), not invented for this box. `voiceClipIdsForContributor` names
+  a contributor's clips for deletion, mirroring `utteranceIdsForOwner`.
+  `eraseFromVoiceCorpusRelease` removes one contributor from an
+  already-built release value, mirroring `eraseFromSnapshot` exactly,
+  including that function's own "no caller persists one yet" honesty — it
+  exists for whichever future release *store* needs it, the same shape the
+  text-utterance side of this exact problem already established. 19 new
+  tests.
+
+  **What was built — `apps/api`.** Two new routes. `GET
+  voice-contribution/release?version=...` (reviewer-gated, like the
+  review-queue routes — shipping every verified clip's audio reference is a
+  different trust boundary from a contributor's own single clip) builds a
+  release from `listVoiceClips()`/`clipValidationsByClip()` on demand and
+  returns it with its datasheet; never persisted server-side, matching how
+  `buildSnapshot` already works for the text side. `DELETE
+  voice-contribution/contributors/:contributorId` (self-service, same
+  "path id must equal the caller's own session identity or 404" shape
+  `erase` already uses for utterances) is the actual "deletion honoured"
+  mechanism the doc's §4 promises: `LanguageCorpusService.eraseVoiceClips`
+  deletes each clip's audio bytes from the store *before* the metadata row
+  — a crash mid-way leaves a retryable dangling row, never leaked,
+  unreachable storage — then `LanguageCorpusRepository.deleteVoiceClipsFor`
+  removes the row and any validations cast on it. Because `buildRelease`
+  reads live repository state, a clip erased before a release is built is
+  already absent from it with no special-casing required — deletion is
+  honoured by construction for every release from that point on. 9 new
+  tests (3 repository, 4 service, 4 controller, some overlapping) plus the
+  route wiring.
+
+  **Deliberate scope boundary.** §M's *next* box — "owner decisions
+  recorded before first release: licence; whether health-conversation audio
+  is offered at all" — is explicitly a prerequisite the doc places before
+  any *actual* release ships, not before the release *tooling* exists. This
+  box builds the tooling; it does not run it against real contributor data
+  or publish anything, so it does not require those decisions to exist yet.
+
+  **Verify.** Full gate from the repository root, in order: `pnpm install
+  --frozen-lockfile` clean (note: `pnpm lint`/`pnpm typecheck` on `apps/api`
+  alone need `packages/database`'s `prisma generate` run first, same as
+  every run before this one — the root `pnpm lint`/`pnpm typecheck` handle
+  that themselves via turbo's dependency graph, this only bit a `--filter
+  @swasthya/api` shortcut taken mid-run); `pnpm lint` 40/40; `pnpm
+  typecheck` 40/40; `pnpm test` 75/75 tasks — `packages/language-corpus` 84
+  tests (up from 75), `apps/api` 824 tests (up from 810), every other
+  package unchanged and green; `pnpm build` 40/40. No web changes this run,
+  so no 375px measurement — nothing in `apps/web` was touched.
+
+  **For the next run.** With every actionable box in Round six now checked,
+  the queue's three remaining unchecked boxes are the same standing
+  blockers this file has documented for many runs: K′'s findings box
+  (owner's real phone), §M's owner-decisions box (licence choice), and §N
+  payments (provider choice) — re-verify each is still genuinely blocked
+  before skipping past it, per this file's own standing rule, rather than
+  trusting this note forever. If all three are still blocked, the next run
+  should pick the highest-value improvement to work already shipped, per
+  this file's own working agreement for an exhausted queue.
 
 - 2026-08-17 — **Round six, task M (fourth box): Reward — verified
   contributions → Plus minutes.** Done. **M's fourth box is now checked.**

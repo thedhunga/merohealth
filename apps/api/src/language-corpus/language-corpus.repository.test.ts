@@ -189,4 +189,34 @@ describe('LanguageCorpusRepository', () => {
     expect(byClip.get('clip-1')?.map((validation) => validation.id).toSorted()).toEqual(['v1', 'v2']);
     expect(byClip.get('clip-2')?.map((validation) => validation.id)).toEqual(['v3']);
   });
+
+  it('deletes only the given contributor\'s voice clips, returning the deleted rows', () => {
+    const repository = new LanguageCorpusRepository();
+    repository.saveVoiceClip(makeVoiceClip({ id: 'clip-1', contributorId: 'owner-1' }));
+    repository.saveVoiceClip(makeVoiceClip({ id: 'clip-2', contributorId: 'owner-2' }));
+
+    const deleted = repository.deleteVoiceClipsFor('owner-1');
+
+    expect(deleted.map((clip) => clip.id)).toEqual(['clip-1']);
+    expect(repository.findVoiceClip('clip-1')).toBeNull();
+    expect(repository.findVoiceClip('clip-2')).not.toBeNull();
+  });
+
+  it('also removes validations cast on a deleted contributor\'s clips, leaving validations on other clips', () => {
+    const repository = new LanguageCorpusRepository();
+    repository.saveVoiceClip(makeVoiceClip({ id: 'clip-1', contributorId: 'owner-1' }));
+    repository.saveVoiceClip(makeVoiceClip({ id: 'clip-2', contributorId: 'owner-2' }));
+    repository.saveClipValidation(makeClipValidation({ id: 'v1', clipId: 'clip-1' }));
+    repository.saveClipValidation(makeClipValidation({ id: 'v2', clipId: 'clip-2' }));
+
+    repository.deleteVoiceClipsFor('owner-1');
+
+    expect(repository.clipValidationsFor('clip-1')).toEqual([]);
+    expect(repository.clipValidationsFor('clip-2').map((validation) => validation.id)).toEqual(['v2']);
+  });
+
+  it('is a no-op, returning an empty array, for a contributor with nothing stored', () => {
+    const repository = new LanguageCorpusRepository();
+    expect(repository.deleteVoiceClipsFor('nobody-here')).toEqual([]);
+  });
 });
