@@ -15,7 +15,7 @@ const exchangeSchema = z.object({
   question: z.string().trim().min(1).max(4000),
   answer: z.string().trim().max(20000).nullable(),
   language: z.string().trim().min(1).max(20),
-  outcome: z.enum(['answered', 'emergency', 'unavailable']),
+  outcome: z.enum(['answered', 'emergency', 'offTopic', 'unavailable']),
 });
 
 // Mirrors `AnonymousProfile` — `askedPrompts` (which prompt the person has

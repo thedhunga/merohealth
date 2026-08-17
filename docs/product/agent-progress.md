@@ -239,26 +239,31 @@ helpfulness, never on safety text).
 
 ## I. Keep the conversation inside health — before the model, and after
 
-- [ ] `packages/intent-router`: add `classifyDomain(text, lang)` →
+- [x] `packages/intent-router`: add `classifyDomain(text, lang)` →
       `'HEALTH' | 'HEALTH_ADJACENT' | 'OFF_TOPIC' | 'UNSURE'`. Deterministic:
       health lexicon (symptoms, body parts, medicines, tests, conditions —
       both languages), plus obvious off-topic lexicons (weather, sports,
       politics, homework, code, finance, entertainment). `UNSURE` goes to
       the model with the containment instruction; only clear `OFF_TOPIC`
-      is answered by template.
-- [ ] Template reply for `OFF_TOPIC` in messages: म स्वास्थ्यसम्बन्धी
+      is answered by template. **Done 2026-08-17 — see the log entry below.**
+- [x] Template reply for `OFF_TOPIC` in messages: म स्वास्थ्यसम्बन्धी
       प्रश्नमा मात्र सहयोग गर्न सक्छु — तपाईंको स्वास्थ्यबारे के जान्न
-      चाहनुहुन्छ? Warm, one line, no lecture. Spoken too.
-- [ ] Model instruction (both providers, identical text): answer only
+      चाहनुहुन्छ? Warm, one line, no lecture. Spoken too. **Done
+      2026-08-17 — see the log entry below.**
+- [x] Model instruction (both providers, identical text): answer only
       health and wellbeing questions; for anything else reply with the
       single sentence in the template. Post-check the answer with the same
-      classifier; if the model drifted, replace with the template.
-- [ ] Emergency interception stays first — before classification.
-- [ ] Outage test: classifier throws → treated as `HEALTH` (fail open on
-      helpfulness; the advisory from J still applies).
-- [ ] 40-case fixture including tricky adjacent cases: "my daughter is sad"
+      classifier; if the model drifted, replace with the template. **Done
+      2026-08-17 — see the log entry below.**
+- [x] Emergency interception stays first — before classification. **Done
+      2026-08-17 — already true, preserved and re-verified.**
+- [x] Outage test: classifier throws → treated as `HEALTH` (fail open on
+      helpfulness; the advisory from J still applies). **Done 2026-08-17 —
+      see the log entry below.**
+- [x] 40-case fixture including tricky adjacent cases: "my daughter is sad"
       (HEALTH_ADJACENT → answer with care), "who won the match" (OFF_TOPIC),
-      "how do I cook dal for a diabetic" (HEALTH_ADJACENT).
+      "how do I cook dal for a diabetic" (HEALTH_ADJACENT). **Done
+      2026-08-17 — 49 cases; see the log entry below.**
 
 ## H. Conversation, not query — voice in, voice out, memory of the last turns
 
@@ -1697,6 +1702,158 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-17 — **Round five, task I: keep the conversation inside the
+  health domain, before the model and after.** Done — all six checkboxes,
+  same "compose into one shippable feature" call the previous J entry made.
+
+  **Housekeeping.** `git checkout main && git pull` hit the by-now-familiar
+  "diverged, no common ancestor" shape (local `main` at `9bdf548`, 76
+  commits; `origin/main` at `a845d8f`, 50 commits). This run's container was
+  genuinely shallow (`git rev-parse --is-shallow-repository` → `true`), so —
+  following the lesson two entries back — ran `git fetch --unshallow`
+  *before* reaching for `git reset --hard`, even though the reset had
+  already happened by the time that lesson was re-read (read the top-level
+  instructions' sync commands first, the ledger's own log second — backwards
+  from what the previous entry recommended). Verified after the fact with
+  `git merge-base --is-ancestor <backed-up-old-main> origin/main`: true, so
+  the reset was equivalent to a fast-forward and nothing was lost — but
+  confirmed, not assumed. **For the next run:** read this file's log before
+  running the top-level instructions' own sync commands, not after; this
+  run got lucky rather than followed its own advice.
+
+  **Selection.** Round six's own header says "Do Round five J → I → H
+  first." J (the advisory) is fully checked. I (off-topic containment) is
+  next; H (multi-turn voice) waits on it. Read `freemium-and-voice-corpus.md`
+  per Round six's instruction even though this run stayed in Round five —
+  confirms nothing in it depends on task I.
+
+  **What was built.** `packages/intent-router/src/domain.ts` (new):
+  `classifyDomain(text, lang: 'ne' | 'en')` → `'HEALTH' | 'HEALTH_ADJACENT'
+  | 'OFF_TOPIC' | 'UNSURE'`, styled after this package's own `classifyIntent`
+  (flat regex lists, `includesAny` helper) rather than duplicating
+  `clinical-safety`'s medicine dictionary. Priority order matters and is
+  documented in-file: `HEALTH_ADJACENT` lexicon checked *before* `HEALTH`,
+  so "how do I cook dal for a diabetic" reads as the cooking question it is
+  rather than being outranked by "diabetic"; both checked before
+  `OFF_TOPIC`, so "will the rain make my asthma worse" stays `HEALTH`
+  instead of tripping the weather lexicon; `OFF_TOPIC` only fires when
+  neither health lexicon matched at all. One real bug caught by the
+  package's own fixture before commit: an early draft's `HEALTH_ADJACENT`
+  lexicon included a standalone "my son/daughter/मेरो बच्चा"-style pattern
+  (to catch "my daughter is sad"), which turned out to also catch "मेरो
+  बच्चालाई पखाला लागेको छ" (an ordinary pediatric diarrhoea question) —
+  removed the standalone family-member pattern entirely once it was clear
+  the emotion-word lexicon alone ("sad", "एक्लो", "तनाव"…) already covers
+  every adjacency example the ledger names, with no false positive on a
+  plain symptom sentence that happens to name a family member. `lang` gates
+  only the *romanised*-Nepali health patterns (documented why: Devanagari
+  and English are unambiguous scripts and checked unconditionally either
+  way, but romanised Nepali shares the Latin alphabet with English, so
+  checking it against an English-locale message risks a false match).
+  `classifyDomain`/`DomainClassification`/`DomainLanguage` re-exported from
+  the package's `index.ts`. `domain.test.ts`: 49 `it.each` cases (exceeds
+  the ledger's 40) — HEALTH across symptoms/body parts/tests/conditions/
+  generic words in English, Devanagari and romanised Nepali; the ledger's
+  own tricky `HEALTH_ADJACENT` examples plus emotion/food/sleep/elder-care
+  variants; `OFF_TOPIC` across all six named categories; two "health signal
+  wins over an off-topic word in the same message" regression cases; a
+  handful of genuine `UNSURE`; plus two dedicated tests for the
+  romanised-Nepali `lang` gate in both directions.
+
+  `apps/web/src/lib/domain-classification.ts` (new): `classifyMessageDomain`
+  wraps `classifyDomain` with the same injectable-function-plus-try/catch
+  shape `advisory.ts`'s `computeAdvisory` already established, failing open
+  to `'HEALTH'` (never `'OFF_TOPIC'`) on any classifier error — matching
+  this task's own "fail open on helpfulness" instruction and keeping the
+  outage path testable without mocking the workspace package.
+  `apps/web/src/lib/containment-instruction.ts` (new): one exported
+  `CONTAINMENT_INSTRUCTION` string, imported by both `gemini-health.ts` and
+  `perplexity-health.ts`'s `instructionsFor`/system-prompt builders — a
+  deliberate, noted departure from this pair's usual "duplicate the prompt
+  text with a comment" convention, because the ledger specifies "identical
+  text" and an import guarantees that rather than trusting the next edit.
+  The instruction deliberately does not quote the fixed `getCare.offTopic.
+  reply` copy verbatim — it is defense-in-depth for the `UNSURE` questions
+  that do reach the model, not the enforcement mechanism; quoting it would
+  only invite the model to paraphrase-and-hallucinate something close to,
+  but not, the vetted template.
+
+  `apps/web/src/app/api/companion/research/route.ts`: emergency
+  interception still runs first and returns before classification, per the
+  ledger's explicit ordering. Then `classifyMessageDomain` on the
+  *question* — a clear `OFF_TOPIC` never reaches the provider at all (a new
+  test asserts `fetch` was never called). Otherwise the provider runs as
+  before, and its *answer* is re-classified; if that reclassification comes
+  back `OFF_TOPIC` too (the model drifted despite `CONTAINMENT_INSTRUCTION`),
+  the answer is discarded — `research` becomes `null` in the response —
+  rather than shown. `CompanionResearchResponse` gains a `domain` field
+  (documented as behaviourally inert for `HEALTH`/`HEALTH_ADJACENT`/
+  `UNSURE` — all three already reached the model the same way; only
+  `OFF_TOPIC` changes anything) so the client can render the fixed
+  containment panel without re-deriving it. `GetCareFlow.tsx`: new `offTopic`
+  phase and `OffTopicPanel` (indigo, not the emergency panel's danger red —
+  a redirect, not an alarm), reusing `useSpeechPlayback`'s existing Listen
+  mechanism since auto-speak still does not exist until task H, same
+  reasoning J's advisory block used. `getCare.offTopic.{eyebrow,reply}`
+  added to both `messages/ne.json` and `en.json` — the Nepali `reply` is
+  the ledger's own verbatim text; English drafted to match its register
+  ("warm, one line, no lecture").
+
+  `AnonymousExchange['outcome']` (`apps/web/src/lib/anonymous-history.ts`)
+  gains `'offTopic'` alongside `answered`/`emergency`/`unavailable`, so the
+  saved transcript can tell an off-topic redirect apart from a real
+  failure. Unlike J's advisory field, this one *does* need the `apps/api`
+  side kept in sync: `history.controller.ts`'s `exchangeSchema.outcome` is
+  a `z.enum(...)`, not an object with unknown keys silently stripped — an
+  anonymous history containing even one off-topic exchange would have
+  failed `/v1/history/migrate` with a 400 for the *entire* batch on sign-in
+  had this been missed. Updated the enum and `history-store.ts`'s matching
+  union; `outcome` is a plain `String` Postgres column (not a DB enum), so
+  no migration was needed. Added a positive acceptance test for the new
+  value to `history.controller.test.ts`, alongside the existing rejection
+  test for a genuinely made-up value.
+
+  **Verify.** Full gate from the repository root, twice (once after the
+  first pass, once after adding the extra route/controller tests written
+  while documenting this entry): `pnpm install --frozen-lockfile` clean
+  (needed a prior plain `pnpm install` first, since `@swasthya/intent-router`
+  was a new `apps/web` dependency the existing lockfile didn't know about —
+  frozen install correctly refuses to add a dependency on its own),
+  `pnpm lint` 40/40, `pnpm typecheck` 40/40, `pnpm test` 40/40 tasks
+  (`packages/intent-router` 86 tests including the new 49-case fixture,
+  `apps/web` 188 tests including 3 new route cases and 3 new
+  `domain-classification` outage-path tests, `apps/api` 754+1 including the
+  new migrate-acceptance test), `pnpm build` 40/40.
+
+  **Mobile measurement, `/get-care` at 375px**, both locales, via Playwright
+  against the pre-installed chromium, dev server on :3000, research route
+  mocked to return `domain: 'OFF_TOPIC'` directly (same reason as J's
+  entry: production isn't answering real questions yet). English: 2.71 →
+  2.74 screens (+0.03, +~8px). Nepali: 2.50 → 2.57 screens (+0.07, +~15px)
+  — much smaller than J's advisory block, since the off-topic panel has no
+  citations/related-questions/profile-prompt to make room for. Tap targets:
+  82 → 83 total in both locales (the one new "Ask another question" reset
+  button, `min-h-12` so nowhere near the 44px floor); under-44px count
+  unchanged at 34 (en) / 36 (ne) — all pre-existing footer-nav elements, not
+  touched by this task. No horizontal overflow in either locale;
+  screenshots confirm no clipped Devanagari matras and the indigo panel
+  reading as a redirect rather than an alarm next to the danger-red
+  emergency panel.
+
+  **For the next run.** Task H (multi-turn voice conversation) is next in
+  the J → I → H order — do not start it before confirming I is genuinely
+  merged and stable. Round five's own "Owner decisions outstanding" section
+  (grounding/billing) is still open and unrelated to this task. One
+  intentional limitation worth naming: `classifyDomain` is a deterministic
+  word-list matcher like every other classifier in this repo, so the
+  post-check safety net only catches a drifted answer whose *own text*
+  contains a recognisable off-topic word (e.g. it starts describing the
+  weather) — a drifted answer using none of the listed vocabulary would
+  pass through unfixed. This is the same known, documented limitation
+  `clinical-safety`'s own emergency lists already accept; the pre-call
+  check on the question is the primary defence, this is depth beyond it,
+  not a guarantee.
 
 - 2026-08-17 — **Round five, task J: the advisory that must appear whenever
   an answer names a medicine or gives instruction-shaped advice.** Done —

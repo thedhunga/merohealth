@@ -1244,6 +1244,10 @@
       "fallback": "This may be an emergency. Go to the nearest appropriate hospital or contact a locally verified emergency service now.",
       "localNotice": "Mero Health does not invent or display an emergency number until it has been verified for your location."
     },
+    "offTopic": {
+      "eyebrow": "Health questions only",
+      "reply": "I can only help with health questions — what would you like to know about your health?"
+    },
     "result": {
       "eyebrow": "Cited general information",
       "heading": "What current sources say",

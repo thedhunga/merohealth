@@ -1,7 +1,8 @@
 import { assessSafety, getSafetyTemplate } from '@swasthya/clinical-safety';
 
 import { computeAdvisory } from '@/lib/advisory';
-import type { ResearchLanguage } from '@/lib/companion-research';
+import type { CompanionResearchResponse, ResearchLanguage } from '@/lib/companion-research';
+import { classifyMessageDomain } from '@/lib/domain-classification';
 import { researchHealthQuestion } from '@/server/research-provider';
 
 export const runtime = 'nodejs';
@@ -48,20 +49,52 @@ export async function POST(request: Request) {
     : null;
 
   if (assessment.interruptConversation) {
+    // Ordering rule from the ledger: emergency interception runs before
+    // domain classification, not after. `domain` is reported as `HEALTH`
+    // here — an emergency utterance is by definition inside the health
+    // domain, and the field is otherwise unused once the emergency panel
+    // takes over.
     return Response.json(
-      { assessment, template, research: null, advisory: null },
+      { assessment, template, research: null, advisory: null, domain: 'HEALTH' },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
+
+  const questionDomain = classifyMessageDomain(input.message, input.language);
+  if (questionDomain === 'OFF_TOPIC') {
+    // A clearly off-topic question never reaches the model — cheaper, and
+    // the model has nothing safety-relevant to add to a fixed reply.
+    return Response.json(
+      { assessment, template: null, research: null, advisory: null, domain: questionDomain },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   }
 
   const research = await researchHealthQuestion(input.message, input.language);
-  const advisory =
+  // Post-check: the model was told to stay inside health (see
+  // `instructionsFor` in both providers), but the containment instruction is
+  // advisory to the model, not enforced by it. Re-running the same
+  // deterministic classifier on the *answer* catches an answer that drifted
+  // off-topic despite the instruction, and the drifted text is discarded
+  // rather than shown — the UI falls back to the same fixed reply a
+  // pre-call `OFF_TOPIC` gets.
+  const answerDomain =
     research.status === 'complete' && research.answer
-      ? computeAdvisory(research.answer, input.language)
+      ? classifyMessageDomain(research.answer, input.language)
+      : questionDomain;
+  const domain = answerDomain === 'OFF_TOPIC' ? 'OFF_TOPIC' : questionDomain;
+  const finalResearch = domain === 'OFF_TOPIC' ? null : research;
+  const advisory =
+    finalResearch?.status === 'complete' && finalResearch.answer
+      ? computeAdvisory(finalResearch.answer, input.language)
       : null;
 
-  return Response.json(
-    { assessment, template: null, research, advisory },
-    { headers: { 'Cache-Control': 'no-store' } },
-  );
+  const responseBody: CompanionResearchResponse = {
+    assessment,
+    template: null,
+    research: finalResearch,
+    advisory,
+    domain,
+  };
+  return Response.json(responseBody, { headers: { 'Cache-Control': 'no-store' } });
 }

@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ExternalLink,
   HeartPulse,
+  MessageCircleHeart,
   Mic,
   RotateCcw,
   Search,
@@ -39,7 +40,7 @@ import { useSpeechPlayback } from '@/hooks/useSpeechPlayback';
 import { useSpeechDictation } from '@/hooks/useSpeechDictation';
 import { cn } from '@/lib/cn';
 
-type Phase = 'idle' | 'loading' | 'emergency' | 'result' | 'unavailable';
+type Phase = 'idle' | 'loading' | 'emergency' | 'offTopic' | 'result' | 'unavailable';
 
 const transition = { duration: 0.24, ease: [0.22, 1, 0.36, 1] } as const;
 
@@ -82,7 +83,8 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
       const body = (await researchResponse.json()) as CompanionResearchResponse;
       setResponse(body);
       const emergency = body.assessment.interruptConversation;
-      setPhase(emergency ? 'emergency' : 'result');
+      const offTopic = !emergency && body.domain === 'OFF_TOPIC';
+      setPhase(emergency ? 'emergency' : offTopic ? 'offTopic' : 'result');
 
       // Remember the exchange on the device, so tomorrow's visit is not a
       // blank slate. Nothing here leaves the phone until the person signs in.
@@ -91,7 +93,7 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
         question: message,
         answer: answered ? (body.research?.answer ?? null) : null,
         language: locale,
-        outcome: emergency ? 'emergency' : answered ? 'answered' : 'unavailable',
+        outcome: emergency ? 'emergency' : offTopic ? 'offTopic' : answered ? 'answered' : 'unavailable',
         // Only ever set alongside a real answer, so the saved transcript
         // shows the same warning the person saw, not a stray one attached
         // to a refusal or an unavailable state.
@@ -232,6 +234,7 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
                   {phase === 'emergency' && response ? (
                     <EmergencyPanel key="emergency" response={response} reset={reset} />
                   ) : null}
+                  {phase === 'offTopic' ? <OffTopicPanel key="offTopic" locale={locale} reset={reset} /> : null}
                   {phase === 'result' && response?.research ? (
                     <ResearchPanel
                       advisory={response.advisory}
@@ -346,6 +349,56 @@ function EmergencyPanel({
           {t('actions.another')}
         </button>
       </div>
+    </Panel>
+  );
+}
+
+/**
+ * Round five, task I: the fixed containment reply for a question the
+ * deterministic classifier kept outside the model entirely (or discarded
+ * after the model itself drifted off-topic — see the route's post-check).
+ * Warm, one line, no lecture, per the ledger. Indigo rather than the
+ * emergency panel's danger red — this is a redirect, not an alarm — and
+ * reuses the same Listen mechanism `ResearchPanel` already has, since
+ * auto-speak does not exist until task H.
+ */
+function OffTopicPanel({ reset, locale }: { reset: () => void; locale: ResearchLanguage }) {
+  const t = useTranslations('getCare.offTopic');
+  const actionsT = useTranslations('getCare.actions');
+  const resultT = useTranslations('getCare.result');
+  const playback = useSpeechPlayback(locale);
+  const reply = t('reply');
+  return (
+    <Panel className="bg-indigo-50">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 text-indigo-700">
+          <MessageCircleHeart aria-hidden className="size-6" />
+          <p className="text-sm font-extrabold tracking-wide uppercase">{t('eyebrow')}</p>
+        </div>
+        {playback.available ? (
+          <button
+            aria-label={playback.speaking ? resultT('listenStop') : resultT('listen')}
+            aria-pressed={playback.speaking}
+            className={cn(
+              'inline-flex min-h-11 shrink-0 items-center gap-2 rounded-pill px-4 text-sm font-semibold transition-colors',
+              playback.speaking ? 'bg-indigo-100 text-indigo-800' : 'text-indigo-800 hover:bg-white',
+            )}
+            onClick={() => playback.toggle(reply)}
+            type="button"
+          >
+            <Volume2 aria-hidden className="size-4" />
+          </button>
+        ) : null}
+      </div>
+      <p className="mt-4 text-lg leading-relaxed">{reply}</p>
+      <button
+        className="mt-5 inline-flex min-h-12 items-center gap-2 rounded-pill bg-indigo-800 px-5 font-bold text-white hover:bg-indigo-700"
+        onClick={reset}
+        type="button"
+      >
+        <RotateCcw aria-hidden className="size-4" />
+        {actionsT('another')}
+      </button>
     </Panel>
   );
 }

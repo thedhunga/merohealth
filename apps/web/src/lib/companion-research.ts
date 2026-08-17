@@ -59,4 +59,14 @@ export interface CompanionResearchResponse {
   template: string | null;
   research: HealthResearch | null;
   advisory: ResearchAdvisory | null;
+  /**
+   * Round five, task I: whether the question stayed inside the health
+   * domain. `OFF_TOPIC` means `research` is `null` — the model was either
+   * never called (the question itself was clearly off-topic) or its answer
+   * was discarded because it drifted off-topic anyway — and the UI renders
+   * the fixed containment reply from `getCare.offTopic` instead. The other
+   * three values behave identically today (all reach the model); the split
+   * exists for the fixture, not because the UI branches on it.
+   */
+  domain: 'HEALTH' | 'HEALTH_ADJACENT' | 'OFF_TOPIC' | 'UNSURE';
 }

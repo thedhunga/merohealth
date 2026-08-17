@@ -1,4 +1,5 @@
 import type { HealthResearch, ResearchLanguage } from '@/lib/companion-research';
+import { CONTAINMENT_INSTRUCTION } from '@/lib/containment-instruction';
 
 /**
  * Gemini with Google Search grounding, as a second research provider.
@@ -225,6 +226,7 @@ function instructionsFor(language: ResearchLanguage): string {
     'Do not diagnose, prescribe, recommend a specific treatment, calculate medication doses, or claim to replace a clinician.',
     'State important uncertainty. Encourage an appropriate qualified clinician when the question depends on personal examination, history, or testing.',
     'Do not provide emergency instructions; Mero Health performs deterministic emergency interception before this request.',
+    CONTAINMENT_INSTRUCTION,
     'Prefer public-health agencies, medical societies, peer-reviewed research, and major academic health systems.',
     'Keep the answer under 250 words.',
     languageInstruction,

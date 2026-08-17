@@ -31,11 +31,11 @@ export interface AnonymousExchange {
   id: string;
   askedAt: string;
   question: string;
-  /** Null when the answer was refused, unavailable, or an emergency stop. */
+  /** Null when the answer was refused, unavailable, an emergency stop, or off-topic. */
   answer: string | null;
   language: string;
   /** What we already know from the profile prompts, if answered. */
-  outcome: 'answered' | 'emergency' | 'unavailable';
+  outcome: 'answered' | 'emergency' | 'offTopic' | 'unavailable';
   /**
    * The advisory attached to `answer`, if any — so the saved transcript
    * still shows the "see a health worker" warning, not just the answer it

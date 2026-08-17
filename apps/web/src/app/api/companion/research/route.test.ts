@@ -93,4 +93,54 @@ describe('POST /api/companion/research', () => {
 
     expect(body.advisory).toBeNull();
   });
+
+  it('reports domain HEALTH and does not affect a normal answer', async () => {
+    vi.stubEnv('PERPLEXITY_API_KEY', 'test-key');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({ choices: [{ message: { content: 'A mild headache can have many everyday causes.' } }] }),
+        { status: 200 },
+      ),
+    );
+
+    const response = await POST(request({ message: 'What can cause a mild headache?', language: 'en' }));
+    const body = (await response.json()) as { domain: string; research: { status: string } };
+
+    expect(body.domain).toBe('HEALTH');
+    expect(body.research.status).toBe('complete');
+  });
+
+  it('skips the provider entirely for a clearly off-topic question and returns the fixed containment domain', async () => {
+    vi.stubEnv('PERPLEXITY_API_KEY', 'test-key');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    const response = await POST(request({ message: 'who won the match yesterday', language: 'en' }));
+    const body = (await response.json()) as { domain: string; research: unknown; advisory: unknown };
+
+    expect(body.domain).toBe('OFF_TOPIC');
+    expect(body.research).toBeNull();
+    expect(body.advisory).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('discards an answer that drifted off-topic despite the containment instruction', async () => {
+    vi.stubEnv('PERPLEXITY_API_KEY', 'test-key');
+    // The question itself is UNSURE (nothing recognisably health or
+    // off-topic in it), so it reaches the provider — but the provider's own
+    // answer talks about the weather, which the same deterministic
+    // classifier recognises as off-topic on the post-check.
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({ choices: [{ message: { content: 'Tomorrow the weather forecast shows heavy rain.' } }] }),
+        { status: 200 },
+      ),
+    );
+
+    const response = await POST(request({ message: 'tell me something interesting', language: 'en' }));
+    const body = (await response.json()) as { domain: string; research: unknown; advisory: unknown };
+
+    expect(body.domain).toBe('OFF_TOPIC');
+    expect(body.research).toBeNull();
+    expect(body.advisory).toBeNull();
+  });
 });

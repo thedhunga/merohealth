@@ -85,6 +85,23 @@ describe('HistoryController.migrate', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('accepts an offTopic outcome — round five task I added this alongside answered/emergency/unavailable', async () => {
+    const { controller, store } = buildController();
+    const body = {
+      anonymousId: 'anon-1',
+      store: {
+        version: 1,
+        exchanges: [{ ...VALID_BODY.store.exchanges[0], answer: null, outcome: 'offTopic' }],
+        profile: {},
+      },
+    };
+
+    const result = await controller.migrate(currentUser('sunita'), body);
+
+    expect(result).toEqual({ ok: true, alreadyMigrated: false });
+    expect(store.migrations[0]?.exchanges[0]?.outcome).toBe('offTopic');
+  });
+
   it('rejects an exchange with an out-of-range outcome value', async () => {
     const { controller } = buildController();
     const body = {

@@ -3,10 +3,10 @@ export const HISTORY_STORE = 'HISTORY_STORE';
 export interface HistoryExchangeInput {
   askedAt: string;
   question: string;
-  /** Null when the answer was refused, unavailable, or an emergency stop — see `AnonymousExchange` in `apps/web`. */
+  /** Null when the answer was refused, unavailable, an emergency stop, or off-topic — see `AnonymousExchange` in `apps/web`. */
   answer: string | null;
   language: string;
-  outcome: 'answered' | 'emergency' | 'unavailable';
+  outcome: 'answered' | 'emergency' | 'offTopic' | 'unavailable';
 }
 
 /**

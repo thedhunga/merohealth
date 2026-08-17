@@ -3,6 +3,9 @@ import type { AnalyteTrend } from '@swasthya/health-records';
 import { conceptLabel, expandQuery, retrieveForSubject } from '@swasthya/retrieval';
 import type { Citation, RetrievalCorpus } from '@swasthya/retrieval';
 
+export { classifyDomain } from './domain';
+export type { DomainClassification, DomainLanguage } from './domain';
+
 /* ------------------------------------------------------------------ *
  * Intent classification
  *
