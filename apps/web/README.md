@@ -11,7 +11,9 @@ pnpm install --frozen-lockfile
 pnpm --filter @swasthya/web dev
 ```
 
-Open `http://localhost:3000`. Copy `.env.example` in this directory to `.env.local` for local configuration. `PERPLEXITY_API_KEY` is private and must never use a `NEXT_PUBLIC_` prefix.
+Open `http://localhost:3000`. Copy `.env.example` in this directory to `.env.local` for local configuration. `GEMINI_API_KEY` (preferred, free tier) and `PERPLEXITY_API_KEY` (optional fallback) are private and must never use a `NEXT_PUBLIC_` prefix.
+
+To confirm which research provider a running deployment will use — and whether its key is actually visible at runtime — open `/api/companion/research/health`. It reports presence only, never values. Environment variables are read at **build** time, so after adding or rescoping one in Vercel, a fresh deployment is required before the probe (or the assistant) can see it.
 
 To build this app and all workspace dependencies:
 
