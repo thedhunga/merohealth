@@ -267,28 +267,35 @@ helpfulness, never on safety text).
 
 ## H. Conversation, not query — voice in, voice out, memory of the last turns
 
-- [ ] Conversation session: `lib/anonymous-history.ts` gains
+- [x] Conversation session: `lib/anonymous-history.ts` gains
       `conversationId`; each turn is stored with `{role, text, spokenIn:
       boolean, advisory?}`. The existing anon→account migration
-      (`POST /v1/history/migrate`) carries whole conversations.
-- [ ] `/api/companion/research` accepts `turns: {role, text}[]` (last 6,
+      (`POST /v1/history/migrate`) carries whole conversations. **Done
+      2026-08-17 — see the log entry below.**
+- [x] `/api/companion/research` accepts `turns: {role, text}[]` (last 6,
       capped chars). Instruction: "Continue this conversation; refer to
       what the person already said; ask one clarifying question when the
       answer genuinely depends on it (duration, age, pregnancy, other
-      medicines)." Emergency interception runs on *every* turn.
-- [ ] `useSpeechDictation`: a **conversation mode** — `continuous = true`,
+      medicines)." Emergency interception runs on *every* turn. **Done
+      2026-08-17 — see the log entry below.**
+- [x] `useSpeechDictation`: a **conversation mode** — `continuous = true`,
       `interimResults = true`, end-of-utterance on 1.2 s silence, then send;
       after the answer is spoken, re-open the mic automatically for the next
       turn. Tap to stop. Barge-in: starting to speak cancels playback.
-- [ ] Auto-speak: when the question came in by voice, the answer (and the
+      **Done 2026-08-17 — see the log entry below for the deliberate
+      barge-in interpretation (explicit tap, not passive VAD).**
+- [x] Auto-speak: when the question came in by voice, the answer (and the
       advisory) is spoken without pressing Listen. Nepali voice when
       present; if the device has no Nepali voice, show the text and say so
       once, in Nepali, in the UI — do not read Nepali in an English voice.
-- [ ] Thread UI in the dialogue box: bubbles, the advisory block after any
+      **Done 2026-08-17 — see the log entry below.**
+- [x] Thread UI in the dialogue box: bubbles, the advisory block after any
       answer that triggers it, a persistent "यो कुराकानी सुरक्षित छ" note
-      once history is saved, sign-in suggestion unchanged.
-- [ ] Outage tests: speech APIs absent → text mode, no error toast;
-      history write fails → conversation continues in memory.
+      once history is saved, sign-in suggestion unchanged. **Done
+      2026-08-17 — see the log entry below.**
+- [x] Outage tests: speech APIs absent → text mode, no error toast;
+      history write fails → conversation continues in memory. **Done
+      2026-08-17 — see the log entry below.**
 
 ## K. Real-time voice — owner decision, document only
 
@@ -1702,6 +1709,198 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-17 — **Round five, task H: conversation, not query — voice in,
+  voice out, memory of the last turns.** Done — all six checkboxes, the
+  same "compose into one shippable feature" call the J and I entries made.
+
+  **Housekeeping.** `git checkout main && git pull` hit the same
+  "diverged, no common ancestor" shape the last two entries describe (local
+  `main` at `9bdf548`, `origin/main` at `827979b`, 76 vs 50 commits — the
+  I entry's own numbers, one owner round further on). Read this file's log
+  *before* running the destructive command this time, per the I entry's own
+  lesson. `git rev-parse --is-shallow-repository` → `false` here (not every
+  container is shallow), so the unshallow step didn't apply; instead
+  checked every locally-unique commit with `git branch -r --contains
+  <sha>` before resetting — 46 of 50 were already preserved on
+  `origin/mero-health/platform-foundation` or
+  `origin/codex/world-class-interactive-experience`, and the remaining four
+  (a Vercel root-directory fixup, two merge commits, and the "round three
+  queue" doc commit) were superseded housekeeping, not unpushed feature
+  work. `git reset --hard origin/main` after that check, not before it.
+  **For the next run:** this repo's local/origin divergence keeps
+  recurring across runs — worth the owner's attention if it keeps costing
+  each run the same investigation.
+
+  **Selection.** Round six's own header still says "Do Round five J → I →
+  H first." J and I are both fully checked; H's six boxes were the genuine
+  first unchecked ones in the file. Treated all six as one task — a
+  conversation-session data model with nothing that sends turns, or a
+  continuous mic with nothing that reopens it, is not a real deliverable
+  on its own.
+
+  **What was built, box by box.**
+
+  *Conversation session.* `AnonymousExchange` (`apps/web/src/lib/
+  anonymous-history.ts`) gains `conversationId?: string` and
+  `spokenIn?: boolean`, both optional so a pre-existing localStorage entry
+  still parses. Deliberate scope call: the ledger's phrasing ("each turn is
+  stored with `{role, text, spokenIn, advisory}`") reads like a role-based
+  turn log, but this codebase already models one exchange as one Q+A pair
+  (`question`/`answer` fields) everywhere — migration schema, profile
+  prompts, `shouldSuggestSignIn`. Rebuilding that as a flat role/text list
+  would have touched far more than this task's actual point, which is
+  *grouping* exchanges into a conversation and knowing which questions were
+  spoken. `conversationId` does the grouping; `spokenIn` is the "was this
+  voice" flag the ledger's `role`/`spokenIn` shape was really asking for.
+  Went further than the strict minimum on one point: `POST /v1/history/
+  migrate` previously stripped unknown exchange keys via zod's default
+  behaviour (documented in `history.controller.ts` for `id`) — the same
+  silent-strip would have applied to the two new fields, contradicting
+  "carries whole conversations." Added `conversationId`/`spokenIn` to
+  `exchangeSchema` (optional), `HistoryExchangeInput`
+  (`apps/api/src/history/history-store.ts`), `PrismaHistoryStore.migrate`,
+  and a new nullable-column migration
+  (`packages/database/prisma/migrations/
+  20260817000000_add_history_exchange_conversation`) on `HistoryExchange`
+  so a signed-in account's history keeps the grouping instead of it
+  vanishing at sign-in. New controller tests for both fields present and
+  both absent (pre-task-H entries must still migrate).
+
+  *Turns on the research route.* `ConversationTurn` (`role: 'user' |
+  'assistant'`, `text`) added to `companion-research.ts` — deliberately
+  excludes the advisory text, so the model is never shown its own fixed
+  warning to imitate. `route.ts` parses `turns` from the request body
+  (last 6, 2000 chars each, malformed entries dropped) and forwards them.
+  `gemini-health.ts` and `perplexity-health.ts` both gained a `turns`
+  parameter appended *after* their existing `dependencies` parameter,
+  specifically so none of the ~30 existing call sites in either test file
+  needed touching — only new tests were added. Perplexity takes turns
+  natively as chat messages; Gemini's `interactions` endpoint has one
+  `input` string, so turns render as a plain transcript prefixed ahead of
+  the new message, only when turns exist (verified `input` stays the bare
+  question string with zero turns — existing tests for that already
+  passed unmodified). New shared `CONVERSATION_INSTRUCTION`
+  (`lib/conversation-instruction.ts`), same "one constant, not two
+  hand-synced copies" reasoning the I entry gave for
+  `CONTAINMENT_INSTRUCTION`, appended to both providers' system prompt only
+  when `turns.length > 0`.
+
+  *Conversation mode in `useSpeechDictation`.* New `SpeechDictationOptions
+  { conversation?, silenceTimeoutMs? }` third parameter, default `false` —
+  `SymptomEntry.tsx` on the homepage keeps the original one-utterance-per-
+  tap behaviour untouched. When `conversation: true`:
+  `continuous`/`interimResults` on, a ref accumulates final chunks across
+  the recognizer's own result batches, and *any* speech (interim or final)
+  resets a `setTimeout(1200ms)` — the utterance is delivered only once the
+  person has actually stopped talking, not on the recognizer's own
+  turn-taking guess. The recognizer stops itself before the callback fires,
+  so it can never pick up the answer being read back a moment later.
+  `start`/`stop` are now returned alongside `toggle` — needed for
+  `GetCareFlow` to restart listening programmatically and for barge-in.
+
+  *Barge-in — a deliberate, documented interpretation.* The ledger says
+  "starting to speak cancels playback." Literal voice-activated barge-in
+  (recognizer live *during* TTS playback) was rejected: this codebase's
+  mic has always been push-to-talk (tap to start, tap to stop, per J and
+  every entry before it), nothing here does passive always-listening, and
+  running the recognizer against the same device's own speaker output
+  risks the recognizer transcribing our own TTS as if the person were
+  talking over it — a self-triggering loop with no real device to test it
+  on in this environment. Implemented "starting to speak" as *tapping the
+  mic while the answer is playing*: `handleMicClick` checks
+  `playback.speaking` first — if true, calls the new `playback.cancel()`
+  (never `toggle`, which would misread "start speaking" as "resume") and
+  immediately starts listening for what the person is already saying. This
+  stays consistent with the mic's existing interaction model everywhere
+  else in the product rather than introducing the only passively-listening
+  control in the codebase.
+
+  *Auto-speak and auto-restart.* `GetCareFlow` lifts `useSpeechPlayback`
+  to the top of the component (previously instantiated separately inside
+  `ResearchPanel` and `OffTopicPanel` — two independent hooks both polling
+  the same global `speechSynthesis.speaking` would have gone out of sync
+  the moment auto-speak and barge-in both needed to coordinate with it).
+  `submitQuestion` takes a `spoken` flag; when a voice-originated question
+  gets a real answer, the answer (+ advisory, spoken as one utterance so
+  Listen never lets the warning go unheard) auto-plays via
+  `playback.toggle`, and `autoRestartAfterSpeechRef` is set. A `useEffect`
+  watching `playback.speaking` calls `dictation.start()` the moment
+  playback ends *and* the ref is still set — the ref is what stops a
+  barge-in's own `cancel()` from double-triggering a restart. No matching
+  Nepali/English voice on the device: shown once per conversation via
+  `getCare.conversation.noVoice`, never on every turn.
+
+  *Thread UI.* `ResearchPanel` renamed `ConversationPanel`, now maps
+  `turns: DisplayTurn[]` (superset of `ConversationTurn` with a
+  display-only `advisoryText`) as alternating bubbles — indigo/white for
+  the person, sand for the answer — instead of showing only the single
+  latest Q+A. Citations/related-questions/disclaimer still describe only
+  the latest `research` object, unchanged from before. Dropped
+  `result.heading` ("What current sources say") — it read as a
+  single-answer framing that didn't fit a running thread; removed the now-
+  dead key from both message files rather than leave it unused. New
+  `getCare.conversation.*` keys (`threadLabel`, `you`, `assistant`,
+  `safeNote`, `noVoice`) added to **both** `ne.json` and `en.json`;
+  `safeNote`'s Nepali is the ledger's own verbatim "यो कुराकानी सुरक्षित
+  छ" text, not a paraphrase.
+
+  *Outage tests.* "Speech APIs absent → text mode, no error toast" was
+  already structurally true (`dictation.supported` gates the mic button
+  entirely, unchanged) — nothing to add. "History write fails →
+  conversation continues in memory" is a genuine new
+  `anonymous-history.test.ts` case: `recordExchange` must not throw when
+  `localStorage.setItem` throws (quota/private mode), matching `write()`'s
+  own existing try/catch. Worth naming precisely: the *in-memory
+  conversation* that continues is `GetCareFlow`'s own React `turns` state,
+  which was never made to depend on a successful localStorage write in the
+  first place — the outage test covers the persistence layer's own
+  contract, not a dependency that had to be removed.
+
+  **Verify.** Full gate from the repository root: `pnpm install
+  --frozen-lockfile` clean, `pnpm lint` 40/40 (one real failure caught and
+  fixed along the way — `@typescript-eslint/no-base-to-string` on
+  `String(fetchSpy.mock.calls[0]?.[1]?.body)` in a new route test; replaced
+  with a small typed helper matching the `typeof init?.body === 'string'`
+  guard the provider tests already use elsewhere), `pnpm typecheck` 40/40,
+  `pnpm test` 75/75 tasks (`apps/web` 194 tests, up from 188 before this
+  run; `apps/api` 757, up from 754), `pnpm build` 40/40.
+
+  **Mobile measurement, `/get-care` at 375px**, both locales, via
+  Playwright against the pre-installed chromium (global install at
+  `/opt/node22/lib/node_modules/playwright`, not a workspace dependency —
+  `research` route mocked to return a complete answer, same reason every
+  prior entry gives: production isn't answering real questions without
+  live keys). Idle screen unchanged in both locales (form itself untouched
+  by this task): ne 2029px, en 2199px. Result screen, one answered
+  question: ne 2573px → 2677px (+104px, +0.13 screens), en 2797px → 2897px
+  (+100px, +0.12 screens) — the persistent safe-note line plus bubble
+  padding, replacing the old single-card's heading+paragraph block. Tap
+  targets: 43 → 43 unchanged in both locales; under-44px count unchanged
+  at 37 (ne) / 35 (en) — all pre-existing footer-nav elements, not touched
+  by this task; the new mic-button `disabled` attribute doesn't remove it
+  from the DOM or the count. Separately verified a real two-turn
+  conversation end-to-end (mocked second answer names a medicine): both
+  question bubbles and both answer bubbles render, the marigold advisory
+  block attaches under the second answer only, and the safe-note appears
+  once beneath the thread — screenshot confirms no clipped Devanagari
+  matras and the indigo/marigold palette holding through the new UI.
+
+  **For the next run.** Round six (L, K′, M, N) is next in the "Do Round
+  five J → I → H first" order — H is now the last of the three, so Round
+  six's own items are the genuine next unchecked boxes, starting with L
+  (freemium surface). Round five's own "Owner decisions outstanding"
+  section (grounding/billing) is still open and unrelated. Two honest
+  limitations worth carrying forward: (1) barge-in is tap-triggered, not
+  voice-activated during playback — see the reasoning above; if the owner
+  specifically wants hands-free interruption, that needs testing on a real
+  device with real echo cancellation before it's safe to build, not
+  another blind implementation. (2) `useSpeechDictation`'s conversation
+  mode has not been exercised against a real browser's Web Speech API in
+  this environment (headless chromium doesn't have a working speech
+  recognizer) — the silence-timer and transcript-accumulation logic is
+  unit-reasoned and code-reviewed, not device-tested; worth a real-phone
+  check before leaning on it further.
 
 - 2026-08-17 — **Round five, task I: keep the conversation inside the
   health domain, before the model and after.** Done — all six checkboxes,

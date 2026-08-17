@@ -16,6 +16,10 @@ const exchangeSchema = z.object({
   answer: z.string().trim().max(20000).nullable(),
   language: z.string().trim().min(1).max(20),
   outcome: z.enum(['answered', 'emergency', 'offTopic', 'unavailable']),
+  // Round five, task H. Optional so an exchange saved before this field
+  // existed still validates — see `HistoryExchangeInput`'s own comment.
+  conversationId: z.string().trim().min(1).max(200).optional(),
+  spokenIn: z.boolean().optional(),
 });
 
 // Mirrors `AnonymousProfile` — `askedPrompts` (which prompt the person has

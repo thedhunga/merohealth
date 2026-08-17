@@ -294,6 +294,36 @@ describe('researchWithGemini', () => {
     expect(result.provider).toBe('gemini-grounded');
   });
 
+  it('folds prior turns into the input as a transcript and adds the continuation instruction — round five task H', async () => {
+    let seenBody: Record<string, unknown> | undefined;
+    const spy: typeof fetch = ((_url: unknown, init?: RequestInit) => {
+      seenBody = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as Record<string, unknown>;
+      return Promise.resolve(new Response(JSON.stringify(groundedResponse), { status: 200 }));
+    }) as unknown as typeof fetch;
+
+    await researchWithGemini('अहिले पनि उस्तै छ?', 'ne', { apiKey: 'k', fetchImpl: spy }, [
+      { role: 'user', text: 'दुई दिनदेखि ज्वरो छ' },
+      { role: 'assistant', text: 'आराम गर्नुहोस् र पानी पिउनुहोस्।' },
+    ]);
+
+    expect(String(seenBody?.input)).toContain('दुई दिनदेखि ज्वरो छ');
+    expect(String(seenBody?.input)).toContain('अहिले पनि उस्तै छ?');
+    expect(String(seenBody?.system_instruction)).toContain('continuing conversation');
+  });
+
+  it('leaves input as the bare question when there are no prior turns', async () => {
+    let seenBody: Record<string, unknown> | undefined;
+    const spy: typeof fetch = ((_url: unknown, init?: RequestInit) => {
+      seenBody = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as Record<string, unknown>;
+      return Promise.resolve(new Response(JSON.stringify(groundedResponse), { status: 200 }));
+    }) as unknown as typeof fetch;
+
+    await researchWithGemini('ज्वरो छ', 'ne', { apiKey: 'k', fetchImpl: spy });
+
+    expect(seenBody?.input).toBe('ज्वरो छ');
+    expect(String(seenBody?.system_instruction)).not.toContain('continuing conversation');
+  });
+
   it('carries the Nepali disclaimer for ne and English for en', async () => {
     const ne = await researchWithGemini('x', 'ne', { apiKey: undefined });
     const en = await researchWithGemini('x', 'en', { apiKey: undefined });

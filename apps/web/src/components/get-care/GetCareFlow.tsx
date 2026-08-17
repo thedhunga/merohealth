@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { AnimatePresence, LazyMotion, MotionConfig, domAnimation, m } from 'motion/react';
 import {
@@ -21,8 +21,8 @@ import {
 
 import type {
   CompanionResearchResponse,
+  ConversationTurn,
   HealthResearch,
-  ResearchAdvisory,
   ResearchLanguage,
 } from '@/lib/companion-research';
 import { consumeCareQuestion } from '@/lib/get-care-session';
@@ -42,37 +42,68 @@ import { cn } from '@/lib/cn';
 
 type Phase = 'idle' | 'loading' | 'emergency' | 'offTopic' | 'result' | 'unavailable';
 
+/**
+ * Round five, task H: one bubble in the visible thread. A superset of
+ * `ConversationTurn` — `advisoryText` is display-only (rendered under the
+ * assistant bubble that earned it) and never sent back to the provider,
+ * matching `ConversationTurn`'s own doc comment on why the advisory is
+ * excluded from what the model sees.
+ */
+interface DisplayTurn {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  advisoryText?: string | null;
+}
+
 const transition = { duration: 0.24, ease: [0.22, 1, 0.36, 1] } as const;
+/** Same cap the route enforces server-side — trimmed here too so a long session never sends more context than the provider will keep anyway. */
+const MAX_CONTEXT_TURNS = 6;
 
 export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
   const t = useTranslations('getCare');
+  const advisoryT = useTranslations('getCare.advisory');
   const [question, setQuestion] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [response, setResponse] = useState<CompanionResearchResponse | null>(null);
   const [pendingPrompt, setPendingPrompt] = useState<ProfilePrompt | null>(null);
   const [suggestSignIn, setSuggestSignIn] = useState(false);
-  const dictation = useSpeechDictation(locale, (text) => {
-    setQuestion((current) => (current ? `${current} ${text}` : text));
-  });
+  // One id per conversation session — regenerated on `reset()` — so the
+  // saved history and the thread UI can both group turns asked in one
+  // sitting. `useState(() => ...)` rather than a module-level call: the id
+  // must be stable across this component's re-renders but fresh per mount.
+  const [conversationId, setConversationId] = useState(() => crypto.randomUUID());
+  const [turns, setTurns] = useState<DisplayTurn[]>([]);
+  const [noVoiceNotice, setNoVoiceNotice] = useState(false);
+  const playback = useSpeechPlayback(locale);
+  // Set right before an auto-spoken answer starts, cleared the moment that
+  // utterance ends (naturally or by barge-in) — the signal the effect below
+  // uses to decide whether ending playback should reopen the mic.
+  const autoRestartAfterSpeechRef = useRef(false);
 
   useEffect(() => {
     const storedQuestion = consumeCareQuestion();
     if (storedQuestion) setQuestion(storedQuestion);
   }, []);
 
-  const submitQuestion = async (nextQuestion = question) => {
+  const submitQuestion = async (nextQuestion = question, opts: { spoken?: boolean } = {}) => {
     const message = nextQuestion.normalize('NFKC').trim();
     if (message.length < 3) return;
+    const spoken = opts.spoken ?? false;
 
     setQuestion(message);
     setResponse(null);
     setPhase('loading');
 
+    const apiTurns: ConversationTurn[] = turns
+      .slice(-MAX_CONTEXT_TURNS)
+      .map((turn) => ({ role: turn.role, text: turn.text }));
+
     try {
       const researchResponse = await fetch('/api/companion/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, language: locale }),
+        body: JSON.stringify({ message, language: locale, turns: apiTurns }),
       });
 
       if (!researchResponse.ok) {
@@ -94,15 +125,44 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
         answer: answered ? (body.research?.answer ?? null) : null,
         language: locale,
         outcome: emergency ? 'emergency' : offTopic ? 'offTopic' : answered ? 'answered' : 'unavailable',
+        conversationId,
+        spokenIn: spoken,
         // Only ever set alongside a real answer, so the saved transcript
         // shows the same warning the person saw, not a stray one attached
         // to a refusal or an unavailable state.
         ...(answered && body.advisory ? { advisory: body.advisory } : {}),
       });
 
-      // One skippable profile question, only when there is a real answer to
-      // react to and only if it would help the next answer.
-      if (answered) {
+      if (answered && body.research?.answer) {
+        const answerText = body.research.answer;
+        const advisoryText = body.advisory
+          ? body.advisory.kind === 'medicine'
+            ? advisoryT('medicine', { medicines: formatMedicineList(body.advisory.medicines, locale) })
+            : advisoryT('advice')
+          : null;
+
+        setTurns((prev) => [
+          ...prev,
+          { id: crypto.randomUUID(), role: 'user', text: message },
+          { id: crypto.randomUUID(), role: 'assistant', text: answerText, advisoryText },
+        ]);
+
+        // Auto-speak only when the question itself came in by voice — a
+        // typed follow-up inside the same voice conversation stays silent,
+        // matching how the mic was never asked to reopen for it either.
+        if (spoken) {
+          if (playback.available) {
+            const spokenText = advisoryText ? `${answerText} ${advisoryText}` : answerText;
+            autoRestartAfterSpeechRef.current = true;
+            playback.toggle(spokenText);
+          } else if (!noVoiceNotice) {
+            // No voice on this device for the interface language: never
+            // read Nepali in an English voice, so the text stands alone —
+            // said once per conversation, not on every turn.
+            setNoVoiceNotice(true);
+          }
+        }
+
         const answeredCount = history().filter((e) => e.outcome === 'answered').length;
         setPendingPrompt(nextProfilePrompt(message, answeredCount, profile()));
         setSuggestSignIn(shouldSuggestSignIn());
@@ -113,6 +173,27 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
       setPhase('unavailable');
     }
   };
+
+  const dictation = useSpeechDictation(
+    locale,
+    (text) => {
+      setQuestion(text);
+      void submitQuestion(text, { spoken: true });
+    },
+    { conversation: true },
+  );
+
+  // Conversation, not query: once a spoken answer finishes playing, the mic
+  // reopens on its own so the next turn needs no tap. Guarded by the ref
+  // rather than firing whenever `speaking` goes false, so a barge-in
+  // (cancel, then immediately listen again in `handleMicClick`) never
+  // double-starts the recognizer.
+  useEffect(() => {
+    if (!playback.speaking && autoRestartAfterSpeechRef.current) {
+      autoRestartAfterSpeechRef.current = false;
+      dictation.start();
+    }
+  }, [playback.speaking, dictation]);
 
   const answerPrompt = (prompt: ProfilePrompt, option: string) => {
     if (prompt.field === 'conditions') {
@@ -129,10 +210,30 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
     setPendingPrompt(null);
   };
 
+  // Tapping the mic while the answer is being read is the product's one
+  // barge-in gesture: cancel the playback outright (never `toggle`, which
+  // would read "start speaking" as "resume") and start listening for what
+  // the person is already saying.
+  const handleMicClick = () => {
+    if (playback.speaking) {
+      autoRestartAfterSpeechRef.current = false;
+      playback.cancel();
+      dictation.start();
+      return;
+    }
+    dictation.toggle();
+  };
+
   const reset = () => {
+    autoRestartAfterSpeechRef.current = false;
+    dictation.stop();
+    playback.cancel();
     setQuestion('');
     setResponse(null);
     setPhase('idle');
+    setConversationId(crypto.randomUUID());
+    setTurns([]);
+    setNoVoiceNotice(false);
   };
 
   return (
@@ -200,7 +301,8 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
                             ? 'animate-pulse bg-danger-100 text-danger-500 motion-reduce:animate-none'
                             : 'text-indigo-800 hover:bg-indigo-50',
                         )}
-                        onClick={dictation.toggle}
+                        disabled={phase === 'loading'}
+                        onClick={handleMicClick}
                         type="button"
                       >
                         <Mic aria-hidden className="size-4" />
@@ -234,15 +336,18 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
                   {phase === 'emergency' && response ? (
                     <EmergencyPanel key="emergency" response={response} reset={reset} />
                   ) : null}
-                  {phase === 'offTopic' ? <OffTopicPanel key="offTopic" locale={locale} reset={reset} /> : null}
+                  {phase === 'offTopic' ? (
+                    <OffTopicPanel key="offTopic" playback={playback} reset={reset} />
+                  ) : null}
                   {phase === 'result' && response?.research ? (
-                    <ResearchPanel
-                      advisory={response.advisory}
+                    <ConversationPanel
                       key="result"
-                      locale={locale}
+                      noVoiceNotice={noVoiceNotice}
+                      playback={playback}
                       research={response.research}
                       reset={reset}
                       submitQuestion={submitQuestion}
+                      turns={turns}
                     />
                   ) : null}
                   {phase === 'unavailable' ? (
@@ -358,15 +463,20 @@ function EmergencyPanel({
  * deterministic classifier kept outside the model entirely (or discarded
  * after the model itself drifted off-topic — see the route's post-check).
  * Warm, one line, no lecture, per the ledger. Indigo rather than the
- * emergency panel's danger red — this is a redirect, not an alarm — and
- * reuses the same Listen mechanism `ResearchPanel` already has, since
- * auto-speak does not exist until task H.
+ * emergency panel's danger red — this is a redirect, not an alarm.
+ * `playback` is lifted from `GetCareFlow` (task H) rather than owned here,
+ * so the conversation's one speech-synthesis instance never forks in two.
  */
-function OffTopicPanel({ reset, locale }: { reset: () => void; locale: ResearchLanguage }) {
+function OffTopicPanel({
+  reset,
+  playback,
+}: {
+  reset: () => void;
+  playback: ReturnType<typeof useSpeechPlayback>;
+}) {
   const t = useTranslations('getCare.offTopic');
   const actionsT = useTranslations('getCare.actions');
   const resultT = useTranslations('getCare.result');
-  const playback = useSpeechPlayback(locale);
   const reply = t('reply');
   return (
     <Panel className="bg-indigo-50">
@@ -413,42 +523,50 @@ function formatMedicineList(medicines: readonly string[], locale: ResearchLangua
 
 function AdvisoryBlock({ text }: { text: string }) {
   return (
-    <p className="mt-6 flex gap-2 rounded-xl bg-marigold-100 p-4 text-sm leading-relaxed font-semibold text-marigold-900" role="note">
+    <p className="mt-3 flex gap-2 rounded-xl bg-marigold-100 p-4 text-sm leading-relaxed font-semibold text-marigold-900" role="note">
       <Stethoscope aria-hidden className="mt-0.5 size-4 shrink-0" />
       {text}
     </p>
   );
 }
 
-function ResearchPanel({
-  advisory,
+/**
+ * Round five, task H: the visible thread. Replaces the single "one question,
+ * one answer" card with every turn in the current conversation, newest at
+ * the bottom — `turns` already carries whatever advisory text an answer
+ * earned, computed once in `GetCareFlow` so this component never recomputes
+ * (or drifts from) the same logic used to decide what gets auto-spoken.
+ * Citations, related questions and the disclaimer still describe only the
+ * *latest* answer — `research` — the same way the single-card version did.
+ */
+function ConversationPanel({
+  turns,
   research,
   reset,
   submitQuestion,
-  locale,
+  playback,
+  noVoiceNotice,
 }: {
-  advisory: ResearchAdvisory | null;
+  turns: DisplayTurn[];
   research: HealthResearch;
   reset: () => void;
   submitQuestion: (question: string) => Promise<void>;
-  locale: ResearchLanguage;
+  playback: ReturnType<typeof useSpeechPlayback>;
+  noVoiceNotice: boolean;
 }) {
   const t = useTranslations('getCare');
-  const advisoryT = useTranslations('getCare.advisory');
-  const playback = useSpeechPlayback(locale);
+  const conversationT = useTranslations('getCare.conversation');
 
   if (research.status !== 'complete' || !research.answer) {
     return <SetupPanel research={research} reset={reset} />;
   }
 
-  const advisoryText = advisory
-    ? advisory.kind === 'medicine'
-      ? advisoryT('medicine', { medicines: formatMedicineList(advisory.medicines, locale) })
-      : advisoryT('advice')
-    : null;
-  // Spoken as one utterance with the answer, so Listen (and, later, auto-speak)
+  const lastAssistantTurn = [...turns].reverse().find((turn) => turn.role === 'assistant');
+  // Spoken as one utterance with the answer, so Listen (and auto-speak)
   // never lets the warning go unheard just because it renders as a separate block.
-  const spokenText = advisoryText ? `${research.answer} ${advisoryText}` : research.answer;
+  const spokenText = lastAssistantTurn
+    ? [lastAssistantTurn.text, lastAssistantTurn.advisoryText].filter(Boolean).join(' ')
+    : research.answer;
 
   return (
     <Panel className="bg-white ring-1 ring-line">
@@ -458,9 +576,9 @@ function ResearchPanel({
           <p className="text-sm font-extrabold tracking-wide uppercase">{t('result.eyebrow')}</p>
         </div>
         {/*
-          Reads the answer aloud in the interface language. Only rendered when
-          a matching voice exists on the device, so Nepali is never mangled
-          through an English voice — see useSpeechPlayback.
+          Reads the latest answer aloud in the interface language. Only
+          rendered when a matching voice exists on the device, so Nepali is
+          never mangled through an English voice — see useSpeechPlayback.
         */}
         {playback.available ? (
           <button
@@ -479,10 +597,40 @@ function ResearchPanel({
           </button>
         ) : null}
       </div>
-      <h2 className="mt-4 text-2xl">{t('result.heading')}</h2>
-      <p className="mt-4 whitespace-pre-wrap text-base leading-7">{research.answer}</p>
 
-      {advisoryText ? <AdvisoryBlock text={advisoryText} /> : null}
+      <ol aria-label={conversationT('threadLabel')} className="mt-5 flex flex-col gap-3">
+        {turns.map((turn) => (
+          <li className={cn('flex', turn.role === 'user' ? 'justify-end' : 'justify-start')} key={turn.id}>
+            <div
+              className={cn(
+                'max-w-[85%] rounded-2xl px-4 py-3 text-base leading-7 whitespace-pre-wrap',
+                turn.role === 'user' ? 'bg-indigo-800 text-white' : 'bg-sand text-ink',
+              )}
+            >
+              <span className="sr-only">
+                {turn.role === 'user' ? conversationT('you') : conversationT('assistant')}:{' '}
+              </span>
+              {turn.text}
+              {turn.role === 'assistant' && turn.advisoryText ? (
+                <AdvisoryBlock text={turn.advisoryText} />
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ol>
+
+      {noVoiceNotice ? (
+        <p className="mt-4 rounded-xl bg-indigo-50 p-3 text-sm text-indigo-800" role="status">
+          {conversationT('noVoice')}
+        </p>
+      ) : null}
+
+      {turns.length > 0 ? (
+        <p className="mt-4 flex items-center gap-2 text-xs font-semibold text-ink-soft">
+          <ShieldCheck aria-hidden className="size-3.5 shrink-0 text-indigo-600" />
+          {conversationT('safeNote')}
+        </p>
+      ) : null}
 
       {research.citations.length > 0 ? (
         <div className="mt-7 border-t border-line pt-6">

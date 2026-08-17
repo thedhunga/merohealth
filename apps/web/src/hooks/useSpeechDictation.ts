@@ -51,26 +51,60 @@ const recognitionLang: Record<string, string> = {
 
 export type DictationStatus = 'idle' | 'listening' | 'denied';
 
-export function useSpeechDictation(locale: string, onFinalText: (text: string) => void) {
+export interface SpeechDictationOptions {
+  /**
+   * Round five, task H. Off by default (one utterance per tap, as before —
+   * `SymptomEntry` still wants that). On: `continuous`/`interimResults`
+   * turn on, and an utterance is not delivered the moment the recognizer
+   * pauses — it is delivered `silenceTimeoutMs` after the person actually
+   * stops talking, so a mid-sentence breath does not split one thought into
+   * two questions.
+   */
+  conversation?: boolean;
+  /** Silence, in ms, after speech before the accumulated utterance sends. Conversation mode only. */
+  silenceTimeoutMs?: number;
+}
+
+const DEFAULT_SILENCE_TIMEOUT_MS = 1200;
+
+export function useSpeechDictation(
+  locale: string,
+  onFinalText: (text: string) => void,
+  options: SpeechDictationOptions = {},
+) {
+  const { conversation = false, silenceTimeoutMs = DEFAULT_SILENCE_TIMEOUT_MS } = options;
   const [supported, setSupported] = useState(false);
   const [status, setStatus] = useState<DictationStatus>('idle');
   const recognizerRef = useRef<SpeechRecognitionLike | null>(null);
   // Ref so a stale closure never delivers text to an unmounted caller.
   const onFinalRef = useRef(onFinalText);
   onFinalRef.current = onFinalText;
+  // Conversation mode only: accumulates final chunks across the recognizer's
+  // own result batches until the silence timer decides the utterance is done.
+  const transcriptRef = useRef('');
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearSilenceTimer = useCallback(() => {
+    if (silenceTimerRef.current !== null) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     const w = window as SpeechWindow;
     setSupported(Boolean(w.SpeechRecognition ?? w.webkitSpeechRecognition));
     return () => {
+      clearSilenceTimer();
       recognizerRef.current?.abort();
       recognizerRef.current = null;
     };
-  }, []);
+  }, [clearSilenceTimer]);
 
   const stop = useCallback(() => {
+    clearSilenceTimer();
     recognizerRef.current?.stop();
-  }, []);
+  }, [clearSilenceTimer]);
 
   const start = useCallback(() => {
     const w = window as SpeechWindow;
@@ -79,17 +113,41 @@ export function useSpeechDictation(locale: string, onFinalText: (text: string) =
 
     const recognizer = new Ctor();
     recognizer.lang = recognitionLang[locale] ?? 'ne-NP';
-    recognizer.continuous = false;
-    recognizer.interimResults = false;
+    recognizer.continuous = conversation;
+    recognizer.interimResults = conversation;
+    transcriptRef.current = '';
 
     recognizer.onresult = (event) => {
-      let text = '';
+      let finalChunk = '';
+      let sawInterim = false;
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const result = event.results[i];
-        if (result?.isFinal) text += result[0].transcript;
+        if (result?.isFinal) finalChunk += result[0].transcript;
+        else sawInterim = true;
       }
-      const trimmed = text.trim();
-      if (trimmed) onFinalRef.current(trimmed);
+
+      if (!conversation) {
+        const trimmed = finalChunk.trim();
+        if (trimmed) onFinalRef.current(trimmed);
+        return;
+      }
+
+      if (finalChunk) transcriptRef.current += finalChunk;
+      if (!finalChunk && !sawInterim) return;
+
+      // Any speech — interim or final — pushes the silence window out. The
+      // utterance is only "done" once the person has actually stopped
+      // talking for `silenceTimeoutMs`, not on the recognizer's own guess.
+      clearSilenceTimer();
+      silenceTimerRef.current = setTimeout(() => {
+        silenceTimerRef.current = null;
+        const spoken = transcriptRef.current.trim();
+        transcriptRef.current = '';
+        // Stop before delivering: the caller's answer (and its speech) must
+        // not be picked back up by a recognizer still listening underneath it.
+        recognizerRef.current?.stop();
+        if (spoken) onFinalRef.current(spoken);
+      }, silenceTimeoutMs);
     };
 
     recognizer.onerror = ({ error }) => {
@@ -100,18 +158,19 @@ export function useSpeechDictation(locale: string, onFinalText: (text: string) =
 
     recognizer.onend = () => {
       recognizerRef.current = null;
+      clearSilenceTimer();
       setStatus((current) => (current === 'denied' ? 'denied' : 'idle'));
     };
 
     recognizerRef.current = recognizer;
     setStatus('listening');
     recognizer.start();
-  }, [locale]);
+  }, [locale, conversation, silenceTimeoutMs, clearSilenceTimer]);
 
   const toggle = useCallback(() => {
     if (status === 'listening') stop();
     else start();
   }, [status, start, stop]);
 
-  return { supported, status, toggle };
+  return { supported, status, start, stop, toggle };
 }

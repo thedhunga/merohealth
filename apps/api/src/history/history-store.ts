@@ -7,6 +7,15 @@ export interface HistoryExchangeInput {
   answer: string | null;
   language: string;
   outcome: 'answered' | 'emergency' | 'offTopic' | 'unavailable';
+  /**
+   * Round five, task H — mirrors `AnonymousExchange.conversationId`/
+   * `spokenIn` in `apps/web`. Both `| undefined`, not just optional: an
+   * exchange saved before this field existed carries neither, and that must
+   * migrate the same way a fresh anonymous id with no history does — not as
+   * `null`, which would claim a value was deliberately absent.
+   */
+  conversationId?: string | undefined;
+  spokenIn?: boolean | undefined;
 }
 
 /**

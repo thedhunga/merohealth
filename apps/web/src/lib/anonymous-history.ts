@@ -44,6 +44,22 @@ export interface AnonymousExchange {
    * entry simply has no opinion on whether it warranted one.
    */
   advisory?: { kind: 'medicine' | 'advice'; medicines: string[] };
+  /**
+   * Round five, task H: groups the exchanges asked in one sitting so the
+   * thread UI can render them as a single conversation rather than a flat
+   * list. `GetCareFlow` mints one id per mount and again on every explicit
+   * reset; absent on any exchange saved before this field existed, so old
+   * entries just render as their own single-turn conversation.
+   */
+  conversationId?: string;
+  /**
+   * Whether the question came in by voice (dictation) rather than typed —
+   * `GetCareFlow` uses this to decide whether the *answer* should be spoken
+   * automatically without the person pressing Listen. Absent on an entry
+   * saved before this field existed, which is correctly read as "no",
+   * matching how a typed question never auto-spoke either.
+   */
+  spokenIn?: boolean;
 }
 
 export interface AnonymousProfile {

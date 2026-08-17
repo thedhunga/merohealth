@@ -1,5 +1,18 @@
 export type ResearchLanguage = 'ne' | 'en';
 
+/**
+ * Round five, task H: one prior turn of the conversation, sent back to the
+ * provider so an answer can "refer to what the person already said" per the
+ * ledger's own instruction. `'assistant'` covers both providers' completed
+ * answers — the advisory text is deliberately not included here, since it is
+ * appended by us rather than said by the model and would otherwise teach the
+ * model to imitate our own fixed warning.
+ */
+export interface ConversationTurn {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
 export interface ResearchCitation {
   title: string;
   url: string;

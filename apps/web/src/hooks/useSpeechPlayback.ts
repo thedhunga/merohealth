@@ -46,6 +46,13 @@ export function useSpeechPlayback(locale: string) {
     };
   }, [locale]);
 
+  /** Stops playback outright, regardless of `toggle`'s start/cancel duality — used for barge-in, where "start speaking again" must never be read as "resume." */
+  const cancel = useCallback(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    setSpeaking(false);
+  }, []);
+
   const toggle = useCallback(
     (text: string) => {
       if (!voice) return;
@@ -69,5 +76,5 @@ export function useSpeechPlayback(locale: string) {
     [voice],
   );
 
-  return { available: voice !== null, speaking, toggle };
+  return { available: voice !== null, speaking, toggle, cancel };
 }

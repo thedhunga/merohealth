@@ -1250,11 +1250,17 @@
     },
     "result": {
       "eyebrow": "Cited general information",
-      "heading": "What current sources say",
       "sources": "Sources you can open",
       "related": "Related questions",
       "listen": "Listen",
       "listenStop": "Stop"
+    },
+    "conversation": {
+      "threadLabel": "Your conversation",
+      "you": "You",
+      "assistant": "Mero Health",
+      "safeNote": "This conversation is kept safe",
+      "noVoice": "This device has no matching voice, so the answer is shown as text."
     },
     "advisory": {
       "medicine": "This information is for research and understanding only. Before taking {medicines}, see a doctor or an authorised health worker.",

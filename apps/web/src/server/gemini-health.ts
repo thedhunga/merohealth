@@ -1,5 +1,6 @@
-import type { HealthResearch, ResearchLanguage } from '@/lib/companion-research';
+import type { ConversationTurn, HealthResearch, ResearchLanguage } from '@/lib/companion-research';
 import { CONTAINMENT_INSTRUCTION } from '@/lib/containment-instruction';
+import { CONVERSATION_INSTRUCTION, formatConversationTurns } from '@/lib/conversation-instruction';
 
 /**
  * Gemini with Google Search grounding, as a second research provider.
@@ -214,7 +215,7 @@ async function describeFailure(response: Response): Promise<string> {
  * behave the same way about diagnosis, dosing and emergencies, or swapping
  * providers would silently change the product's safety posture.
  */
-function instructionsFor(language: ResearchLanguage): string {
+function instructionsFor(language: ResearchLanguage, hasConversation: boolean): string {
   const languageInstruction =
     language === 'en'
       ? 'Respond in clear English.'
@@ -227,6 +228,7 @@ function instructionsFor(language: ResearchLanguage): string {
     'State important uncertainty. Encourage an appropriate qualified clinician when the question depends on personal examination, history, or testing.',
     'Do not provide emergency instructions; Mero Health performs deterministic emergency interception before this request.',
     CONTAINMENT_INSTRUCTION,
+    ...(hasConversation ? [CONVERSATION_INSTRUCTION] : []),
     'Prefer public-health agencies, medical societies, peer-reviewed research, and major academic health systems.',
     'Keep the answer under 250 words.',
     languageInstruction,
@@ -252,15 +254,21 @@ function requestBody(
   model: string,
   language: ResearchLanguage,
   question: string,
-  opts: { grounded: boolean },
+  opts: { grounded: boolean; turns: readonly ConversationTurn[] },
 ): Record<string, unknown> {
+  const hasConversation = opts.turns.length > 0;
   const instruction = opts.grounded
-    ? instructionsFor(language)
-    : `${instructionsFor(language)} ${ungroundedInstruction(language)}`;
+    ? instructionsFor(language, hasConversation)
+    : `${instructionsFor(language, hasConversation)} ${ungroundedInstruction(language)}`;
+  // Preserves the plain-string `input` shape when there is no prior turn —
+  // the transcript prefix only exists once there is something to continue.
+  const input = hasConversation
+    ? `Earlier in this conversation:\n${formatConversationTurns(opts.turns)}\n\nNew message: ${question}`
+    : question;
   return {
     model,
     system_instruction: instruction,
-    input: question,
+    input,
     store: false,
     generation_config: { thinking_level: 'low' },
     ...(opts.grounded ? { tools: [{ type: 'google_search' }] } : {}),
@@ -271,6 +279,7 @@ export async function researchWithGemini(
   question: string,
   language: ResearchLanguage,
   dependencies: GeminiDependencies = {},
+  turns: readonly ConversationTurn[] = [],
 ): Promise<HealthResearch> {
   const apiKey = dependencies.apiKey ?? process.env.GEMINI_API_KEY;
   if (!apiKey) return emptyResearch(language, 'setup-required');
@@ -290,7 +299,7 @@ export async function researchWithGemini(
           'x-goog-api-key': apiKey,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestBody(model, language, question, { grounded: true })),
+        body: JSON.stringify(requestBody(model, language, question, { grounded: true, turns })),
         signal: AbortSignal.timeout(GROUNDED_TIMEOUT_MS),
       });
       if (response.ok) break;
@@ -318,7 +327,7 @@ export async function researchWithGemini(
       response = await fetchImpl(ENDPOINT, {
         method: 'POST',
         headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody(candidates[0], language, question, { grounded: false })),
+        body: JSON.stringify(requestBody(candidates[0], language, question, { grounded: false, turns })),
         // A full Nepali answer from a thinking model runs past 20 s; the
         // route's maxDuration is set to cover this.
         signal: AbortSignal.timeout(UNGROUNDED_TIMEOUT_MS),

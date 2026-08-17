@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearPendingProfileConfirmation,
   readPendingProfileConfirmation,
+  recordExchange,
   stashPendingProfileConfirmation,
 } from '@/lib/anonymous-history';
 
@@ -55,5 +56,30 @@ describe('pending profile confirmation', () => {
 
   it('reads null when nothing was ever stashed', () => {
     expect(readPendingProfileConfirmation()).toBeNull();
+  });
+});
+
+describe('recordExchange outage behaviour — round five task H', () => {
+  it('does not throw when localStorage.setItem fails (quota or private mode), so the conversation continues in memory', () => {
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: () => null,
+        setItem: () => {
+          throw new Error('QuotaExceededError');
+        },
+        removeItem: () => {},
+      },
+    });
+
+    expect(() =>
+      recordExchange({
+        question: 'दुई दिनदेखि ज्वरो छ',
+        answer: 'आराम गर्नुहोस्।',
+        language: 'ne',
+        outcome: 'answered',
+        conversationId: 'conv-1',
+        spokenIn: true,
+      }),
+    ).not.toThrow();
   });
 });

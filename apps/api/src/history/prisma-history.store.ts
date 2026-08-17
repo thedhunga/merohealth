@@ -43,6 +43,11 @@ export class PrismaHistoryStore implements HistoryStore {
                   answer: exchange.answer,
                   language: exchange.language,
                   outcome: exchange.outcome,
+                  // Conditionally spread, same `exactOptionalPropertyTypes`
+                  // reasoning as `profileSnapshot` above: an absent key means
+                  // "leave the column null", not "set it to undefined".
+                  ...(exchange.conversationId ? { conversationId: exchange.conversationId } : {}),
+                  ...(exchange.spokenIn !== undefined ? { spokenIn: exchange.spokenIn } : {}),
                 })),
               }),
             ]

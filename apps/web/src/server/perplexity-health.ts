@@ -1,5 +1,6 @@
-import type { HealthResearch, ResearchLanguage } from '@/lib/companion-research';
+import type { ConversationTurn, HealthResearch, ResearchLanguage } from '@/lib/companion-research';
 import { CONTAINMENT_INSTRUCTION } from '@/lib/containment-instruction';
+import { CONVERSATION_INSTRUCTION } from '@/lib/conversation-instruction';
 
 interface SonarSearchResult {
   title?: string;
@@ -55,6 +56,7 @@ export async function researchHealthQuestion(
   question: string,
   language: ResearchLanguage,
   dependencies: ResearchDependencies = {},
+  turns: readonly ConversationTurn[] = [],
 ): Promise<HealthResearch> {
   const apiKey = dependencies.apiKey ?? process.env.PERPLEXITY_API_KEY;
   if (!apiKey) return emptyResearch(language, 'setup-required');
@@ -71,6 +73,7 @@ export async function researchHealthQuestion(
     'State important uncertainty. Encourage an appropriate qualified clinician when the question depends on personal examination, history, or testing.',
     'Do not provide emergency instructions; Mero Health performs deterministic emergency interception before this request.',
     CONTAINMENT_INSTRUCTION,
+    ...(turns.length > 0 ? [CONVERSATION_INSTRUCTION] : []),
     'Prefer public-health agencies, medical societies, peer-reviewed research, and major academic health systems.',
     languageInstruction,
   ].join(' ');
@@ -86,6 +89,10 @@ export async function researchHealthQuestion(
         model: dependencies.model ?? process.env.PERPLEXITY_MODEL ?? 'sonar-pro',
         messages: [
           { role: 'system', content: systemPrompt },
+          // Perplexity's chat-completions shape takes turns natively — no
+          // transcript-prefix workaround needed, unlike Gemini's single
+          // `input` string.
+          ...turns.map((turn) => ({ role: turn.role, content: turn.text })),
           { role: 'user', content: question },
         ],
         temperature: 0.1,

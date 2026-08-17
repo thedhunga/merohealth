@@ -1104,14 +1104,19 @@ model HistoryMigration {
 // idempotency key for the whole batch, and an individual exchange has
 // nothing else that would need to trace back to the device it was asked on.
 model HistoryExchange {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
-  askedAt   DateTime
-  question  String
-  answer    String?
-  language  String
-  outcome   String
-  createdAt DateTime @default(now())
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  askedAt        DateTime
+  question       String
+  answer         String?
+  language       String
+  outcome        String
+  // Round five, task H: groups exchanges migrated from the same anonymous
+  // conversation session. Nullable — an exchange saved before this field
+  // existed has no conversation to belong to.
+  conversationId String?
+  spokenIn       Boolean?
+  createdAt      DateTime @default(now())
 
   @@index([userId, askedAt])
 }

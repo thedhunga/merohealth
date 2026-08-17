@@ -1,4 +1,4 @@
-import type { HealthResearch, ResearchLanguage } from '@/lib/companion-research';
+import type { ConversationTurn, HealthResearch, ResearchLanguage } from '@/lib/companion-research';
 
 import { researchWithGemini } from './gemini-health';
 import { researchHealthQuestion as researchWithPerplexity } from './perplexity-health';
@@ -28,16 +28,17 @@ export function selectProvider(env: Readonly<Record<string, string | undefined>>
 export async function researchHealthQuestion(
   question: string,
   language: ResearchLanguage,
+  turns: readonly ConversationTurn[] = [],
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): Promise<HealthResearch> {
   switch (selectProvider(env)) {
     case 'gemini':
-      return researchWithGemini(question, language);
+      return researchWithGemini(question, language, {}, turns);
     case 'perplexity':
-      return researchWithPerplexity(question, language);
+      return researchWithPerplexity(question, language, {}, turns);
     default:
       // No key anywhere: report setup-required through the Gemini shape so
       // the caller sees one consistent "not configured" state.
-      return researchWithGemini(question, language, { apiKey: undefined });
+      return researchWithGemini(question, language, { apiKey: undefined }, turns);
   }
 }

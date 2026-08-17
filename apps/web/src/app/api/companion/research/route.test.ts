@@ -10,6 +10,12 @@ function request(body: unknown) {
   });
 }
 
+/** `RequestInit.body` is typed as `BodyInit | null | undefined`; every provider fetch in this route sends a JSON string. */
+function sentBodyOf(fetchSpy: { mock: { calls: unknown[][] } }): unknown {
+  const init = fetchSpy.mock.calls[0]?.[1] as RequestInit | undefined;
+  return JSON.parse(typeof init?.body === 'string' ? init.body : '{}');
+}
+
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
@@ -121,6 +127,51 @@ describe('POST /api/companion/research', () => {
     expect(body.research).toBeNull();
     expect(body.advisory).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('forwards prior turns as conversation context to the provider — round five task H', async () => {
+    vi.stubEnv('PERPLEXITY_API_KEY', 'test-key');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({ choices: [{ message: { content: 'Keep resting and drink fluids.' } }] }),
+        { status: 200 },
+      ),
+    );
+
+    await POST(
+      request({
+        message: 'Is it still safe today?',
+        language: 'en',
+        turns: [
+          { role: 'user', text: 'I have had a mild fever for two days' },
+          { role: 'assistant', text: 'Rest and monitor your temperature.' },
+        ],
+      }),
+    );
+
+    const sentBody = sentBodyOf(fetchSpy) as { messages: { role: string; content: string }[] };
+    expect(sentBody.messages.map((m) => m.role)).toEqual(['system', 'user', 'assistant', 'user']);
+    expect(sentBody.messages[1]?.content).toContain('mild fever');
+  });
+
+  it('caps prior turns to the last 6 and drops malformed entries', async () => {
+    vi.stubEnv('PERPLEXITY_API_KEY', 'test-key');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ choices: [{ message: { content: 'Answer.' } }] }), { status: 200 }),
+    );
+    const manyTurns = Array.from({ length: 9 }, (_, i) => ({ role: 'user', text: `turn ${i}` }));
+
+    await POST(
+      request({
+        message: 'ok?',
+        language: 'en',
+        turns: [...manyTurns, { role: 'nope', text: 'bad role' }, { role: 'user' }],
+      }),
+    );
+
+    const sentBody = sentBodyOf(fetchSpy) as { messages: unknown[] };
+    // system + last 6 valid turns + the new question = 8
+    expect(sentBody.messages).toHaveLength(8);
   });
 
   it('discards an answer that drifted off-topic despite the containment instruction', async () => {

@@ -102,6 +102,32 @@ describe('HistoryController.migrate', () => {
     expect(store.migrations[0]?.exchanges[0]?.outcome).toBe('offTopic');
   });
 
+  it('carries conversationId and spokenIn through migration — round five task H', async () => {
+    const { controller, store } = buildController();
+    const body = {
+      anonymousId: 'anon-1',
+      store: {
+        version: 1,
+        exchanges: [{ ...VALID_BODY.store.exchanges[0], conversationId: 'conv-1', spokenIn: true }],
+        profile: {},
+      },
+    };
+
+    await controller.migrate(currentUser('sunita'), body);
+
+    expect(store.migrations[0]?.exchanges[0]?.conversationId).toBe('conv-1');
+    expect(store.migrations[0]?.exchanges[0]?.spokenIn).toBe(true);
+  });
+
+  it('accepts an exchange with neither field — pre-task-H entries still migrate', async () => {
+    const { controller, store } = buildController();
+
+    const result = await controller.migrate(currentUser('sunita'), VALID_BODY);
+
+    expect(result).toEqual({ ok: true, alreadyMigrated: false });
+    expect(store.migrations[0]?.exchanges[0]?.conversationId).toBeUndefined();
+  });
+
   it('rejects an exchange with an out-of-range outcome value', async () => {
     const { controller } = buildController();
     const body = {

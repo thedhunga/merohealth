@@ -48,6 +48,31 @@ describe('researchHealthQuestion', () => {
     expect(result.citations).toHaveLength(1);
   });
 
+  it('sends prior turns as chat messages ahead of the new question — round five task H', async () => {
+    let seenBody: Record<string, unknown> | undefined;
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation((_url, init) => {
+      seenBody = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as Record<string, unknown>;
+      return Promise.resolve(
+        new Response(JSON.stringify({ choices: [{ message: { content: 'Keep resting.' } }] }), { status: 200 }),
+      );
+    });
+
+    await researchHealthQuestion(
+      'Is it still safe today?',
+      'en',
+      { apiKey: 'test-key', fetchImpl },
+      [
+        { role: 'user', text: 'I have had a mild fever for two days' },
+        { role: 'assistant', text: 'Rest and monitor your temperature.' },
+      ],
+    );
+
+    const messages = seenBody?.['messages'] as { role: string; content: string }[];
+    expect(messages.map((m) => m.role)).toEqual(['system', 'user', 'assistant', 'user']);
+    expect(messages[1]?.content).toBe('I have had a mild fever for two days');
+    expect(messages[3]?.content).toBe('Is it still safe today?');
+  });
+
   it('fails closed when the upstream provider is unavailable', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockRejectedValue(new Error('offline'));
 

@@ -1,7 +1,7 @@
 import { assessSafety, getSafetyTemplate } from '@swasthya/clinical-safety';
 
 import { computeAdvisory } from '@/lib/advisory';
-import type { CompanionResearchResponse, ResearchLanguage } from '@/lib/companion-research';
+import type { CompanionResearchResponse, ConversationTurn, ResearchLanguage } from '@/lib/companion-research';
 import { classifyMessageDomain } from '@/lib/domain-classification';
 import { researchHealthQuestion } from '@/server/research-provider';
 
@@ -10,9 +10,30 @@ export const runtime = 'nodejs';
 // model can exceed a minute's default budget on some plans; be explicit.
 export const maxDuration = 60;
 
-function parseRequest(value: unknown): { message: string; language: ResearchLanguage } | null {
+/** Prior turns are capped so a runaway conversation can't blow the prompt budget: last 6, 2000 characters each. */
+const MAX_TURNS = 6;
+const MAX_TURN_CHARS = 2000;
+
+function parseTurns(value: unknown): ConversationTurn[] {
+  if (!Array.isArray(value)) return [];
+  const turns: ConversationTurn[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const candidate = item as { role?: unknown; text?: unknown };
+    if (candidate.role !== 'user' && candidate.role !== 'assistant') continue;
+    if (typeof candidate.text !== 'string') continue;
+    const text = candidate.text.normalize('NFKC').trim().slice(0, MAX_TURN_CHARS);
+    if (!text) continue;
+    turns.push({ role: candidate.role, text });
+  }
+  return turns.slice(-MAX_TURNS);
+}
+
+function parseRequest(
+  value: unknown,
+): { message: string; language: ResearchLanguage; turns: ConversationTurn[] } | null {
   if (!value || typeof value !== 'object') return null;
-  const input = value as { message?: unknown; language?: unknown };
+  const input = value as { message?: unknown; language?: unknown; turns?: unknown };
   if (typeof input.message !== 'string') return null;
 
   const message = input.message.normalize('NFKC').trim();
@@ -21,6 +42,7 @@ function parseRequest(value: unknown): { message: string; language: ResearchLang
   return {
     message,
     language: input.language === 'en' ? 'en' : 'ne',
+    turns: parseTurns(input.turns),
   };
 }
 
@@ -70,7 +92,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const research = await researchHealthQuestion(input.message, input.language);
+  const research = await researchHealthQuestion(input.message, input.language, input.turns);
   // Post-check: the model was told to stay inside health (see
   // `instructionsFor` in both providers), but the containment instruction is
   // advisory to the model, not enforced by it. Re-running the same
