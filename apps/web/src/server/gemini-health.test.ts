@@ -197,6 +197,21 @@ describe('researchWithGemini', () => {
     expect(result.diagnostic).toContain('tried=[gemini-3.7-flash,gemini-3.5-flash,gemini-3.5-flash-lite,gemini-2.5-flash]');
   });
 
+  it('on a detail-less 429 walks every model, then probes what exactly is refused', async () => {
+    const urls: string[] = [];
+    const fetchImpl: typeof fetch = ((url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { tools?: unknown[] };
+      urls.push(`${String(url).includes(':generateContent') ? 'legacy' : 'interactions'}${body.tools ? '+tools' : ''}`);
+      return Promise.resolve(new Response(JSON.stringify({ error: { message: 'You exceeded your current quota' } }), { status: 429 }));
+    }) as unknown as typeof fetch;
+    const result = await researchWithGemini('x', 'ne', { apiKey: 'k', fetchImpl });
+    expect(result.status).toBe('unavailable');
+    // four grounded attempts, then one ungrounded interactions probe and one legacy grounded probe
+    expect(urls).toEqual(['interactions+tools', 'interactions+tools', 'interactions+tools', 'interactions+tools', 'interactions', 'legacy+tools']);
+    expect(result.diagnostic).toContain('tried=[gemini-3.7-flash,gemini-3.5-flash,gemini-3.5-flash-lite,gemini-2.5-flash]');
+    expect(result.diagnostic).toContain('probe[interactions-ungrounded=429 generateContent-grounded=429]');
+  });
+
   it('names a successful call\'s absence of diagnostic', async () => {
     const ok = await researchWithGemini('x', 'en', { apiKey: 'k', fetchImpl: fetchReturning(200, groundedResponse) });
     expect(ok.diagnostic).toBeUndefined();

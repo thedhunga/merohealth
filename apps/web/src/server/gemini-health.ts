@@ -137,7 +137,37 @@ function quotaViolations(e: GoogleError | undefined): { quotaId: string; quotaVa
  * allowance is used up and every model will likely say the same — stop.
  */
 function isModelNotAllowed(status: number, e: GoogleError | undefined): boolean {
-  return status === 429 && quotaViolations(e).some((v) => v.quotaValue === '0');
+  if (status !== 429) return false;
+  const violations = quotaViolations(e);
+  // The interactions endpoint returns 429 with no violation details at all,
+  // so "zero allowance" and "used up" cannot be told apart. Trying the next
+  // name costs one rejected request; giving up costs the answer.
+  return violations.length === 0 || violations.some((v) => v.quotaValue === '0');
+}
+
+/**
+ * When every candidate is refused on quota, find out *what* is refused so the
+ * fix is a decision rather than a guess: is it grounding, or the interactions
+ * endpoint itself? Two minimal calls, statuses only, appended to the
+ * diagnostic. Runs only on total failure, so it costs nothing on the happy
+ * path and never affects the answer.
+ */
+async function probeQuotaShape(fetchImpl: typeof fetch, apiKey: string, model: string): Promise<string> {
+  const headers = { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' };
+  const status = async (url: string, body: unknown): Promise<string> => {
+    try {
+      const r = await fetchImpl(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(10_000) });
+      return String(r.status);
+    } catch {
+      return 'ERR';
+    }
+  };
+  const ungrounded = await status(ENDPOINT, { model, input: 'Reply with the single word OK.' });
+  const legacyGrounded = await status(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+    { contents: [{ parts: [{ text: 'Reply with the single word OK.' }] }], tools: [{ google_search: {} }] },
+  );
+  return `probe[interactions-ungrounded=${ungrounded} generateContent-grounded=${legacyGrounded}]`;
 }
 
 async function describeFailure(response: Response): Promise<string> {
@@ -222,8 +252,12 @@ export async function researchWithGemini(
 
     if (!response) return emptyResearch(language, 'unavailable', 'no model candidates');
     if (!response.ok) {
-      const detail = await describeFailure(response);
-      return emptyResearch(language, 'unavailable', gone.length ? `${detail} · tried=[${gone.join(',')}]` : detail);
+      let detail = await describeFailure(response);
+      if (gone.length) detail += ` · tried=[${gone.join(',')}]`;
+      if (response.status === 429 && gone.length === candidates.length && candidates[0]) {
+        detail += ` · ${await probeQuotaShape(fetchImpl, apiKey, candidates[0])}`;
+      }
+      return emptyResearch(language, 'unavailable', detail);
     }
 
     const data = (await response.json()) as InteractionResponse;
