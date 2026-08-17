@@ -145,8 +145,9 @@ read that before the first task.
       **Done 2026-08-17 — see the log entry below. Metering exists but has
       no caller yet; wiring it to an actual voice session is deferred, see
       the entry for why.**
-- [ ] Outage test: config missing → page renders with "price soon", nothing
-      else breaks.
+- [x] Outage test: config missing → page renders with "price soon", nothing
+      else breaks. **Done 2026-08-17 — see the log entry below. Round six
+      task L is now fully checked.**
 
 ## K′. Duplex voice spike — gated on `GEMINI_LIVE_ENABLED=true` (owner turns on billing)
 
@@ -1717,6 +1718,42 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-17 — **Round six, task L (fifth and last box): outage test for the
+  freemium config.** Done. **Task L is now fully checked** — all five boxes
+  landed. The next unchecked item in file order is K′ (duplex voice spike,
+  gated on `GEMINI_LIVE_ENABLED`).
+
+  **Housekeeping, same shape yet again — sixth run in a row.** Local `main`
+  had no common ancestor with `origin/main` (`git merge-base` empty) though
+  `git status` was clean. `git reset --hard origin/main` and proceeded, same
+  fix every prior entry describes. Flagging again only because six-in-a-row
+  is worth someone eventually looking at the container/clone setup itself,
+  not because the fix changed.
+
+  **What was tested and why this was the real gap.** `pricing.test.ts`
+  already asserted `FREEMIUM_VOICE_CONFIG` is entirely `null` with no env
+  vars set, and that `formatFreemiumMinutes`/`formatFreemiumPriceNpr` return
+  the caller's placeholder for a `null` input — but nothing tied that
+  together the way the two actual call sites do, and nothing had ever
+  asserted the bare `PRICE_PLUS_NPR` export (read directly by `GetCareFlow`'s
+  `UpsellCard`, not through `FREEMIUM_VOICE_CONFIG`) defaults to `null`. Added
+  two cases: one walks the real `plans` catalogue from `@swasthya/entitlements`
+  across both locales the way `PricingView` maps over it, asserting
+  `formatFreemiumMinutes(getFreemiumVoiceMinutesForTier(tier), locale, …)`
+  neither throws nor guesses a number; the other asserts `PRICE_PLUS_NPR` is
+  `null` by default and that `formatFreemiumPriceNpr` degrades the same way
+  for the dialogue's upsell card. This repo has no React-render test harness
+  anywhere (no `.tsx` tests, no `@testing-library/react`, no jsdom) — every
+  existing "outage" test in this codebase (see `anonymous-history.test.ts`'s
+  `recordExchange outage behaviour`) is a logic-layer `expect(() =>
+  …).not.toThrow()` check, so this follows that precedent rather than adding
+  new test infrastructure for one box.
+
+  **Gate.** `pnpm install --frozen-lockfile`, `lint`, `typecheck`, `test`,
+  `build` all green from the repo root. No UI touched this run, so no mobile
+  measurement is applicable — the change is two new test cases in
+  `apps/web/src/content/pricing.test.ts`, nothing else.
 
 - 2026-08-17 — **Round six, task L (fourth box): on-device metering of the
   free tier's trial voice minutes, `lib/anonymous-history.ts` gains `usage`.**

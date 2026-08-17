@@ -139,3 +139,46 @@ describe('formatFreemiumMinutes', () => {
     expect(formatFreemiumMinutes(120, 'ne', 'मिनेट छिट्टै')).toBe((120).toLocaleString('ne-NP'));
   });
 });
+
+// Round six task L's last box. The two places that actually read this config
+// — the `/pricing` grid (PricingView, one card per `plans` entry) and the
+// dialogue's upsell card (GetCareFlow's UpsellCard, via the bare
+// `PRICE_PLUS_NPR` export) — must both degrade to a placeholder rather than
+// throw when the owner hasn't set any of the NEXT_PUBLIC_* values yet, which
+// is the real state of every environment before launch. `PRICE_PLUS_NPR`
+// itself was never asserted null in the tests above (only its non-null,
+// env-set value was), so this closes that gap alongside the full call chain.
+describe('outage: freemium config entirely missing — round six task L', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('walks every plan and locale the way PricingView does and gets the minutes-soon placeholder, never a throw', async () => {
+    const { formatFreemiumMinutes, getFreemiumVoiceMinutesForTier } = await import('./pricing');
+
+    for (const plan of plans) {
+      for (const locale of ['ne', 'en'] as const) {
+        expect(() =>
+          formatFreemiumMinutes(getFreemiumVoiceMinutesForTier(plan.tier), locale, 'Minutes soon'),
+        ).not.toThrow();
+        expect(
+          formatFreemiumMinutes(getFreemiumVoiceMinutesForTier(plan.tier), locale, 'Minutes soon'),
+        ).toBe('Minutes soon');
+      }
+    }
+  });
+
+  it('defaults PRICE_PLUS_NPR to null, so the upsell card in GetCareFlow reads price-soon instead of a guessed number', async () => {
+    const { formatFreemiumPriceNpr, PRICE_PLUS_NPR } = await import('./pricing');
+
+    expect(PRICE_PLUS_NPR).toBeNull();
+    for (const locale of ['ne', 'en'] as const) {
+      expect(() => formatFreemiumPriceNpr(PRICE_PLUS_NPR, locale, 'Price soon')).not.toThrow();
+      expect(formatFreemiumPriceNpr(PRICE_PLUS_NPR, locale, 'Price soon')).toBe('Price soon');
+    }
+  });
+});
