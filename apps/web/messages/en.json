@@ -1546,5 +1546,28 @@
     "signOut": {
       "cta": "Sign out"
     }
+  },
+  "voiceLab": {
+    "meta": {
+      "title": "Voice lab",
+      "body": "An owner-only page for testing a live voice conversation."
+    },
+    "eyebrow": "Lab",
+    "heading": "Live voice conversation",
+    "body": "This page is an experiment connecting directly by voice with Gemini. It is still being tested — results may not always be reliable.",
+    "start": "Start",
+    "connecting": "Connecting…",
+    "end": "End session",
+    "fallbackNotice": "The live voice session isn't available right now — showing the regular conversation mode instead.",
+    "transcript": {
+      "you": "You",
+      "assistant": "Mero Health"
+    },
+    "emergency": {
+      "eyebrow": "Regular conversation stopped",
+      "heading": "Please get immediate help now",
+      "fallback": "This may be an emergency. Go to the nearest appropriate hospital or contact a locally verified emergency service.",
+      "restart": "Start a new session"
+    }
   }
 }

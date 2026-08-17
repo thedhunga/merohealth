@@ -157,11 +157,15 @@ read that before the first task.
       wired to the real Gemini mint call, but reports itself 404 with the
       flag off (owner has not turned on billing); the `/voice-lab` page
       that would call it does not exist yet — next box.**
-- [ ] `/voice-lab` page (noindex, flag-gated): opens a Live session in
+- [x] `/voice-lab` page (noindex, flag-gated): opens a Live session in
       Nepali with the *same* system instruction as the text path + Round
       five containment/advisory text; live transcript of both sides;
       **emergency watcher** on transcripts → cancel + play our fixed
       template; falls back to conversation mode (H) if the socket fails.
+      **Done 2026-08-17 — see the log entry below. Built and gated exactly
+      as specified; the Live protocol itself is this run's best reading of
+      a preview surface it could never open live — see the log for what
+      that means for the next box (K′'s findings step).**
 - [ ] Findings section in the doc: Nepali in/out quality, interruption,
       latency, behaviour on 3G — measured on the owner's phone. Stop; owner
       decides go/no-go for making duplex the default mic behaviour.
@@ -1722,6 +1726,148 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-17 — **Round six, task K′ (second box): the `/voice-lab` page
+  itself.** Done. **K′'s second box is now checked.** The next unchecked
+  item in file order is K′'s third box — the findings write-up, which needs
+  the owner's real phone and cannot be done by a scheduled run.
+
+  **Housekeeping.** `git checkout main && git pull` failed on divergent
+  branches — local `main` (last synced 2026-08-15, "round three queue from a
+  full inventory") had no common ancestor with `origin/main` (50 commits,
+  newest "Round six K′ first box"). `git status` was clean first, so
+  `git reset --hard origin/main` discarded nothing local. Confirmed with
+  `git fetch origin main` again immediately before this commit — origin had
+  not moved since, so nothing to reconcile this time. Eighth run in a row
+  reporting this; still worth someone looking at why this container's local
+  `main` starts stale on every run rather than caching a fix here again.
+
+  **What was built, and the scope decision behind each piece.** Three pure,
+  fully unit-tested modules carry everything about this feature that *can*
+  be tested without a browser, matching how `voice-token.ts` tests message
+  shapes against a mocked `fetch` rather than a live API:
+  - `lib/voice-live-instruction.ts` — the Live session's system instruction.
+    Shares `CONTAINMENT_INSTRUCTION` verbatim with the text path's own
+    `instructionsFor`, but **does not** share its emergency-interception
+    sentence ("Mero Health performs deterministic emergency interception
+    before this request"). That sentence is true for the text path
+    (`assessSafety` runs on the written question before the model sees it)
+    and false for duplex voice, where per
+    `docs/product/freemium-and-voice-corpus.md` §3 "interception is
+    concurrent on the transcript... not pre-model." Telling the model
+    otherwise would be a lie in the prompt, so this instruction instead asks
+    the model to give its own emergency warning first and names the
+    concurrent watcher as backup — the doc's own "the watcher plus a hard
+    system instruction is the mitigation," written into the prompt itself
+    rather than assumed.
+  - `lib/gemini-live-protocol.ts` — `buildSetupMessage` (model,
+    `systemInstruction`, both `inputAudioTranscription` and
+    `outputAudioTranscription` turned on — this is what makes a live
+    transcript of both sides possible without running our own STT),
+    `buildAudioChunkMessage`, and `parseLiveServerMessages`, which turns one
+    server frame into zero or more typed events (`setupComplete`,
+    `transcript`, `audio`, `turnComplete`, `interrupted`, or `unknown` for
+    anything unrecognised — never a throw).
+  - `lib/pcm-audio.ts` — `encodePcm16Base64` (mic capture, resampled to the
+    16 kHz PCM16 Gemini Live expects) and `decodePcm16Base64` (24 kHz PCM16
+    output, the fixed rate Google documents for Live audio out — the one
+    format claim here that *is* a documented fixed contract, not a guess).
+  - `hooks/useGeminiLiveSession.ts` wires these three together with
+    `WebSocket`/`AudioContext`/`getUserMedia` — deliberately **not** unit
+    tested, the same reasoning `useSpeechDictation.ts`/`useSpeechPlayback.ts`
+    already establish in this repo (no jsdom harness, and every dependency
+    here only exists in a browser). It owns the state machine (`idle →
+    connecting → active → emergency | fallback | ended`), mic capture via
+    `ScriptProcessorNode` (deprecated but needs no separate worklet module
+    served as a static asset — the right trade for a flag-gated spike, not
+    the eventual product path), sequential `AudioBufferSourceNode` playback
+    of the model's audio, and the **emergency watcher**: `assessSafety` runs
+    on the accumulated text of *both* `inputTranscription` and
+    `outputTranscription` on every delta; on `interruptConversation`, the
+    session closes outright (the one unambiguous way to guarantee no more
+    Gemini-generated audio reaches the person, since the public Live
+    protocol has no documented client "cancel generation" message this run
+    could find and verify) and `getSafetyTemplate`'s fixed string is handed
+    to the UI, which speaks it with the browser's own `useSpeechPlayback` —
+    Gemini's voice never says our safety line, matching how the text path's
+    fixed templates are never model-generated either.
+  - `components/voice-lab/VoiceLabView.tsx` + `app/[locale]/voice-lab/
+    page.tsx`: noindex via explicit `robots` (the `account/page.tsx`
+    pattern, not registered in `content/routes.ts`), idle/connecting/active/
+    emergency UI states, and a `status === 'fallback'` branch that renders
+    `GetCareFlow` (Round five task H's conversation mode) directly — reached
+    whether the flag is off (`/api/voice/token` 404s), the mint failed, the
+    socket dropped, or the microphone was denied, all read the same way. A
+    small fallback notice explains the switch rather than silently swapping
+    UIs — honest metering/behaviour is a standing product principle, not
+    just for the pricing numbers.
+  - New i18n namespace `voiceLab` in both `messages/ne.json` and `en.json`
+    (parallel keys confirmed by hand — this repo has no automated
+    key-parity test to lean on).
+  - `.env.example`: `NEXT_PUBLIC_GEMINI_LIVE_MODEL`, public because the
+    browser opens the Live WebSocket directly with the ephemeral token and
+    has to know the model id to send in its own `setup` message — unlike
+    `GEMINI_API_KEY`/`GEMINI_LIVE_ENABLED`, which never leave the server.
+
+  **Deliberately out of scope.** No wiring to `anonymous-history.ts` —
+  neither `recordExchange` (conversationId/spokenIn) nor
+  `recordVoiceUsageSeconds` (Round six task L's still-uncalled metering
+  function) — the K′ box text does not ask for it, and folding it in here
+  would have coupled an unverifiable spike to the freemium metering surface
+  before either has been proven to work. Whoever wires duplex into the
+  freemium trial-minutes flow (a Round six K′ follow-on, once the findings
+  box gives a go) should treat `useGeminiLiveSession` as the seam.
+
+  **What could not be verified — read this before trusting any of the
+  above.** `GEMINI_LIVE_ENABLED` is still unset everywhere this run can
+  reach, so `useGeminiLiveSession.ts` has never opened a real Live
+  WebSocket. Everything in it beyond the three tested modules — the setup
+  message actually being accepted, the model id
+  (`gemini-live-2.5-flash-preview`, chosen because it was the clearest
+  concrete id this run's web search surfaced, but genuinely uncertain — see
+  `.env.example`'s override), whether `inputTranscription`/
+  `outputTranscription` deliver accumulated text or deltas (this code
+  assumes deltas and appends; if Google's API actually sends the whole
+  turn's text each time, transcripts will visibly duplicate and need a
+  one-line fix to replace instead of append), the exact WebSocket URL and
+  query-param auth convention for an ephemeral token, and the 16 kHz-in/24
+  kHz-out sample rates — is this run's best-effort reading of public,
+  outside-the-repo documentation for a preview API, not something exercised
+  against Google's real service. Verified instead with Playwright at 375px
+  against a locally built `next start`: the idle screen renders correctly in
+  both locales, the Start button is 48px tall (well over the 44px minimum)
+  and sits at the top of the first screen, and — the one path this run
+  *could* exercise end-to-end — the fallback branch was confirmed live by
+  setting `GEMINI_LIVE_ENABLED=true` with no `GEMINI_API_KEY`: the token
+  route correctly 503s, `useGeminiLiveSession` reads that as `'fallback'`,
+  and `GetCareFlow` renders underneath the notice exactly as designed, no
+  console errors. The K′ findings box (still unchecked, next in queue)
+  explicitly exists to catch what a browser-only run cannot: whether the
+  session actually opens, what Google's real message shapes turn out to be,
+  and Nepali audio quality on the owner's own phone.
+
+  **Mobile measurement, 375px, Playwright against `next start`.** New page,
+  no "before" to compare against. `/voice-lab` (ne): body height 1174px
+  (1.76 screens) — the site's shared header+footer chrome accounts for
+  nearly all of it (already tracked separately, see task B1/C's own
+  history); the page's own `<main>` content is a single screen with one
+  interactive element, the 139×48px Start button, 340px from the top.
+  `/en/voice-lab`: 1278px (1.92 screens), Start button 108×48px at 402px.
+  Fallback branch (`GetCareFlow` rendered inside `/voice-lab`) inherits
+  whatever `/get-care` itself already measures at — not re-measured here,
+  since no `/voice-lab`-specific styling touches it.
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`
+  (two real errors caught and fixed: `Window` has no `AudioContext` member
+  in this lib config — the global `AudioContext` check has to stand alone,
+  not intersected with `Window`; and `AudioBuffer.copyToChannel` wants
+  `Float32Array<ArrayBuffer>` specifically, not the wider
+  `Float32Array<ArrayBufferLike>` a bare `Float32Array` return-type
+  annotation defaults to), `pnpm test` (`@swasthya/web`: 34 files / 254
+  tests, 22 new across the three testable modules; full monorepo: 40/40
+  tasks, `@swasthya/api` 114 files / 757 tests, all green), `pnpm build`
+  (confirmed `/ne/voice-lab` and `/en/voice-lab` in the Next.js route
+  output) all green from a clean tree.
 
 - 2026-08-17 — **Round six, task K′ (first box): the Gemini Live
   ephemeral-token mint route, `/api/voice/token`.** Done. **K′'s first box
