@@ -1,19 +1,30 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import {
   clearForTraining,
   corpusReviewQueue,
   discardUtterance,
   grantCorpusConsent,
+  hasCorpusConsent,
   isCorpusConsentLive,
+  isDuplicateVoiceClip,
   revokeCorpusConsent,
   UtteranceNotAwaitingReviewError,
   utteranceIdsForOwner,
+  validateVoiceClipDuration,
+  VOICE_CONTRIBUTION_CONSENT_VERSION,
   type CorpusConsentGrant,
   type CorpusConsentKind,
   type CorpusUtterance,
+  type VoiceClip,
+  type VoiceClipSelfReport,
+  type VoiceContributionTaskKind,
 } from '@swasthya/language-corpus';
+import type { DocumentBlob, HealthDocumentStore } from '@swasthya/storage-adapters';
 import { LanguageCorpusRepository, type CorpusAuditEntry } from './language-corpus.repository.js';
+
+/** DI token for the Voice Contribution audio store — bound to a concrete adapter in LanguageCorpusModule. */
+export const VOICE_CLIP_AUDIO_STORE = 'VOICE_CLIP_AUDIO_STORE';
 
 export interface IngestUtteranceInput {
   id: string;
@@ -27,9 +38,24 @@ export interface IngestUtteranceInput {
   awaitingHumanReview: boolean;
 }
 
+export interface SubmitVoiceClipInput {
+  id: string;
+  contributorId: string;
+  taskId: string;
+  taskKind: VoiceContributionTaskKind;
+  selfReport: VoiceClipSelfReport;
+  device: string;
+  durationMs: number;
+  bytes: Buffer;
+  contentType: string;
+}
+
 @Injectable()
 export class LanguageCorpusService {
-  constructor(private readonly repository: LanguageCorpusRepository) {}
+  constructor(
+    private readonly repository: LanguageCorpusRepository,
+    @Inject(VOICE_CLIP_AUDIO_STORE) private readonly audioStore: HealthDocumentStore,
+  ) {}
 
   /**
    * Stores an utterance already produced by `retainUtterance` — consent
@@ -148,6 +174,74 @@ export class LanguageCorpusService {
     const updated = revokeCorpusConsent(this.repository.consentGrantsFor(userId), kind, now);
     for (const grant of updated) this.repository.saveConsentGrant(grant);
     return updated;
+  }
+
+  /**
+   * Round six §M's third box — the `/contribute` capture endpoint.
+   *
+   * Ordering matters: consent and duration are checked *before* any bytes
+   * reach the store, both because they are the cheap checks and because a
+   * consent check has to gate storage, not merely gate whether a database
+   * row later says the clip was allowed. Duplicate detection has to run
+   * *after* `put`, because the checksum it compares against only exists once
+   * the adapter has hashed the actual bytes (`StoredRef.checksumSha256`) —
+   * on a match the just-stored object is deleted again rather than kept
+   * orphaned, so a duplicate never quietly consumes storage.
+   *
+   * `packages/language-corpus`'s own doc comments on `validateVoiceClipDuration`
+   * and `isDuplicateVoiceClip` explain why the doc's fuller quality-gate list
+   * (SNR floor, silence trim, real near-duplicate *audio* similarity,
+   * profanity/PII on a transcript) is not implemented here: each needs either
+   * a decoded waveform (a new server-side audio dependency this box does not
+   * introduce) or a draft transcript (does not exist until the ASR step,
+   * Round six §M's next-but-one box). Picking those up is the next
+   * `/contribute`-adjacent box's job, not silently skipped.
+   */
+  async submitVoiceClip(input: SubmitVoiceClipInput): Promise<VoiceClip> {
+    const now = new Date().toISOString();
+    if (!hasCorpusConsent(this.repository.consentGrantsFor(input.contributorId), 'VOICE_CONTRIBUTION', now)) {
+      throw new ForbiddenException({
+        code: 'VOICE_CONTRIBUTION_CONSENT_REQUIRED',
+        message: 'No live VOICE_CONTRIBUTION consent; refusing to store a clip.',
+      });
+    }
+
+    const rejection = validateVoiceClipDuration(input.durationMs);
+    if (rejection) {
+      throw new BadRequestException({ code: `VOICE_CLIP_${rejection}`, message: `Voice clip rejected: ${rejection}` });
+    }
+
+    const blob: DocumentBlob = { bytes: input.bytes, contentType: input.contentType, clientEncrypted: false };
+    // `voice-contribution-` keeps these objects visibly distinct from
+    // health-document uploads within the same bucket/owner prefix — see this
+    // method's own module-level doc comment in `LanguageCorpusModule` for why
+    // this reuses that store rather than a bucket of its own.
+    const ref = await this.audioStore.put({
+      ownerId: input.contributorId,
+      filename: `voice-contribution-${input.id}.webm`,
+      blob,
+    });
+
+    const existingChecksums = this.repository
+      .voiceClipsByContributor(input.contributorId)
+      .map((clip) => clip.ref.checksumSha256);
+    if (isDuplicateVoiceClip(existingChecksums, ref.checksumSha256)) {
+      await this.audioStore.delete(ref);
+      throw new BadRequestException({ code: 'VOICE_CLIP_DUPLICATE', message: 'This exact recording has already been submitted.' });
+    }
+
+    return this.repository.saveVoiceClip({
+      id: input.id,
+      contributorId: input.contributorId,
+      consentVersion: VOICE_CONTRIBUTION_CONSENT_VERSION,
+      taskId: input.taskId,
+      taskKind: input.taskKind,
+      selfReport: input.selfReport,
+      device: input.device,
+      durationMs: input.durationMs,
+      capturedAt: now,
+      ref,
+    });
   }
 
   #audit(utteranceId: string, reviewerId: string, action: CorpusAuditEntry['action']): void {

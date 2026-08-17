@@ -3,26 +3,33 @@ import { describe, expect, it } from 'vitest';
 import {
   CorpusConsentError,
   CURRENT_POLICY_VERSION,
+  MAX_VOICE_CLIP_DURATION_MS,
+  MIN_VOICE_CLIP_DURATION_MS,
   UtteranceNotAwaitingReviewError,
   VOICE_CONTRIBUTION_CONSENT_VERSION,
+  ageBandOptions,
   buildSnapshot,
   clearForTraining,
   corpusReviewQueue,
   deidentify,
   discardUtterance,
   eraseFromSnapshot,
+  genderOptions,
   grantConsent,
   grantCorpusConsent,
   hasCorpusConsent,
   hasPurpose,
   isCorpusConsentLive,
+  isDuplicateVoiceClip,
   isLive,
+  motherTongueOptions,
   optionalPurposes,
   purposeForUtteranceKind,
   retainUtterance,
   revokeConsent,
   revokeCorpusConsent,
   utteranceIdsForOwner,
+  validateVoiceClipDuration,
   versionForCorpusConsentKind,
   type ConsentGrant,
   type CorpusConsentGrant,
@@ -446,5 +453,54 @@ describe('utteranceIdsForOwner', () => {
     ];
 
     expect(utteranceIdsForOwner(all, 'user-1')).toEqual(['a', 'c']);
+  });
+});
+
+describe('validateVoiceClipDuration', () => {
+  it('rejects a clip shorter than the minimum', () => {
+    expect(validateVoiceClipDuration(MIN_VOICE_CLIP_DURATION_MS - 1)).toBe('TOO_SHORT');
+  });
+
+  it('rejects a clip longer than the maximum', () => {
+    expect(validateVoiceClipDuration(MAX_VOICE_CLIP_DURATION_MS + 1)).toBe('TOO_LONG');
+  });
+
+  it('accepts a clip at either boundary, inclusive', () => {
+    expect(validateVoiceClipDuration(MIN_VOICE_CLIP_DURATION_MS)).toBeNull();
+    expect(validateVoiceClipDuration(MAX_VOICE_CLIP_DURATION_MS)).toBeNull();
+  });
+
+  it('accepts a clip comfortably inside the range', () => {
+    expect(validateVoiceClipDuration(5_000)).toBeNull();
+  });
+});
+
+describe('isDuplicateVoiceClip', () => {
+  it('flags a checksum already among the contributor\'s existing clips', () => {
+    expect(isDuplicateVoiceClip(['abc', 'def'], 'abc')).toBe(true);
+  });
+
+  it('passes a checksum that has not been seen before', () => {
+    expect(isDuplicateVoiceClip(['abc', 'def'], 'ghi')).toBe(false);
+  });
+
+  it('passes on an empty history', () => {
+    expect(isDuplicateVoiceClip([], 'abc')).toBe(false);
+  });
+});
+
+describe('Voice Contribution self-report option lists', () => {
+  it('names every first language docs/product/freemium-and-voice-corpus.md §4 calls out, plus OTHER', () => {
+    expect(motherTongueOptions).toEqual([
+      'NEPALI', 'MAITHILI', 'BHOJPURI', 'THARU', 'TAMANG', 'NEWAR', 'GURUNG', 'MAGAR', 'OTHER',
+    ]);
+  });
+
+  it('covers a contiguous set of age bands with no gap', () => {
+    expect(ageBandOptions).toEqual(['13_17', '18_24', '25_34', '35_44', '45_59', '60_PLUS']);
+  });
+
+  it('offers a self-describe and a decline option alongside WOMAN/MAN', () => {
+    expect(genderOptions).toEqual(['WOMAN', 'MAN', 'OTHER', 'PREFER_NOT_TO_SAY']);
   });
 });

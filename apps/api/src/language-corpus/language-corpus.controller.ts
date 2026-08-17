@@ -10,6 +10,12 @@ import { LanguageCorpusService } from './language-corpus.service.js';
 const utteranceKindSchema = z.enum(['USER_MESSAGE', 'CORRECTION', 'VOICE_TRANSCRIPT']);
 const localeSchema = z.enum(['ne', 'en', 'ne-Latn']);
 const corpusConsentKindSchema = z.enum(['VOICE_CONTRIBUTION', 'HEALTH_CONVERSATION_AUDIO']);
+const voiceContributionTaskKindSchema = z.enum(['READ_PROMPT', 'FREE_SPEECH']);
+const motherTongueSchema = z.enum([
+  'NEPALI', 'MAITHILI', 'BHOJPURI', 'THARU', 'TAMANG', 'NEWAR', 'GURUNG', 'MAGAR', 'OTHER',
+]);
+const ageBandSchema = z.enum(['13_17', '18_24', '25_34', '35_44', '45_59', '60_PLUS']);
+const genderSchema = z.enum(['WOMAN', 'MAN', 'OTHER', 'PREFER_NOT_TO_SAY']);
 
 // Same regex `SchedulingController`/`FamilyGrantsController` each carry their
 // own copy of, for the same "explicit over a library validator" reason
@@ -31,6 +37,27 @@ const ingestSchema = z.object({
   precedingAssistantText: z.string().trim().min(1).nullable().default(null),
   redactionCount: z.number().int().min(0),
   awaitingHumanReview: z.boolean(),
+});
+
+// No `contributorId` field, same reason `ingestSchema` above has none: the
+// owner is always the session identity. `bytesBase64` mirrors
+// `RecordsController`'s `captureSchema.bytesBase64` — JSON has no binary
+// type, so the browser base64-encodes the recorded clip before this reaches
+// the API.
+const voiceClipSchema = z.object({
+  id: z.string().trim().min(1),
+  taskId: z.string().trim().min(1),
+  taskKind: voiceContributionTaskKindSchema,
+  selfReport: z.object({
+    district: z.string().trim().min(1).max(100),
+    motherTongue: motherTongueSchema,
+    ageBand: ageBandSchema,
+    gender: genderSchema.nullable().default(null),
+  }),
+  device: z.string().trim().min(1).max(500),
+  durationMs: z.number().int().positive(),
+  contentType: z.string().trim().min(1),
+  bytesBase64: z.string().trim().min(1),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
@@ -175,5 +202,49 @@ export class LanguageCorpusController {
     const parsed = parseOrThrow(corpusConsentKindSchema, kind);
     const grants = this.corpus.revokeConsent(user.subjectId, parsed);
     return { grants };
+  }
+
+  /**
+   * Round six §M's third box — `/contribute`'s only write. Self-service like
+   * the consent routes above (`SessionAuthGuard` only, `contributorId` always
+   * from `@CurrentUser()`), not `CorpusReviewerGuard`: submitting one's own
+   * recording is not a reviewer decision. `LanguageCorpusService.submitVoiceClip`
+   * does the actual consent/duration/duplicate gating and throws the
+   * `Forbidden`/`BadRequest` this route lets propagate as-is.
+   */
+  @Post('voice-contribution/clips')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: 'Stores one Voice Contribution recording — consent-gated, quality-gated' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['id', 'taskId', 'taskKind', 'selfReport', 'device', 'durationMs', 'contentType', 'bytesBase64'],
+      properties: {
+        id: { type: 'string' },
+        taskId: { type: 'string' },
+        taskKind: { enum: voiceContributionTaskKindSchema.options },
+        selfReport: {
+          type: 'object',
+          properties: {
+            district: { type: 'string' },
+            motherTongue: { enum: motherTongueSchema.options },
+            ageBand: { enum: ageBandSchema.options },
+            gender: { enum: genderSchema.options, nullable: true },
+          },
+        },
+        device: { type: 'string' },
+        durationMs: { type: 'integer' },
+        contentType: { type: 'string' },
+        bytesBase64: { type: 'string' },
+      },
+    },
+  })
+  submitVoiceClip(@CurrentUser() user: CurrentUserResult, @Body() body: unknown) {
+    const { bytesBase64, ...input } = parseOrThrow(voiceClipSchema, body);
+    return this.corpus.submitVoiceClip({
+      ...input,
+      contributorId: user.subjectId,
+      bytes: Buffer.from(bytesBase64, 'base64'),
+    });
   }
 }

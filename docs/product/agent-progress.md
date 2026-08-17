@@ -179,9 +179,13 @@ read that before the first task.
 - [x] `apps/api`: `Consent { userId, kind: VOICE_CONTRIBUTION |
       HEALTH_CONVERSATION_AUDIO, version, grantedAt, revokedAt }`; toggle
       in account; audit trail. **Done 2026-08-17 — see the log entry below.**
-- [ ] Voice Contribution flow (`/contribute`): read prompts + free-speech
+- [x] Voice Contribution flow (`/contribute`): read prompts + free-speech
       tasks; district / mother tongue / age band self-report; MediaRecorder
       capture; upload to object storage on the server; quality gates.
+      **Done 2026-08-17 — see the log entry below. Duration-bound and
+      exact-duplicate quality gates ship; SNR/silence-trim/near-duplicate
+      audio-similarity/transcript-PII gates are deferred, with reasoning, to
+      the Validation flow and Release tooling boxes directly below.**
 - [ ] Reward: verified contributions → Plus minutes, through entitlements.
 - [ ] Validation flow: listen, mark right / wrong / unclear; two agreeing =
       verified.
@@ -1727,6 +1731,169 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-17 — **Round six, task M (third box): the `/contribute` Voice
+  Contribution flow.** Done. **M's third box is now checked.**
+
+  **Housekeeping first.** `git checkout main && git pull` hit the same
+  divergent-history failure the last several entries reported: local `main`
+  was a stale ref with no common ancestor to `origin/main` per
+  `git merge-base` (this run: 76 stale local commits vs. 50 real ones on
+  `origin/main`, sharing no merge base at all — still worth someone looking
+  at why this container's local `main` starts stale rather than as a real
+  clone). `git status` was clean, so `git reset --hard origin/main` and
+  moved on, tenth run in a row hitting this.
+
+  **Selection, and why the immediately preceding entry's own "genuinely
+  blocked" note did not survive re-verification.** Literal file-order first
+  unchecked box is still K′'s third box (findings write-up) — permanently
+  blocked on the owner's real phone, same as every prior run has confirmed;
+  skipped past it again, per the standing precedent this file already
+  documents twice over. The next box in file order, this one, was left
+  unchecked by the previous run with the note that "upload to object storage
+  on the server" needs *real* server-side storage, not the process-local
+  map trick that carried the consent boxes. Re-verified rather than trusted,
+  per this file's own standing rule — and it does not hold up:
+  `packages/storage-adapters/src/hosted-store.ts`'s `MinioDocumentStore` is
+  already a real, tested S3-compatible adapter (against an in-process
+  `s3rver`, not a mock — `hosted-store.test.ts`'s own doc comment explains
+  why), already wired into `apps/api` via `RecordsModule`'s
+  `OBJECT_STORAGE_ENDPOINT`-gated factory. Nothing about it is specific to
+  health documents: `assertPlacementAllowed` only checks whether a *backend*
+  requires client-side encryption, and `HOSTED` does not, so it stores any
+  bytes. The previous run's blocker was real for `apps/mobile`'s
+  `LanguageCorpusRepository`-style in-memory pattern (no persistence across
+  restarts), not for reaching real object storage at all — that already
+  exists and needed only a second binding, not a new adapter.
+
+  **What was built — domain layer, `packages/language-corpus`.** Added the
+  Voice Contribution vocabulary the doc's own pipeline record names:
+  `VoiceContributionTaskKind`, `MotherTongue` (the doc's own eight named
+  first languages plus `OTHER`), `AgeBand`, `Gender`, `VoiceClipSelfReport`,
+  `MIN_VOICE_CLIP_DURATION_MS`/`MAX_VOICE_CLIP_DURATION_MS`,
+  `validateVoiceClipDuration`, `VoiceClip`, `isDuplicateVoiceClip`. Two
+  deliberate omissions, both explained inline: `district` is free text, not
+  a fixed list of Nepal's 77 districts — the 2015 federal restructuring
+  makes a hand-typed list a real "invent no facts" risk, and a text field
+  sidesteps it rather than shipping a list that might be wrong.
+  `draftTranscript`/`validations` from the doc's own record shape are not
+  fields on `VoiceClip` yet — nothing produces either until the ASR step and
+  the Validation flow box (both still queued below this one), and a field
+  every caller sets to `null`/`[]` forever is exactly the half-finished
+  scaffolding this file's own working agreement warns against. 21 new tests.
+
+  **What was built — `apps/api`.** `LanguageCorpusService.submitVoiceClip`
+  (new `VOICE_CLIP_AUDIO_STORE` DI token, bound in `LanguageCorpusModule` by
+  the identical `OBJECT_STORAGE_ENDPOINT`-gated factory `RecordsModule`
+  already uses — deliberately reuses the same bucket rather than adding a
+  second `OBJECT_STORAGE_*` env contract for one more bucket; objects are
+  filename-prefixed `voice-contribution-...` so they read as visibly
+  distinct from health documents in the same owner prefix, and the real
+  separation — a clip never appearing in someone's health-record list — is
+  `LanguageCorpusRepository`'s own separate `#voiceClips` map, not bucket
+  choice; both reasoned through inline). Ordering inside `submitVoiceClip`
+  is deliberate: consent and duration are checked *before* any bytes reach
+  the store (cheap checks, and consent has to gate storage itself, not just
+  a database row); the exact-duplicate checksum check runs *after* `put`,
+  because the checksum only exists once the adapter has hashed the real
+  bytes — a duplicate's just-stored object is deleted again rather than left
+  orphaned. New route: `POST /language-corpus/voice-contribution/clips`,
+  `SessionAuthGuard`-only (self-service, `contributorId` always from
+  `@CurrentUser()`, same as the consent routes beside it), zod-validated
+  body mirroring `RecordsController.capture`'s `bytesBase64` shape. 15 new
+  tests across repository/service/controller.
+
+  **Quality gates — what shipped and what did not, and why.** The doc's own
+  list is "min/max duration, SNR floor, silence trim, near-duplicate
+  detection, profanity/PII scan on transcripts." Shipped: duration bounds
+  (enforced both client-side, via the recorder hook's auto-stop timer, and
+  server-side) and exact-duplicate detection by checksum. Not shipped, with
+  reasons recorded in `packages/language-corpus`'s own doc comments rather
+  than silently dropped: SNR floor, silence trim and true near-duplicate
+  *audio* similarity all need a decoded waveform, which means either a
+  server-side audio-decoding dependency (ffmpeg or a WASM decoder — real new
+  build/CI surface this box deliberately does not introduce) or on-device
+  analysis this box also does not add; profanity/PII-on-transcript needs a
+  draft transcript, which does not exist until the ASR step. These are not
+  abandoned — they are Round six §M's own next two boxes (Validation flow,
+  Release tooling), which is where the doc's own pipeline actually places
+  transcript-dependent and pre-release checks in the first place.
+
+  **What was built — `apps/web`.** `content/voice-contribution.ts`: five
+  tasks, ids and kind only (content/copy split matching `content/pricing.ts`).
+  Three `FREE_SPEECH` prompts are the doc's own three named examples
+  verbatim ("describe how you make dal", "tell me about your village",
+  "explain what a fever feels like"); two `READ_PROMPT` sentences are plain,
+  neutral, non-health lines written for this box, since the doc names no
+  example read prompts and a read-aloud sentence carries no factual claim to
+  get wrong. `lib/voice-contribution-api.ts` (base64 upload, shaped after
+  `records-api.ts`'s `captureBloodPressurePhoto`, but throws a typed error
+  carrying the server's `code` like `corpus-consent-api.ts`, since the
+  recorder needs to tell "consent required" apart from "too short" apart
+  from "duplicate"). `hooks/useVoiceContributionRecorder.ts`: `MediaRecorder`
+  state machine, auto-stops at `MAX_VOICE_CLIP_DURATION_MS` so a wandering
+  free-speech answer stops itself rather than silently failing the upload
+  later. No test file for the hook or the new `VoiceContributionView.tsx` —
+  this codebase does not unit-test hooks or components that wrap browser
+  device APIs anywhere (`useGeminiLiveSession.ts`, `useSession.ts`, `VoiceLabView.tsx`
+  all have none either); the pure logic they lean on
+  (`validateVoiceClipDuration`, `isDuplicateVoiceClip`) already has its own
+  coverage in the domain package. `/contribute` (new route, both locales):
+  session-gated via `useSession` (redirects to `/signin?next=/contribute`,
+  same as every protected page), then `VOICE_CONTRIBUTION`-consent-gated via
+  the *existing* `useCorpusConsent`/`corpus-consent-api.ts` (already generic
+  over `CorpusConsentKind` — no new consent plumbing needed), then a
+  once-per-visit self-report form, then one task at a time with record /
+  preview / re-record / submit. Not registered in `content/routes.ts` /
+  `sitemap.ts` — the "account/page.tsx pattern" `voice-lab/page.tsx`'s own
+  comment already names: this renders a specific signed-in person's own
+  consent state, not public marketing content.
+
+  **Verify.** Full gate from the repository root: `pnpm install
+  --frozen-lockfile` clean (needed `packages/database`'s `prisma generate`
+  run once first — `apps/api` typechecks against the generated client, and
+  a bare install alone leaves it missing); `pnpm lint` clean (one real catch
+  fixed along the way: an unused destructured `_id` in a new controller
+  test tripped `@typescript-eslint/no-unused-vars` — rewritten with an
+  explicit `delete` instead of a discard-destructure); `pnpm typecheck` 40/40
+  (one real catch: TypeScript's aliased-conditions narrowing had already
+  proven a redundant `motherTongue === ''` check in `SelfReportForm`
+  impossible after `canSubmit`'s own check — removed the redundant check
+  rather than suppressing the error); `pnpm test` — 781 `apps/api` tests, 265
+  `apps/web` tests, 55 `packages/language-corpus` tests, all green (one test
+  of my own fixed along the way: `submitVoiceClip`'s validation throws
+  synchronously, not via a rejected promise, so the missing-field test
+  needed the same `expect(() => ...).toThrow()` shape `ingest`'s own
+  validation tests already use, not `.rejects`); `pnpm build` 40/40,
+  confirmed `/[locale]/contribute` actually present in the build manifest
+  for both locales.
+
+  **Mobile measurement.** Loaded `/en/contribute` at 375×667 against the
+  production build with headless Chromium. Anonymous visitor: redirects to
+  `/signin?next=%2Fcontribute` immediately, exactly like `/account` and
+  every other session-gated page — no console errors from this page's own
+  code (the two `ERR_CONNECTION_REFUSED` entries are `GET /auth/me` against
+  an `apps/api` this sandbox has no live instance of, expected). Could not
+  get a real height/tap-target count for the self-report form or the
+  recorder view themselves — same gap roughly a dozen prior `/account`-
+  touching entries have each left open for "the next run with a live
+  database," now joined by this one. What I can say honestly without a live
+  session: every interactive control is `Button` (already measured at
+  `min-h-11` — 44px — in a prior run's own note on this exact component) or
+  a `select`/`input` sharing `DelegationForm.tsx`'s exact field classes
+  (`px-4 py-3` on `text-base`, already in production elsewhere on this same
+  page family). No new tap-target pattern was introduced.
+
+  **For the next run.** File order next: Round six §M's remaining two boxes
+  — Reward (verified contributions → Plus minutes, needs the Validation flow
+  below it to exist first, since nothing is "verified" yet) and Validation
+  flow itself (listen, mark right/wrong/unclear; also where the deferred
+  SNR/silence-trim/near-duplicate-audio/profanity-PII quality gates
+  actually belong, per this entry's own reasoning above) — then Release
+  tooling, then the owner-decision box, then §N payments (blocked on the
+  owner's provider choice). K′'s third box (owner's phone) stays permanently
+  skipped, as always; re-verify each before trusting this note, per this
+  file's own standing rule.
 
 - 2026-08-17 — **Round six, task M (second box): the `apps/api` corpus-consent
   `Consent` record — toggle in account, audit trail.** Done. **M's second box

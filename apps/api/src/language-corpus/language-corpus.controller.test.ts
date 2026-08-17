@@ -1,4 +1,5 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
 import type { CurrentUserResult } from '../auth/auth.service.js';
 import { LanguageCorpusController } from './language-corpus.controller.js';
@@ -6,8 +7,21 @@ import { LanguageCorpusRepository } from './language-corpus.repository.js';
 import { LanguageCorpusService } from './language-corpus.service.js';
 
 function buildController() {
-  return new LanguageCorpusController(new LanguageCorpusService(new LanguageCorpusRepository()));
+  return new LanguageCorpusController(
+    new LanguageCorpusService(new LanguageCorpusRepository(), new InMemoryDocumentStore('HOSTED')),
+  );
 }
+
+const validClipBody = {
+  id: 'clip-1',
+  taskId: 'free-speech-village',
+  taskKind: 'FREE_SPEECH',
+  selfReport: { district: 'Kathmandu', motherTongue: 'NEPALI', ageBand: '25_34', gender: null },
+  device: 'test-agent',
+  durationMs: 4_000,
+  contentType: 'audio/webm',
+  bytesBase64: Buffer.from('clip bytes').toString('base64'),
+};
 
 const reviewer: CurrentUserResult = {
   subjectId: 'reviewer-1',
@@ -178,5 +192,40 @@ describe('LanguageCorpusController corpus consent', () => {
 
     expect(grants[0]?.revokedAt).not.toBeNull();
     expect(controller.consentGrants(owner1).grants[0]?.revokedAt).not.toBeNull();
+  });
+});
+
+describe('LanguageCorpusController voice contribution clips', () => {
+  it('rejects a submission with no live VOICE_CONTRIBUTION consent', async () => {
+    const controller = buildController();
+    await expect(controller.submitVoiceClip(owner1, validClipBody)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('stores a clip under the caller\'s own subjectId once consent is live', async () => {
+    const controller = buildController();
+    controller.grantConsent(owner1, 'VOICE_CONTRIBUTION');
+
+    const clip = await controller.submitVoiceClip(owner1, validClipBody);
+
+    expect(clip.contributorId).toBe('owner-1');
+    expect(clip.id).toBe('clip-1');
+    expect(clip.ref.byteSize).toBe(Buffer.from('clip bytes').byteLength);
+  });
+
+  it('rejects a request missing a required field', () => {
+    // Body validation happens synchronously, before the async store call —
+    // same reason `LanguageCorpusController ingest`'s own validation tests
+    // above assert with a thrown-synchronously `expect(() => ...)`, not `rejects`.
+    const controller = buildController();
+    controller.grantConsent(owner1, 'VOICE_CONTRIBUTION');
+    const withoutId: Record<string, unknown> = { ...validClipBody };
+    delete withoutId['id'];
+    expect(() => controller.submitVoiceClip(owner1, withoutId)).toThrow(BadRequestException);
+  });
+
+  it('rejects a clip below the minimum duration', async () => {
+    const controller = buildController();
+    controller.grantConsent(owner1, 'VOICE_CONTRIBUTION');
+    await expect(controller.submitVoiceClip(owner1, { ...validClipBody, durationMs: 100 })).rejects.toThrow(BadRequestException);
   });
 });

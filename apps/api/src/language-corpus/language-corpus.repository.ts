@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { CorpusConsentGrant, CorpusUtterance } from '@swasthya/language-corpus';
+import type { CorpusConsentGrant, CorpusUtterance, VoiceClip } from '@swasthya/language-corpus';
 
 /**
  * Who touched a corpus utterance and when — language-corpus.md §5's
@@ -36,6 +36,7 @@ export class LanguageCorpusRepository {
   readonly #utterances = new Map<string, CorpusUtterance>();
   readonly #auditEntries: CorpusAuditEntry[] = [];
   readonly #consentGrants = new Map<string, CorpusConsentGrant>();
+  readonly #voiceClips = new Map<string, VoiceClip>();
 
   save(utterance: CorpusUtterance): CorpusUtterance {
     this.#utterances.set(utterance.id, utterance);
@@ -92,5 +93,15 @@ export class LanguageCorpusRepository {
 
   consentGrantsFor(userId: string): CorpusConsentGrant[] {
     return [...this.#consentGrants.values()].filter((grant) => grant.userId === userId);
+  }
+
+  saveVoiceClip(clip: VoiceClip): VoiceClip {
+    this.#voiceClips.set(clip.id, clip);
+    return clip;
+  }
+
+  /** Every clip a contributor has already submitted — `submitVoiceClip`'s own source for the exact-duplicate checksum check. */
+  voiceClipsByContributor(contributorId: string): VoiceClip[] {
+    return [...this.#voiceClips.values()].filter((clip) => clip.contributorId === contributorId);
   }
 }

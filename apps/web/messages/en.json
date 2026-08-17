@@ -1586,6 +1586,99 @@
       "body": "When you contribute a voice recording — reading a prompt or speaking freely — we keep the recording itself, separate from your health conversations, to help train a Nepali speech-recognition model.",
       "optional": "Contributing is entirely optional and never required to use any part of Mero Health. Choosing not to changes nothing about the app.",
       "revocable": "You can withdraw at any time. Withdrawing removes your recordings from every future release; anything already released stays documented as such."
+    },
+    "loading": "Loading…",
+    "heading": "Contribute your voice",
+    "intro": "Read a short line or answer a question in your own words. Your recording — not a health conversation — helps train a Nepali speech model.",
+    "consentGate": {
+      "body": "Before you record anything, we need your separate consent for Voice Contribution — this keeps the recording itself, apart from any health conversation.",
+      "optional": "Entirely optional, and you can withdraw at any time from your account.",
+      "cta": "Agree and continue",
+      "error": "Something went wrong — please try again."
+    },
+    "selfReport": {
+      "choose": "Choose one",
+      "optional": "(optional)",
+      "district": {
+        "label": "District",
+        "placeholder": "e.g. Kathmandu"
+      },
+      "motherTongue": {
+        "label": "Mother tongue",
+        "options": {
+          "NEPALI": "Nepali",
+          "MAITHILI": "Maithili",
+          "BHOJPURI": "Bhojpuri",
+          "THARU": "Tharu",
+          "TAMANG": "Tamang",
+          "NEWAR": "Newar",
+          "GURUNG": "Gurung",
+          "MAGAR": "Magar",
+          "OTHER": "Other"
+        }
+      },
+      "ageBand": {
+        "label": "Age",
+        "options": {
+          "13_17": "13–17",
+          "18_24": "18–24",
+          "25_34": "25–34",
+          "35_44": "35–44",
+          "45_59": "45–59",
+          "60_PLUS": "60+"
+        }
+      },
+      "gender": {
+        "label": "Gender",
+        "options": {
+          "WOMAN": "Woman",
+          "MAN": "Man",
+          "OTHER": "Other",
+          "PREFER_NOT_TO_SAY": "Prefer not to say"
+        }
+      },
+      "submitCta": "Continue"
+    },
+    "progress": "{done} of {total} done",
+    "tasks": {
+      "readPromptHeading": "Read this line aloud",
+      "freeSpeechHeading": "Answer in your own words",
+      "read-clear-sky": {
+        "prompt": "आज आकाश खुल्ला छ र घाम लागेको छ।"
+      },
+      "read-morning-walk": {
+        "prompt": "म हरेक बिहान अलिकति हिँड्छु।"
+      },
+      "free-speech-dal": {
+        "prompt": "दाल कसरी पकाउने भनेर बताउनुहोस्।"
+      },
+      "free-speech-village": {
+        "prompt": "तपाईंको गाउँको बारेमा बताउनुहोस्।"
+      },
+      "free-speech-fever": {
+        "prompt": "ज्वरो आउँदा कस्तो महसुस हुन्छ भनेर बताउनुहोस्।"
+      }
+    },
+    "recorder": {
+      "start": "Record",
+      "stop": "Stop",
+      "recording": "Recording — {seconds}s",
+      "reRecord": "Record again",
+      "submit": "Submit",
+      "uploading": "Uploading…",
+      "permissionDenied": "Microphone access was denied. Allow microphone access in your browser to contribute a recording.",
+      "unsupported": "This browser cannot record audio. Try a recent version of Chrome or Safari.",
+      "errors": {
+        "VOICE_CONTRIBUTION_CONSENT_REQUIRED": "Your Voice Contribution consent is no longer active — please refresh the page.",
+        "VOICE_CLIP_TOO_SHORT": "That recording was too short. Please try again.",
+        "VOICE_CLIP_TOO_LONG": "That recording ran too long. Please try again.",
+        "VOICE_CLIP_DUPLICATE": "This exact recording has already been submitted.",
+        "GENERIC": "Something went wrong — please try again."
+      }
+    },
+    "done": {
+      "heading": "Thank you",
+      "body": "You've completed every task for now. Come back any time to contribute more."
     }
   }
 }

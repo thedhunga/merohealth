@@ -1,4 +1,4 @@
-import type { LanguageCode } from '@swasthya/shared-types';
+import type { LanguageCode, StoredRef } from '@swasthya/shared-types';
 
 /**
  * Nepali language corpus.
@@ -526,4 +526,127 @@ export function utteranceIdsForOwner(
   ownerId: string,
 ): readonly string[] {
   return utterances.filter((u) => u.ownerId === ownerId).map((u) => u.id);
+}
+
+/* ------------------------------------------------------------------ *
+ * Voice Contribution — §4 stream A
+ *
+ * The separate, non-health, Common-Voice-style flow: someone reads a prompt
+ * or answers a free-speech task, self-reports who they are linguistically,
+ * and the recording itself (not a transcript) becomes training data. This is
+ * a different pipeline from the utterance/consent machinery above it in this
+ * file — that machinery governs *text* retained from an actual health
+ * conversation (§4 stream B); this one governs a *recording* made
+ * specifically to contribute, gated on `VOICE_CONTRIBUTION` consent, not any
+ * `ConsentPurpose` above.
+ * ------------------------------------------------------------------ */
+
+export type VoiceContributionTaskKind = 'READ_PROMPT' | 'FREE_SPEECH';
+
+/**
+ * The dialect/first-language axes `docs/product/freemium-and-voice-corpus.md`
+ * §4 names by name as the reason this corpus is worth building: Nepali as
+ * spoken by each of these first-language communities, not just Kathmandu
+ * standard. `OTHER` covers every first language the doc does not enumerate,
+ * rather than this list silently omitting a contributor who does not fit it.
+ */
+export type MotherTongue =
+  | 'NEPALI' | 'MAITHILI' | 'BHOJPURI' | 'THARU' | 'TAMANG' | 'NEWAR' | 'GURUNG' | 'MAGAR' | 'OTHER';
+
+export const motherTongueOptions: readonly MotherTongue[] = [
+  'NEPALI', 'MAITHILI', 'BHOJPURI', 'THARU', 'TAMANG', 'NEWAR', 'GURUNG', 'MAGAR', 'OTHER',
+];
+
+export type AgeBand = '13_17' | '18_24' | '25_34' | '35_44' | '45_59' | '60_PLUS';
+
+export const ageBandOptions: readonly AgeBand[] = ['13_17', '18_24', '25_34', '35_44', '45_59', '60_PLUS'];
+
+/** Optional, per the doc's own "and optional gender" — never required to submit a clip. */
+export type Gender = 'WOMAN' | 'MAN' | 'OTHER' | 'PREFER_NOT_TO_SAY';
+
+export const genderOptions: readonly Gender[] = ['WOMAN', 'MAN', 'OTHER', 'PREFER_NOT_TO_SAY'];
+
+/**
+ * `district` is free text rather than a fixed list: Nepal's district and
+ * local-unit boundaries changed with the 2015 federal restructuring, and
+ * shipping a hand-typed list of 77 names risks a wrong or stale one — which
+ * "invent no facts" weighs against harder than a plain text field's own
+ * looser data quality does. `motherTongue` and `ageBand` are closed lists
+ * because both are small, closed-form categories the doc itself already
+ * enumerates or that need no external source to get right.
+ */
+export interface VoiceClipSelfReport {
+  district: string;
+  motherTongue: MotherTongue;
+  ageBand: AgeBand;
+  gender: Gender | null;
+}
+
+/**
+ * Below this, a clip is silence, a mis-tap, or too short to transcribe
+ * usefully once a draft-transcript pipeline exists.
+ */
+export const MIN_VOICE_CLIP_DURATION_MS = 1_500;
+
+/**
+ * Above this, a free-speech answer has wandered well past what one task
+ * prompt is meant to elicit — in the same range Common Voice itself caps a
+ * single read clip at.
+ */
+export const MAX_VOICE_CLIP_DURATION_MS = 60_000;
+
+export type VoiceClipRejectionReason = 'TOO_SHORT' | 'TOO_LONG';
+
+/**
+ * The one quality gate this package can run deterministically on a
+ * client-reported duration alone. `docs/product/freemium-and-voice-corpus.md`
+ * §4 also lists an SNR floor, silence trim and near-duplicate *audio*
+ * detection — all three need the decoded waveform, which means either a
+ * server-side audio-decoding dependency or on-device analysis neither of
+ * which this box introduces; see the `submitVoiceClip` doc comment in
+ * `apps/api`'s `language-corpus.service.ts` for where those are picked back
+ * up. Its profanity/PII transcript scan needs a draft transcript, which does
+ * not exist until the ASR step two boxes further down this same queue adds.
+ */
+export function validateVoiceClipDuration(durationMs: number): VoiceClipRejectionReason | null {
+  if (durationMs < MIN_VOICE_CLIP_DURATION_MS) return 'TOO_SHORT';
+  if (durationMs > MAX_VOICE_CLIP_DURATION_MS) return 'TOO_LONG';
+  return null;
+}
+
+/**
+ * `draftTranscript`/`validations` from the doc's own pipeline record shape
+ * are deliberately not fields here yet: nothing produces either until the
+ * ASR step and the Validation flow box (both still queued after this one)
+ * exist, and a field every caller sets to `null`/`[]` forever is exactly the
+ * half-finished scaffolding this codebase's own conventions warn against.
+ * Add them when something actually populates them.
+ */
+export interface VoiceClip {
+  id: string;
+  /** The session's own subject id — pseudonymous in the sense that it is never shown to another contributor, not that it is a separate anonymous identity. */
+  contributorId: string;
+  /** Always `VOICE_CONTRIBUTION_CONSENT_VERSION` at the moment of capture — never client-supplied, same reasoning `versionForCorpusConsentKind` gives. */
+  consentVersion: string;
+  taskId: string;
+  taskKind: VoiceContributionTaskKind;
+  selfReport: VoiceClipSelfReport;
+  /** `navigator.userAgent` at capture time — a coarse device signal, matching the doc's own `{device}` field. */
+  device: string;
+  durationMs: number;
+  capturedAt: string;
+  ref: StoredRef;
+}
+
+/**
+ * Exact-duplicate detection by checksum — the one form of "near-duplicate
+ * detection" the doc's quality-gate list asks for that this package can do
+ * without decoding audio: a byte-identical re-upload (a retry, a double
+ * submit) checksums identically. A genuinely *similar but not identical*
+ * recording (the harder, real "near-duplicate" case) needs an audio
+ * fingerprint this box does not build — see `validateVoiceClipDuration`'s
+ * own doc comment for why that is deferred rather than faked here.
+ */
+export function isDuplicateVoiceClip(existingChecksums: readonly string[], checksumSha256: string): boolean {
+  return existingChecksums.includes(checksumSha256);
 }

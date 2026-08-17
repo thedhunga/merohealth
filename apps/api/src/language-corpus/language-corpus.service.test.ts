@@ -1,7 +1,8 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
 import { LanguageCorpusRepository } from './language-corpus.repository.js';
-import { LanguageCorpusService, type IngestUtteranceInput } from './language-corpus.service.js';
+import { LanguageCorpusService, type IngestUtteranceInput, type SubmitVoiceClipInput } from './language-corpus.service.js';
 
 const validIngest: IngestUtteranceInput = {
   id: 'utterance-1',
@@ -16,8 +17,20 @@ const validIngest: IngestUtteranceInput = {
 };
 
 function buildService() {
-  return new LanguageCorpusService(new LanguageCorpusRepository());
+  return new LanguageCorpusService(new LanguageCorpusRepository(), new InMemoryDocumentStore('HOSTED'));
 }
+
+const validClip: SubmitVoiceClipInput = {
+  id: 'clip-1',
+  contributorId: 'owner-1',
+  taskId: 'free-speech-village',
+  taskKind: 'FREE_SPEECH',
+  selfReport: { district: 'Kathmandu', motherTongue: 'NEPALI', ageBand: '25_34', gender: null },
+  device: 'test-agent',
+  durationMs: 4_000,
+  bytes: Buffer.from('clip bytes'),
+  contentType: 'audio/webm',
+};
 
 describe('LanguageCorpusService ingest', () => {
   it('stores an already-retained utterance', () => {
@@ -132,7 +145,7 @@ describe('LanguageCorpusService erase', () => {
     // keyed on an id, so the repository is inspected directly here rather
     // than through that method.
     const repository = new LanguageCorpusRepository();
-    const service = new LanguageCorpusService(repository);
+    const service = new LanguageCorpusService(repository, new InMemoryDocumentStore('HOSTED'));
     service.ingest({ ...validIngest, id: 'a', ownerId: 'owner-1' });
 
     service.erase('owner-1');
@@ -211,5 +224,55 @@ describe('LanguageCorpusService corpus consent', () => {
 
     expect(second.id).not.toBe(first.id);
     expect(service.consentGrantsFor('owner-1')).toHaveLength(2);
+  });
+});
+
+describe('LanguageCorpusService submitVoiceClip', () => {
+  it('refuses to store a clip with no live VOICE_CONTRIBUTION consent', async () => {
+    const service = buildService();
+    await expect(service.submitVoiceClip(validClip)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('stores a clip once consent is live, stamped with the Voice Contribution consent version', async () => {
+    const service = buildService();
+    service.grantConsent('owner-1', 'VOICE_CONTRIBUTION');
+
+    const clip = await service.submitVoiceClip(validClip);
+
+    expect(clip.id).toBe('clip-1');
+    expect(clip.consentVersion).toBe('voice-contribution-consent-v1');
+    expect(clip.ref.byteSize).toBe(validClip.bytes.byteLength);
+  });
+
+  it('rejects a clip below the minimum duration without storing it', async () => {
+    const service = buildService();
+    service.grantConsent('owner-1', 'VOICE_CONTRIBUTION');
+
+    await expect(service.submitVoiceClip({ ...validClip, durationMs: 100 })).rejects.toThrow(BadRequestException);
+  });
+
+  it('rejects a clip above the maximum duration', async () => {
+    const service = buildService();
+    service.grantConsent('owner-1', 'VOICE_CONTRIBUTION');
+
+    await expect(service.submitVoiceClip({ ...validClip, durationMs: 120_000 })).rejects.toThrow(BadRequestException);
+  });
+
+  it('rejects a byte-identical re-submission from the same contributor', async () => {
+    const service = buildService();
+    service.grantConsent('owner-1', 'VOICE_CONTRIBUTION');
+    await service.submitVoiceClip(validClip);
+
+    await expect(service.submitVoiceClip({ ...validClip, id: 'clip-2' })).rejects.toThrow(BadRequestException);
+  });
+
+  it('does not treat the same bytes from a different contributor as a duplicate', async () => {
+    const service = buildService();
+    service.grantConsent('owner-1', 'VOICE_CONTRIBUTION');
+    service.grantConsent('owner-2', 'VOICE_CONTRIBUTION');
+    await service.submitVoiceClip(validClip);
+
+    const secondContributorClip = await service.submitVoiceClip({ ...validClip, id: 'clip-2', contributorId: 'owner-2' });
+    expect(secondContributorClip.id).toBe('clip-2');
   });
 });

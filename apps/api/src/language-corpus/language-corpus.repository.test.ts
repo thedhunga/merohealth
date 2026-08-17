@@ -1,4 +1,4 @@
-import type { CorpusConsentGrant, CorpusUtterance } from '@swasthya/language-corpus';
+import type { CorpusConsentGrant, CorpusUtterance, VoiceClip } from '@swasthya/language-corpus';
 import { describe, expect, it } from 'vitest';
 import { LanguageCorpusRepository } from './language-corpus.repository.js';
 
@@ -10,6 +10,22 @@ function makeConsentGrant(overrides: Partial<CorpusConsentGrant> = {}): CorpusCo
     version: 'consent-copy-v1',
     grantedAt: '2026-08-01T00:00:00.000Z',
     revokedAt: null,
+    ...overrides,
+  };
+}
+
+function makeVoiceClip(overrides: Partial<VoiceClip> = {}): VoiceClip {
+  return {
+    id: 'clip-1',
+    contributorId: 'owner-1',
+    consentVersion: 'voice-contribution-consent-v1',
+    taskId: 'free-speech-dal',
+    taskKind: 'FREE_SPEECH',
+    selfReport: { district: 'Kathmandu', motherTongue: 'NEPALI', ageBand: '25_34', gender: null },
+    device: 'test-agent',
+    durationMs: 4_000,
+    capturedAt: '2026-08-17T00:00:00.000Z',
+    ref: { backend: 'HOSTED', externalId: 'owner-1/clip-1.webm', byteSize: 1024, contentType: 'audio/webm', checksumSha256: 'abc' },
     ...overrides,
   };
 }
@@ -106,5 +122,23 @@ describe('LanguageCorpusRepository', () => {
 
     expect(repository.consentGrantsFor('owner-1')).toHaveLength(1);
     expect(repository.consentGrantsFor('owner-1')[0]?.revokedAt).toBe('2026-08-05T00:00:00.000Z');
+  });
+
+  it('scopes voiceClipsByContributor to the requested contributor, never returning someone else’s clips', () => {
+    const repository = new LanguageCorpusRepository();
+    repository.saveVoiceClip(makeVoiceClip({ id: 'clip-1', contributorId: 'owner-1' }));
+    repository.saveVoiceClip(makeVoiceClip({ id: 'clip-2', contributorId: 'owner-2' }));
+
+    expect(repository.voiceClipsByContributor('owner-1').map((clip) => clip.id)).toEqual(['clip-1']);
+    expect(repository.voiceClipsByContributor('someone-else')).toEqual([]);
+  });
+
+  it('overwrites rather than duplicates a voice clip on a second save with the same id', () => {
+    const repository = new LanguageCorpusRepository();
+    repository.saveVoiceClip(makeVoiceClip({ id: 'clip-1', durationMs: 4_000 }));
+    repository.saveVoiceClip(makeVoiceClip({ id: 'clip-1', durationMs: 5_000 }));
+
+    expect(repository.voiceClipsByContributor('owner-1')).toHaveLength(1);
+    expect(repository.voiceClipsByContributor('owner-1')[0]?.durationMs).toBe(5_000);
   });
 });
