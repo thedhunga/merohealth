@@ -73,6 +73,7 @@ function disclaimerFor(language: ResearchLanguage) {
 function emptyResearch(
   language: ResearchLanguage,
   status: 'setup-required' | 'unavailable',
+  diagnostic?: string,
 ): HealthResearch {
   return {
     provider: 'gemini-grounded',
@@ -82,7 +83,28 @@ function emptyResearch(
     relatedQuestions: [],
     disclaimer: disclaimerFor(language),
     externalHealthHubUrl: null,
+    ...(diagnostic ? { diagnostic } : {}),
   };
+}
+
+/**
+ * Reduce an upstream error body to something safe to return: Google's
+ * `status` word and `reason` code, and a short slice of the message. Keys
+ * never appear in these bodies, but the slice is capped regardless.
+ */
+async function describeFailure(response: Response): Promise<string> {
+  let detail = '';
+  try {
+    const text = await response.text();
+    const parsed = JSON.parse(text) as { error?: { status?: string; message?: string; details?: { reason?: string }[] } } | { error?: unknown }[];
+    const err = Array.isArray(parsed) ? parsed[0]?.error : parsed.error;
+    const e = err as { status?: string; message?: string; details?: { reason?: string }[] } | undefined;
+    const reason = e?.details?.find((d) => d?.reason)?.reason;
+    detail = [e?.status, reason, e?.message?.slice(0, 160)].filter(Boolean).join(' · ');
+  } catch {
+    detail = '';
+  }
+  return `HTTP ${response.status}${detail ? ` · ${detail}` : ''}`;
 }
 
 /**
@@ -134,7 +156,7 @@ export async function researchWithGemini(
       signal: AbortSignal.timeout(20_000),
     });
 
-    if (!response.ok) return emptyResearch(language, 'unavailable');
+    if (!response.ok) return emptyResearch(language, 'unavailable', await describeFailure(response));
 
     const data = (await response.json()) as InteractionResponse;
 
@@ -149,7 +171,12 @@ export async function researchWithGemini(
       .map((block) => block.text ?? '')
       .join('\n')
       .trim();
-    if (!answer) return emptyResearch(language, 'unavailable');
+    if (!answer) {
+      // Say what shape came back, so a schema drift is recognisable.
+      const stepTypes = (data.steps ?? []).map((s) => s.type ?? '?').join(',');
+      const topKeys = Object.keys(data as object).slice(0, 8).join(',');
+      return emptyResearch(language, 'unavailable', `HTTP 200 · empty answer · steps=[${stepTypes}] keys=[${topKeys}]`);
+    }
 
     // Dedupe citations by URL, keep the first title seen, cap the list.
     const seen = new Map<string, string>();
@@ -172,7 +199,9 @@ export async function researchWithGemini(
       disclaimer: disclaimerFor(language),
       externalHealthHubUrl: null,
     };
-  } catch {
-    return emptyResearch(language, 'unavailable');
+  } catch (error) {
+    // Timeouts and network failures. Name only — messages can carry hosts.
+    const name = error instanceof Error ? error.name : 'unknown';
+    return emptyResearch(language, 'unavailable', `fetch failed · ${name}`);
   }
 }

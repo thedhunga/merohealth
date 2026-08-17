@@ -19,6 +19,14 @@ export interface HealthResearch {
    * on the shape so older clients keep parsing; new providers return null.
    */
   externalHealthHubUrl: string | null;
+  /**
+   * Present only when `status` is `unavailable`: a short, sanitised reason
+   * (upstream HTTP status and error code — never a key, never a URL with
+   * credentials). Exists so a failing production call can be diagnosed from
+   * its own response instead of from server logs nobody is watching. The UI
+   * does not render it.
+   */
+  diagnostic?: string;
 }
 
 export interface CompanionResearchResponse {

@@ -88,12 +88,42 @@ describe('researchWithGemini', () => {
   it('is unavailable, not a crash, on a non-2xx or empty answer', async () => {
     const bad = await researchWithGemini('x', 'en', { apiKey: 'k', fetchImpl: fetchReturning(429, {}) });
     expect(bad.status).toBe('unavailable');
+    expect(bad.diagnostic).toBe('HTTP 429');
 
     const empty = await researchWithGemini('x', 'en', {
       apiKey: 'k',
       fetchImpl: fetchReturning(200, { steps: [{ type: 'model_output', content: [] }] }),
     });
     expect(empty.status).toBe('unavailable');
+    expect(empty.diagnostic).toContain('empty answer');
+    expect(empty.diagnostic).toContain('steps=[model_output]');
+  });
+
+  it('surfaces Google\'s error status and reason without leaking anything else', async () => {
+    const googleError = {
+      error: {
+        code: 400,
+        message: 'API key not valid. Please pass a valid API key. secret-looking-text-that-must-be-cut-' + 'x'.repeat(300),
+        status: 'INVALID_ARGUMENT',
+        details: [{ '@type': 'type.googleapis.com/google.rpc.ErrorInfo', reason: 'API_KEY_INVALID' }],
+      },
+    };
+    const result = await researchWithGemini('x', 'en', { apiKey: 'k', fetchImpl: fetchReturning(400, googleError) });
+    expect(result.status).toBe('unavailable');
+    expect(result.diagnostic).toContain('HTTP 400');
+    expect(result.diagnostic).toContain('INVALID_ARGUMENT');
+    expect(result.diagnostic).toContain('API_KEY_INVALID');
+    expect(result.diagnostic?.length).toBeLessThan(260);
+    expect(result.diagnostic).not.toContain('k'.repeat(2));
+
+    // The endpoint sometimes wraps the error in an array (batch shape).
+    const wrapped = await researchWithGemini('x', 'en', { apiKey: 'k', fetchImpl: fetchReturning(403, [googleError]) });
+    expect(wrapped.diagnostic).toContain('API_KEY_INVALID');
+  });
+
+  it('names a successful call\'s absence of diagnostic', async () => {
+    const ok = await researchWithGemini('x', 'en', { apiKey: 'k', fetchImpl: fetchReturning(200, groundedResponse) });
+    expect(ok.diagnostic).toBeUndefined();
   });
 
   it('fails closed when the network is unreachable, not just on a bad response', async () => {
