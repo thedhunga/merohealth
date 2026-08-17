@@ -8,7 +8,13 @@ export interface ResearchCitation {
 }
 
 export interface HealthResearch {
-  provider: 'perplexity-sonar' | 'gemini-grounded';
+  /**
+   * `gemini-ungrounded` is the owner-enabled fallback used only when search
+   * grounding is refused on the configured key: the model answers without
+   * live sources, says so, and returns no citations rather than invented
+   * ones. Off unless RESEARCH_ALLOW_UNGROUNDED=true.
+   */
+  provider: 'perplexity-sonar' | 'gemini-grounded' | 'gemini-ungrounded';
   status: 'complete' | 'setup-required' | 'unavailable';
   answer: string | null;
   citations: ResearchCitation[];
@@ -20,7 +26,8 @@ export interface HealthResearch {
    */
   externalHealthHubUrl: string | null;
   /**
-   * Present only when `status` is `unavailable`: a short, sanitised reason
+   * Present when `status` is `unavailable`, or when the answer came from a
+   * degraded path (`gemini-ungrounded`): a short, sanitised reason
    * (upstream HTTP status and error code — never a key, never a URL with
    * credentials). Exists so a failing production call can be diagnosed from
    * its own response instead of from server logs nobody is watching. The UI

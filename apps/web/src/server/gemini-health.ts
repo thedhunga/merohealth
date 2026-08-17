@@ -44,6 +44,13 @@ interface GeminiDependencies {
   apiKey?: string | undefined;
   model?: string | undefined;
   fetchImpl?: typeof fetch | undefined;
+  /**
+   * Answer without live search when grounding is refused on this key.
+   * Defaults to RESEARCH_ALLOW_UNGROUNDED === 'true'. Off by default on
+   * purpose: an ungrounded model is answering health questions from memory,
+   * and switching that on is the owner's call, not the code's.
+   */
+  allowUngrounded?: boolean | undefined;
 }
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions';
@@ -79,6 +86,20 @@ function disclaimerFor(language: ResearchLanguage) {
   return language === 'en'
     ? 'General health information only. This is not a diagnosis or a treatment recommendation.'
     : 'यो सामान्य स्वास्थ्य जानकारी मात्र हो। यो निदान वा उपचार सिफारिस होइन।';
+}
+
+/** Appended to the disclaimer when the answer had no live sources. */
+function ungroundedDisclaimer(language: ResearchLanguage) {
+  return language === 'en'
+    ? 'This answer was written without live source lookup; treat it as a starting point and confirm with a health worker or pharmacist before acting on it.'
+    : 'यो उत्तर प्रत्यक्ष स्रोत खोजी बिना लेखिएको हो; यसलाई सुरुवाती जानकारी मात्र मान्नुहोस् र कुनै पनि कदम चाल्नुअघि स्वास्थ्यकर्मी वा फार्मासिस्टसँग पुष्टि गर्नुहोस्।';
+}
+
+/** Extra instruction for the ungrounded path: no invented references. */
+function ungroundedInstruction(language: ResearchLanguage) {
+  return language === 'en'
+    ? 'You have no web search in this call. Do not cite URLs, studies or statistics you cannot be certain of; if unsure, say so plainly and recommend a health worker.'
+    : 'यस कलमा तपाईंसँग वेब खोज छैन। निश्चित नभएको URL, अध्ययन वा तथ्याङ्क उल्लेख नगर्नुहोस्; अनिश्चित भए स्पष्ट भन्नुहोस् र स्वास्थ्यकर्मीलाई भेट्न सिफारिस गर्नुहोस्।';
 }
 
 function emptyResearch(
@@ -254,10 +275,31 @@ export async function researchWithGemini(
     }
 
     if (!response) return emptyResearch(language, 'unavailable', 'no model candidates');
+
+    let grounded = true;
+    const allGroundedRefused = refusedOnQuota && gone.length === candidates.length && candidates[0] !== undefined;
+    const allowUngrounded = dependencies.allowUngrounded ?? process.env.RESEARCH_ALLOW_UNGROUNDED === 'true';
+
+    if (!response.ok && allGroundedRefused && allowUngrounded && candidates[0]) {
+      // Grounding is refused on this key; the owner has chosen an answer
+      // without live sources over no answer. Same instructions, one model,
+      // no search tool, and told plainly not to invent references.
+      grounded = false;
+      response = await fetchImpl(ENDPOINT, {
+        method: 'POST',
+        headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: candidates[0],
+          input: `${instructionsFor(language)} ${ungroundedInstruction(language)}\n\nQuestion: ${question}`,
+        }),
+        signal: AbortSignal.timeout(20_000),
+      });
+    }
+
     if (!response.ok) {
       let detail = await describeFailure(response);
       if (gone.length) detail += ` · tried=[${gone.join(',')}]`;
-      if (refusedOnQuota && gone.length === candidates.length && candidates[0]) {
+      if (allGroundedRefused && candidates[0]) {
         detail += ` · ${await probeQuotaShape(fetchImpl, apiKey, candidates[0])}`;
       }
       return emptyResearch(language, 'unavailable', detail);
@@ -292,6 +334,21 @@ export async function researchWithGemini(
         if (!url || seen.has(url)) continue;
         seen.set(url, note.title?.trim() || new URL(url).hostname.replace(/^www\./, ''));
       }
+    }
+
+    if (!grounded) {
+      return {
+        provider: 'gemini-ungrounded',
+        status: 'complete',
+        answer,
+        // Never surface a URL from an ungrounded answer, even if the model
+        // wrote one: it was not retrieved, so it cannot be vouched for.
+        citations: [],
+        relatedQuestions: [],
+        disclaimer: `${disclaimerFor(language)} ${ungroundedDisclaimer(language)}`,
+        externalHealthHubUrl: null,
+        diagnostic: `ungrounded fallback · search grounding refused on this key · tried=[${gone.join(',')}]`,
+      };
     }
 
     return {

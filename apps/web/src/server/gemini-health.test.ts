@@ -212,6 +212,43 @@ describe('researchWithGemini', () => {
     expect(result.diagnostic).toContain('probe[interactions-ungrounded=429 generateContent-grounded=429]');
   });
 
+  describe('ungrounded fallback when grounding is refused on the key', () => {
+    /** Grounded requests 429; the same model without tools answers. */
+    const groundingRefused: typeof fetch = ((_url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { tools?: unknown[] };
+      if (body.tools) {
+        return Promise.resolve(new Response(JSON.stringify({ error: { message: 'You exceeded your current quota' } }), { status: 429 }));
+      }
+      const plain = {
+        steps: [{ type: 'model_output', content: [{ type: 'text', text: 'ज्वरो तीन दिन रहे स्वास्थ्यकर्मीलाई देखाउनुहोस्। https://example.invalid/x' }] }],
+      };
+      return Promise.resolve(new Response(JSON.stringify(plain), { status: 200 }));
+    }) as unknown as typeof fetch;
+
+    it('is OFF by default: no answer from memory unless the owner says so', async () => {
+      const result = await researchWithGemini('x', 'ne', { apiKey: 'k', fetchImpl: groundingRefused, allowUngrounded: false });
+      expect(result.status).toBe('unavailable');
+      expect(result.answer).toBeNull();
+    });
+
+    it('when ON, answers plainly labelled, with no citations and a stronger disclaimer', async () => {
+      const result = await researchWithGemini('x', 'ne', { apiKey: 'k', fetchImpl: groundingRefused, allowUngrounded: true });
+      expect(result.status).toBe('complete');
+      expect(result.provider).toBe('gemini-ungrounded');
+      expect(result.answer).toContain('स्वास्थ्यकर्मी');
+      expect(result.citations).toEqual([]);
+      expect(result.disclaimer).toContain('प्रत्यक्ष स्रोत खोजी बिना');
+      expect(result.diagnostic).toContain('ungrounded fallback');
+    });
+
+    it('does not use the fallback for a bad key or a retired model', async () => {
+      const badKey = fetchReturning(400, { error: { status: 'INVALID_ARGUMENT', details: [{ reason: 'API_KEY_INVALID' }] } });
+      const result = await researchWithGemini('x', 'ne', { apiKey: 'k', fetchImpl: badKey, allowUngrounded: true });
+      expect(result.status).toBe('unavailable');
+      expect(result.provider).toBe('gemini-grounded');
+    });
+  });
+
   it('names a successful call\'s absence of diagnostic', async () => {
     const ok = await researchWithGemini('x', 'en', { apiKey: 'k', fetchImpl: fetchReturning(200, groundedResponse) });
     expect(ok.diagnostic).toBeUndefined();
