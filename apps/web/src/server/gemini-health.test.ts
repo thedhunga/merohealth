@@ -204,7 +204,8 @@ describe('researchWithGemini', () => {
       urls.push(`${String(url).includes(':generateContent') ? 'legacy' : 'interactions'}${body.tools ? '+tools' : ''}`);
       return Promise.resolve(new Response(JSON.stringify({ error: { message: 'You exceeded your current quota' } }), { status: 429 }));
     }) as unknown as typeof fetch;
-    const result = await researchWithGemini('x', 'ne', { apiKey: 'k', fetchImpl });
+    // With the ungrounded fallback switched off, total refusal triggers the probes.
+    const result = await researchWithGemini('x', 'ne', { apiKey: 'k', fetchImpl, allowUngrounded: false });
     expect(result.status).toBe('unavailable');
     // three grounded attempts, then one ungrounded interactions probe and one legacy grounded probe
     expect(urls).toEqual(['interactions+tools', 'interactions+tools', 'interactions+tools', 'interactions', 'legacy+tools']);
@@ -225,10 +226,26 @@ describe('researchWithGemini', () => {
       return Promise.resolve(new Response(JSON.stringify(plain), { status: 200 }));
     }) as unknown as typeof fetch;
 
-    it('is OFF by default: no answer from memory unless the owner says so', async () => {
+    it('can be switched OFF (RESEARCH_ALLOW_UNGROUNDED=false): fails closed', async () => {
       const result = await researchWithGemini('x', 'ne', { apiKey: 'k', fetchImpl: groundingRefused, allowUngrounded: false });
       expect(result.status).toBe('unavailable');
       expect(result.answer).toBeNull();
+    });
+
+    it('is ON by default (owner decision 2026-08-17) unless the env var says false', async () => {
+      const prev = process.env.RESEARCH_ALLOW_UNGROUNDED;
+      try {
+        delete process.env.RESEARCH_ALLOW_UNGROUNDED;
+        const on = await researchWithGemini('x', 'ne', { apiKey: 'k', fetchImpl: groundingRefused });
+        expect(on.provider).toBe('gemini-ungrounded');
+
+        process.env.RESEARCH_ALLOW_UNGROUNDED = 'false';
+        const off = await researchWithGemini('x', 'ne', { apiKey: 'k', fetchImpl: groundingRefused });
+        expect(off.status).toBe('unavailable');
+      } finally {
+        if (prev === undefined) delete process.env.RESEARCH_ALLOW_UNGROUNDED;
+        else process.env.RESEARCH_ALLOW_UNGROUNDED = prev;
+      }
     });
 
     it('when ON, answers plainly labelled, with no citations and a stronger disclaimer', async () => {

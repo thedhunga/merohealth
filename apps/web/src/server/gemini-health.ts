@@ -46,9 +46,10 @@ interface GeminiDependencies {
   fetchImpl?: typeof fetch | undefined;
   /**
    * Answer without live search when grounding is refused on this key.
-   * Defaults to RESEARCH_ALLOW_UNGROUNDED === 'true'. Off by default on
-   * purpose: an ungrounded model is answering health questions from memory,
-   * and switching that on is the owner's call, not the code's.
+   * Owner decision 2026-08-17: ON unless RESEARCH_ALLOW_UNGROUNDED='false'.
+   * Grounding is not in Gemini's free tier, and the owner chose a labelled,
+   * citation-free answer with a stronger disclaimer over silence. Set the
+   * variable to 'false' to fail closed again once billing is enabled.
    */
   allowUngrounded?: boolean | undefined;
 }
@@ -278,7 +279,7 @@ export async function researchWithGemini(
 
     let grounded = true;
     const allGroundedRefused = refusedOnQuota && gone.length === candidates.length && candidates[0] !== undefined;
-    const allowUngrounded = dependencies.allowUngrounded ?? process.env.RESEARCH_ALLOW_UNGROUNDED === 'true';
+    const allowUngrounded = dependencies.allowUngrounded ?? process.env.RESEARCH_ALLOW_UNGROUNDED !== 'false';
 
     if (!response.ok && allGroundedRefused && allowUngrounded && candidates[0]) {
       // Grounding is refused on this key; the owner has chosen an answer

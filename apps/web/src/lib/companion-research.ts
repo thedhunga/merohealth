@@ -12,7 +12,7 @@ export interface HealthResearch {
    * `gemini-ungrounded` is the owner-enabled fallback used only when search
    * grounding is refused on the configured key: the model answers without
    * live sources, says so, and returns no citations rather than invented
-   * ones. Off unless RESEARCH_ALLOW_UNGROUNDED=true.
+   * ones. On by owner decision (2026-08-17); RESEARCH_ALLOW_UNGROUNDED=false turns it off.
    */
   provider: 'perplexity-sonar' | 'gemini-grounded' | 'gemini-ungrounded';
   status: 'complete' | 'setup-required' | 'unavailable';
