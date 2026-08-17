@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { isDelegationActive, type DelegationGrant, type DelegationScope } from '@swasthya/family';
 
 import { Button } from '@/components/ui/Button';
+import { FormError } from '@/components/ui/FormError';
 import { FamilyApiError, revokeDelegation } from '@/lib/family-api';
 
 const SCOPES: readonly DelegationScope[] = ['VIEW_RECORD', 'ASK_ASSISTANT', 'MANAGE_APPOINTMENTS', 'UPLOAD_DOCUMENTS'];
@@ -74,11 +75,7 @@ export function DelegationsGrantedList({ grants, onRevoked }: { grants: readonly
     <div className="flex flex-col gap-4 rounded-2xl bg-sand/70 p-6 ring-1 ring-line">
       <h2 className="text-xl font-bold text-ink">{t('heading')}</h2>
 
-      {error ? (
-        <p className="text-sm font-semibold text-red-700" role="alert">
-          {error}
-        </p>
-      ) : null}
+      <FormError message={error} />
 
       <ul className="flex flex-col gap-3">
         {grants.map((grant) => {

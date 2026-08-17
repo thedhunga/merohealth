@@ -7,6 +7,7 @@ import type { HealthObservation } from '@swasthya/shared-types';
 
 import { Button } from '@/components/ui/Button';
 import { type CapturedFile, EvidenceCapture } from '@/components/ui/EvidenceCapture';
+import { FormError } from '@/components/ui/FormError';
 import {
   captureBloodPressurePhoto,
   confirmObservation,
@@ -142,11 +143,7 @@ export function BloodPressureRecord() {
           </div>
         ) : null}
 
-        {capture.phase === 'error' ? (
-          <p className="text-sm font-semibold text-red-700" role="alert">
-            {t('errors.generic')}
-          </p>
-        ) : null}
+        <FormError message={capture.phase === 'error' ? t('errors.generic') : null} />
         {capture.phase === 'no-reading' ? (
           <p className="rounded-xl bg-indigo-100 p-4 text-sm font-semibold text-indigo-800" role="status">
             {t('noReading')}

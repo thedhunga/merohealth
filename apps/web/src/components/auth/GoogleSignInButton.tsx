@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/Button';
+import { FormError } from '@/components/ui/FormError';
 import { useRouter } from '@/i18n/navigation';
 import { migrateAnonymousHistory } from '@/lib/history-api';
 import { AuthApiError, verifyGoogleCredential, type AuthIntent } from '@/lib/auth-api';
@@ -121,11 +122,7 @@ export function GoogleSignInButton({ intent, next }: { intent: AuthIntent; next:
         <span className="h-px flex-1 bg-line" />
       </div>
 
-      {error ? (
-        <p className="text-sm font-semibold text-red-700" role="alert">
-          {error}
-        </p>
-      ) : null}
+      <FormError message={error} />
 
       <Button disabled={pending || !scriptReady} onClick={handleClick} type="button" variant="secondary">
         <GoogleMark />

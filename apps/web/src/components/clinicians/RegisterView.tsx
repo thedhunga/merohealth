@@ -9,6 +9,7 @@ import type { CouncilKey, CredentialingApplication } from '@swasthya/shared-type
 import { RecordTransform } from '@/components/art/RecordTransform';
 import { Button } from '@/components/ui/Button';
 import { type CapturedFile, EvidenceCapture } from '@/components/ui/EvidenceCapture';
+import { FormError } from '@/components/ui/FormError';
 import { PageTemplate } from '@/components/ui/PageTemplate';
 import { Section } from '@/components/ui/Section';
 import { useSession } from '@/hooks/useSession';
@@ -383,11 +384,7 @@ export function RegisterView() {
                 </div>
               </div>
 
-              {submitError ? (
-                <p className="text-sm font-semibold text-red-700" role="alert">
-                  {submitError}
-                </p>
-              ) : null}
+              <FormError message={submitError} />
 
               <div className="flex gap-3">
                 <Button disabled={submitting} onClick={() => setStep('evidence')} variant="secondary">

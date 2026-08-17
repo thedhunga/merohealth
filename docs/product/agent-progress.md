@@ -1516,6 +1516,73 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-17 — **Queue's three unchecked boxes re-confirmed genuinely
+  blocked a fourth time; picked the highest-value improvement to work
+  already shipped: extracted the nine hand-duplicated inline form-error
+  elements into one shared `FormError` component.** Done.
+
+  **Selection.** `git checkout main && git pull` (fast-forwarded 50 commits),
+  read the ledger and `platform-vision.md` fresh, then `grep -n "^- \[ \]"`
+  across the whole file rather than trusting queue order. Same three boxes
+  as every recent run, each re-verified independently: (1) Google sign-in —
+  `grep GOOGLE_CLIENT_ID` on `.env.example`/`.env.server.example` still shows
+  it unset, and every build-side task under §D is already done regardless;
+  (2) the two missing testimonial portraits — `ListConnectors` still reports
+  Higgsfield `connected: true` but `enabledInChat: false` for this session;
+  (3) the homepage-height task (B1) — `git log` on the tracked files shows no
+  commits since the last two independent audits, so no new lever appeared.
+  All three genuinely blocked, not stale.
+
+  With nothing actionable in the queue, picked up the open candidate the
+  2026-08-16 entries had already identified but ranked below the OTP/Button
+  and outage-test work: nine call sites (`GoogleSignInButton.tsx`,
+  `PhoneOtpFlow.tsx` ×2, `BloodPressureRecord.tsx`, `IdentityVerification.tsx`,
+  `DelegationsGrantedList.tsx`, `ProfileConfirmationCard.tsx`,
+  `DelegationForm.tsx`, `RegisterView.tsx`) each hand-wrote the identical
+  `<p className="text-sm font-semibold text-red-700" role="alert">{message}</p>`
+  markup. Confirmed by grep this was still unaddressed and still exactly
+  nine. Left two visually different error banners alone
+  (`IdentityVerification.tsx:136` and `RegisterView.tsx:424` use a bordered
+  `rounded-xl bg-red-50 p-4` card style for a different kind of error) and
+  `GetCareFlow.tsx`'s bare `<div role="alert">` (wraps other content, not a
+  single message string) — those are a different pattern, not a missed
+  tenth duplicate.
+
+  **What was built.** `apps/web/src/components/ui/FormError.tsx`: a
+  presentational component taking `message: string | null | undefined`,
+  rendering `null` when empty. All nine call sites now read
+  `<FormError message={...} />`; two of them (`BloodPressureRecord.tsx`'s
+  `capture.phase === 'error'` check and `ProfileConfirmationCard.tsx`'s
+  `status === 'error'` check) pass a ternary since their error state isn't a
+  bare string. No visual or behavioural change — same class string, same
+  `role="alert"`, same conditional-render semantics — this is pure
+  deduplication so a future style or accessibility fix only has to land once.
+  No test file added: `apps/web` has zero component test files and no
+  `@testing-library/react` dependency project-wide (confirmed again this
+  run), matching every prior run's note on this and the existing
+  `Button.tsx`, which also ships without one.
+
+  **Verify.** Full gate from the repository root: `pnpm install
+  --frozen-lockfile` clean, `pnpm lint` 40/40, `pnpm typecheck` 40/40,
+  `pnpm test` 75/75 tasks (`apps/api` unchanged at 114 files / 745 tests;
+  `apps/web` test count unchanged since no test file was added or removed),
+  `pnpm build` 40/40 including the Next.js SSG pass and the Expo web export.
+  `grep -rn 'text-sm font-semibold text-red-700" role="alert"'
+  apps/web/src` now matches only `FormError.tsx` itself, confirming all nine
+  sites moved over and no tenth was missed.
+
+  **Mobile measurement.** Not applicable — no layout, spacing, or copy
+  changed; this is a same-markup component extraction, not a UI change.
+
+  **For the next run.** The three standing blockers are unchanged; re-verify
+  each fresh rather than trusting this note, since any could unblock between
+  runs (owner sets the OAuth client id, Higgsfield gets toggled on for a
+  session, or the owner makes a B1 content-cut call). The other open
+  candidate from the 2026-08-16 audit — re-showing the footer's app-download
+  links now that `/app` resolves — is a product trade-off against B1's open
+  height goal (~144px), not a mechanical fix; leave it for whoever has
+  standing to accept that cost or resolve B1 first.
+
 - 2026-08-16 — **Queue's three unchecked boxes re-confirmed genuinely blocked
   a third time; picked the highest-value improvement to work already
   shipped: closed the API-side counterpart of the last run's outage-test

@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import type { DelegationGrant, DelegationScope } from '@swasthya/family';
 
 import { Button } from '@/components/ui/Button';
+import { FormError } from '@/components/ui/FormError';
 import { earliestSelectableExpiryDate } from '@/lib/delegation-expiry';
 import { createDelegation, FamilyApiError } from '@/lib/family-api';
 
@@ -139,11 +140,7 @@ export function DelegationForm({ onCreated }: { onCreated: () => void }) {
           />
         </div>
 
-        {error ? (
-          <p className="text-sm font-semibold text-red-700" role="alert">
-            {error}
-          </p>
-        ) : null}
+        <FormError message={error} />
         {created ? (
           <p className="text-sm font-semibold text-success-700" role="status">
             {t('success')}

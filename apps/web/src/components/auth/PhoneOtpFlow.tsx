@@ -7,6 +7,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { RecordTransform } from '@/components/art/RecordTransform';
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import { Button } from '@/components/ui/Button';
+import { FormError } from '@/components/ui/FormError';
 import { Link, useRouter } from '@/i18n/navigation';
 import { PageTemplate } from '@/components/ui/PageTemplate';
 import { Section } from '@/components/ui/Section';
@@ -199,7 +200,7 @@ export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
                 />
               </div>
 
-              {error ? <p role="alert" className="text-sm font-semibold text-red-700">{error}</p> : null}
+              <FormError message={error} />
 
               <div>
                 <Button disabled={submitting || phone.trim().length === 0} type="submit" variant="accent">
@@ -263,7 +264,7 @@ export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
                 />
               </div>
 
-              {error ? <p role="alert" className="text-sm font-semibold text-red-700">{error}</p> : null}
+              <FormError message={error} />
 
               <div className="flex gap-3">
                 <Button onClick={backToPhone} type="button" variant="secondary">

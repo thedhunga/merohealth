@@ -7,6 +7,7 @@ import type { IdentityDocumentType, VerificationRequest } from '@swasthya/shared
 
 import { Button } from '@/components/ui/Button';
 import { type CapturedFile, EvidenceCapture } from '@/components/ui/EvidenceCapture';
+import { FormError } from '@/components/ui/FormError';
 import { getMyVerification, IdentityApiError, submitIdentityEvidence } from '@/lib/identity-api';
 
 const DOCUMENT_TYPES: readonly IdentityDocumentType[] = ['NATIONAL_ID', 'CITIZENSHIP', 'PASSPORT', 'DRIVING_LICENCE'];
@@ -170,11 +171,7 @@ export function IdentityVerification() {
             onCapture={captureEvidence}
           />
 
-          {submitError ? (
-            <p className="text-sm font-semibold text-red-700" role="alert">
-              {submitError}
-            </p>
-          ) : null}
+          <FormError message={submitError} />
 
           <div>
             <Button

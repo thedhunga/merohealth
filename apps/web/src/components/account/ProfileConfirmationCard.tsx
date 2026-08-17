@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/Button';
+import { FormError } from '@/components/ui/FormError';
 import {
   clearPendingProfileConfirmation,
   readPendingProfileConfirmation,
@@ -83,11 +84,7 @@ export function ProfileConfirmationCard() {
         ))}
       </ul>
 
-      {status === 'error' ? (
-        <p className="text-sm font-semibold text-red-700" role="alert">
-          {t('error')}
-        </p>
-      ) : null}
+      <FormError message={status === 'error' ? t('error') : null} />
 
       <div className="flex flex-wrap items-center gap-3">
         <Button disabled={status === 'saving'} onClick={() => void handleSave()} variant="secondary">
