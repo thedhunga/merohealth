@@ -86,7 +86,17 @@ export function Footer() {
 
   return (
     <footer className="bg-indigo-900 text-indigo-100">
-      <div className="container-site py-10 sm:py-16 md:py-20">
+      {/*
+        `pb-[calc(2.5rem_+_env(safe-area-inset-bottom))]` replaces `py-10`'s
+        plain bottom value below `sm`: the footer is the last thing on every
+        page, so in standalone mode (no browser chrome) its bottom edge is
+        the home-indicator strip. `env()` resolves to 0 without an inset, so
+        this is exactly `py-10`'s 2.5rem on a device that doesn't need it.
+        `sm:`/`md:` keep the original `py-16`/`py-20` unchanged — desktop and
+        tablet browsers aren't installed the same way and don't carry the
+        inset in practice.
+      */}
+      <div className="container-site py-10 pb-[calc(2.5rem_+_env(safe-area-inset-bottom))] sm:py-16 md:py-20">
         {/*
           Below `sm` (the 375px phone the product is measured at) the owner's
           direction is: four links, language, social, legal line — everything

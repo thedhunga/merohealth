@@ -11,6 +11,7 @@ import { Logo } from '@/components/layout/Logo';
 import { LocaleSwitcher } from '@/components/layout/LocaleSwitcher';
 import { MegaMenu } from '@/components/layout/MegaMenu';
 import { MobileNav } from '@/components/layout/MobileNav';
+import { useBackButtonClose } from '@/hooks/useBackButtonClose';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useOptionalSession } from '@/hooks/useSession';
 import { cn } from '@/lib/cn';
@@ -88,6 +89,7 @@ export function Header() {
   // from assistive tech while it covers them, and hand focus back to the
   // hamburger button on close rather than wherever it happens to drift.
   useFocusTrap(mobileDrawerRef, mobileOpen, { returnFocusRef: mobileToggleRef });
+  useBackButtonClose(mobileOpen, closeAll);
 
   const activeSegment = navSegments.find((segment) => segment.key === openSegment);
 
@@ -96,7 +98,12 @@ export function Header() {
       // Forest chrome book-ends the paper content: the footer is already
       // `bg-indigo-900`, so the header matches it rather than the paler
       // `indigo-800` Hero panel underneath, keeping the two distinct.
-      className="sticky top-0 z-50 bg-indigo-900 text-white"
+      // `pt-[env(safe-area-inset-top)]` pushes the row below the iPhone
+      // notch/status bar in standalone mode (`viewport-fit: cover` in
+      // `[locale]/layout.tsx` makes the inset resolve to a real value) while
+      // the indigo background still fills the notch strip itself, rather
+      // than showing paper through it.
+      className="sticky top-0 z-50 bg-indigo-900 pt-[env(safe-area-inset-top)] text-white"
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node)) closeAll();
       }}
@@ -218,7 +225,12 @@ export function Header() {
         <div
           aria-label={t('actions.menuLabel')}
           aria-modal="true"
-          className="fixed inset-x-0 top-20 bottom-0 z-40 overflow-y-auto bg-paper shadow-menu lg:hidden"
+          // `top` matches the header's actual rendered height now that it
+          // carries the same safe-area top padding (`h-20` plus whatever
+          // `env(safe-area-inset-top)` adds); `pb` keeps the last drawer
+          // item clear of the home-indicator strip on iOS instead of
+          // running the drawer's own scroll content under it.
+          className="fixed inset-x-0 top-[calc(5rem_+_env(safe-area-inset-top))] bottom-0 z-40 overflow-y-auto bg-paper pb-[env(safe-area-inset-bottom)] shadow-menu lg:hidden"
           id="mobile-drawer"
           ref={mobileDrawerRef}
           role="dialog"

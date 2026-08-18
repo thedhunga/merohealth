@@ -241,9 +241,10 @@ absent, this section is the source of truth), `frontend-design` skill.
       last saved conversation. Update-on-reload, no stale-forever bugs.
       **Done 2026-08-18 — see the log entry below** (last saved conversation
       not shown — documented scope cut, see the log and `OfflineView.tsx`).
-- [ ] Standalone-mode fixes: safe-area insets (`env(safe-area-inset-*)`)
+- [x] Standalone-mode fixes: safe-area insets (`env(safe-area-inset-*)`)
       on header/footer/mic; no external-link surprises (none exist by
-      design); back navigation works inside the app.
+      design); back navigation works inside the app. **Done 2026-08-18 —
+      see the log entry below.**
 
 ## S. Page weight and paint
 
@@ -1904,6 +1905,135 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-18 — **Round seven, task R (fourth box): standalone-mode fixes —
+  safe-area insets, external links, back navigation.** Done.
+
+  **Housekeeping, first.** Local `main` was on a stale lineage (`9bdf548`,
+  no merge-base with `origin/main`, confirmed with `git merge-base`) — the
+  same per-container shallow-clone symptom the last several entries
+  diagnosed. The detached `HEAD` this container started on (`b36da83`)
+  already matched `origin/main` exactly, so `git reset --hard origin/main`
+  realigned local `main`; nothing was lost since the stale branch was never
+  pushed anywhere.
+
+  **What was actually fixed vs. what was already true.** Researched with an
+  `Explore` subagent first (`Header.tsx`, `Footer.tsx`, `MicHero.tsx`,
+  `[locale]/layout.tsx`, the manifest, and a repo-wide grep for
+  `target="_blank"`/`window.open`/`popstate`) before writing anything, since
+  the task's three clauses turned out to need three different kinds of
+  work:
+
+  - **Safe-area insets — genuinely missing, now fixed.** `viewport-fit:
+    cover` was already set (`[locale]/layout.tsx`), so `env(safe-area-inset-*)`
+    resolves to real values on a notched phone in standalone mode, but
+    nothing in the app read it — confirmed zero `env(` usages anywhere in
+    `src` before this change. `Header` (`sticky top-0`) now carries
+    `pt-[env(safe-area-inset-top)]` so the indigo bar fills the notch strip
+    instead of content rendering under it; the mobile drawer (`fixed …
+    bottom-0`) now anchors its `top` to
+    `calc(5rem_+_env(safe-area-inset-top))` (it was hardcoded to the
+    header's old fixed `5rem` height, which the new top padding would have
+    made wrong) and gets `pb-[env(safe-area-inset-bottom)]` so its last item
+    clears the home-indicator strip. `Footer`, the last thing on every page,
+    gets `pb-[calc(2.5rem_+_env(safe-area-inset-bottom))]` below `sm` (its
+    `sm:`/`md:` breakpoints are unchanged — desktop/tablet browsers aren't
+    installed the same way). Left/right insets went into the shared
+    `container-site` utility in `globals.css` (`max(1.25rem,
+    env(safe-area-inset-left))`, mirrored for `-right`, doubled at the `md`
+    breakpoint) rather than any one component, since header, footer, the
+    mic hero and every page section already share that one utility — that
+    is what "on header/footer/mic" turns into once you check where the mic
+    actually renders (see below). Verified for real, not assumed: Chrome
+    DevTools Protocol's `Emulation.setSafeAreaInsetsOverride` (raw CDP, no
+    `playwright`/`puppeteer` package installed in this repo — a Node
+    `WebSocket` client was hand-rolled against `chrome --remote-debugging-port`)
+    against a production build with insets `{top:47, left:30, bottom:34,
+    right:30}` — a real iPhone notch/home-indicator shape — showed
+    `header` padding-top `47px`, `footer` padding-bottom `74px` (=
+    `2.5rem` + `34px`, exact), the drawer's `top` `127px` (= `5rem` +
+    `47px`, exact) and `pb` `34px`, and `container-site` left/right padding
+    `30px` (`max(20px, 30px)`). With insets zeroed (a non-notched phone),
+    every one of those reads back to its unmodified value — `env()`
+    defaults to `0`, so there is no regression on a device without a notch.
+  - **Mic — nothing to fix, and said so rather than inventing a change.**
+    `MicHero` (`HomeScreen`, `FirstVisitScreen`) and the in-form dictation
+    button in `GetCareFlow` are both in normal document flow, not
+    `fixed`/`sticky` — there is no bottom voice bar anywhere in this app
+    (grepped for `fixed`/`sticky` across every mic-adjacent file). A
+    component with no fixed edge has no notch/home-indicator to collide
+    with; the honest fix for "mic" was the shared `container-site` change
+    above (which the mic hero's wrapper does use), not inventing a fixed
+    position it doesn't have.
+  - **External links — verified, not fixed.** The task's own parenthetical
+    already called this: "none exist by design." The two `target="_blank"`
+    spots in the whole app (`Footer.tsx` social icons, `GetCareFlow.tsx`
+    citation links) both already carry `rel="noreferrer noopener"` and are
+    genuinely external (social platforms, cited sources) — exactly what
+    `target="_blank"` is for, standalone or not. No `window.open` anywhere.
+    Confirmed, changed nothing.
+  - **Back navigation — one real gap, fixed; the rest was already true.**
+    Every route renders the same persistent `Header`/`Footer` from
+    `[locale]/layout.tsx` unconditionally, and `Logo` always links to `/` —
+    so a user is never more than one tap from home on any screen, which is
+    the actual answer to "how do you get back with no browser chrome."
+    That part needed no code, only confirming it structurally. The one real
+    gap: the mobile nav drawer had no history entry of its own, so on
+    Android standalone (no browser chrome, but the system back
+    gesture still fires) the *first* back press wouldn't close the drawer —
+    it would fall through to whatever's behind it, backwards from how every
+    native sheet/menu behaves. New hook `useBackButtonClose.ts`
+    (`useFocusTrap.ts`'s pattern: hand-rolled, not a dependency, one overlay
+    needs it) pushes a dummy history entry when the drawer opens and closes
+    it on `popstate`; deliberately does **not** call `history.back()` on a
+    non-popstate close (Escape/outside-click/X/a nav link), because a link
+    tap closes the drawer *and* pushes its own history entry in the same
+    click — calling `back()` there would race that push and undo the
+    navigation instead of the drawer. Verified against a real browser
+    history stack over CDP, not asserted: opened the drawer, called
+    `history.back()` — drawer closed, URL unchanged, no navigation lost;
+    reopened and closed via the X button instead — no `popstate`/`back()`
+    call, no error; reopened once more and tapped an actual drawer link —
+    landed on `/individuals/24-7-care`, confirming the leftover pushed
+    history entry from a prior open doesn't corrupt real navigation.
+
+  **Why no test file for the new hook.** This repo's web tests run under
+  plain `vitest` with no DOM environment (`vitest.config.ts` has no
+  `environment: 'jsdom'`, and no `@testing-library` package is installed) —
+  confirmed by reading `useReveal.test.ts`/`useStreamingReveal.test.ts`,
+  which only test a *pure function* extracted out of the hook, and by the
+  fact that `useFocusTrap.ts` (the closest sibling to this hook — same
+  "trap an interaction inside the open drawer" shape, same
+  push-listener/cleanup structure) has never had a test file either. There
+  is no pure branching logic in `useBackButtonClose` worth extracting — it
+  is `pushState` + a `popstate` listener — so matching the existing,
+  deliberate precedent (verify with real `window`/CDP, not a fabricated
+  unit test) was the honest call rather than writing a test that mocks its
+  way around not having a DOM.
+
+  **Measurements at 375×812** (production build, returning-visitor
+  `HomeScreen`, CDP not Playwright — see above): unchanged by this task,
+  recorded because the standing instruction asks for both numbers, not just
+  the after. `document.body.scrollHeight` 1627px / `innerHeight` 812px →
+  **2.00 screens** (was already 2.00 per the task-O log entry; this task
+  touches only header/footer/drawer chrome and safe-area padding, which
+  resolves to `0px` without a notch — same layout, same height, on the
+  hardware this was measured on). Tap targets under 44px: **1 of 19** on
+  `/` — not this task's scope (it's the queue's separate tap-target
+  finding from the round intro, already tracked there), noted for whoever
+  picks that up next rather than chased down here.
+
+  **What the next run should know.** `env(safe-area-inset-*)` cannot be
+  verified with a plain headless Chromium launch or the installed
+  `playwright` Chromium binary alone — it always reads `0` without a real
+  device or CDP's `Emulation.setSafeAreaInsetsOverride` (Chromium 133+;
+  confirmed present on the 141 binary here). There is still no `playwright`
+  or `puppeteer` **npm package** in this repo (only the Chromium *binary* at
+  `/opt/pw-browsers`), same gap `docs/product/pwa.md` already noted — the
+  raw-CDP-over-`WebSocket` script used here is one-off and not checked in;
+  a future task that needs browser automation repeatedly should consider
+  adding `playwright` as a devDependency rather than re-hand-rolling CDP
+  each time.
 
 - 2026-08-18 — **Round seven, task R (third box): service worker + offline
   page.** Done, with one documented scope cut (below).

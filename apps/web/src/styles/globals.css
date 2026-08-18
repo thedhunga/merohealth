@@ -162,10 +162,20 @@
   width: 100%;
   max-width: var(--container-site);
   margin-inline: auto;
-  padding-inline: 1.25rem;
+  /*
+   * `max()`, not `padding-inline`, because a landscape notch only widens
+   * one side (left or right depending on orientation) and the two insets
+   * can differ — `padding-inline` would apply whichever came out on top to
+   * both. Every full-width section (header, footer, the mic hero, every
+   * page) shares this utility, so this is the one place standalone-mode
+   * left/right insets need handling rather than per-component.
+   */
+  padding-left: max(1.25rem, env(safe-area-inset-left));
+  padding-right: max(1.25rem, env(safe-area-inset-right));
 
   @media (width >= 48rem) {
-    padding-inline: 2.5rem;
+    padding-left: max(2.5rem, env(safe-area-inset-left));
+    padding-right: max(2.5rem, env(safe-area-inset-right));
   }
 }
 
