@@ -4,6 +4,23 @@ export type GreetingPeriod = 'morning' | 'afternoon' | 'evening';
 
 export type HomeVariant = 'returning' | 'firstVisitLean' | 'marketing';
 
+export type MicHeroLayout = 'voiceFirst' | 'textFirst';
+
+/**
+ * Round seven, task O (outage box): both `HomeScreen` and `FirstVisitScreen`
+ * build their hero around a mic disc, but `useSpeechDictation`'s `supported`
+ * flag starts `false` on every server render and on any browser without the
+ * Web Speech API (Firefox, some in-app webviews) — a person on one of those
+ * was tapping a mic that could never have listened. `textFirst` disables the
+ * disc rather than hiding it (a dead-looking control the person can see is
+ * more honest than one that silently vanished) and promotes the type action,
+ * with a one-line note explaining why. Pure so both screens share one tested
+ * decision instead of two copies that could drift.
+ */
+export function micHeroLayout(dictationSupported: boolean): MicHeroLayout {
+  return dictationSupported ? 'voiceFirst' : 'textFirst';
+}
+
 /**
  * Round seven, task O (second box): which `/` a device sees.
  *

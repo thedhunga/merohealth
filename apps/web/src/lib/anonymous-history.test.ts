@@ -5,6 +5,7 @@ import {
   clearPendingProfileConfirmation,
   dismissUpsell,
   hasExhaustedTrialMinutes,
+  history,
   isUpsellDismissed,
   readPendingProfileConfirmation,
   recordExchange,
@@ -243,5 +244,35 @@ describe('recordExchange outage behaviour — round five task H', () => {
         spokenIn: true,
       }),
     ).not.toThrow();
+  });
+});
+
+describe('history() outage behaviour — round seven task O', () => {
+  it('reads as empty, not a throw, when localStorage.getItem fails (disabled, private mode)', () => {
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: () => {
+          throw new Error('SecurityError');
+        },
+        setItem: () => {},
+        removeItem: () => {},
+      },
+    });
+
+    expect(() => history()).not.toThrow();
+    expect(history()).toEqual([]);
+  });
+
+  it('reads as empty, not a throw, when the stored value is corrupt JSON', () => {
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: () => 'not valid json {{{',
+        setItem: () => {},
+        removeItem: () => {},
+      },
+    });
+
+    expect(() => history()).not.toThrow();
+    expect(history()).toEqual([]);
   });
 });

@@ -7,6 +7,7 @@ import { ArrowRight, Keyboard, Mic, ShieldCheck, Sparkles } from 'lucide-react';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useSpeechDictation } from '@/hooks/useSpeechDictation';
 import { storeCareListenIntent } from '@/lib/get-care-session';
+import { micHeroLayout } from '@/lib/home-screen';
 import { cn } from '@/lib/cn';
 
 const CARDS = [
@@ -52,6 +53,8 @@ export function FirstVisitScreen() {
     router.push('/get-care');
   };
 
+  const layout = micHeroLayout(dictation.supported);
+
   return (
     <>
       <section aria-labelledby="first-visit-heading" className="bg-paper py-10 sm:py-14">
@@ -66,20 +69,32 @@ export function FirstVisitScreen() {
 
           <div className="mt-6 flex flex-col items-center">
             <button
-              aria-label={homeScreenT('micLabel')}
+              aria-label={layout === 'voiceFirst' ? homeScreenT('micLabel') : homeScreenT('micUnavailable')}
               className={cn(
-                'grid size-28 place-items-center rounded-full bg-marigold-500 text-indigo-950 shadow-lift',
-                'transition-transform duration-150 hover:bg-marigold-300 active:scale-95',
+                'grid size-28 place-items-center rounded-full shadow-lift transition-transform duration-150',
+                layout === 'voiceFirst'
+                  ? 'bg-marigold-500 text-indigo-950 hover:bg-marigold-300 active:scale-95'
+                  : 'cursor-not-allowed bg-indigo-100 text-ink-soft',
               )}
+              disabled={layout === 'textFirst'}
               onClick={handleMicTap}
               type="button"
             >
               <Mic aria-hidden className="size-10" />
             </button>
-            <p className="mt-3 text-base font-bold text-indigo-950">{homeScreenT('micLabel')}</p>
+            {layout === 'voiceFirst' ? (
+              <p className="mt-3 text-base font-bold text-indigo-950">{homeScreenT('micLabel')}</p>
+            ) : (
+              <p className="mt-3 max-w-[24ch] text-center text-sm text-ink-soft">{homeScreenT('micUnavailable')}</p>
+            )}
 
             <Link
-              className="mt-2 inline-flex min-h-11 items-center gap-1.5 px-2 text-sm font-semibold text-indigo-700 hover:text-indigo-800"
+              className={cn(
+                'mt-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold transition-colors',
+                layout === 'voiceFirst'
+                  ? 'px-2 text-indigo-700 hover:text-indigo-800'
+                  : 'rounded-pill bg-marigold-500 px-5 text-indigo-950 hover:bg-marigold-300',
+              )}
               href="/get-care"
             >
               <Keyboard aria-hidden className="size-4" />

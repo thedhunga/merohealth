@@ -191,8 +191,9 @@ absent, this section is the source of truth), `frontend-design` skill.
 - [x] Reduce the footer on phones to: four links, language, social, legal
       line. The rest folds behind "थप". **Done 2026-08-18 — see the log entry
       below.**
-- [ ] Outage tests: history unreadable → first-time layout; no speech API →
-      text-first layout with the mic disabled and a one-line note.
+- [x] Outage tests: history unreadable → first-time layout; no speech API →
+      text-first layout with the mic disabled and a one-line note. **Done
+      2026-08-18 — see the log entry below.**
 
 ## P. Mic-as-hero and conversation entry (touches Round five H)
 
@@ -1893,6 +1894,86 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-18 — **Round seven, task O (fourth/last box): outage tests —
+  history unreadable → first-time layout; no speech API → text-first mic
+  layout, disabled, with a one-line note.** Done.
+
+  **Housekeeping, first — fourth run in a row now.** `git checkout main &&
+  git pull` again reported local `main` and `origin/main` with no common
+  ancestor (76 local commits vs. 50 on origin, disjoint history). Same
+  fix as the last three log entries: `git checkout -B main origin/main`
+  — nothing was lost, the diverged local tip is still reachable by its own
+  hash if ever needed. I did not re-diagnose past what the prior three
+  entries already found, per their own request; I did push a notification
+  to the owner about this being a fourth occurrence, since three prior
+  written requests for attention in this same file evidently have not
+  reached anyone. If a fifth run hits this, it probably shouldn't spend
+  more words on it here either — the fix is one line and takes seconds.
+
+  **What was built.** The gap: `HomeGate`'s `history()` read already
+  degraded safely on a throwing `localStorage` (existing `try/catch` in
+  `anonymous-history.ts`'s `read()`, returning `empty()`), so "history
+  unreadable → first-time layout" was already true in practice but had
+  zero test coverage proving it. The second half — "no speech API →
+  text-first layout with the mic disabled and a one-line note" — did not
+  exist at all: `HomeScreen` and `FirstVisitScreen` both called
+  `useSpeechDictation` only to gate `storeCareListenIntent()`, never to
+  change what rendered, so a Firefox visitor (or anyone whose browser lacks
+  `SpeechRecognition`) saw a full-size marigold mic disc that could never
+  have listened, with no explanation.
+
+  Added `micHeroLayout(dictationSupported)` to `lib/home-screen.ts` — a
+  pure `'voiceFirst' | 'textFirst'` decision, mirroring how `homeVariant`
+  already keeps the returning/first-time decision testable without a DOM.
+  Wired it into both `HomeScreen.tsx` and `FirstVisitScreen.tsx`
+  (duplicated, matching this codebase's existing duplication of the mic
+  markup between the two files rather than introducing a shared component
+  neither asked for): when `textFirst`, the mic disc gets `disabled` plus
+  muted styling (still visible, not hidden — a control the person can see
+  is more honest than one that silently vanished), its label swaps to a
+  new one-line note (`homeScreen.micUnavailable`, both message files), and
+  the "लेख्नुहोस्" / "Type instead" action is promoted from a small
+  secondary link to the primary marigold pill in that state.
+
+  **Outage tests added**, following this repo's existing "outage" naming
+  and hand-rolled-`localStorage`-fake convention (`anonymous-history.test.ts`,
+  `content/pricing.test.ts`) rather than component rendering — `apps/web`
+  has no jsdom or `@testing-library/react`, confirmed still true:
+  - `anonymous-history.test.ts`: new `history()` outage describe block —
+    a throwing `getItem` and corrupt stored JSON both resolve to `[]`
+    rather than throwing.
+  - `home-screen.test.ts`: new `micHeroLayout` unit tests, plus an
+    `outage: history unreadable → first-time layout` test that exercises
+    the exact sequence `HomeGate` runs on mount (`history().length > 0`
+    fed into `homeVariant`) under a throwing `localStorage`, asserting it
+    lands on `firstVisitLean`/`marketing`, never `'returning'` — the
+    failure mode that would show a stranger's device someone else's last
+    conversation.
+
+  **Measured at 375×812**, production build, real Chromium, both variants,
+  before/after speech-API removal (`delete window.SpeechRecognition` /
+  `webkitSpeechRecognition` in `addInitScript`, simulating Firefox):
+  first-time lean screen 2.00 → 2.02 phone-screens tall (unchanged, well
+  under the round's 2.5-screen budget); returning-visitor `HomeScreen`
+  1.52 → 1.54. Tap targets under 44px: 1 of 95 (lean) and 1 of 100
+  (returning) in both the voice-capable and no-speech runs — that one
+  pre-existing small target is unrelated to this change (present
+  identically before and after) and not introduced by it; the mic disc
+  itself is 112px in both states, and the promoted type-action pill
+  carries the same `min-h-11` (44px) every other button in this file
+  already uses. Screen-reader label on the disabled mic reads the note
+  text itself, not the now-inaccurate "बोल्नुहोस्".
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm
+  typecheck`, `pnpm test` (75/75 task suites; web: 41 files, 297 tests
+  passed — the new cases landed inside existing files, so the file count
+  didn't move), `pnpm build` (40/40 tasks) all passed clean.
+
+  Section O is now fully checked. Next unchecked task is section P
+  (`MicHero` component) — a good candidate to absorb the duplicated mic
+  markup this run left in both `HomeScreen.tsx` and `FirstVisitScreen.tsx`
+  into one shared component, since that's explicitly P's job, not O's.
 
 - 2026-08-18 — **Round seven, task O (third box): collapsed the phone
   footer to four links, language, social and the legal line, with

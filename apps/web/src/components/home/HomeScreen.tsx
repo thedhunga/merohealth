@@ -11,7 +11,7 @@ import { useOptionalSession } from '@/hooks/useSession';
 import { buildActingSubjects } from '@/lib/acting-subjects';
 import { history } from '@/lib/anonymous-history';
 import { storeCareListenIntent, storeCareQuestion } from '@/lib/get-care-session';
-import { dailyArticle, greetingPeriod } from '@/lib/home-screen';
+import { dailyArticle, greetingPeriod, micHeroLayout } from '@/lib/home-screen';
 import { cn } from '@/lib/cn';
 
 const CHIP_KEYS = ['fever', 'headache', 'medicine', 'report'] as const;
@@ -70,6 +70,8 @@ export function HomeScreen() {
     router.push('/get-care');
   };
 
+  const layout = micHeroLayout(dictation.supported);
+
   return (
     <section aria-labelledby="home-screen-heading" className="bg-paper py-8 sm:py-12">
       <div className="container-site max-w-xl">
@@ -79,20 +81,32 @@ export function HomeScreen() {
 
         <div className="mt-6 flex flex-col items-center">
           <button
-            aria-label={t('micLabel')}
+            aria-label={layout === 'voiceFirst' ? t('micLabel') : t('micUnavailable')}
             className={cn(
-              'grid size-28 place-items-center rounded-full bg-marigold-500 text-indigo-950 shadow-lift',
-              'transition-transform duration-150 hover:bg-marigold-300 active:scale-95',
+              'grid size-28 place-items-center rounded-full shadow-lift transition-transform duration-150',
+              layout === 'voiceFirst'
+                ? 'bg-marigold-500 text-indigo-950 hover:bg-marigold-300 active:scale-95'
+                : 'cursor-not-allowed bg-indigo-100 text-ink-soft',
             )}
+            disabled={layout === 'textFirst'}
             onClick={handleMicTap}
             type="button"
           >
             <Mic aria-hidden className="size-10" />
           </button>
-          <p className="mt-3 text-base font-bold text-indigo-950">{t('micLabel')}</p>
+          {layout === 'voiceFirst' ? (
+            <p className="mt-3 text-base font-bold text-indigo-950">{t('micLabel')}</p>
+          ) : (
+            <p className="mt-3 max-w-[24ch] text-center text-sm text-ink-soft">{t('micUnavailable')}</p>
+          )}
 
           <button
-            className="mt-2 inline-flex min-h-11 items-center gap-1.5 px-2 text-sm font-semibold text-indigo-700 hover:text-indigo-800"
+            className={cn(
+              'mt-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold transition-colors',
+              layout === 'voiceFirst'
+                ? 'px-2 text-indigo-700 hover:text-indigo-800'
+                : 'rounded-pill bg-marigold-500 px-5 text-indigo-950 hover:bg-marigold-300',
+            )}
             onClick={() => goToGetCare()}
             type="button"
           >

@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { healthLibraryArticles } from '@/content/healthLibrary';
-import { dailyArticle, greetingPeriod, homeVariant } from '@/lib/home-screen';
+import { history } from '@/lib/anonymous-history';
+import { dailyArticle, greetingPeriod, homeVariant, micHeroLayout } from '@/lib/home-screen';
 
 describe('greetingPeriod', () => {
   it('is morning before noon', () => {
@@ -57,5 +58,43 @@ describe('homeVariant', () => {
 
   it('keeps the full marketing page for a first-time /en visitor', () => {
     expect(homeVariant('en', false)).toBe('marketing');
+  });
+});
+
+describe('micHeroLayout', () => {
+  it('leads with voice when the device has the Web Speech API', () => {
+    expect(micHeroLayout(true)).toBe('voiceFirst');
+  });
+
+  it('falls back to text-first when the device has no Web Speech API', () => {
+    expect(micHeroLayout(false)).toBe('textFirst');
+  });
+});
+
+describe('outage: history unreadable → first-time layout — round seven task O', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('sends a device whose localStorage throws to the first-time variant, not the returning one', () => {
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: () => {
+          throw new Error('SecurityError');
+        },
+        setItem: () => {},
+        removeItem: () => {},
+      },
+    });
+
+    // This is exactly what `HomeGate` does on mount: read history, then hand
+    // whether it's non-empty to `homeVariant`. A throwing localStorage must
+    // never surface as `'returning'` — that would show a stranger's device
+    // someone else's last conversation.
+    const isReturning = history().length > 0;
+
+    expect(isReturning).toBe(false);
+    expect(homeVariant('ne', isReturning)).toBe('firstVisitLean');
+    expect(homeVariant('en', isReturning)).toBe('marketing');
   });
 });

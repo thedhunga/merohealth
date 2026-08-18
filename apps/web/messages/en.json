@@ -266,6 +266,7 @@
       "evening": "Good evening"
     },
     "micLabel": "Speak",
+    "micUnavailable": "Voice isn't available on this browser — type your question instead.",
     "typeLabel": "Type instead",
     "chipsLabel": "Quick options",
     "chips": {
