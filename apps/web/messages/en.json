@@ -1399,6 +1399,15 @@
       "dismiss": "Dismiss",
       "comingSoonBody": "Premium personalised features — longer voice conversations, your own record — are coming soon. Be the first to try.",
       "comingSoonCta": "Be first"
+    },
+    "installPrompt": {
+      "heading": "Save it to your phone — open with one tap",
+      "androidBody": "Launch it straight from your home screen, like an app.",
+      "androidCta": "Add to phone",
+      "iosBody": "Add it to your home screen:",
+      "iosStep1": "Tap the Share icon below",
+      "iosStep2": "Choose \"Add to Home Screen\"",
+      "dismiss": "Dismiss"
     }
   },
   "auth": {

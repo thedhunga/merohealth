@@ -230,10 +230,11 @@ absent, this section is the source of truth), `frontend-design` skill.
       splash, standalone) and iOS Safari (Add to Home Screen; icon; no
       Safari chrome). Record findings in `docs/product/pwa.md`. **Done
       2026-08-18 — see the log entry below.**
-- [ ] `InstallPrompt` component: after the second answer, one calm card
+- [x] `InstallPrompt` component: after the second answer, one calm card
       "फोनमा राख्नुहोस् — एक ट्यापमा खोल्नुहोस्" using `beforeinstallprompt`
       on Android; on iOS a two-step picture of Share → Add to Home Screen.
-      Dismissible once, then never again (device flag).
+      Dismissible once, then never again (device flag). **Done 2026-08-18 —
+      see the log entry below.**
 - [ ] Service worker via `@serwist/next` (or Next's recommended approach):
       cache the app shell, fonts, imagery; **never cache `/api/*`**;
       offline page in Nepali that still shows the emergency numbers and the
@@ -1901,6 +1902,88 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-18 — **Round seven, task R (second box): `InstallPrompt`
+  component.** Done.
+
+  **Housekeeping, first.** Local `main` had no computable merge-base against
+  `origin/main` (76 local commits vs. 50 on origin, unrelated histories) —
+  the same per-container shallow-clone symptom the last five entries
+  diagnosed. Working tree was clean, so `git reset --hard origin/main`
+  realigned the branch pointer with nothing lost. Confirmed before resetting
+  that origin's own ledger explains the disjoint history (the 2026-08-15
+  operating note: `main` and `mero-health/platform-foundation` were merged
+  into one rewritten history on `main`), so this was a stale local clone
+  catching up to the documented rewrite, not data loss.
+
+  **What was built.** `apps/web/src/lib/install-prompt.ts` — three pure,
+  testable pieces: `installPlatform(userAgent)` (`'ios' | 'android' |
+  'other'` from UA string matching), `isRunningStandalone(env)` (checks
+  `matchMedia('(display-mode: standalone)')` for Android/desktop and
+  `navigator.standalone` for iOS Safari, which never sets the standard
+  media query), and `isInstallDismissed`/`dismissInstall` — the same
+  `mero-health:install-dismissed` localStorage-flag-with-try/catch pattern
+  `UPSELL_DISMISSED_KEY` already established, kept as its own module rather
+  than added to `anonymous-history.ts` since it is a UI preference, not
+  conversation data. `apps/web/src/components/ui/InstallPrompt.tsx` renders
+  the card: Android gets the exact heading from the ledger plus an "Add to
+  phone" button wired to a captured `beforeinstallprompt` event (typed by
+  hand — Chrome-only, never standardised, not in `lib.dom.d.ts`); iOS gets
+  the same heading with a two-line Share-icon → "Add to Home Screen"
+  picture and no functional button, since iOS Safari has no programmatic
+  install API. Both share one dismiss `X` (`UpsellCard`'s exact button
+  markup) that persists the flag forever.
+
+  **Where it hooks in.** `GetCareFlow.tsx`'s existing reaction stack
+  (profile prompt → upsell → sign-in suggestion, mutually exclusive,
+  Round six's own comment already said "never more than one of these at
+  once") gained a fourth, lowest-priority slot. Trigger is `answeredCount
+  >= 2` — literally `shouldSuggestSignIn`'s own threshold, computed from the
+  same `history()` call already sitting a few lines above it, except not
+  gated to spoken answers only (typing two questions is exactly as much
+  engagement as speaking them). The `beforeinstallprompt` listener attaches
+  unconditionally on `InstallPrompt` mount, not behind the `show` prop —
+  Chrome fires the event once, early, and a listener added after the fact
+  never sees it. `GetCareFlow` mounts once per visit to `/get-care`, so in
+  practice the listener is live well before a second answer exists.
+
+  **A deliberate scope cut.** The listener is only attached where
+  `InstallPrompt` mounts (inside `/get-care`), not higher in the app tree —
+  if Chrome already fired `beforeinstallprompt` before someone ever visits
+  that route, this component will not have caught it and the Android card
+  simply never has anything to show that visit. Mounting a listener in the
+  root layout to catch it earlier felt like scope creep for a card that is
+  itself gated on being two questions deep into that same route, and Round
+  seven's own task O already confirmed `/get-care` is the only place a
+  "second answer" concept exists at all. Worth revisiting only if a real
+  device check (see below) shows the card rarely has anything to offer.
+
+  **Verification.** `pnpm install --frozen-lockfile` / `lint` / `typecheck`
+  / `test` (46 web test files, 331 tests, including the 8 new
+  `install-prompt.test.ts` cases) / `build` all green from the repo root.
+  Confirmed `Share` and `SquarePlus` exist in the installed `lucide-react`
+  (`1.30.0`) before trusting the import, matching the "one icon set, one
+  weight" art-direction rule. Visual check followed the repo's own
+  established throwaway-route pattern (mounted `<InstallPrompt show
+  onDismissed={...} />` alone on a temporary route, since a real
+  `beforeinstallprompt` never fires against a non-HTTPS dev server with no
+  engagement heuristic — for the Android screenshot a synthetic event was
+  dispatched by hand from the test script to exercise that branch too):
+  screenshots at 375×812 in both locales, both platforms, no clipped
+  Devanagari, dismiss button 44×44, Android's CTA 111×44 — both meet the
+  44 px tap-target floor. Deleted the throwaway route before committing;
+  `git status` confirms nothing under `apps/web/src/app` changed.
+
+  **Next run:** task R's remaining two boxes — the `@serwist/next` service
+  worker (cache app shell/fonts/imagery, never `/api/*`, offline page with
+  emergency numbers) and standalone-mode safe-area/back-navigation fixes —
+  are next in the queue. Re-run the PWA installability CDP check
+  (`docs/product/pwa.md`'s method) once the service worker lands, since a
+  bad fetch handler can regress today's clean installability verdict. A
+  real phone spot-check of this task's card (does `beforeinstallprompt`
+  actually fire on a real Android Chrome after two real answers; does the
+  iOS card's instructions match what Safari's real share sheet looks like)
+  is still open and cheap, same as task R's first box noted.
 
 - 2026-08-18 — **Round seven, task R (first box): verify PWA install on
   Android Chrome and iOS Safari.** Done.

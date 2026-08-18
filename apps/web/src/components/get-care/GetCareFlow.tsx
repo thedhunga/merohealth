@@ -37,6 +37,8 @@ import {
   shouldSuggestSignIn,
   updateProfile,
 } from '@/lib/anonymous-history';
+import { isInstallDismissed } from '@/lib/install-prompt';
+import { InstallPrompt } from '@/components/ui/InstallPrompt';
 import { formatFreemiumPriceNpr, isPremiumLive, PRICE_PLUS_NPR } from '@/content/pricing';
 import { nextProfilePrompt, type ProfilePrompt } from '@/lib/profile-prompts';
 import { Link } from '@/i18n/navigation';
@@ -75,6 +77,7 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
   const [pendingPrompt, setPendingPrompt] = useState<ProfilePrompt | null>(null);
   const [suggestSignIn, setSuggestSignIn] = useState(false);
   const [showUpsell, setShowUpsell] = useState(false);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   // One id per conversation session — regenerated on `reset()` — so the
   // saved history and the thread UI can both group turns asked in one
   // sitting. `useState(() => ...)` rather than a module-level call: the id
@@ -180,6 +183,14 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
         // never shown twice once dismissed.
         if (spoken && !isUpsellDismissed()) {
           setShowUpsell(true);
+        }
+        // Round seven, task R: "after the second answer" — same threshold as
+        // `shouldSuggestSignIn`, on any answer rather than only a spoken one,
+        // since installing is worth offering whether the person types or
+        // talks. `InstallPrompt` itself still decides whether it has an
+        // actual install path for this device.
+        if (answeredCount >= 2 && !isInstallDismissed()) {
+          setShowInstallPrompt(true);
         }
       } else {
         setPendingPrompt(null);
@@ -388,9 +399,10 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
                   Reactions to the answer, below it and after it. Profile
                   prompt first (one question, skippable), then the upsell
                   card (Round six L — only after a voice answer, dismissible),
-                  then the sign-in suggestion — never more than one of these
-                  three at once, and never before a real answer has been
-                  given.
+                  then the sign-in suggestion, then the install prompt (Round
+                  seven R — after the second answer, dismissible) — never more
+                  than one of these four at once, and never before a real
+                  answer has been given.
                 */}
                 {phase === 'result' && pendingPrompt ? (
                   <ProfilePromptCard
@@ -410,6 +422,9 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
                 ) : null}
                 {phase === 'result' && !pendingPrompt && !showUpsell && suggestSignIn ? (
                   <SignInSuggestion />
+                ) : null}
+                {phase === 'result' && !pendingPrompt && !showUpsell && !suggestSignIn ? (
+                  <InstallPrompt onDismissed={() => setShowInstallPrompt(false)} show={showInstallPrompt} />
                 ) : null}
               </div>
             </div>
