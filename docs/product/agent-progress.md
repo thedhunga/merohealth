@@ -221,7 +221,8 @@ absent, this section is the source of truth), `frontend-design` skill.
 - [x] The answer panel streams text in (word-chunked reveal from the
       response), and the advisory block slides up after the answer.
       **Done 2026-08-18 — see the log entry below.**
-- [ ] Budget: no animation over 400 ms; nothing animates that costs bytes.
+- [x] Budget: no animation over 400 ms; nothing animates that costs bytes.
+      **Done 2026-08-18 — see the log entry below.**
 
 ## R. PWA — finish what `8ed647f` started
 
@@ -1899,6 +1900,129 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-18 — **Round seven, task Q (last box): the motion budget audit —
+  "no animation over 400 ms; nothing animates that costs bytes."** Done.
+
+  **Housekeeping, first.** Local `main` had no computable merge-base against
+  `origin/main` again (50 local commits vs. 76 on origin) — the same
+  per-container shallow-clone symptom the last three entries diagnosed.
+  Working tree was clean, so `git reset --hard origin/main` realigned the
+  branch pointer with nothing lost. Still needs a human to fix clone depth
+  rather than a fifth log paragraph about it.
+
+  **What was audited.** Every `transition`/`animation`/`duration`/`@keyframes`
+  in `apps/web/src` — Tailwind `duration-*`/`transition-*` utility classes,
+  `globals.css`'s three `@keyframes` blocks, the `motion` (Framer) usage in
+  `GetCareFlow.tsx`, and the View Transitions wiring from this same round.
+  Full findings below; only the two that actually violated something got
+  changed — everything else was verified compliant and is recorded here so
+  the next run doesn't have to re-derive it.
+
+  **Fixed — real violations.**
+  1. `components/home/ServiceCards.tsx` — the featured card's image had
+     `transition-transform duration-700 group-hover:scale-[1.025]`, a 700 ms
+     hover animation, nearly double the budget. Dropped to `duration-300`,
+     matching the sibling non-featured cards' own hover duration on the same
+     component.
+  2. `components/ui/SectionIntro.tsx` — the more important one. Its optional
+     `video` slot rendered a raw `<video autoPlay loop muted>` unconditionally
+     on every device, with only a `motion-reduce:hidden` CSS class as a nod to
+     motion preference. `AmbientLoop.tsx`'s own doc comment already explains
+     why that class does nothing: `autoplay` makes the browser fetch the file
+     regardless of `preload="metadata"` or `display:none` — hiding the
+     element does not stop the download. This slot feeds
+     `/individuals/diabetes-management` and `/individuals/hypertension-management`
+     (`content/individuals.ts`, via `IndividualsPageView.tsx`) with
+     `/video/loop-cuff.mp4`, confirmed on disk at 2.4 MB — so both pages were
+     autoplay-fetching 2.4 MB on every phone, every connection, Save-Data or
+     not, exactly the cost `LoopVideo`/`AmbientLoop` were built to prevent on
+     the homepage hero in an earlier round. Could not reach for `AmbientLoop`
+     directly: `SectionIntro`'s own doc comment says it is shared with client
+     components (`AccountView`) and therefore cannot import the
+     `node:fs`-backed `hasAsset` that `AmbientLoop` pulls in, or the build
+     breaks. `LoopVideo` itself carries no such import — just `useState` +
+     `useEffect` + `matchMedia`/`navigator.connection` — so swapping the raw
+     `<video>` for `<LoopVideo poster={image.src} src={video} />` gets the
+     exact same gate (`shouldPlayAmbientLoop`: off under reduced-motion, under
+     768 px, on Save-Data, or on anything slower than 4G) without changing
+     `SectionIntro`'s import contract. All three current callers
+     (`IndividualsPageView`, `PageTemplate`, `OurProvidersView`) are server
+     components already resolving `hasAsset` themselves before passing the
+     prop, so nothing upstream needed to change. `LoopVideo`'s gating logic
+     already has full unit coverage (`LoopVideo.test.ts`, 6 cases); no new
+     test needed since nothing new was introduced, just a call site fixed.
+  3. Minor consistency nit alongside these: `GetCareFlow.tsx`'s loading-panel
+     spinner had `animate-pulse` without the `motion-reduce:animate-none`
+     companion every other `animate-pulse`/`animate-ping` in the codebase
+     carries (`MicHero.tsx`, `SymptomEntry.tsx`, `Hero.tsx`). Added it for
+     consistency — low-severity, since `globals.css`'s blanket
+     `prefers-reduced-motion` rule (`animation-duration: 0.01ms !important`)
+     already neutralizes it either way, but a reader shouldn't have to know
+     that to trust the component.
+
+  **Verified compliant, not changed — continuous ambient/status loops are a
+  deliberate, separate category from one-shot transitions.** The budget's
+  plain-English framing ("no animation over 400 ms") reads literally as
+  covering `.marquee-track` (48s), `pulse-trace` (3.2s, `PulseLine`'s ECG
+  trace), and every `animate-pulse`/`animate-ping` state indicator (mic
+  listening/thinking, symptom-entry and loading spinners — Tailwind defaults
+  of 1–2s). All of these are *ongoing state or ambient decoration*, not
+  something arriving on screen once, which is the actual thing a 400 ms cap
+  is protecting against (a slow, janky entrance). Design principle 3 for
+  this round already says as much for the mic ("pulses gently while
+  listening"), and the previous log entry already carved out the same kind
+  of exception for the up-to-1400 ms answer-typing reveal. Rather than leave
+  this as tribal knowledge in scattered component comments, this entry is
+  the explicit record: continuous status/ambient motion is exempt from the
+  one-shot budget, on the condition every instance already meets — and every
+  current instance does — that it (a) animates transform/opacity only (true
+  for the marquee and both `animate-*` utilities; `pulse-trace` animates SVG
+  `stroke-dashoffset`, cheaper than layout-affecting properties but not
+  compositor-only, worth a note if `PulseLine` is ever revisited) and (b)
+  fully stops under `prefers-reduced-motion`, which every one of them does,
+  doubly so via the global CSS kill-switch at `globals.css:85-97` regardless
+  of per-component `motion-reduce:*` classes.
+
+  Also verified and left alone: six `transition-all` hover cards
+  (`ServiceCards.tsx`, `ContactView.tsx`, `HelpView.tsx`, `FeatureGrid.tsx`,
+  `LegalIndexView.tsx`, `OrganizationTabs.tsx`) animate `box-shadow`/
+  `border-color` alongside `transform` via the blanket `transition-all`
+  rather than a scoped property list. All sit at 150–300 ms, so they meet
+  the duration budget; "costs bytes" is about network payload, not paint
+  cost, so a `transition-all` on a hover card is a paint-cost style question
+  for a future pass, not a violation of either clause of this task. Left
+  unchanged rather than rewriting six components' hover states beyond what
+  this box asked for. The View Transitions default cross-fade
+  (`lib/view-transition.ts`) rides the browser's own UA-stylesheet duration
+  (~250 ms in Chromium) since no `::view-transition-*` override exists
+  anywhere in this repo — nothing to fix there either.
+
+  **Not fixed, flagged for whoever next touches page weight (task S) or does
+  a cleanup pass:** `apps/web/public/video/mero-health-hero.mp4` (2.5 MB) and
+  `mero-health-capture.mp4` (2.4 MB) have no remaining reference anywhere in
+  `apps/web/src` — dead weight in the public bundle if genuinely orphaned,
+  worth confirming and deleting in a task that's actually about that. Same
+  for `PartnerMarquee.tsx`/`.marquee-track`: the 2026-08-15 entry already
+  records removing the partner marquee from the rendered homepage, and grep
+  confirms it renders nowhere today — component and CSS both now dead code,
+  not touched here since this box is about motion budget, not dead-code
+  removal.
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` (75/75 task suites; counts unchanged — no test needed new or
+  updated coverage, per the reasoning above), `pnpm build` (40/40 tasks) all
+  passed clean.
+
+  **Measured at 375px.** No markup, layout, or tap target changed by either
+  fix: the `ServiceCards` change is a duration number on an existing
+  transition, and `SectionIntro`'s poster `<Image fill>` already occupies
+  the video's slot unconditionally, so gating the video on/off does not
+  resize or reflow anything — nothing new to compare against the standing
+  page-weight/tap-target numbers from task O/P's entries.
+
+  **Task Q is now fully checked.** Task R (PWA install/service-worker)
+  follows next.
 
 - 2026-08-18 — **Round seven, task Q (third box): the answer panel
   streams text in word by word, and the advisory block slides up after.**

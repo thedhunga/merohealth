@@ -2,6 +2,7 @@ import Image from 'next/image';
 import type { ComponentType } from 'react';
 
 import { ButtonLink } from '@/components/ui/Button';
+import { LoopVideo } from '@/components/ui/LoopVideo';
 import { cn } from '@/lib/cn';
 
 export type SectionIntroTone = 'forest' | 'paper';
@@ -158,26 +159,19 @@ export function SectionIntro({
                   }
                 />
                 {/*
-                  Ambient loop over the still. Muted + playsInline + no audio
-                  track is the only combination that autoplays reliably;
-                  reduced-motion never even requests the file, and the poster
-                  underneath is what remains wherever it does not play.
+                  Ambient loop over the still, gated by `LoopVideo` — the same
+                  client-side check the homepage hero uses — rather than a raw
+                  `<video autoPlay>`. `autoplay` makes a browser fetch the
+                  file regardless of `preload="metadata"`, and hiding it with
+                  `motion-reduce:hidden` does not stop that download; only not
+                  mounting the element at all does. `SectionIntro` cannot
+                  import `hasAsset`/`AmbientLoop` directly (see the `video`
+                  prop's doc comment — this component is shared with client
+                  components, and `hasAsset` is `node:fs`-backed), so it
+                  reaches for `LoopVideo` itself instead, which carries no
+                  such import.
                 */}
-                {video ? (
-                  <video
-                    aria-hidden
-                    autoPlay
-                    className="absolute inset-0 size-full object-cover motion-reduce:hidden"
-                    loop
-                    muted
-                    playsInline
-                    poster={image.src}
-                    preload="metadata"
-                    tabIndex={-1}
-                  >
-                    <source src={video} type="video/mp4" />
-                  </video>
-                ) : null}
+                {video ? <LoopVideo poster={image.src} src={video} /> : null}
                 <div className="absolute inset-0 bg-gradient-to-t from-indigo-950/30 via-transparent to-transparent" />
               </div>
               <div className="absolute right-5 bottom-0 w-[48%] min-w-44 rounded-[1.25rem] border border-line bg-white p-3 shadow-lift sm:right-8 sm:p-4">

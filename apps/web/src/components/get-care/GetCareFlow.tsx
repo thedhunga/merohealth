@@ -453,7 +453,7 @@ function LoadingPanel() {
   return (
     <Panel className="bg-indigo-50">
       <div className="flex items-center gap-4" role="status">
-        <span className="grid size-11 shrink-0 animate-pulse place-items-center rounded-full bg-indigo-800 text-white">
+        <span className="grid size-11 shrink-0 animate-pulse place-items-center rounded-full bg-indigo-800 text-white motion-reduce:animate-none">
           <Search aria-hidden className="size-5" />
         </span>
         <div>

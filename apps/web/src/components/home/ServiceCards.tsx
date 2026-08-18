@@ -69,7 +69,7 @@ export function ServiceCards() {
                     <>
                       <Image
                         alt={t('featuredImageAlt')}
-                        className="object-cover object-[38%_center] transition-transform duration-700 group-hover:scale-[1.025] motion-reduce:transform-none"
+                        className="object-cover object-[38%_center] transition-transform duration-300 group-hover:scale-[1.025] motion-reduce:transform-none"
                         fill
                         sizes="(min-width: 1024px) 58vw, 100vw"
                         src="/imagery/mero-community-care.webp"
