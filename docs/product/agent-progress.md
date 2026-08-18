@@ -204,8 +204,9 @@ absent, this section is the source of truth), `frontend-design` skill.
       **Done 2026-08-18 — see the log entry below.**
 - [x] Text entry is a secondary control that expands on tap; on desktop both
       are visible. **Done 2026-08-18 — see the log entry below.**
-- [ ] Permission denied / no mic → the text field becomes primary, one calm
-      Nepali sentence explains, no error styling.
+- [x] Permission denied / no mic → the text field becomes primary, one calm
+      Nepali sentence explains, no error styling. **Done 2026-08-18 — see the
+      log entry below.**
 
 ## Q. Motion system
 
@@ -1895,6 +1896,86 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-18 — **Round seven, task P (third box, last in the section):
+  permission denied / no mic → text field primary, one calm sentence, no
+  error styling.** Done. Round seven, task P is now fully checked.
+
+  **Housekeeping, first — seventh run in a row now.** Same story as the last
+  six entries: `git checkout main && git pull` hit a force-updated
+  `origin/main` with no common ancestor against local `main` (`git
+  merge-base` returned nothing). Working tree was clean, so `git reset
+  --hard origin/main` was the safe fix — not repeating the fuller
+  investigation the third entry back already did (confirmed the old local
+  tip is independently reachable from `origin/mero-health/platform-
+  foundation`, so nothing is lost by resetting). The cause is still outside
+  this agent's control and still needs a human, not another paragraph here.
+
+  **What was built.** The previous entry named this exactly: task P's last
+  box is the only one that actually reaches `useSpeechDictation`'s
+  `'denied'` status, and nothing called `dictation.start()` from either
+  `HomeScreen` or `FirstVisitScreen` to ever produce it — both screens only
+  ever primed a "listen intent" flag and navigated to `/get-care`, where the
+  real permission prompt (if any) happens *after* the mic-as-hero moment
+  this box is about. Triggering the browser's permission prompt just to
+  discover it had already been refused would be its own bad UX, so
+  `useSpeechDictation` now asks proactively instead: on mount, in addition
+  to the existing `SpeechRecognition` feature check, it calls
+  `navigator.permissions.query({ name: 'microphone' })` (Chrome/Edge; Firefox
+  and Safari below 16 don't support querying this permission name and the
+  call is wrapped in `.catch()` for exactly that — on those browsers denial
+  still surfaces the moment a real attempt hits `onerror`, same as before,
+  just not before the first tap). If the browser already reports `denied`,
+  `status` is set to `'denied'` immediately, and a `PermissionStatus.
+  onchange` listener keeps it live if the person changes the setting later
+  — guarded so it never clobbers an in-progress `'listening'` status.
+  `lib/home-screen.ts`'s `micHeroLayout` gained a second parameter,
+  `permissionDenied` (default `false`, so the two existing call sites and
+  tests for the no-API case are unaffected): `textFirst` now covers *either*
+  no Web Speech API *or* a denied permission, reusing the exact layout task
+  O already built and shipped for the no-API case rather than inventing a
+  second one — `MicHero`'s `unavailable` state was already the calm,
+  non-error treatment (`bg-indigo-100 text-indigo-800`-ish neutral tones,
+  plain paragraph text, no red) this box asks for, so "no error styling"
+  came for free by reusing it. Both `HomeScreen` and `FirstVisitScreen` now
+  read `dictation.status === 'denied'` and pick a new, distinct label —
+  `homeScreen.micPermissionDenied` — over the existing `micUnavailable`, so
+  the sentence a person reads is honest about *why* voice isn't available
+  (permission vs. no browser support) rather than reusing a message that
+  would be misleading for this case. Added the key to both
+  `messages/ne.json` and `en.json`, right beside `micUnavailable`.
+
+  **Test.** Extended `lib/home-screen.test.ts` (the same seam task O's own
+  outage tests used) with two cases: `micHeroLayout(true, true)` →
+  `'textFirst'` even though the API exists, and `micHeroLayout(true, false)`
+  confirming the existing `'voiceFirst'` default still holds. No
+  hook-level test for `useSpeechDictation` itself — consistent with the
+  rest of this file, which has never had one (SymptomEntry's own
+  `dictation.status === 'denied'` branch, wired since round five, is
+  likewise untested at the hook level) — and this repo has no `renderHook`
+  usage anywhere to introduce cleanly in one box.
+
+  **Measured at 375×812**, production build, real Chromium
+  (`/opt/pw-browsers/chromium`), `navigator.permissions.query` mocked via
+  `Object.defineProperty` (a plain property assignment silently no-ops —
+  Chromium's `navigator.permissions` getter isn't writable) to resolve
+  `denied` on the bare first-visit path: the mic disc correctly disables at
+  112×112px (comfortably over the 44px minimum), the new sentence renders,
+  page height 1663px / 2.05 screens versus a `granted` baseline of 1627px /
+  2.00 screens — the small increase is just the longer sentence wrapping
+  one more line, not a new section. Tap targets: same single pre-existing
+  sub-44px skip-link every recent entry has already traced and ruled
+  unrelated, in both the granted and denied states — no new small targets
+  introduced.
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm
+  typecheck`, `pnpm test` (75/75 task suites, 299 web tests + 824 API tests
+  + all others green), `pnpm build` (40/40 tasks) all passed clean.
+
+  **Next run:** Round seven, task P is fully checked. The next unchecked
+  task in queue order is task Q (Motion system), first box: the `useReveal`
+  hook + `Reveal` wrapper for fade/translate-in-on-scroll, respecting
+  `prefers-reduced-motion`.
 
 - 2026-08-18 — **Round seven, task P (second box): text entry as a
   secondary, expand-on-tap control; both controls visible on desktop.**

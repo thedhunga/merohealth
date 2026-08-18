@@ -72,7 +72,8 @@ export function HomeScreen() {
     router.push('/get-care');
   };
 
-  const layout = micHeroLayout(dictation.supported);
+  const permissionDenied = dictation.status === 'denied';
+  const layout = micHeroLayout(dictation.supported, permissionDenied);
 
   return (
     <section aria-labelledby="home-screen-heading" className="bg-paper py-8 sm:py-12">
@@ -83,7 +84,13 @@ export function HomeScreen() {
 
         <div className="mt-6 flex flex-col items-center">
           <MicHero
-            label={layout === 'voiceFirst' ? t('micLabel') : t('micUnavailable')}
+            label={
+              layout === 'voiceFirst'
+                ? t('micLabel')
+                : permissionDenied
+                  ? t('micPermissionDenied')
+                  : t('micUnavailable')
+            }
             onClick={handleMicTap}
             state={layout === 'voiceFirst' ? 'idle' : 'unavailable'}
           />

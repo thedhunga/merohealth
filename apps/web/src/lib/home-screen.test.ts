@@ -69,6 +69,14 @@ describe('micHeroLayout', () => {
   it('falls back to text-first when the device has no Web Speech API', () => {
     expect(micHeroLayout(false)).toBe('textFirst');
   });
+
+  it('falls back to text-first when the mic permission is denied, even if the API exists', () => {
+    expect(micHeroLayout(true, true)).toBe('textFirst');
+  });
+
+  it('leads with voice when the API exists and permission was not denied', () => {
+    expect(micHeroLayout(true, false)).toBe('voiceFirst');
+  });
 });
 
 describe('outage: history unreadable → first-time layout — round seven task O', () => {

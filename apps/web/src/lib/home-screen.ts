@@ -16,9 +16,15 @@ export type MicHeroLayout = 'voiceFirst' | 'textFirst';
  * more honest than one that silently vanished) and promotes the type action,
  * with a one-line note explaining why. Pure so both screens share one tested
  * decision instead of two copies that could drift.
+ *
+ * Round seven, task P (third box): `permissionDenied` covers the other way
+ * the disc can be a dead control — the API exists but the browser (or a
+ * previous visit) has already refused the mic. `useSpeechDictation` learns
+ * that proactively via `permissions.query`, so this can fall back to
+ * `textFirst` before the person ever taps a disc that would just fail again.
  */
-export function micHeroLayout(dictationSupported: boolean): MicHeroLayout {
-  return dictationSupported ? 'voiceFirst' : 'textFirst';
+export function micHeroLayout(dictationSupported: boolean, permissionDenied = false): MicHeroLayout {
+  return dictationSupported && !permissionDenied ? 'voiceFirst' : 'textFirst';
 }
 
 /**

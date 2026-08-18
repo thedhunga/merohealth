@@ -267,6 +267,7 @@
     },
     "micLabel": "Speak",
     "micUnavailable": "Voice isn't available on this browser — type your question instead.",
+    "micPermissionDenied": "Microphone permission is off — allow it in your browser settings, or type your question instead.",
     "typeLabel": "Type instead",
     "chipsLabel": "Quick options",
     "chips": {

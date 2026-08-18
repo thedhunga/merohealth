@@ -42,6 +42,7 @@ type SpeechWindow = Window & {
   webkitSpeechRecognition?: new () => SpeechRecognitionLike;
 };
 
+
 /** BCP-47 tags the recognizers actually accept for our locales. */
 const recognitionLang: Record<string, string> = {
   ne: 'ne-NP',
@@ -94,7 +95,40 @@ export function useSpeechDictation(
   useEffect(() => {
     const w = window as SpeechWindow;
     setSupported(Boolean(w.SpeechRecognition ?? w.webkitSpeechRecognition));
+
+    // Round seven, task P: a device that already denied the mic permission
+    // (in a previous visit, or via a site-settings toggle) must not wait for
+    // a tap to find that out — the caller needs to know before it ever
+    // renders the mic as the primary action. `permissions.query` answers
+    // that without prompting; `cancelled` stops the async result from
+    // landing after this effect's own cleanup has already run.
+    let cancelled = false;
+    let liveStatus: PermissionStatus | null = null;
+    const syncFromPermission = () => {
+      if (cancelled || !liveStatus) return;
+      setStatus((current) => (current === 'listening' ? current : liveStatus!.state === 'denied' ? 'denied' : 'idle'));
+    };
+
+    // Optional chaining guards the call itself, not just its result — Safari
+    // below 16 has no `navigator.permissions` object at all, which `?.`
+    // catches at runtime regardless of what the DOM lib types claim.
+    navigator.permissions
+      ?.query({ name: 'microphone' as PermissionName })
+      .then((result) => {
+        if (cancelled) return;
+        liveStatus = result;
+        result.onchange = syncFromPermission;
+        syncFromPermission();
+      })
+      .catch(() => {
+        // Firefox doesn't support querying this permission name at all —
+        // denial still surfaces the moment a real attempt hits `onerror`,
+        // just not before that first tap.
+      });
+
     return () => {
+      cancelled = true;
+      if (liveStatus) liveStatus.onchange = null;
       clearSilenceTimer();
       recognizerRef.current?.abort();
       recognizerRef.current = null;

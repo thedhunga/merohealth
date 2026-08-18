@@ -59,7 +59,8 @@ export function FirstVisitScreen() {
     router.push('/get-care');
   };
 
-  const layout = micHeroLayout(dictation.supported);
+  const permissionDenied = dictation.status === 'denied';
+  const layout = micHeroLayout(dictation.supported, permissionDenied);
 
   return (
     <>
@@ -75,7 +76,13 @@ export function FirstVisitScreen() {
 
           <div className="mt-6 flex flex-col items-center">
             <MicHero
-              label={layout === 'voiceFirst' ? homeScreenT('micLabel') : homeScreenT('micUnavailable')}
+              label={
+                layout === 'voiceFirst'
+                  ? homeScreenT('micLabel')
+                  : permissionDenied
+                    ? homeScreenT('micPermissionDenied')
+                    : homeScreenT('micUnavailable')
+              }
               onClick={handleMicTap}
               state={layout === 'voiceFirst' ? 'idle' : 'unavailable'}
             />
