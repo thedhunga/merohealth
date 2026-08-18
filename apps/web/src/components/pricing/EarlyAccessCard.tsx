@@ -56,7 +56,7 @@ export function EarlyAccessCard({ source = 'pricing' }: { source?: 'pricing' | '
         <Sparkles aria-hidden className="size-4" />
         {t('badge')}
       </p>
-      <h2 className="mt-2 text-2xl font-black text-ink" id="early-access-heading">
+      <h2 className="font-display-black mt-2 text-2xl text-ink" id="early-access-heading">
         {t('heading')}
       </h2>
       <p className="mt-2 leading-relaxed text-ink-soft">{t('body')}</p>

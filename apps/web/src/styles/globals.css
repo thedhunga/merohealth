@@ -62,8 +62,22 @@
   /*
    * Type. Martel and Mukta are both Devanagari-native, so Nepali leads the
    * type system instead of being bolted onto a Latin face as an afterthought.
+   *
+   * Martel ships as two font-loader calls, not one: `--font-martel` (700/800,
+   * preloaded) covers every heading actually painted above the fold anywhere
+   * in the app; `--font-martel-black` (900, not preloaded) exists only for
+   * the handful of true-black uses below the fold (the script-mark signature,
+   * a pricing figure, the early-access heading). Splitting by weight — rather
+   * than preloading all of 400/700/800/900 the way one `Martel({ weight: [...] })`
+   * call would — is what keeps `/`'s first-load font weight down to the two
+   * weights it actually renders. Font-family fallback only kicks in on
+   * missing glyphs, not missing weights, so `--font-display-black` must be
+   * reached for explicitly (see `font-display-black` below) rather than
+   * appended to `--font-display`'s stack — a `font-weight: 900` on the
+   * 700/800 family would just synthesize a fake black instead.
    */
   --font-display: var(--font-martel), Georgia, serif;
+  --font-display-black: var(--font-martel-black), Georgia, serif;
   --font-sans: var(--font-mukta), ui-sans-serif, system-ui, sans-serif;
 
   --radius-card: 1.25rem;
@@ -180,12 +194,23 @@
 }
 
 /*
+ * The true-black cut of the display face — the not-preloaded
+ * `--font-martel-black` family, not a `font-weight: 900` on `--font-display`.
+ * Use this instead of `font-black` wherever the heavy Martel figure/mark is
+ * actually wanted; `font-black` alone only fakes it on the 700/800 family.
+ */
+@utility font-display-black {
+  font-family: var(--font-display-black);
+  font-weight: 900;
+}
+
+/*
  * Signature: oversized Devanagari set as artwork rather than as reading text.
  * Always paired with a real heading elsewhere in the section, and hidden from
  * assistive technology, because it is a graphic — not a duplicate heading.
  */
 @utility script-mark {
-  font-family: var(--font-display);
+  font-family: var(--font-display-black);
   font-weight: 900;
   line-height: 0.82;
   letter-spacing: -0.02em;

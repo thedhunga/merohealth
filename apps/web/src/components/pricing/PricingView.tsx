@@ -83,7 +83,7 @@ export function PricingView() {
             <li key={plan.tier}>
               <article className="flex h-full flex-col gap-6 rounded-card border border-line bg-white p-8">
                 <div>
-                  <h3 className="text-2xl font-black text-ink">
+                  <h3 className="font-display-black text-2xl text-ink">
                     {locale === 'ne' ? plan.nameNe : plan.nameEn}
                   </h3>
                   <p className="mt-2 leading-relaxed text-ink-soft">
@@ -93,7 +93,7 @@ export function PricingView() {
 
                 {premiumLive || plan.tier === 'FREE' ? (
                   <div className="flex items-baseline gap-1.5">
-                    <span className="font-display text-4xl font-black text-ink">
+                    <span className="font-display-black text-4xl text-ink">
                       {formatPrice(plan.monthlyPricePaisa, locale)}
                     </span>
                     {plan.monthlyPricePaisa > 0 ? (

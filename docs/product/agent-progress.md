@@ -257,8 +257,9 @@ absent, this section is the source of truth), `frontend-design` skill.
 - [x] Every `AmbientLoop`/`EditorialImage` gets `sizes` matched to its slot;
       hero poster `priority`; all others lazy. **Done 2026-08-18 — see the
       log entry below.**
-- [ ] Fonts: confirm only Devanagari+Latin subsets ship; preload the two
-      display weights actually used above the fold.
+- [x] Fonts: confirm only Devanagari+Latin subsets ship; preload the two
+      display weights actually used above the fold. **Done 2026-08-18 — see
+      the log entry below.**
 
 ## T. Dark mode
 
@@ -1909,6 +1910,87 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-18 — **Round seven, task S (third box, last box in `S`):
+  Devanagari+Latin subsets confirmed; Martel preload trimmed to the two
+  weights `/` actually paints.** Done.
+
+  **Housekeeping, again.** Local `main` had once more diverged onto a stale,
+  unrelated lineage (`9bdf548`, no `git merge-base` with `origin/main`) while
+  `origin/main` was at `3a61587`, "round seven" task R's last box. Backed the
+  stale local branch up as `backup/stale-local-main-2026-08-18` (nothing on
+  it was ahead of what `origin/main` already has — the two histories share no
+  common ancestor at all, so this is almost certainly a container that never
+  had a real `main` checkout) and `git reset --hard origin/main`. Working
+  tree was clean before the reset.
+
+  **Subsets: already correct, nothing to change.** Both `Martel` and `Mukta`
+  in `layout.tsx` already declared `subsets: ['devanagari', 'latin']` only —
+  confirmed by reading the file, not assumed.
+
+  **Preload: was preloading all four Martel weights on every route, not two.**
+  `next/font/google`'s `preload` is all-or-nothing per font-loader call — it
+  marks every weight × subset file from that call for preload (verified by
+  reading `next-font-manifest-plugin.js`: `getPreloadedFontFiles` just filters
+  by the `.p.` suffix `preload: true` stamps on *every* emitted file for that
+  module), with no way to preload a subset of one call's weights, and no
+  usage analysis of which weight a given route actually renders. Root layout
+  is shared by every route, so all four declared weights (400/700/800/900 ×
+  2 subsets = 8 files) were being preloaded on `/` even though grep across
+  every `.tsx` in `apps/web/src` found: weight 400 unused anywhere; 700/800
+  are the only weights anything above the fold renders (`h1`/`h2`/`h3` default
+  to 800 in the base layer, `HomeScreen`'s `h1` overrides to `font-bold`/700 —
+  exactly two, matching the task's own count); 900 is real but only below the
+  fold — the (currently-unused) `script-mark` signature utility, a `PricingView`
+  plan name/price, and `EarlyAccessCard`'s heading, none of which are part of
+  `/`.
+
+  Split `Martel` into two `next/font/google` calls: `martel` (700/800,
+  default `preload: true`, `--font-martel`) and `martelBlack` (900,
+  `preload: false`, `--font-martel-black`). Dropped weight 400 entirely —
+  unused, no reason to ship it. **Why not just widen `--font-display`'s
+  fallback stack to include both:** CSS font-family fallback only kicks in on
+  missing *glyphs*, not missing *weights* — a family that can render the
+  characters is used regardless of how well its available weights match, so
+  `font-weight: 900` against a family that only declares 700/800 would
+  silently synthesize a fake black rather than ever reaching a second family
+  further down the stack. Verified this against the CSS Fonts matching
+  algorithm before writing the split, not after finding a rendering bug.
+  Instead added `--font-display-black` and a `font-display-black` utility
+  that names the accent family explicitly, and pointed `script-mark` and the
+  four real weight-900 call sites (`Highlights.tsx`, `PricingView.tsx` ×2,
+  `EarlyAccessCard.tsx`) at it. Two other `font-black` sites (`Footer.tsx`'s
+  accordion `+`, `FaqList.tsx`'s accordion `+`) were left untouched — they're
+  bare `<span>`s with no `font-display` class and no heading ancestor, so
+  they were already resolving to Mukta/`--font-sans` (which has no 900 face
+  either — pre-existing, out of scope for a task titled "display weights").
+
+  **Measured, not assumed.** `pnpm check:budget` before/after, same build,
+  same throttle profile: **867.3 KB → 816.9 KB transferred** (−50.4 KB, the
+  two fewer preloaded Martel files), **LCP 3448 ms → 3264 ms**. Both budgets
+  (600 KB / 2500 ms) still fail — task `S` is now fully checked, but the two
+  boxes in it only ever chipped at this, they were never going to close an
+  ~870 KB page to 600 KB alone; a future run should look at `ServiceCards`/
+  `OrganizationTabs` imagery next (flagged unaudited by the previous entry
+  too) if `S`'s budget gate is to actually pass rather than just exist.
+  Visually verified with headless Chromium at 375px: `/ne` (home) and
+  `/en/pricing` (the two real weight-900 usages, `PricingView`) both render
+  correctly — Devanagari matras intact, the pricing plan names/prices render
+  in a genuine black weight, no faux-bold artifacting.
+
+  No test added: font-loader configuration and a CSS utility split, no
+  branching logic to assert on — same precedent the last two `S` entries
+  documented.
+
+  Gates: `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` (75/75 tasks; one transient `@swasthya/database` failure on the
+  first run — `prisma generate` racing another package's build in the same
+  `pnpm test` invocation, reproduced as passing both standalone and on an
+  immediate re-run from root, unrelated to this change), `pnpm build` all
+  passed clean.
+
+  **For the next run:** `S` is fully checked; `T` (real dark mode) is next in
+  the queue.
 
 - 2026-08-18 — **Round seven, task S (second box): `sizes`/`priority` audit
   on `AmbientLoop`/`EditorialImage`.** Done.

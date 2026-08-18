@@ -16,11 +16,32 @@ import '@/styles/globals.css';
 
 // Both faces carry Devanagari and Latin, so Nepali and English share one type
 // system rather than switching families mid-page.
+//
+// Split into two calls rather than one `weight: [...]` array: `next/font`
+// preloads every weight file a call declares, on every route that shares
+// this layout, with no way to preload a subset of one call's weights. 700
+// and 800 are the only Martel weights anything above the fold renders
+// anywhere in the app (h1/h2/h3 default to 800, several override to
+// font-bold/700) — 400 is unused entirely — so only those two are preloaded.
 const martel = Martel({
   subsets: ['devanagari', 'latin'],
-  weight: ['400', '700', '800', '900'],
+  weight: ['700', '800'],
   variable: '--font-martel',
   display: 'swap',
+});
+
+// 900 (true black) is real but only ever used below the fold — the
+// script-mark signature, a pricing figure, the early-access heading — so it
+// is never a candidate for `/`'s first-load budget. `preload: false` keeps
+// it out of every route's preload list; `globals.css`'s `font-display-black`
+// utility and `script-mark` reach for it explicitly (see the comment there
+// on why it can't just live in `--font-display`'s fallback stack).
+const martelBlack = Martel({
+  subsets: ['devanagari', 'latin'],
+  weight: ['900'],
+  variable: '--font-martel-black',
+  display: 'swap',
+  preload: false,
 });
 
 const mukta = Mukta({
@@ -110,7 +131,10 @@ export default async function LocaleLayout({
   setRequestLocale(locale);
 
   return (
-    <html className={`${martel.variable} ${mukta.variable}`} lang={locale}>
+    <html
+      className={`${martel.variable} ${martelBlack.variable} ${mukta.variable}`}
+      lang={locale}
+    >
       <body className="flex min-h-dvh flex-col bg-paper">
         <OrganizationJsonLd locale={locale} />
         <ServiceWorkerRegistration />
