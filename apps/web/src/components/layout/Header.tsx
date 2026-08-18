@@ -104,7 +104,7 @@ export function Header() {
       ref={headerRef}
     >
       <a
-        className="sr-only rounded-md bg-white px-4 py-2 font-semibold text-indigo-800 focus:not-sr-only focus:absolute focus:start-4 focus:top-3 focus:z-10"
+        className="sr-only inline-flex min-h-11 items-center rounded-md bg-white px-4 py-2 font-semibold text-indigo-800 focus:not-sr-only focus:absolute focus:start-4 focus:top-3 focus:z-10"
         href="#main"
       >
         {t('skipToContent')}

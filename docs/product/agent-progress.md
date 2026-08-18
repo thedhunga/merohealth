@@ -1738,6 +1738,81 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-18 — **Exhausted-queue improvement: raised the skip-to-content
+  link's focused size to the 44px floor, `apps/web/src/components/layout/
+  Header.tsx`.** Done.
+
+  **Housekeeping first.** Local `main` again shared no `git merge-base`
+  with `origin/main` at container start (same divergent-history shape as
+  every recent entry — `git checkout main` warned about 50 commits behind
+  not connected to any branch, `git pull` refused to reconcile, 76
+  local-only vs. 50 origin-only commits). `git status` was clean, so `git
+  reset --hard origin/main` and moved on, per the standing note two
+  entries back that this is well past twenty runs and belongs on an
+  infrastructure fix, not a per-run workaround.
+
+  **Selection.** `grep -n "^\s*- \[ \]"` against the freshly-reset queue
+  turned up the same seven boxes the last several runs have logged, and
+  each was re-verified against the actual repo state rather than trusted
+  from a prior note: `GEMINI_LIVE_ENABLED` still commented out and
+  `NEXT_PUBLIC_GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_ID` still empty in both
+  `.env.example` files, only two of four testimonial portraits present in
+  `apps/web/public/imagery/` (`portrait-prakash.webp`,
+  `portrait-sabina.webp`), `docs/architecture/payments.md` still a
+  comparison with no owner decision recorded, and the three remaining
+  owner-judgment items (K′ findings needing the owner's own phone, M's
+  licence/stream-B decision, the homepage-height product call) unchanged.
+  All seven are still genuinely blocked — none is a scheduled agent's call
+  to make. This run also found a same-day prior entry (below) had already
+  done today's exhausted-queue pass on the footer accordion, so this entry
+  picks up the specific candidate that prior entry named for next time —
+  the sitewide 32×16px "skip to main content" link — rather than
+  re-covering the same ground.
+
+  **What was found.** Measured with a headless-Chromium Playwright script
+  at 375×812 (`/opt/pw-browsers/chromium`, since Playwright isn't a
+  project dependency — only available globally under
+  `/opt/node22/lib/node_modules/playwright`). The link is `sr-only` at
+  rest — Tailwind's clip technique leaves a non-zero-but-unreachable
+  32×16px box at `(-1,-1)` that no sighted or touch user can ever tap, so
+  that number is a measurement artifact, not a real target. The genuine
+  issue is what a keyboard user actually gets: tabbing to the link removes
+  `sr-only` and it renders on-screen at 132.6×24px (ne) / 143.5×24px (en)
+  — a real, clickable target sized well under the 44px floor for the one
+  interaction path (keyboard focus, which sighted keyboard/switch users
+  also click or tap) that makes it reachable at all.
+
+  **The fix.** Added `inline-flex min-h-11 items-center` to the anchor's
+  base class list in `Header.tsx`. These utilities are inert while
+  `sr-only` clips the element, so there's no risk of them leaking into the
+  hidden state, and take effect the moment `focus:not-sr-only` reveals it
+  — the same "declare it in the base classes, let the visibility utility
+  gate when it matters" pattern the component already used for `rounded-md
+  bg-white px-4 py-2` etc.
+
+  **Verified the fix directly**: re-ran the same Playwright measurement.
+  Focused height is now 44px on both `/ne` and `/en`; homepage
+  `scrollHeight` unchanged at both locales (`/ne` 4581px / 5.64 screens,
+  `/en` 4932px / 6.07 screens) — expected, since the fix only changes the
+  focused-state box, not layout flow.
+
+  **Verify.** Full gate from the repository root, after `npx turbo build
+  --filter='./packages/*'` (required once for `pnpm dev` to resolve
+  workspace packages like `@swasthya/configuration` from source — plain
+  `next dev` inside `apps/web` 500s on that import until the packages'
+  `dist/` exists): `pnpm install --frozen-lockfile` clean; `pnpm lint`
+  40/40; `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks (114 API test
+  files, unchanged); `pnpm build` 40/40 including the Expo web export.
+  `git status` after the full gate showed only `Header.tsx` changed.
+
+  **For the next run.** All seven standing blockers are unchanged; keep
+  re-verifying each against the actual files rather than trusting this
+  note — they've now held for 20+ runs. The queue is otherwise exhausted
+  of agent-doable work; the next exhausted-queue candidate is not yet
+  identified — a fresh audit (this run's Playwright measurement approach
+  worked well and is cheap to repeat) is the right way to find one rather
+  than re-reading code for patterns two runs have already swept.
+
 - 2026-08-18 — **Exhausted-queue improvement: fixed the footer's mobile
   accordion, which never actually collapsed despite the code's own comment
   claiming it does — restored real `<details>` collapse and raised the
