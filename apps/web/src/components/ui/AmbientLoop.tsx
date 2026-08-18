@@ -1,5 +1,6 @@
 import Image from 'next/image';
 
+import { LoopVideo } from '@/components/ui/LoopVideo';
 import { hasAsset } from '@/lib/assets';
 import { cn } from '@/lib/cn';
 
@@ -25,12 +26,16 @@ interface AmbientLoopProps {
  *
  * Fallbacks stack in this order, so nothing here can ever look broken:
  *   1. No file on disk (build-time `hasAsset`) → poster only.
- *   2. Reduced-motion → poster only; the video is not even requested.
+ *   2. Phone-width viewport, Save-Data, a non-4g connection, or
+ *      reduced-motion → poster only; the video element is never rendered,
+ *      so the file is never requested (`LoopVideo` decides on the client).
  *   3. Video present but blocked/slow → the poster is behind it.
  *
- * `preload="metadata"` rather than `auto`: on a phone on Nepali mobile data,
- * downloading 2.5 MB before first paint is worse than a still that starts
- * moving a beat later.
+ * Why the client-side gate: measured on the live homepage at 375 px, the
+ * hero loop was 2.5 MB of a 2.85 MB page. `autoplay` makes browsers fetch
+ * the file regardless of `preload="metadata"`, and hiding the element with
+ * CSS does not stop the download. Most of our users are on Nepali mobile
+ * data; a still that never moves beats a hero that never loads.
  */
 export function AmbientLoop({
   src,
@@ -45,21 +50,7 @@ export function AmbientLoop({
   return (
     <div className={cn('relative overflow-hidden', className)}>
       <Image alt={alt} className="object-cover" fill priority={priority} sizes={sizes} src={poster} />
-      {ready ? (
-        <video
-          aria-hidden
-          autoPlay
-          className="absolute inset-0 size-full object-cover motion-reduce:hidden"
-          loop
-          muted
-          playsInline
-          poster={poster}
-          preload="metadata"
-          tabIndex={-1}
-        >
-          <source src={src} type="video/mp4" />
-        </video>
-      ) : null}
+      {ready ? <LoopVideo poster={poster} src={src} /> : null}
     </div>
   );
 }
