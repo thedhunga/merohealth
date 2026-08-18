@@ -254,8 +254,9 @@ absent, this section is the source of truth), `frontend-design` skill.
       entry below.** The gate is real and wired into CI; the page itself
       does not yet pass it (899 KB / 3.44 s at the time of this entry) — the
       next two `S` boxes are the concrete path to closing that gap.
-- [ ] Every `AmbientLoop`/`EditorialImage` gets `sizes` matched to its slot;
-      hero poster `priority`; all others lazy.
+- [x] Every `AmbientLoop`/`EditorialImage` gets `sizes` matched to its slot;
+      hero poster `priority`; all others lazy. **Done 2026-08-18 — see the
+      log entry below.**
 - [ ] Fonts: confirm only Devanagari+Latin subsets ship; preload the two
       display weights actually used above the fold.
 
@@ -1908,6 +1909,60 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-18 — **Round seven, task S (second box): `sizes`/`priority` audit
+  on `AmbientLoop`/`EditorialImage`.** Done.
+
+  **Housekeeping, again.** Same per-container symptom as the last two
+  entries: local `main` had diverged onto a stale, unrelated lineage
+  (`9bdf548`, "round three", no `git merge-base` with `origin/main`) while
+  `origin/main` was already at `7186b85`, "round seven". `git reset --hard
+  origin/main` realigned it; working tree was clean, nothing local was lost.
+
+  **The audit.** Repo-wide grep found only two real JSX usages of the two
+  components — `Hero.tsx` (`AmbientLoop`) and `Testimonials.tsx`
+  (`EditorialImage`); `SectionIntro.tsx` reaches for `LoopVideo`/`Image`
+  directly and was out of scope. `Testimonials.tsx`'s avatar was already
+  correct: `sizes="44px"` matches its fixed `size-11` circle exactly, no
+  `priority` (it is deep in the page, correctly lazy).
+
+  `Hero.tsx`'s `AmbientLoop`, despite the file being named `Hero.tsx`, is
+  the *second* section on `/` (`SymptomEntry`, `Hero`, `ServiceCards`,
+  `OrganizationTabs`, `Testimonials`, `FinalCta` — see `page.tsx`'s own
+  comment on that order). `SymptomEntry`'s section is `min-h-[46rem]`
+  (736 px), taller than the 812 px phone viewport it's measured at, so it
+  alone occupies the first screen and already carries `priority` on its own
+  `Image`. `Hero.tsx`'s poster carried `priority` too — a real bug, not a
+  style nit: `priority` adds a `<link rel=preload>` and `fetchpriority=high`
+  at document-parse time, so the browser was preloading a below-the-fold
+  image at the same high priority as the actual LCP candidate, on a
+  connection throttled to 1.6 Mbps. Removed it; `sizes` there was already a
+  reasonable match for its `lg:grid-cols-[1.05fr_.95fr]` slot and was left
+  alone.
+
+  **Measured, not assumed.** `pnpm check:budget` (the gate the previous run
+  added) before/after, same build, same throttle profile: **861.1 KB → 867.3
+  KB transferred** (flat — expected: Chromium's native `loading="lazy"`
+  distance threshold still fetches an image one section below the fold well
+  before `networkidle`, so total bytes by measurement time barely move),
+  **LCP 3696 ms → 3468 ms** (real ~6% improvement — the actual LCP image no
+  longer shares its early bandwidth window with an eager preload it didn't
+  need). Both budgets (600 KB / 2500 ms) still fail. That is expected and
+  already flagged in the previous entry: this box was never claimed to close
+  the gap alone — the remaining `S` box (font subsetting/preload) is the
+  other half, and even together the two may not fully close an 867 KB page
+  down to 600 KB; a future run should re-measure after the fonts box and, if
+  still over, look at `ServiceCards`/`OrganizationTabs` imagery next, since
+  neither has been audited for `sizes` yet (they don't use `AmbientLoop`/
+  `EditorialImage`, so this box's literal scope didn't cover them).
+
+  No test added: this is a two-prop change with no branching logic, matching
+  the precedent the last two entries set for when a fabricated test would
+  not add real coverage.
+
+  Gates: `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` (75/75 task, 824/824 API unit tests, full suite green),
+  `pnpm build` all passed clean.
 
 - 2026-08-18 — **Round seven, task S (first box): a real, CI-enforced
   first-load budget for `/`.** Done — the gate exists and is calibrated

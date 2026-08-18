@@ -25,13 +25,22 @@ export function Hero() {
             It is the product's whole idea in motion, so it earns the hero
             slot; the private-care still stays as its poster and as the
             fallback wherever video does not play.
+
+            No `priority` here despite the component's name: `SymptomEntry`
+            renders first on `/` and is the section actually in view at
+            375px (it alone is taller than a phone viewport), so its own
+            `Image` already carries `priority`. Marking this poster priority
+            too made the browser preload and fetch it eagerly for a section
+            no phone visitor sees without scrolling, competing with the real
+            LCP image for the same throttled connection — a real
+            contributor to the page-weight budget still failing in the
+            previous round's log entry.
           */}
           <div className="relative aspect-[4/3] overflow-hidden rounded-[2rem] bg-indigo-950 shadow-lift">
             <AmbientLoop
               alt={t('recordImageAlt')}
               className="absolute inset-0"
               poster="/imagery/mero-private-care.webp"
-              priority
               sizes="(min-width: 1024px) 48vw, 100vw"
               src="/video/loop-report.mp4"
             />
