@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
 import { Martel, Mukta } from 'next/font/google';
@@ -33,6 +33,15 @@ export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }
 
+// Browser chrome takes the brand indigo; `viewportFit: cover` lets the
+// installed app paint under the iPhone notch/home bar like a native app.
+export const viewport: Viewport = {
+  themeColor: '#171233',
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+};
+
 export async function generateMetadata({
   params,
 }: {
@@ -51,6 +60,15 @@ export async function generateMetadata({
     },
     description: home('body'),
     applicationName: t('name'),
+    // PWA: the manifest makes "Add to Home Screen" a real app icon and a
+    // full-screen window; appleWebApp does the same for iOS Safari.
+    manifest: '/manifest.webmanifest',
+    appleWebApp: {
+      capable: true,
+      title: t('name'),
+      statusBarStyle: 'black-translucent',
+    },
+    formatDetection: { telephone: false },
     openGraph: {
       type: 'website',
       siteName: t('name'),

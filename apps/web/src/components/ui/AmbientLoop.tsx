@@ -47,8 +47,15 @@ export function AmbientLoop({
 }: AmbientLoopProps) {
   const ready = hasAsset(src);
 
+  // The poster is `fill`, so this box must have real size. Callers position
+  // it (`absolute inset-0` inside an aspect box is the common case); only
+  // when they don't do we fall back to `relative`. Setting `relative`
+  // unconditionally fought a caller's `absolute` and collapsed the box to
+  // 0 px — the homepage hero rendered as a bare navy slab on every phone.
+  const positioned = /\b(absolute|fixed|sticky)\b/.test(className ?? '');
+
   return (
-    <div className={cn('relative overflow-hidden', className)}>
+    <div className={cn('overflow-hidden', positioned ? 'size-full' : 'relative', className)}>
       <Image alt={alt} className="object-cover" fill priority={priority} sizes={sizes} src={poster} />
       {ready ? <LoopVideo poster={poster} src={src} /> : null}
     </div>

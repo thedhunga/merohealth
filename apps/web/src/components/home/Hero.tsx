@@ -31,6 +31,7 @@ export function Hero() {
               alt={t('recordImageAlt')}
               className="absolute inset-0"
               poster="/imagery/mero-private-care.webp"
+              priority
               sizes="(min-width: 1024px) 48vw, 100vw"
               src="/video/loop-report.mp4"
             />
