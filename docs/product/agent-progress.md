@@ -1738,6 +1738,127 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-18 — **Exhausted-queue improvement: fixed the footer's mobile
+  accordion, which never actually collapsed despite the code's own comment
+  claiming it does — restored real `<details>` collapse and raised the
+  revealed links to 44px, `apps/web/src/components/layout/Footer.tsx`.**
+  Done.
+
+  **Housekeeping first.** Local `main` at container start again shared no
+  `git merge-base` with `origin/main` — the same divergent-history shape
+  every recent entry reports (`git checkout main` warned about leaving 50
+  commits behind not connected to any branch; `git pull` then failed with
+  "need to specify how to reconcile divergent branches"; 76 local-only
+  commits vs. 50 origin-only, confirmed by cross-referencing branch names —
+  the old lineage is preserved as `mero-health/platform-foundation` /
+  `codex/world-class-interactive-experience`, so nothing was lost).
+  `git status` was clean, so `git reset --hard origin/main` and moved on.
+  Still worth fixing at the infrastructure level — this is now well past
+  twenty runs reporting the identical overhead.
+
+  **Selection.** Fresh `grep -n "^\s*- \[ \]"`: the same seven boxes as
+  every recent run (`GEMINI_LIVE_ENABLED` still unset, §M's licence
+  decision, §N payments, the voice-architecture doc needing the owner's
+  phone, Google sign-in's client id still empty, the two missing
+  testimonial portraits, the homepage-height product call), all
+  re-verified genuinely still blocked by checking the actual files
+  (`.env.example` values, `public/imagery/` contents, `payments.md`'s own
+  tail) rather than trusting the previous entry's note. Per the standing
+  fallback, this run did a *fresh, real* audit instead of a static-read
+  one — a headless-Chromium sweep of 13 route pairs (26 page loads, ne+en)
+  at 375×812, measuring every `a`/`button`/`input`/`[role=button]`'s
+  rendered `getBoundingClientRect` — rather than re-reading code for
+  patterns already fixed, since the last several audits (static-read
+  Explore-agent style) were finding smaller and smaller game.
+
+  **What was found.** It found something the static reads had missed
+  entirely: nearly every page carried ~30 flagged "small" tap targets, all
+  tracing to the same five footer nav links (`अस्पताल र स्वास्थ्य संस्था`,
+  `मानसिक स्वास्थ्य`, etc.). Investigating why revealed a real bug, not
+  just a missing `min-h-11`: the footer's mobile `<details>` accordion
+  (added in an earlier round specifically to collapse five stacked nav
+  columns into one-line headings, per this file's own comment) never
+  collapses at all. `<ul className="mt-3 flex flex-col gap-2.5">` sets
+  `display:flex` unconditionally; author-origin CSS always outranks the
+  browser's UA-stylesheet rule that hides a closed `<details>`'s children
+  (`details:not([open]) > *:not(summary){display:none}`), regardless of
+  selector specificity, because origin beats specificity in the cascade.
+  So the "collapsed" panels were rendering fully open the entire time this
+  optimization has existed. Confirmed directly: `getComputedStyle` on the
+  `<ul>` inside a closed, `open`-attribute-absent `<details>` read
+  `display: flex`, with real link boxes at real positions (23px tall, no
+  `min-h-11`, matching the exact shortfall already fixed twice elsewhere
+  in this file). This does **not** inflate visible page height — confirmed
+  with a same-server `git stash`/`stash pop` A/B test, homepage scrollHeight
+  identical (4581px) both ways — because `overflow: visible` lets the
+  content spill out of the closed `<details>`'s own box without the CSS
+  Grid track growing to fit it, and later footer content (the "follow us"
+  block, the demo notice) simply paints over it in document order. But the
+  links ARE present in the DOM, focusable, and screen-reader-announced:
+  every "collapsed" footer panel was silently exposing its full link list
+  to keyboard and assistive-technology users regardless of the visible
+  "+"/collapsed state, which is worse than a missed tap-target size — it's
+  a broken affordance that lies to non-visual users about what's open.
+
+  **The fix.** Used the exact idiom this same component already applies
+  two lines away, for the chevron icon (`group-open:rotate-45`), just
+  never extended to the content itself: `<ul className="mt-3 hidden
+  flex-col gap-2.5 group-open:flex">` — hidden by default, `flex` only
+  when the ancestor `.group` `<details>` has `[open]`. This is Tailwind's
+  documented mechanism for exactly this pattern, and it wins the cascade
+  correctly (the `group-open:` variant compiles to a more specific
+  selector than the plain `.hidden`/`.flex` utilities, so there's no
+  repeat of the author-vs-UA-origin trap). Also added `flex min-h-11
+  items-center` to the `<Link>` in both the mobile-accordion list and the
+  `sm:`+ desktop grid list (the same link markup is duplicated once per
+  breakpoint) so that once a panel is actually opened, the revealed links
+  meet the 44px floor — previously 23px.
+
+  **Verified the fix directly**, not just via the audit: headless Chromium
+  on a closed panel now reads `display: none` on the `<ul>` (0 focusable
+  links inside the closed accordion container, down from ~30); clicking a
+  `<summary>` to open the first panel renders its 7 links at 156×44px
+  each, both dimensions correct.
+
+  **Mobile measurement, before → after**, headless Chromium at 375×812,
+  same 13 route pairs / 26 loads used to find it. Small/inert-but-present
+  tap targets in the footer accordion: ~30 per page → 0 on every page
+  (`/ne`, `/en`, `/get-care`, `/pricing`, `/signin`, `/register`,
+  `/account`, `/contribute`, `/health-library`,
+  `/individuals/how-it-works`, `/contact`, `/help`, and two routes that
+  redirect before rendering, `/clinicians` and `/organizations`, which is
+  pre-existing and unrelated to this fix). Homepage height unchanged
+  (`/ne` 4581px / 5.64 screens, `/en` 6.07 screens) for the `overflow:
+  visible` reason above — this fix is a correctness/accessibility fix, not
+  a height reduction, and this entry does not claim one. One flagged item
+  remains sitewide on every page: a 32×16px "skip to main content" link,
+  pre-existing and out of scope for this run (single task per run) — left
+  for whoever picks up the next audit.
+
+  **Verify.** Full gate from the repository root: `pnpm install
+  --frozen-lockfile` clean; `pnpm lint` 40/40; `pnpm typecheck` 40/40;
+  `pnpm test` 75/75 tasks (824 API tests, unchanged — a Tailwind class
+  change with no new logic branch, same convention as every prior fix of
+  this shape); `pnpm build` 40/40, including the Expo web export.
+  `git status` after the full gate showed only the one intended file
+  changed.
+
+  **For the next run.** All seven standing blockers are unchanged;
+  re-verify each before skipping past it — they've held for 20+ runs now.
+  Two things worth knowing: (1) the 32×16px "skip to main content" link
+  present on every page is a real, low-effort candidate for the next
+  exhausted-queue pass. (2) Measuring a page immediately after `git
+  stash`/`stash pop` against a dev server that was started with a
+  background-shell trick (`nohup ... & disown`, rather than the tool's own
+  background-process support) produced stale, misleading DOM reads more
+  than once this run — the dev server process kept getting killed
+  mid-command (self-inflicted, not a product bug) and Turbopack's HMR does
+  not reliably resync a Playwright page across a bare `git stash`. If a
+  future run needs a real before/after A-B comparison, restart the dev
+  server fully between states (this run eventually used the harness's
+  background-command support successfully, not shell job control) rather
+  than trusting HMR to pick up a stash toggle.
+
 - 2026-08-18 — **Exhausted-queue improvement: raised the mobile nav drawer's
   item and sub-item links from 40px/32px to 44px+,
   `apps/web/src/components/layout/MobileNav.tsx`.** Done.

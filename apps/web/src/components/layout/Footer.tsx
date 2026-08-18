@@ -84,11 +84,11 @@ export function Footer() {
                       +
                     </span>
                   </summary>
-                  <ul className="mt-3 flex flex-col gap-2.5">
+                  <ul className="mt-3 hidden flex-col gap-2.5 group-open:flex">
                     {column.links.map((link) => (
                       <li key={`${link.key}-${link.href}`}>
                         <Link
-                          className="text-sm text-indigo-100 transition-colors hover:text-white"
+                          className="flex min-h-11 items-center text-sm text-indigo-100 transition-colors hover:text-white"
                           href={link.href}
                         >
                           {nav(`items.${link.key}`)}
@@ -110,7 +110,7 @@ export function Footer() {
                     {column.links.map((link) => (
                       <li key={`${link.key}-${link.href}`}>
                         <Link
-                          className="text-sm text-indigo-100 transition-colors hover:text-white"
+                          className="flex min-h-11 items-center text-sm text-indigo-100 transition-colors hover:text-white"
                           href={link.href}
                         >
                           {nav(`items.${link.key}`)}
