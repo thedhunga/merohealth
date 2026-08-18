@@ -42,6 +42,8 @@ import { nextProfilePrompt, type ProfilePrompt } from '@/lib/profile-prompts';
 import { Link } from '@/i18n/navigation';
 import { useSpeechPlayback } from '@/hooks/useSpeechPlayback';
 import { useSpeechDictation } from '@/hooks/useSpeechDictation';
+import { useStreamingReveal } from '@/hooks/useStreamingReveal';
+import { revealClassName } from '@/components/ui/Reveal';
 import { cn } from '@/lib/cn';
 
 type Phase = 'idle' | 'loading' | 'emergency' | 'offTopic' | 'result' | 'unavailable';
@@ -559,12 +561,46 @@ function formatMedicineList(medicines: readonly string[], locale: ResearchLangua
   }).format(medicines);
 }
 
-function AdvisoryBlock({ text }: { text: string }) {
+/**
+ * Round seven, task Q (third box): slides up once `show` flips true, rather
+ * than appearing in the same instant as the answer bubble — reusing
+ * `revealClassName`'s translate/opacity pair (not `Reveal` itself, which is
+ * scroll-triggered; this is driven by `AssistantAnswer`'s own streaming
+ * state instead).
+ */
+function AdvisoryBlock({ show, text }: { show: boolean; text: string }) {
   return (
-    <p className="mt-3 flex gap-2 rounded-xl bg-marigold-100 p-4 text-sm leading-relaxed font-semibold text-marigold-900" role="note">
+    <p
+      className={revealClassName(
+        !show,
+        'mt-3 flex gap-2 rounded-xl bg-marigold-100 p-4 text-sm leading-relaxed font-semibold text-marigold-900',
+      )}
+      role="note"
+    >
       <Stethoscope aria-hidden className="mt-0.5 size-4 shrink-0" />
       {text}
     </p>
+  );
+}
+
+/**
+ * The assistant side of a turn: the answer text streams in word by word
+ * (`useStreamingReveal`) and the advisory — if this answer earned one —
+ * slides up only once that reveal has finished, so the warning never
+ * appears mid-sentence. The full text is always present for assistive tech
+ * via the `sr-only` span, which never mutates mid-stream (only the visible,
+ * `aria-hidden` span does) so a screen reader announces the complete answer
+ * once rather than word-by-word chunks as the `aria-live` region around it
+ * picks up each change.
+ */
+function AssistantAnswer({ advisoryText, text }: { advisoryText?: string | null | undefined; text: string }) {
+  const { done, revealedText } = useStreamingReveal(text);
+  return (
+    <>
+      <span className="sr-only">{text}</span>
+      <span aria-hidden="true">{revealedText}</span>
+      {advisoryText ? <AdvisoryBlock show={done} text={advisoryText} /> : null}
+    </>
   );
 }
 
@@ -648,10 +684,11 @@ function ConversationPanel({
               <span className="sr-only">
                 {turn.role === 'user' ? conversationT('you') : conversationT('assistant')}:{' '}
               </span>
-              {turn.text}
-              {turn.role === 'assistant' && turn.advisoryText ? (
-                <AdvisoryBlock text={turn.advisoryText} />
-              ) : null}
+              {turn.role === 'assistant' ? (
+                <AssistantAnswer advisoryText={turn.advisoryText} text={turn.text} />
+              ) : (
+                turn.text
+              )}
             </div>
           </li>
         ))}

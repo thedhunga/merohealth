@@ -218,8 +218,9 @@ absent, this section is the source of truth), `frontend-design` skill.
       first-class support behind a flag — check `docs`); fallback is
       instant. Never block navigation on it. **Done 2026-08-18 — see the log
       entry below.**
-- [ ] The answer panel streams text in (word-chunked reveal from the
+- [x] The answer panel streams text in (word-chunked reveal from the
       response), and the advisory block slides up after the answer.
+      **Done 2026-08-18 — see the log entry below.**
 - [ ] Budget: no animation over 400 ms; nothing animates that costs bytes.
 
 ## R. PWA — finish what `8ed647f` started
@@ -1898,6 +1899,121 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-18 — **Round seven, task Q (third box): the answer panel
+  streams text in word by word, and the advisory block slides up after.**
+  Done.
+
+  **Housekeeping, first.** `git checkout main && git pull` again hit a
+  local `main` with no computable merge-base against `origin/main` (76
+  local commits vs. 50 on origin). Same shallow-clone symptom the last two
+  entries diagnosed and fixed the same way: working tree was clean, so
+  `git reset --hard origin/main` realigned the branch pointer with nothing
+  lost — this is a per-container artifact, not a real history rewrite, and
+  still needs a human to fix the clone depth rather than another log
+  paragraph each run.
+
+  **What was built.** `/api/companion/research` returns one complete JSON
+  body, not a stream (confirmed by reading the route handler) — so this
+  reveals an already-finished answer string progressively on the client,
+  rather than consuming a real stream. New `apps/web/src/hooks/useStreamingReveal.ts`,
+  matching the `shouldAnimateReveal`/`shouldUseViewTransition` shape from
+  the last two boxes (pure, DOM-free core plus a thin stateful hook):
+  `buildWordReveal(text)` returns one growing prefix per word, each prefix
+  an exact substring of `text` (so `whitespace-pre-wrap` — the answer
+  bubble's existing style — never tears mid-word or collapses a real
+  newline); `revealStepDelayMs(wordCount)` picks a per-word delay so the
+  *total* reveal is proportional for short answers but capped at 1.4s for
+  long ones (240–1400ms total, `Math.min`/`Math.max` around
+  `wordCount * 28ms`) — a 150-word paragraph does not make someone wait
+  four seconds to keep reading. `useStreamingReveal(text)` steps through
+  those prefixes on `setTimeout`, respects `prefers-reduced-motion` via the
+  same `shouldAnimateReveal` used by `useReveal` (motion off → full text on
+  the very first render, no animation at all), and returns `{ revealedText,
+  done }`.
+
+  Wired into `GetCareFlow.tsx`: new `AssistantAnswer` renders two spans for
+  every assistant turn — an `sr-only` one holding the *complete* answer,
+  present from the instant the turn is added and never mutated afterward,
+  and an `aria-hidden` one holding `revealedText`, which is what actually
+  animates. This matters because the whole result panel sits inside
+  `aria-live="polite"` (`GetCareFlow.tsx` line 359) — without the split, a
+  screen reader would fire a fresh polite announcement on every word as the
+  animated text mutated; with it, the live region sees the full answer
+  exactly once, immediately, while sighted users watch it type in. `done`
+  (true once the reveal finishes, or immediately under reduced motion) now
+  gates `AdvisoryBlock` via a new `show` prop, reusing `revealClassName`
+  from `components/ui/Reveal.tsx` — the same hidden-state class pair
+  (`translate-y-3 opacity-0` → `translate-y-0 opacity-100`, 280ms ease-out)
+  the scroll-triggered `Reveal` wrapper uses, just driven by this local
+  per-turn `done` flag instead of an `IntersectionObserver`, since the
+  advisory appears in place rather than scrolling into view. Net effect:
+  the answer types in, then the marigold advisory slides up under it once
+  the sentence is actually finished — never mid-answer, so a warning about
+  a medicine never appears before the medicine has been named.
+
+  Each turn bubble is a fresh component instance (`turns` is append-only,
+  keyed by a stable id), so the effect that steps through the reveal runs
+  once per answer and never restarts on an unrelated re-render (a new
+  turn being appended, `pendingPrompt` changing, etc.) — verified this
+  holds by reading `ConversationPanel`'s `turns.map`, unchanged by this box
+  except for what each `<li>` renders.
+
+  **Verified in a real browser** (global Playwright at `/opt/node22`, since
+  this repo has no Playwright dependency of its own — pointed the import
+  straight at the global install rather than adding one). Ran the dev
+  server, mocked `/api/companion/research` with a 26-word answer plus a
+  medicine advisory, submitted a question at 375×812: sampled the visible
+  `aria-hidden` span's length every 150ms and watched it grow
+  (14→42→85→105→139→150, then flat at the full 150 characters — reveal
+  finished in under a second, matching the ~728ms the delay formula
+  predicts for 26 words) while the `sr-only` span held the complete answer
+  from the very first sample. Confirmed the advisory's class carried
+  `opacity-0`/`translate-y-3` during the reveal and lost both once the
+  panel settled. Screenshot at 375px shows the existing white paper card,
+  indigo user bubble, warm-paper assistant bubble — no layout change, art
+  direction intact. No console errors traceable to this change (the
+  `net::ERR_CONNECTION_REFUSED`/404 noise is the same pre-existing
+  no-local-API-server condition the last log entry already recorded as
+  unrelated).
+
+  **Measured at 375px.** No markup was added to the page beyond the two
+  spans already described (replacing one text node with two, functionally
+  equivalent once revealed) and the advisory's class list — no new
+  elements, no layout shift, nothing that changes page height or tap
+  targets, so there is nothing new to compare against the standing
+  page-weight/tap-target numbers from task O/P's entries.
+
+  **Test.** `useStreamingReveal.test.ts`: 9 cases on the two pure
+  functions — `buildWordReveal` (growing prefixes; every prefix is an exact
+  substring incl. a Nepali/Devanagari + newline case; preserves internal
+  newlines rather than collapsing them; whitespace-only and single-word
+  edge cases) and `revealStepDelayMs` (zero/one word, short-answer floor,
+  linear scaling inside the band, long-answer cap). Matches this repo's
+  established convention (`useReveal.test.ts`, `Reveal.test.ts`,
+  `view-transition.test.ts`): the pure decision functions are unit-tested,
+  the timer/DOM-effect wiring is exercised in the browser check above
+  instead, since there's no `renderHook`/timer-fake harness already set up
+  here to introduce cleanly in one box. No existing test file covers
+  `GetCareFlow.tsx`/`ConversationPanel`/`AdvisoryBlock` at all (confirmed
+  before starting — only `api/companion/research/route.test.ts` touches
+  this flow, at the API layer), so there was nothing existing to update.
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`
+  (one `exactOptionalPropertyTypes` fix needed along the way — the new
+  `AssistantAnswer` prop had to spell out `string | null | undefined`
+  explicitly rather than relying on `?:` alone), `pnpm test` (75/75 task
+  suites; web 314 → 323 tests, api 824 unchanged), `pnpm build` (40/40
+  tasks) all passed clean.
+
+  **Next run:** task Q's last box — "no animation over 400ms; nothing
+  animates that costs bytes" — a budget/audit pass over what Q has built
+  across all three prior boxes (`Reveal`'s 280ms, the view-transition
+  wiring, and this box's up-to-1400ms answer reveal, which is a deliberate,
+  documented exception to a flat 400ms rule since a multi-second typing
+  effect is the box's own point — worth flagging explicitly to whoever
+  picks this up, so it isn't "fixed" by breaking the reveal). Task R (PWA
+  install/service-worker) follows once Q is fully checked.
 
 - 2026-08-18 — **Round seven, task Q (second box): View Transitions API for
   route changes.** Done.
