@@ -258,6 +258,34 @@
       "voiceDenied": "Microphone permission is needed. Allow it in your browser settings, or type your question instead."
     }
   },
+  "homeScreen": {
+    "greeting": {
+      "morning": "Good morning",
+      "afternoon": "Hello",
+      "evening": "Good evening"
+    },
+    "micLabel": "Speak",
+    "typeLabel": "Type instead",
+    "chipsLabel": "Quick options",
+    "chips": {
+      "fever": "Fever",
+      "headache": "Headache",
+      "medicine": "Medicine",
+      "report": "Report"
+    },
+    "lastConversation": {
+      "heading": "Last conversation",
+      "emergencyOutcome": "Sent to emergency guidance",
+      "offTopicOutcome": "Was outside health questions",
+      "unavailableOutcome": "Couldn't be answered"
+    },
+    "family": {
+      "heading": "Family"
+    },
+    "dailyThing": {
+      "heading": "One thing for today"
+    }
+  },
   "common": {
     "learnMore": "Learn more",
     "getStarted": "Get started",

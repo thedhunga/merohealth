@@ -171,7 +171,7 @@ absent, this section is the source of truth), `frontend-design` skill.
 
 ## O. The home screen — `/` for someone who has been here before
 
-- [ ] `HomeScreen` client component rendered at `/` **when the device has
+- [x] `HomeScreen` client component rendered at `/` **when the device has
       history or a returning-visitor flag** (anonymous id present):
       greeting by time of day in Nepali; **the mic as the hero** — a large
       (≥ 96 px) marigold disc, centred, label "बोल्नुहोस्" beneath, tapping
@@ -181,7 +181,8 @@ absent, this section is the source of truth), `frontend-design` skill.
       tappable card; **family** row (if profiles exist); one **"आजको एक
       कुरा"** card (from the existing conditions content, rotated daily,
       deterministic by date — never generated). Nothing else above the fold.
-      Marketing sections are *not* rendered for returning visitors.
+      Marketing sections are *not* rendered for returning visitors. **Done
+      2026-08-18 — see the log entry below.**
 - [ ] `/` for a **first-time visitor**: the same mic-hero, then at most
       three short sections — what you get (three cards, images), safety
       promise (one line), be-first (premium coming soon) — then footer. Under
@@ -1891,6 +1892,137 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-18 — **Round seven, task O (first box): built `HomeScreen`, the
+  returning-visitor home at `/` — mic-as-hero, four chips, last
+  conversation, family row, daily article.** Done.
+
+  **Housekeeping first, and worth flagging.** Container start showed the
+  familiar shallow-clone symptom (`git checkout main` warned about 50
+  commits left behind; `git merge-base` between local `main` and
+  `origin/main` found no common ancestor), but this time it was not just the
+  shallow-clone false-divergence the last several entries diagnosed —
+  `origin/main` really had been force-pushed to a history with **no shared
+  commit at all** with local `main`'s tip (`9bdf548`), 76 commits ahead on
+  one side, 50 on the other, `.git/shallow` or not. `git fetch --unshallow`
+  did not resolve it this time. Since `origin/main` was newer (2026-08-18 vs
+  2026-08-15), matched what production actually deploys, and its own log
+  section already covers the same rounds two through six this repo's history
+  should contain, local `main` was treated as the stale copy: `git checkout
+  -B main origin/main` to match it exactly. The 76 local-only commits were
+  not deleted — they're still reachable at `9bdf548` if anyone needs them —
+  just no longer what `main` points at. **If a future run hits a real
+  (non-shallow) unrelated-history divergence again, this is now the second
+  time it's happened for a different root cause than the shallow-clone one;
+  worth a real investigation into why `main`'s history keeps getting
+  rewritten upstream, since neither this run nor the recent ones before it
+  did that themselves.**
+
+  **Selection.** The last several log entries had been doing "exhausted
+  queue" busywork (tap-target sizing, a translation bug) on the premise that
+  only seven owner-gated boxes remained. That premise was true when those
+  entries were written, but `origin/main`'s tip (`75bec03`, this run's
+  starting point) carries a docs-only commit adding **Round seven** — a
+  whole new, non-owner-gated batch — above all of that, per a fresh
+  owner complaint about the phone homepage (see the round's own intro).
+  `grep -n "^\s*- \[ \]"` against the current queue found 29 open boxes, not
+  seven; the first is task O's first box, quoted above. Confirmed
+  `HomeScreen`/`MicHero`/`useReveal` etc. did not already exist in
+  `apps/web/src` before starting, so this was genuinely unbuilt, not a
+  documentation gap.
+
+  **What was built.** `apps/web/src/components/home/HomeScreen.tsx` — mic
+  disc (`size-28`, 112px, clears the ≥96px floor), the greeting, four chips,
+  last-conversation card, daily-rotating health-library card, and a
+  family row gated on a live session. `apps/web/src/components/home/
+  HomeGate.tsx` wraps `page.tsx`'s existing marketing JSX (unchanged, just
+  moved into a `marketing` prop) and swaps to `HomeScreen` once mounted, if
+  `history().length > 0` (`@/lib/anonymous-history`) — the device has asked
+  something before. This is a client-only, post-mount swap, not
+  cookie-based, so the server still renders the real marketing HTML for
+  SEO/first paint/no-JS regardless of who eventually sees it — a returning
+  visitor sees a brief flash of the marketing page before the swap on a slow
+  connection. Fixing that for real needs a server-visible signal (a cookie),
+  which is a bigger change than one queue box; noted here rather than
+  attempted.
+  Two pure, testable pieces went in `apps/web/src/lib/home-screen.ts` with a
+  colocated `home-screen.test.ts` (11 cases): `greetingPeriod(hour)`
+  (morning/afternoon/evening by local hour) and `dailyArticle(date)` (days
+  since epoch, mod the three real `healthLibraryArticles` — deterministic,
+  never generated, matches the box's own wording). The four chips
+  (ज्वरो/टाउको दुख्ने/औषधि/रिपोर्ट) are new `homeScreen.chips.*` keys in both
+  message files rather than reusing `home.symptom.quick` — that bucket only
+  has two of the four words and is `SymptomEntry`'s own namespace; a chip
+  tap stores the label via the existing `storeCareQuestion` and routes to
+  `/get-care`, identical to `SymptomEntry`'s own chips. The last-conversation
+  card and daily-article card link/route the same way. The family row reuses
+  `AccountView.tsx`'s own `buildActingSubjects` call verbatim (self +
+  active guardianships/delegations from `GET /family/grants`, gated on
+  `useOptionalSession().status === 'authenticated'`) and renders nothing
+  when there is no one but self — true for every anonymous returning
+  visitor and most signed-in ones today, which is correct, not a bug to
+  chase.
+  One small, deliberate addition outside `HomeScreen` itself: "tapping
+  starts conversation mode directly" needed the mic tap to land on
+  `/get-care` already listening, not on an idle text field one more tap
+  away. Added `storeCareListenIntent`/`consumeCareListenIntent` to
+  `get-care-session.ts`, mirroring the existing `storeCareQuestion`/
+  `consumeCareQuestion` sessionStorage pattern exactly (a flag, not a query
+  param — keeps the URL free of anything about why the visitor arrived, and
+  matches why the question itself isn't a query param either), and one new
+  effect in `GetCareFlow.tsx` that calls `dictation.start()` once
+  `dictation.supported` is true and the flag is set. `consumeCareListenIntent`
+  removes the sessionStorage key on its first read, so the effect re-running
+  on every later render (its dependency is `dictation.supported`/
+  `dictation.start`, not a ref) is harmless — the second call reads `false`.
+
+  **Verified, not just built.** Built the monorepo (`npx turbo build
+  --filter='./packages/*'` first — `apps/web`'s tests otherwise fail to
+  resolve every `@swasthya/*` workspace import, which is what made the
+  first `pnpm test` pass look like 10 failing suites before the packages
+  were built), then ran the full production build and served it
+  (`next start`). Headless Chromium (`/opt/pw-browsers`, system Playwright —
+  still not a project dependency) at 375×812, both locales, both
+  first-time and returning-visitor states (returning simulated by seeding
+  `localStorage['mero-health:anon-history']` before load, matching what
+  `recordExchange` actually writes):
+
+  | | screens (ne) | screens (en) | overflow | tap targets <44px |
+  |---|---|---|---|---|
+  | first-time `/` (unchanged) | 5.64 | 6.07 | no | 1/23 |
+  | **returning `/` (new)** | **1.73** | **1.85** | no | 1/16 |
+
+  The one sub-44px target on every page, before and after, is the sitewide
+  skip-to-content link — already logged 2026-08-18 as `sr-only` at rest
+  (a 32×16px measurement artifact, not a real target); `HomeScreen`
+  introduces zero new violations. First-time numbers are unchanged from
+  before this run (previously logged 5.60/6.06), confirming `page.tsx`'s
+  marketing JSX itself is untouched, only relocated into `HomeGate`'s
+  `marketing` prop. Also clicked the mic button end-to-end in the browser
+  and confirmed it lands on `/get-care` (screenshots kept in the session
+  scratchpad, not committed). No console/page errors beyond the expected
+  `ERR_CONNECTION_REFUSED` from `/auth/me` and `/api/companion/research/
+  health` — this environment has no `apps/api` running, and every session
+  check on this site already fails the same way against a real deployment's
+  API being unreachable; not something this task's build introduced.
+  Full gate from the repository root: `pnpm install --frozen-lockfile`
+  clean; `pnpm lint` 40/40; `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks
+  (`apps/web` 289/289 including the 11 new `home-screen.test.ts` cases,
+  `apps/api` 824/824 unchanged); `pnpm build` 40/40 including the Expo web
+  export.
+
+  **For the next run.** Task O's remaining three boxes are next in the
+  queue: the first-time-visitor trim (≤2.5 screens — today's first-time
+  homepage is still 5.64/6.07 screens, since that's explicitly a *separate*
+  box, not touched here), the footer reduction, and the two outage tests
+  (history unreadable → first-time layout; no speech API → text-first with
+  the mic disabled). Section P (`MicHero` as its own component with
+  idle/listening/thinking/speaking states) is still unbuilt — `HomeScreen`'s
+  mic button today is a plain static disc that only *hands off* to
+  `/get-care`'s own conversation UI, deliberately not a duplicate state
+  machine. When P is built, `HomeScreen` should switch to rendering it
+  instead of its own inline button. The git-history anomaly above is worth
+  someone's attention outside a single scheduled run.
 
 - 2026-08-18 — **Exhausted-queue improvement: fixed a broken `/accessibility`
   translation (`next-intl` threw `UNCLOSED_TAG` and fell back to printing the

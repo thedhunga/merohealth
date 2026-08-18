@@ -6,6 +6,7 @@ import { ServiceCards } from '@/components/home/ServiceCards';
 import { OrganizationTabs } from '@/components/home/OrganizationTabs';
 import { Testimonials } from '@/components/home/Testimonials';
 import { FinalCta } from '@/components/home/FinalCta';
+import { HomeGate } from '@/components/home/HomeGate';
 import { createRouteMetadata } from '@/lib/seo';
 
 export const generateMetadata = createRouteMetadata('/');
@@ -26,13 +27,17 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   setRequestLocale(locale);
 
   return (
-    <>
-      <SymptomEntry />
-      <Hero />
-      <ServiceCards />
-      <OrganizationTabs />
-      <Testimonials />
-      <FinalCta />
-    </>
+    <HomeGate
+      marketing={
+        <>
+          <SymptomEntry />
+          <Hero />
+          <ServiceCards />
+          <OrganizationTabs />
+          <Testimonials />
+          <FinalCta />
+        </>
+      }
+    />
   );
 }

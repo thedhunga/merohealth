@@ -26,7 +26,7 @@ import type {
   HealthResearch,
   ResearchLanguage,
 } from '@/lib/companion-research';
-import { consumeCareQuestion } from '@/lib/get-care-session';
+import { consumeCareListenIntent, consumeCareQuestion } from '@/lib/get-care-session';
 import {
   dismissUpsell,
   history,
@@ -207,6 +207,20 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
       dictation.start();
     }
   }, [playback.speaking, dictation]);
+
+  // Round seven, task O: the home screen's mic-as-hero sets this before
+  // navigating here, so a returning visitor's tap lands in conversation mode
+  // already listening rather than on an idle field. `supported` starts
+  // `false` on the server and flips after mount — gating on it (not just on
+  // mount) means this fires once dictation is actually available, whichever
+  // render that lands on. `consumeCareListenIntent` removes the flag on its
+  // first read, so once it has fired it reads `false` on every later render
+  // and `dictation.start` is never called twice.
+  useEffect(() => {
+    if (dictation.supported && consumeCareListenIntent()) {
+      dictation.start();
+    }
+  }, [dictation.supported, dictation.start]);
 
   const answerPrompt = (prompt: ProfilePrompt, option: string) => {
     if (prompt.field === 'conditions') {

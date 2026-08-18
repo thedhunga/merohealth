@@ -258,6 +258,34 @@
       "voiceDenied": "माइक्रोफोन अनुमति चाहिन्छ। ब्राउजर सेटिङबाट अनुमति दिनुहोस्, वा लेखेर सोध्नुहोस्।"
     }
   },
+  "homeScreen": {
+    "greeting": {
+      "morning": "शुभ प्रभात",
+      "afternoon": "नमस्कार",
+      "evening": "शुभ साँझ"
+    },
+    "micLabel": "बोल्नुहोस्",
+    "typeLabel": "लेख्नुहोस्",
+    "chipsLabel": "छिटो विकल्पहरू",
+    "chips": {
+      "fever": "ज्वरो",
+      "headache": "टाउको दुख्ने",
+      "medicine": "औषधि",
+      "report": "रिपोर्ट"
+    },
+    "lastConversation": {
+      "heading": "पछिल्लो कुराकानी",
+      "emergencyOutcome": "आपतकालीन सहयोगतर्फ पठाइयो",
+      "offTopicOutcome": "स्वास्थ्यबाहेकको प्रश्न थियो",
+      "unavailableOutcome": "जवाफ दिन सकिएन"
+    },
+    "family": {
+      "heading": "परिवार"
+    },
+    "dailyThing": {
+      "heading": "आजको एक कुरा"
+    }
+  },
   "common": {
     "learnMore": "थप जान्नुहोस्",
     "getStarted": "सुरु गर्नुहोस्",
