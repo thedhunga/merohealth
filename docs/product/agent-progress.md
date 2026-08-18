@@ -149,6 +149,23 @@ read that before the first task.
       else breaks. **Done 2026-08-17 — see the log entry below. Round six
       task L is now fully checked.**
 
+## L′. Premium is not for sale yet — owner decision 2026-08-18
+
+> Keep the premium surface, do not enable it. Show "premium personalised
+> features are coming soon — be the first to try" and build excitement.
+> Implemented: NEXT_PUBLIC_PREMIUM_LAUNCH (anything but  = coming-soon),
+> /pricing hides Plus/Pro prices behind a badge, every premium CTA goes to
+> early access, the dialogue upsell says coming soon, interest is kept on the
+> device () and flushed to the API when one exists.
+
+- [ ] :   →
+       table (pseudonymous; contact optional; dedupe by contact
+      or anon id); 201; rate-limited. Include the record in the anon→account
+      migration payload so a later sign-in links it.
+- [ ] Owner-only export of the early-access list (CSV) behind auth — this is
+      the launch-day contact list.
+- [ ] Never flip  from the agent; owner only.
+
 ## K′. Duplex voice spike — gated on `GEMINI_LIVE_ENABLED=true` (owner turns on billing)
 
 - [x] `app/api/voice/token/route.ts`: mints a Gemini **ephemeral token**

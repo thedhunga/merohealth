@@ -36,6 +36,27 @@ export function formatQuotaValue(
 }
 
 /* ------------------------------------------------------------------ *
+ * Premium launch state.
+ *
+ * Owner decision 2026-08-18: premium stays visible on `/pricing` and in the
+ * dialogue upsell, but is NOT for sale yet. Prices are hidden behind a
+ * "coming soon" badge and every premium call-to-action becomes "be the
+ * first to try" (early access, `lib/early-access.ts`). Free is untouched.
+ * Flip with NEXT_PUBLIC_PREMIUM_LAUNCH=live once payments exist; anything
+ * else — including unset — is coming-soon, so a mis-set variable can never
+ * accidentally start selling.
+ * ------------------------------------------------------------------ */
+
+export type PremiumLaunchState = 'coming-soon' | 'live';
+
+export const PREMIUM_LAUNCH_STATE: PremiumLaunchState =
+  process.env['NEXT_PUBLIC_PREMIUM_LAUNCH'] === 'live' ? 'live' : 'coming-soon';
+
+export function isPremiumLive(): boolean {
+  return PREMIUM_LAUNCH_STATE === 'live';
+}
+
+/* ------------------------------------------------------------------ *
  * Freemium voice minutes — Round six §L.
  *
  * `docs/product/freemium-and-voice-corpus.md` §2 adds a second freemium axis

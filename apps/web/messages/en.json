@@ -1217,6 +1217,24 @@
       "body": "Create an account and reach the assistant or a clinician whenever you need to. Add a paid module later, only if you need it.",
       "primaryCta": "Get started",
       "secondaryCta": "See FAQs"
+    },
+    "comingSoon": {
+      "badge": "Coming soon",
+      "heading": "Premium personalised features are coming soon",
+      "body": "Longer voice conversations, your own health record, and profiles for family members are on their way. Want to be first? We'll open it to you here before anyone else.",
+      "contactLabel": "Phone number or email (optional)",
+      "contactPlaceholder": "98XXXXXXXX or email@example.com",
+      "contactInvalid": "Please enter a 10-digit mobile number or a valid email, or leave it empty.",
+      "submit": "Make me first",
+      "success": "You're on the list.",
+      "successBody": "The moment premium opens, you'll see it right here first. Everything free is available now.",
+      "privacy": "Your contact is used only to tell you when premium opens — nothing else.",
+      "freeCta": "Start free",
+      "cardCta": "Be first",
+      "ctaHeading": "Start free today",
+      "ctaBody": "Ask, listen, get your answer — all free. When premium personalised features open, you can be first.",
+      "ctaPrimary": "Ask a question",
+      "ctaSecondary": "Be first"
     }
   },
   "getCare": {
@@ -1328,7 +1346,9 @@
     "upsell": {
       "body": "Want more conversations, spoken? Get Plus — {price}/month.",
       "cta": "See Plus",
-      "dismiss": "Dismiss"
+      "dismiss": "Dismiss",
+      "comingSoonBody": "Premium personalised features — longer voice conversations, your own record — are coming soon. Be the first to try.",
+      "comingSoonCta": "Be first"
     }
   },
   "auth": {

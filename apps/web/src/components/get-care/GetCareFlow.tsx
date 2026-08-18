@@ -37,7 +37,7 @@ import {
   shouldSuggestSignIn,
   updateProfile,
 } from '@/lib/anonymous-history';
-import { formatFreemiumPriceNpr, PRICE_PLUS_NPR } from '@/content/pricing';
+import { formatFreemiumPriceNpr, isPremiumLive, PRICE_PLUS_NPR } from '@/content/pricing';
 import { nextProfilePrompt, type ProfilePrompt } from '@/lib/profile-prompts';
 import { Link } from '@/i18n/navigation';
 import { useSpeechPlayback } from '@/hooks/useSpeechPlayback';
@@ -836,18 +836,22 @@ function UpsellCard({
   const t = useTranslations('getCare.upsell');
   const pricingT = useTranslations('pricing');
   const price = formatFreemiumPriceNpr(PRICE_PLUS_NPR, locale, pricingT('priceSoon'));
+  // Owner decision 2026-08-18: premium is not for sale yet. Until
+  // NEXT_PUBLIC_PREMIUM_LAUNCH=live the card builds anticipation instead of
+  // quoting a price — "coming soon, be the first" — and links to early access.
+  const premiumLive = isPremiumLive();
 
   return (
     <div className="mt-4 flex items-start gap-3 rounded-2xl border border-marigold-300 bg-marigold-100/60 p-4">
       <p className="flex-1 text-sm leading-relaxed font-semibold text-ink">
-        {t('body', { price })}
+        {premiumLive ? t('body', { price }) : t('comingSoonBody')}
       </p>
       <div className="flex shrink-0 items-center gap-1">
         <Link
           className="inline-flex min-h-11 items-center justify-center rounded-pill bg-indigo-800 px-4 text-sm font-bold text-white hover:bg-indigo-700"
-          href="/pricing"
+          href={premiumLive ? '/pricing' : '/pricing#early-access'}
         >
-          {t('cta')}
+          {premiumLive ? t('cta') : t('comingSoonCta')}
         </Link>
         <button
           aria-label={t('dismiss')}

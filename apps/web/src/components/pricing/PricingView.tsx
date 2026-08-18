@@ -1,8 +1,9 @@
 import { formatPrice, plans } from '@swasthya/entitlements';
-import { Check, Mic, Minus, ShieldCheck } from 'lucide-react';
+import { Check, Mic, Minus, ShieldCheck, Sparkles } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 
 import { WorkplaceInvestment } from '@/components/art/WorkplaceInvestment';
+import { EarlyAccessCard } from '@/components/pricing/EarlyAccessCard';
 import { ButtonLink } from '@/components/ui/Button';
 import { PageTemplate } from '@/components/ui/PageTemplate';
 import { Section, SectionHeading } from '@/components/ui/Section';
@@ -10,6 +11,7 @@ import {
   formatFreemiumMinutes,
   formatQuotaValue,
   getFreemiumVoiceMinutesForTier,
+  isPremiumLive,
   PRICING_MODULE_ORDER,
   PRICING_QUOTA_ORDER,
 } from '@/content/pricing';
@@ -35,13 +37,25 @@ export function PricingView() {
     artPosition: 'end' as const,
   };
 
-  const cta = {
-    id: 'pricing-cta-heading',
-    heading: t('cta.heading'),
-    body: t('cta.body'),
-    primaryCta: { href: '/register', label: t('cta.primaryCta') },
-    secondaryCta: { href: '/individuals/faqs', label: t('cta.secondaryCta') },
-  };
+  // Owner decision 2026-08-18: premium is visible but not for sale until
+  // NEXT_PUBLIC_PREMIUM_LAUNCH=live. See `content/pricing.ts`.
+  const premiumLive = isPremiumLive();
+
+  const cta = premiumLive
+    ? {
+        id: 'pricing-cta-heading',
+        heading: t('cta.heading'),
+        body: t('cta.body'),
+        primaryCta: { href: '/register', label: t('cta.primaryCta') },
+        secondaryCta: { href: '/individuals/faqs', label: t('cta.secondaryCta') },
+      }
+    : {
+        id: 'pricing-cta-heading',
+        heading: t('comingSoon.ctaHeading'),
+        body: t('comingSoon.ctaBody'),
+        primaryCta: { href: '/get-care', label: t('comingSoon.ctaPrimary') },
+        secondaryCta: { href: '/pricing#early-access', label: t('comingSoon.ctaSecondary') },
+      };
 
   return (
     <PageTemplate cta={cta} hero={hero}>
@@ -58,6 +72,12 @@ export function PricingView() {
           {t('safetyBanner')}
         </p>
 
+        {premiumLive ? null : (
+          <div className="mt-10">
+            <EarlyAccessCard source="pricing" />
+          </div>
+        )}
+
         <ul className="mt-12 grid gap-6 lg:grid-cols-3">
           {plans.map((plan) => (
             <li key={plan.tier}>
@@ -71,14 +91,21 @@ export function PricingView() {
                   </p>
                 </div>
 
-                <div className="flex items-baseline gap-1.5">
-                  <span className="font-display text-4xl font-black text-ink">
-                    {formatPrice(plan.monthlyPricePaisa, locale)}
-                  </span>
-                  {plan.monthlyPricePaisa > 0 ? (
-                    <span className="text-ink-soft">{t('perMonth')}</span>
-                  ) : null}
-                </div>
+                {premiumLive || plan.tier === 'FREE' ? (
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="font-display text-4xl font-black text-ink">
+                      {formatPrice(plan.monthlyPricePaisa, locale)}
+                    </span>
+                    {plan.monthlyPricePaisa > 0 ? (
+                      <span className="text-ink-soft">{t('perMonth')}</span>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="inline-flex w-fit items-center gap-2 rounded-pill bg-marigold-100 px-3 py-1.5 text-sm font-bold text-marigold-800">
+                    <Sparkles aria-hidden className="size-4" />
+                    {t('comingSoon.badge')}
+                  </p>
+                )}
 
                 <p className="flex items-center gap-2 text-sm font-semibold text-indigo-700">
                   <Mic aria-hidden className="size-4 shrink-0" />
@@ -90,13 +117,27 @@ export function PricingView() {
                   )}
                 </p>
 
-                <ButtonLink
-                  className="w-full justify-center"
-                  href="/register"
-                  variant={plan.tier === 'FREE' ? 'accent' : 'secondary'}
-                >
-                  {t('cardCta')}
-                </ButtonLink>
+                {premiumLive ? (
+                  <ButtonLink
+                    className="w-full justify-center"
+                    href="/register"
+                    variant={plan.tier === 'FREE' ? 'accent' : 'secondary'}
+                  >
+                    {t('cardCta')}
+                  </ButtonLink>
+                ) : plan.tier === 'FREE' ? (
+                  <ButtonLink className="w-full justify-center" href="/get-care" variant="accent">
+                    {t('comingSoon.freeCta')}
+                  </ButtonLink>
+                ) : (
+                  <ButtonLink
+                    className="w-full justify-center"
+                    href="/pricing#early-access"
+                    variant="secondary"
+                  >
+                    {t('comingSoon.cardCta')}
+                  </ButtonLink>
+                )}
 
                 <div>
                   <h4 className="text-sm font-semibold tracking-wide text-indigo-700 uppercase">
