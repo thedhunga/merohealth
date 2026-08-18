@@ -60,7 +60,7 @@ export function MobileNav({
                         {column.items.map((item) => (
                           <li key={`${item.key}-${item.href}`}>
                             <Link
-                              className="block py-2 font-semibold text-ink"
+                              className="flex min-h-11 items-center py-2 font-semibold text-ink"
                               href={item.href}
                               onClick={onNavigate}
                             >
@@ -71,7 +71,7 @@ export function MobileNav({
                                 {item.children.map((child) => (
                                   <li key={`${child.key}-${child.href}`}>
                                     <Link
-                                      className="block py-1.5 text-sm text-ink-soft"
+                                      className="flex min-h-11 items-center py-1.5 text-sm text-ink-soft"
                                       href={child.href}
                                       onClick={onNavigate}
                                     >

@@ -1738,6 +1738,79 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-18 — **Exhausted-queue improvement: raised the mobile nav drawer's
+  item and sub-item links from 40px/32px to 44px+,
+  `apps/web/src/components/layout/MobileNav.tsx`.** Done.
+
+  **Housekeeping first.** Local `main` at container start again shared no
+  `git merge-base` with `origin/main` — the same divergent-history shape
+  every recent entry reports (`git checkout main` warned about leaving 50
+  commits behind not connected to any branch; `git pull` then failed with
+  "need to specify how to reconcile divergent branches"; `git rev-list
+  --count` confirmed zero shared history — 76 local-only commits vs. 50
+  origin-only). `git status` was clean, so `git reset --hard origin/main`
+  and moved on. Still worth fixing at the infrastructure level — this is
+  now well past twenty runs reporting the identical overhead.
+
+  **Selection.** Fresh `grep -n "^\s*- \[ \]"` against the task queue: the
+  same seven boxes as every recent run — K′'s findings box
+  (`GEMINI_LIVE_ENABLED` still unset), §M's licence decision, §N payments,
+  the voice-architecture doc (owner's phone testing), Google sign-in
+  (`GOOGLE_CLIENT_ID`/`NEXT_PUBLIC_GOOGLE_CLIENT_ID` still empty), the two
+  missing testimonial portraits (`portrait-raju.webp`/`portrait-mina.webp`,
+  Higgsfield credits), and the homepage-height box (still ~5.6/6.06 screens,
+  already-agreed product call). Re-verified each directly against the repo
+  rather than trusting the previous entry's note — all seven unchanged. Per
+  the standing fallback, took the immediately preceding run's own named
+  runner-up: `MobileNav.tsx`'s nested sub-nav link (`py-1.5`, no
+  `min-h-11`), which that entry explicitly left as "worth a fresh look" but
+  "don't take it on autopilot." Measured it for real instead of trusting the
+  class-name arithmetic either way.
+
+  **What was found.** Opened the drawer with headless Chromium at 375×812
+  and measured every rendered `<nav aria-label> a` with `getBoundingClientRect`.
+  Two violations, not one: the nested sub-nav links (`py-1.5`) rendered at
+  32×310px, and — missed by the previous audit, which only flagged the
+  sub-nav — the top-level item links one level up (`py-2`, e.g. "Primary
+  Care", "Mental Health") rendered at 40×335px. Both are under the 44px
+  minimum; 40px is the exact same shortfall already fixed twice elsewhere in
+  this file (footer social icons, `size-10`→`size-11`) via the repo's
+  established `min-h-11` pattern (`Button.tsx`, `Footer.tsx`, `GetCareFlow.tsx`,
+  `SymptomEntry.tsx`, `ServiceCards.tsx` all use it).
+
+  **The fix.** Both `Link` elements gained `flex min-h-11 items-center`
+  alongside their existing `py-*` (kept, not replaced, matching
+  `Button.tsx`'s own `min-h-11 px-5 py-2.5` convention — `py-*` still adds
+  breathing room if a translated label wraps to two lines; `min-h-11` sets
+  the floor). No copy or behaviour change.
+
+  **Mobile measurement, before → after**, headless Chromium at 375×812
+  (`/opt/pw-browsers/chromium`; ran from the global Playwright install at
+  `/opt/node22/lib/node_modules`, same workaround the last several entries
+  recorded — no `playwright` package in this repo). Opened the drawer (first
+  nav segment panel is expanded by default) in both locales: 21 rendered
+  links per locale, 21 under 44px before (12 at 40px, 9 at 32px) → 0 under
+  44px after, both `ne` and `en`. No horizontal overflow introduced —
+  `scrollWidth === clientWidth === 375` in both locales with the drawer
+  open. Dev server needed `pnpm --filter @swasthya/configuration build`
+  first, same reason the previous entry recorded (`pnpm install
+  --frozen-lockfile` alone leaves workspace packages that ship compiled
+  `dist/` unbuilt).
+
+  **Verify.** Full gate from the repository root: `pnpm install
+  --frozen-lockfile` clean; `pnpm lint` 40/40; `pnpm typecheck` 40/40;
+  `pnpm test` 75/75 tasks (unchanged — a Tailwind class change on existing
+  static links has no unit-testable behaviour, same convention as every
+  prior run of this shape); `pnpm build` 40/40, including the Expo web
+  export. `git status` after the full gate showed only the one intended
+  file changed.
+
+  **For the next run.** All seven standing blockers are unchanged;
+  re-verify each before skipping past it. No open runner-up from this
+  audit — both issues it found were fixed in the same pass. The next
+  "exhausted-queue" run should start with a fresh audit rather than
+  assuming one is waiting.
+
 - 2026-08-18 — **Exhausted-queue improvement: raised the five footer
   social-icon links from `size-10` (40px) to `size-11` (44px),
   `apps/web/src/components/layout/Footer.tsx`.** Done.
