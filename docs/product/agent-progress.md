@@ -153,18 +153,18 @@ read that before the first task.
 
 > Keep the premium surface, do not enable it. Show "premium personalised
 > features are coming soon — be the first to try" and build excitement.
-> Implemented: NEXT_PUBLIC_PREMIUM_LAUNCH (anything but  = coming-soon),
+> Implemented: `NEXT_PUBLIC_PREMIUM_LAUNCH` (anything but `live` = coming-soon),
 > /pricing hides Plus/Pro prices behind a badge, every premium CTA goes to
 > early access, the dialogue upsell says coming soon, interest is kept on the
-> device () and flushed to the API when one exists.
+> device (`apps/web/src/lib/early-access.ts`) and flushed to the API when one exists.
 
-- [ ] :   →
-       table (pseudonymous; contact optional; dedupe by contact
+- [ ] `apps/api`: `POST /v1/early-access` `{contact?, source, registeredAt}` →
+      `EarlyAccess` table (pseudonymous; contact optional; dedupe by contact
       or anon id); 201; rate-limited. Include the record in the anon→account
       migration payload so a later sign-in links it.
 - [ ] Owner-only export of the early-access list (CSV) behind auth — this is
       the launch-day contact list.
-- [ ] Never flip  from the agent; owner only.
+- [ ] Never flip `NEXT_PUBLIC_PREMIUM_LAUNCH=live` from the agent; owner only.
 
 ## K′. Duplex voice spike — gated on `GEMINI_LIVE_ENABLED=true` (owner turns on billing)
 
