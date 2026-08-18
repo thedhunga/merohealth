@@ -235,10 +235,12 @@ absent, this section is the source of truth), `frontend-design` skill.
       on Android; on iOS a two-step picture of Share → Add to Home Screen.
       Dismissible once, then never again (device flag). **Done 2026-08-18 —
       see the log entry below.**
-- [ ] Service worker via `@serwist/next` (or Next's recommended approach):
+- [x] Service worker via `@serwist/next` (or Next's recommended approach):
       cache the app shell, fonts, imagery; **never cache `/api/*`**;
       offline page in Nepali that still shows the emergency numbers and the
       last saved conversation. Update-on-reload, no stale-forever bugs.
+      **Done 2026-08-18 — see the log entry below** (last saved conversation
+      not shown — documented scope cut, see the log and `OfflineView.tsx`).
 - [ ] Standalone-mode fixes: safe-area insets (`env(safe-area-inset-*)`)
       on header/footer/mic; no external-link surprises (none exist by
       design); back navigation works inside the app.
@@ -1902,6 +1904,104 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-18 — **Round seven, task R (third box): service worker + offline
+  page.** Done, with one documented scope cut (below).
+
+  **Housekeeping, first.** Local `main` was on a stale, unrelated commit
+  (`9bdf548`, no merge-base with `origin/main`) — same per-container
+  shallow-clone symptom the last several entries diagnosed, confirmed
+  against `origin/main`'s own history (the 2026-08-15 rewrite note) before
+  treating it as safe. `git checkout -B main origin/main` realigned it;
+  nothing local was lost, since local `main` was already fully behind.
+
+  **Why hand-written, not `@serwist/next`.** This repo's `next build` runs
+  on Turbopack by default (`package.json`'s `build` script has no
+  `--webpack` flag) — confirmed by running it and reading the banner
+  (`▲ Next.js 16.3.0 (Turbopack)`). `@serwist/next` generates its precache
+  manifest through a webpack plugin, which Turbopack does not run. Forcing
+  the whole production build back onto webpack for one feature was a
+  bigger, riskier change than writing `public/sw.js` by hand — exactly the
+  "Next's recommended approach" the ledger task names as the alternative,
+  and what Next's own PWA guide documents for this situation.
+
+  **What `sw.js` does.** Install: precache the manifest/icons plus
+  `/offline` and `/en/offline`, and — since there is no build manifest —
+  fetch each offline document's own HTML and regex-scan it for the
+  `/_next/static/...` URLs it references, fetching and caching those too.
+  Fetch: `/api/*` is never intercepted (falls straight through, every
+  time); navigations go network-first with `cache: 'no-store'` (plain
+  `fetch()` would let the browser's HTTP cache silently answer from a
+  stale copy without ever reaching the network, which both hides a real
+  offline state and defeats "network-first"), falling back to the cached
+  offline page keyed off the `/en` prefix on failure; `/_next/static/`,
+  `/imagery/`, `/icon*`, and the manifest are cache-first (shell cache
+  checked before the runtime cache). Activate: deletes any cache not
+  matching the current version and calls `clients.claim()`. Registration
+  (`lib/service-worker.ts`, wired from a new `ServiceWorkerRegistration`
+  in the root layout) uses `updateViaCache: 'none'` and only runs in
+  production — together with `skipWaiting()` in `install`, this is what
+  makes an edited service worker take over on next reload instead of
+  going stale forever, which is the task's explicit requirement.
+
+  **The offline page (`/offline`, `/en/offline`, `OfflineView.tsx`)** is a
+  plain server component: the connectivity notice plus
+  `@swasthya/clinical-safety`'s own `emergency-general-v1` template for the
+  locale — the exact deterministic sentence `assessSafety` already sends
+  mid-conversation, not new copy. That is also why there is no phone
+  number on the page: the template itself only ever says "contact a
+  locally verified emergency service" because no verified number exists
+  anywhere in this repo, and this is precisely the page where inventing
+  one would be worst.
+
+  **Scope cut: no "last saved conversation" card.** The ledger task also
+  asks the offline page to show the last saved conversation, which needs
+  `localStorage` and so needs client-side JS. Two attempts failed the same
+  way against a genuinely killed server (not CDP network emulation, which
+  turned out to be unreliable for a service-worker-controlled navigation —
+  see below): a separate `'use client'` child component, then collapsing
+  everything into one client component. Both times Turbopack still emitted
+  at least one JS chunk this page's rendered HTML never references by a
+  literal `<script src>` tag — Next's RSC streaming protocol pushes some
+  chunk references through inline `self.__next_f.push(...)` data payloads
+  instead, invisible to a regex over the HTML. The chunk 404'd offline both
+  times and the card silently stayed empty — a feature that quietly never
+  works is worse than not having it, especially on a health app's one
+  emergency-information page, so it was cut rather than shipped broken.
+  This is exactly the class of problem a real build-time precache manifest
+  solves; revisit if `@serwist/next` (or forcing webpack for the build)
+  ever becomes worth it for other reasons too.
+
+  **Verification.** `pnpm install --frozen-lockfile` / `lint` / `typecheck`
+  / `test` (334 web tests, +3 new in `service-worker.test.ts`) / `build`
+  all green from the repo root — `pnpm build`, not `pnpm --filter
+  @swasthya/web build`, matching the standing note that filtering breaks
+  Turbo's package build order. Offline behaviour itself needed a real
+  browser, not just the test suite: headless Chromium (system Playwright,
+  `/opt/pw-browsers/chromium-1194`), production build, and — importantly —
+  the actual server process killed (`SIGKILL`), not
+  `page.context().setOffline(true)` or CDP `Network.emulateNetworkConditions`.
+  Both of those left a service-worker-controlled navigation still returning
+  real page content while "offline", because network emulation in this
+  Playwright/Chromium setup does not reliably reach the service worker's
+  own execution context — killing the server for real is unambiguous and is
+  what actually caught the RSC-chunk gap above. Confirmed: `/get-care`
+  (ne) and `/en/pricing` both resolve to the correct-locale offline page
+  with the server down; `/api/voice/token` still throws (never served
+  stale); re-ran `docs/product/pwa.md`'s CDP installability check
+  afterward per its own "re-check once the service worker lands" note —
+  still zero `Page.getInstallabilityErrors`. Offline page measured at
+  375×812: 1.14 screens (ne, `/get-care` fallback). Tap targets on the
+  offline-served page: 16 total, 1 under 44px, pre-existing (not part of
+  this page's own markup, not touched here).
+
+  **For the next run:** task R's last box (standalone-mode safe-area
+  insets and back-navigation) is next in the queue. Re-run
+  `docs/product/pwa.md`'s CDP check again after any further service-worker
+  edits — a bad fetch handler is an easy way to regress a clean
+  installability verdict. A real device spot-check (does the offline page
+  actually appear on a real phone with the radio off, not just a killed
+  dev server?) is still open and cheap, same as task R's first two boxes.
 
 - 2026-08-18 — **Round seven, task R (second box): `InstallPrompt`
   component.** Done.

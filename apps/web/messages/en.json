@@ -1793,5 +1793,10 @@
       "heading": "Nothing left to check right now",
       "body": "Come back later — new recordings arrive as people contribute."
     }
+  },
+  "offline": {
+    "heading": "No internet connection",
+    "body": "This page will update automatically once your connection returns.",
+    "emergencyLabel": "In an emergency"
   }
 }

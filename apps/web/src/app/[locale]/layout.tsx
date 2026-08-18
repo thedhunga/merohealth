@@ -7,6 +7,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
+import { ServiceWorkerRegistration } from '@/components/layout/ServiceWorkerRegistration';
 import { OrganizationJsonLd } from '@/components/seo/OrganizationJsonLd';
 import { routing } from '@/i18n/routing';
 import { isDemonstrationBuild, siteUrl, socialImageUrl } from '@/lib/seo';
@@ -112,6 +113,7 @@ export default async function LocaleLayout({
     <html className={`${martel.variable} ${mukta.variable}`} lang={locale}>
       <body className="flex min-h-dvh flex-col bg-paper">
         <OrganizationJsonLd locale={locale} />
+        <ServiceWorkerRegistration />
         <NextIntlClientProvider>
           <Header />
           <main className="flex-1" id="main">
