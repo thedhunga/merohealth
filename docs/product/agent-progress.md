@@ -183,11 +183,11 @@ absent, this section is the source of truth), `frontend-design` skill.
       deterministic by date — never generated). Nothing else above the fold.
       Marketing sections are *not* rendered for returning visitors. **Done
       2026-08-18 — see the log entry below.**
-- [ ] `/` for a **first-time visitor**: the same mic-hero, then at most
+- [x] `/` for a **first-time visitor**: the same mic-hero, then at most
       three short sections — what you get (three cards, images), safety
       promise (one line), be-first (premium coming soon) — then footer. Under
       2.5 phone screens total. Everything else moves to `/en`, `/individuals`,
-      `/about`.
+      `/about`. **Done 2026-08-18 — see the log entry below.**
 - [ ] Reduce the footer on phones to: four links, language, social, legal
       line. The rest folds behind "थप".
 - [ ] Outage tests: history unreadable → first-time layout; no speech API →
@@ -1892,6 +1892,84 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-18 — **Round seven, task O (second box): built `FirstVisitScreen`,
+  the lean first-time home at bare `/`.** Done.
+
+  **Housekeeping, briefly — the divergence bug happened a third time.**
+  `git checkout main` again warned about commits left behind and
+  `git merge-base main origin/main` again found no common ancestor (local
+  tip `9bdf548` from 2026-08-15, disjoint from `origin/main`). This is the
+  exact failure the previous log entry flagged as "worth a real
+  investigation if it happens again" — it did, on the very next run, with
+  the same root cause and the same fix (`git reset --hard origin/main`;
+  local's 76 orphaned commits are still reachable at `9bdf548` if anyone
+  needs them). I did not rewrite `main`'s history myself this run either.
+  Two runs in a row hitting this on first boot means it is not one-off: the
+  container this scheduler reuses is not staying in sync with `origin/main`
+  between runs, or something is force-pushing `main` upstream. Worth the
+  owner's attention directly rather than a third agent re-diagnosing the
+  same thing — the fix is safe (nothing is lost) but it is not free, and it
+  will keep recurring silently until the actual cause is found outside this
+  file.
+
+  **What was built.** `apps/web/src/components/home/FirstVisitScreen.tsx` —
+  the mic disc reused verbatim from `HomeScreen` (same size, label, tap
+  target, listen-intent handoff to `/get-care`), then three sections built
+  entirely from copy and photography already in the repo, not one new
+  claim: a "what you get" 3-card row (the three existing editorial
+  photographs — record, private conversation, family — each already carries
+  translated alt text elsewhere in `home.hero`/`home.services`, reused
+  rather than duplicated) with three short new card captions
+  (`homeFirstVisit.cards.*`, added to both message files); a one-line safety
+  promise reusing `home.hero.trustOne` verbatim ("Safety checks before any
+  answer"); and a be-first card reusing `getCare.upsell.comingSoonBody`/
+  `comingSoonCta` verbatim, linking to `/pricing#early-access` — the same
+  path `GetCareFlow`'s own upsell card uses while `NEXT_PUBLIC_PREMIUM_LAUNCH`
+  is unset. No new copy invents a feature; every card describes something
+  already built and already stated elsewhere.
+
+  **The `/en` decision.** The box's last line — "everything else moves to
+  `/en`, `/individuals`, `/about`" — reads as a page inventory, but
+  `/individuals` and `/about` already exist as their own routes carrying
+  that material, so nothing needed to physically move. What actually
+  changes is which *audience* sees the long-form marketing homepage:
+  `platform-vision.md` frames `apps/web` in English as the SEO/acquisition
+  front door and Nepali as the daily-use product, so I made `HomeGate` show
+  the lean screen only for a first-time visitor on the **Nepali** bare path,
+  and left `/en` rendering exactly the existing six-section page unchanged
+  — this is a deliberate, logged interpretation, not an oversight, and easy
+  to revisit if the owner meant something more literal by "moves to." A
+  small pure function, `homeVariant(locale, isReturning)` in
+  `lib/home-screen.ts` (3 new test cases in the colocated test file),
+  makes the decision so `HomeGate` stays a thin dispatcher: `returning` →
+  `HomeScreen` (any locale, unchanged from the first box), `firstVisitLean`
+  → the new screen (`ne` only), `marketing` → today's `page.tsx` JSX
+  (`en`, or before the client has mounted and can read history at all — so
+  first paint and crawlers are unaffected exactly as before).
+
+  **Verified, not just built.** `npx turbo build --filter='./packages/*'`,
+  then `pnpm lint` (40/40), `pnpm typecheck` (40/40), `pnpm test` (75/75
+  tasks, `apps/web` 292/292 including the 3 new `homeVariant` cases), then
+  a full production build and `next start`, measured headlessly
+  (`/opt/pw-browsers` Chromium) at 375×812:
+
+  | | screens | tap targets <44px |
+  |---|---|---|
+  | first-time `ne` `/` (before this run) | 5.64 | 1/23 |
+  | **first-time `ne` `/` (after — `FirstVisitScreen`)** | **2.22** | **1/82** |
+  | first-time `en` `/en` (unchanged, verified byte-identical in output) | 6.07 | 1/110 |
+
+  Under the round's own 2.5-screen budget. The one sub-44px target
+  everywhere is the sitewide skip-link, already logged as a measurement
+  artifact, not a real one. Clicked through in the browser: the mic tap
+  lands listening on `/get-care`; the be-first button lands on
+  `/pricing#early-access`; seeded returning-visitor `localStorage` still
+  renders `HomeScreen` unchanged, confirming the three-way swap didn't
+  regress the first box. One pre-existing, unrelated 404 showed up in the
+  console on every page including ones this run never touched
+  (`GET /icon` — `next start`'s favicon route, reproduces on `/en` too) —
+  not introduced here, not fixed here; PWA icon wiring is task R's job.
 
 - 2026-08-18 — **Round seven, task O (first box): built `HomeScreen`, the
   returning-visitor home at `/` — mic-as-hero, four chips, last

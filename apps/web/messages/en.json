@@ -286,6 +286,25 @@
       "heading": "One thing for today"
     }
   },
+  "homeFirstVisit": {
+    "whatYouGet": {
+      "heading": "What you get"
+    },
+    "cards": {
+      "record": {
+        "title": "Your own record",
+        "body": "Photograph a report and keep it, explained in Nepali, ready for your next visit."
+      },
+      "assistant": {
+        "title": "Ask, in Nepali",
+        "body": "Speak or type your question and get a safety-checked answer in your own language."
+      },
+      "family": {
+        "title": "Family, together",
+        "body": "Add family members so their history is one tap away, not a folder of old papers."
+      }
+    }
+  },
   "common": {
     "learnMore": "Learn more",
     "getStarted": "Get started",

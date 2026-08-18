@@ -2,6 +2,24 @@ import { healthLibraryArticles, type HealthLibraryArticle } from '@/content/heal
 
 export type GreetingPeriod = 'morning' | 'afternoon' | 'evening';
 
+export type HomeVariant = 'returning' | 'firstVisitLean' | 'marketing';
+
+/**
+ * Round seven, task O (second box): which `/` a device sees.
+ *
+ * A device with history always gets the daily-use `HomeScreen`, in any
+ * locale — history is a fact about the device, not the language. Otherwise
+ * the bare (Nepali) path gets the lean first-visit screen this round asks
+ * for; `/en` keeps the full marketing page, which is the front door for the
+ * SEO/acquisition audience `platform-vision.md` describes English pages as
+ * serving. `individuals`/`about` already carry that same material as their
+ * own routes, so nothing is lost by not repeating it on the Nepali home.
+ */
+export function homeVariant(locale: string, isReturning: boolean): HomeVariant {
+  if (isReturning) return 'returning';
+  return locale === 'ne' ? 'firstVisitLean' : 'marketing';
+}
+
 /**
  * Round seven, task O: the returning-visitor home screen's greeting. Keyed
  * off the local hour rather than a lookup table so it needs no data and

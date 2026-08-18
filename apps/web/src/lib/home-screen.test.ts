@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { healthLibraryArticles } from '@/content/healthLibrary';
-import { dailyArticle, greetingPeriod } from '@/lib/home-screen';
+import { dailyArticle, greetingPeriod, homeVariant } from '@/lib/home-screen';
 
 describe('greetingPeriod', () => {
   it('is morning before noon', () => {
@@ -42,5 +42,20 @@ describe('dailyArticle', () => {
     // directly rather than assuming.
     expect(healthLibraryArticles.length).toBeGreaterThan(1);
     expect(tomorrow).not.toBe(today);
+  });
+});
+
+describe('homeVariant', () => {
+  it('always returns the daily-use screen for a device with history, in any locale', () => {
+    expect(homeVariant('ne', true)).toBe('returning');
+    expect(homeVariant('en', true)).toBe('returning');
+  });
+
+  it('gives a first-time Nepali visitor the lean screen', () => {
+    expect(homeVariant('ne', false)).toBe('firstVisitLean');
+  });
+
+  it('keeps the full marketing page for a first-time /en visitor', () => {
+    expect(homeVariant('en', false)).toBe('marketing');
   });
 });
