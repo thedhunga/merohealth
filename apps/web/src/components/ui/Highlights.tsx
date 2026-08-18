@@ -19,7 +19,7 @@ interface HighlightsProps {
  */
 export function Highlights({ items, className }: HighlightsProps) {
   return (
-    <ul className={cn('grid gap-10 sm:grid-cols-3', className)}>
+    <ul className={cn('grid grid-cols-1 gap-10 sm:grid-cols-3', className)}>
       {items.map((item, index) => (
         <li className="flex flex-col gap-3" key={item.key}>
           <span aria-hidden className="font-display text-3xl font-black text-indigo-600">

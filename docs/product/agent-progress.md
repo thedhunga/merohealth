@@ -1755,6 +1755,111 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-18 — **Exhausted-queue improvement: fixed a broken `/accessibility`
+  translation (`next-intl` threw `UNCLOSED_TAG` and fell back to printing the
+  raw key on screen) and a related 8px horizontal-scroll bug on the same
+  page, both in `apps/web`.** Done.
+
+  **Housekeeping first.** Container start again showed the shallow-clone
+  divergence every recent entry has hit — `git checkout main` warned about
+  50 commits left behind, `git pull` refused with "divergent branches",
+  `git merge-base` between local and `origin/main` returned nothing. This
+  run traced it one step further than previous entries did: `.git/shallow`
+  existed, listing two boundary commits, and one of them
+  (`b1f1410`, "docs: add the external asset brief for Veo and ChatGPT") is
+  genuinely present in local `main`'s own history — so the two histories
+  were never actually unrelated, git just couldn't compute a merge-base
+  across the shallow boundary and reported a false divergence. `git fetch
+  --unshallow origin` fixed this outright: merge-base resolved cleanly to
+  local `main`'s tip, confirming `origin/main` was simply 197 commits ahead
+  with zero conflicting history, and `git merge --ff-only origin/main`
+  fast-forwarded with no reset needed. **This is a real fix, not a
+  workaround** — worth flagging clearly since the last several entries
+  called this "well past twenty runs" and reached for `reset --hard` each
+  time without diagnosing why the divergence kept recurring. If a future
+  run still sees the shallow-clone symptom, the fix is `git fetch
+  --unshallow origin` before touching `merge-base`/`reset`, not a bigger
+  hammer.
+
+  **Selection.** Re-verified all seven standing blockers by checking the
+  actual files rather than trusting prior notes — all seven still hold
+  exactly as the last several entries described (`GEMINI_LIVE_ENABLED`
+  commented out, both Google OAuth client id vars empty, only
+  `portrait-prakash`/`portrait-sabina` present in `public/imagery/`,
+  `payments.md` and the (nonexistent) `voice-architecture.md` still waiting
+  on owner decisions, the homepage-height product call unchanged). None is
+  a scheduled agent's call to make, so this run did a fresh audit for an
+  exhausted-queue candidate rather than re-reading code the last two runs
+  already swept (header skip-link, footer accordion).
+
+  **What was found.** A headless-Chromium Playwright sweep of all 49 routes
+  in both locales (98 page loads, 375×812) checked three things the last
+  two audits hadn't: horizontal overflow, tap-target counts, and console/
+  page errors. `/accessibility` was the only page with `scrollWidth` (383px)
+  exceeding `innerWidth` (375px) in **both** locales, by the same 8px
+  regardless of language — which ruled out a long-word wrapping theory and
+  pointed at layout, not content. Tracing the DOM chain found `Highlights`'s
+  `<ul className="grid gap-10 sm:grid-cols-3">` has no base `grid-cols-1`,
+  so below the `sm` breakpoint Chrome's implicit single-column track sizes
+  itself to content's max-content width instead of the container — the
+  classic CSS Grid `min-width: auto` trap, same family of bug as flexbox's
+  version, just less commonly hit because most grids here already declare
+  an explicit base column count. Investigating *why* the third highlight's
+  paragraph looked suspicious in the raw DOM dump (it was rendering as the
+  literal string `legal.accessibility.highlights.items.nativeControls.body`
+  instead of real text) surfaced a second, more serious bug via the
+  browser's own console: `next-intl` throws `INVALID_MESSAGE: UNCLOSED_TAG`
+  server-side and falls back to printing the raw translation key, because
+  the `nativeControls.body` copy in both `messages/ne.json` and `en.json`
+  contains literal `<details>` and `<summary>` text — next-intl's ICU
+  parser reads unescaped `<tag>` syntax in a plain `t()` call as a rich-text
+  tag placeholder, and neither string ever closes it (`<summary>` doesn't
+  close `<details>`), so it throws instead of rendering. Both locales carry
+  the identical mistake since it was authored as parallel copy; grepped the
+  rest of both message files for `<` and confirmed this is the only
+  occurrence — not a wider pattern.
+
+  **The fix.** `Highlights.tsx`: added `grid-cols-1` to the base class list,
+  matching the `minmax(0, 1fr)` track Tailwind's other grids in this repo
+  already declare — the one-line, well-understood fix for the min-width
+  trap. `messages/ne.json` and `en.json`: wrapped `<details>` and
+  `<summary>` in ICU's literal-text escape (single quotes:
+  `'<details>'`), the documented way to keep angle brackets as plain text
+  in a `t()` call without switching the call site to `t.rich()` for two
+  words — the visible copy is byte-identical apart from the escaping
+  quotes, which next-intl strips before rendering.
+
+  **Verified the fix directly.** Re-ran the same Playwright checks after a
+  dev-server restart (message files are read at server-render time, not
+  hot-reloaded): the `nativeControls` paragraph now renders the real
+  Nepali/English sentence with literal `<details>`/`<summary>` text, no
+  `INVALID_MESSAGE` in the console; the DOM's widest element is back to
+  exactly 375px on `/accessibility`. Re-ran the full 98-page-load sweep
+  after the fix: **0 pages with horizontal overflow** (down from 1),
+  **0 console/page errors** (down from the 1 `UNCLOSED_TAG` throw). Tap-
+  target counts were unaffected by this fix (not in scope) and remain
+  low-single-digit per page, mostly conventional footer/legal text links —
+  no new exhausted-queue candidate there yet.
+
+  **Verify.** Full gate from the repository root after `npx turbo build
+  --filter='./packages/*'`: `pnpm install --frozen-lockfile` clean;
+  `pnpm lint` 40/40; `pnpm typecheck` 40/40; `pnpm test` 75/75 tasks
+  (114 API test files / 824 tests, unchanged); `pnpm build` 40/40 including
+  the Expo web export. `git status` after the full gate showed only the
+  three files named above changed.
+
+  **For the next run.** All seven standing blockers are unchanged — keep
+  re-verifying against the actual files. The shallow-clone divergence
+  should now be gone for good (this container had a real unshallowed clone
+  after `--unshallow`), but if it recurs, diagnose with `git merge-base`
+  and `.git/shallow` before reaching for `reset --hard`. For the next
+  exhausted-queue pass: this run's three-signal Playwright sweep
+  (overflow + tap-targets + console errors) is cheap and found a bug the
+  tap-target-only audits missed twice — worth repeating with a fourth
+  signal (e.g. a grep across `messages/*.json` for unescaped `<` outside
+  known-safe contexts) before assuming translation content is clean
+  elsewhere.
+
 - 2026-08-18 — **Exhausted-queue improvement: raised the skip-to-content
   link's focused size to the 44px floor, `apps/web/src/components/layout/
   Header.tsx`.** Done.

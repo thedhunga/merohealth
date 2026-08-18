@@ -1060,7 +1060,7 @@
           },
           "nativeControls": {
             "title": "Native controls where it counts",
-            "body": "Disclosures like our FAQ list use standard <details> and <summary> elements instead of custom widgets, so they respond to a keyboard the same way any browser control does."
+            "body": "Disclosures like our FAQ list use standard '<details>' and '<summary>' elements instead of custom widgets, so they respond to a keyboard the same way any browser control does."
           }
         }
       },
