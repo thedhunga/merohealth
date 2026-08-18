@@ -214,9 +214,10 @@ absent, this section is the source of truth), `frontend-design` skill.
       when 20% visible; 280 ms ease-out; disabled under reduced-motion; no
       layout shift (transform/opacity only). **Done 2026-08-18 — see the log
       entry below.**
-- [ ] View Transitions API for route changes where supported (Next 16 has
+- [x] View Transitions API for route changes where supported (Next 16 has
       first-class support behind a flag — check `docs`); fallback is
-      instant. Never block navigation on it.
+      instant. Never block navigation on it. **Done 2026-08-18 — see the log
+      entry below.**
 - [ ] The answer panel streams text in (word-chunked reveal from the
       response), and the advisory block slides up after the answer.
 - [ ] Budget: no animation over 400 ms; nothing animates that costs bytes.
@@ -1897,6 +1898,111 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-18 — **Round seven, task Q (second box): View Transitions API for
+  route changes.** Done.
+
+  **Housekeeping, first.** Same story as the log entries before this one:
+  `git checkout main && git pull` hit a stale local `main` (76 commits) that
+  shared no computable merge-base with `origin/main` (50 commits) — this
+  turned out to be a shallow-clone artifact, not a real force-push history
+  rewrite: `git ls-tree` confirmed every local package (`packages/family`,
+  `packages/clinical-safety`, ...) already exists in `origin/main`'s tree,
+  plus a great deal more (819 files vs. 514, dated through today vs.
+  2026-08-15). `git checkout -B main origin/main` was the fix — a plain
+  rename of the local branch pointer, nothing destructive to anything on
+  GitHub. Recording the shallow-clone explanation here since the last several
+  entries kept re-describing the symptom without pinning the cause down.
+
+  **What the task's own "check docs" note was pointing at.** The box's
+  premise — a `next.config` flag gates View Transitions — is wrong for this
+  Next version. The docs shipped inside the installed `next@16.3.0` package
+  itself (`node_modules/next/dist/docs/01-app/02-guides/view-transitions.md`)
+  say plainly: "View transitions work in the App Router with no
+  configuration." No `experimental.viewTransition` flag exists in this
+  Next's config schema (grepped the whole compiled `dist/`; nothing outside
+  the doc file and the RSC runtime's own internal bundle). The real
+  constraint is one level down: React's `<ViewTransition>` component (the
+  thing Next's own guide is built around) only exists on React's canary
+  channel — confirmed by grepping the actual installed `react@19.2.3`
+  package for the export: nothing. `apps/web/package.json` pins
+  `"react": "19.2.3"` exactly, not canary, presumably deliberately for a
+  health product's build stability. Upgrading the whole monorepo to a
+  canary React to unlock one animation primitive is a much bigger, riskier
+  call than this box, so `<ViewTransition>` itself is out of scope today —
+  noting this plainly rather than silently reaching for it or silently
+  skipping the box.
+
+  **What was built instead.** The *native* browser View Transitions API
+  (`document.startViewTransition`) needs no React canary — it predates
+  React's component and is what that component wraps under the hood. Added
+  `apps/web/src/lib/view-transition.ts`: `shouldUseViewTransition` (same
+  injectable-`matchMedia` shape as `shouldAnimateReveal` /
+  `shouldPlayAmbientLoop`, false without support or under
+  `prefers-reduced-motion`) and `runWithViewTransition(run, env)`, which
+  calls `run` through `document.startViewTransition` when wanted and
+  otherwise just calls it immediately — `run` always executes synchronously
+  either way, so navigation is never blocked or delayed, per the box's own
+  requirement. `flushSync` is accepted as an *injected* env field rather
+  than imported, so this module stays plain DOM/browser logic, testable
+  without `react-dom` or a DOM at all.
+
+  Wired it into exactly one place: `apps/web/src/i18n/navigation.ts` (now
+  `.tsx`, since it needs JSX for the wrapper below), which turned out to be
+  the single choke point for every internal navigation in this app — a
+  repo-wide grep found 21 files importing `Link`/`useRouter` from
+  `@/i18n/navigation` and zero importing `next/link` or `next-intl/navigation`
+  directly. Wrapping `useRouter`'s `push`/`replace` to run through
+  `runWithViewTransition` (with real `flushSync`, so the DOM actually
+  reflects the new route before the transition snapshot is taken) therefore
+  covers every programmatic navigation in the app — the mic-hero's push to
+  `/get-care`, the sign-in redirect, the locale switcher — without touching
+  any of those 8 call sites. `Link` itself is now a thin wrapper around
+  `next-intl`'s `Link` that hands its `onNavigate` (fires only for genuine
+  same-origin client-side navigations — Next has already excluded
+  modifier-clicks, external URLs and downloads by the time it runs) to the
+  wrapped `useRouter`, so a tapped link and a programmatic push get
+  identical treatment through one code path. `back`/`forward`/`refresh`/
+  `prefetch` pass through unwrapped — not the "old page → new page" case
+  this box is about.
+
+  **Verified in a real browser**, not just unit tests, since this touches
+  every navigation site-wide: ran the dev server under Playwright/Chromium
+  (Chromium does support `startViewTransition`) at 375×812. Instrumented
+  `document.startViewTransition` to confirm it fires exactly once on a
+  tapped `Link` and the URL changes correctly; confirmed it is *not* called
+  under `page.emulateMedia({ reducedMotion: 'reduce' })` while navigation
+  still succeeds; confirmed the browser back button still works (untouched
+  by this change, as expected). No console errors traceable to this change
+  — the only console noise was a pre-existing `auth/me` connection-refused
+  (no local API server running) and a pre-existing Next.js smooth-scroll
+  advisory, neither related to this task.
+
+  **Test.** `view-transition.test.ts`: 9 cases covering
+  `shouldUseViewTransition` (no `document`, unsupported browser, supported +
+  no preference, supported + reduced motion, missing `matchMedia`) and
+  `runWithViewTransition` (unsupported → runs immediately; reduced motion →
+  runs immediately without calling the API; supported, no `flushSync` →
+  hands `run` straight to `startViewTransition`; supported, with `flushSync`
+  → routes `run` through it inside `startViewTransition`). `navigation.tsx`
+  itself is untested at the component/hook level — consistent with every
+  other browser-API wiring in this repo (`LoopVideo`, `useReveal`,
+  `useSpeechDictation`): the pure decision function is tested, the DOM/router
+  glue isn't, and there's no `renderHook`/router-context test setup here to
+  introduce cleanly in one box.
+
+  **Measured at 375px.** No page's markup, layout or DOM output changed —
+  this is navigation plumbing, not a visual change — so there's nothing new
+  to measure against the standing page-weight/tap-target numbers.
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` (75/75 task suites; web 305 → 314 tests, api 824 unchanged),
+  `pnpm build` (40/40 tasks) all passed clean.
+
+  **Next run:** Round seven, task Q's remaining two boxes — the answer panel
+  streaming text in with the advisory sliding up after, and the "no
+  animation over 400ms / nothing that costs bytes" budget check across what
+  Q has built so far.
 
 - 2026-08-18 — **Round seven, task Q (first box): `useReveal` hook +
   `Reveal` wrapper for fade/translate-in-on-scroll.** Done.
