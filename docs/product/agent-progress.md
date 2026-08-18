@@ -1738,6 +1738,89 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-18 — **Exhausted-queue improvement: raised the five footer
+  social-icon links from `size-10` (40px) to `size-11` (44px),
+  `apps/web/src/components/layout/Footer.tsx`.** Done.
+
+  **Housekeeping first.** Local `main` at container start again shared no
+  `git merge-base` with `origin/main` — the same divergent-history shape
+  every recent entry reports (`git checkout main` warned about leaving 50
+  commits behind not connected to any branch; `git pull` then failed with
+  "need to specify how to reconcile divergent branches"; `git merge-base
+  --is-ancestor` confirmed zero shared history either direction). `git
+  status` was clean, so `git checkout -B main origin/main` and moved on.
+  Still worth fixing at the infrastructure level — now well past twenty
+  runs reporting the identical overhead.
+
+  **Selection.** Fresh `grep -n "^\- \[ \]"` against the task queue: the
+  same seven boxes as every recent run, all re-verified genuinely still
+  blocked and unchanged since the immediately preceding entry —
+  `GEMINI_LIVE_ENABLED` still commented out in `apps/web/.env.example`
+  (K′'s findings box, needs the owner's real phone plus billing turned on),
+  `GOOGLE_CLIENT_ID`/`NEXT_PUBLIC_GOOGLE_CLIENT_ID` still empty across
+  `.env.example`/`apps/web/.env.example` (Round four §F), only
+  `portrait-prakash.webp`/`portrait-sabina.webp` exist under
+  `apps/web/public/imagery/` with `portrait-raju.webp`/`portrait-mina.webp`
+  still missing (Round three §B), and §M's licence decision, §N payments,
+  the voice-architecture doc's owner-phone testing, and the homepage-height
+  product call are all unchanged for the reasons already on file. Per the
+  fallback the last several entries established, took the highest-priority
+  candidate the immediately preceding (2026-08-18) run's audit had already
+  identified and explicitly deferred: the footer's five social-icon links.
+  Re-verified it directly rather than re-running the same audit —
+  `apps/web/src/components/layout/Footer.tsx` line 167 was `size-10` (40px)
+  against this exact file's own `min-h-11` (44px) convention two elements
+  over (the app-store links, lines 144/150, and the accordion summary line
+  78). A real, high-confidence, low-risk fix, so took it over spawning a
+  fresh audit for what was already found. Left the preceding run's other
+  runner-up (`MobileNav.tsx`'s sub-nav `py-1.5`) alone — that one was
+  already judged borderline/a UX call, not a clear violation.
+
+  **What was found and fixed.** One class change: `size-10` → `size-11` on
+  the five `<a aria-label>` social-icon links (Facebook, Instagram,
+  LinkedIn, YouTube, X) inside the "Follow us" block. No copy, layout, or
+  behaviour change — the anchors already centred their icon with `grid
+  place-items-center`, so widening the box just grows the tap target
+  around the same 18px icon.
+
+  **Mobile measurement, before → after, both taken with Playwright headless
+  Chromium at 375×812** (`/opt/pw-browsers/chromium`; no `playwright`
+  package in the repo, so the script ran from the global install at
+  `/opt/node22/lib/node_modules` — noted here in case the next run hits the
+  same `ERR_MODULE_NOT_FOUND` and wants the workaround instead of
+  rediscovering it). Homepage (`/ne`) height: 4577px → 4581px (5.64 → 5.64
+  screens at `innerHeight` 812, unchanged at this precision — the 4px comes
+  from the four widened icons pushing their row's cross-axis by 2px each
+  side, not a new line). Tappable elements under 44px on either axis: 109
+  total tappable elements, 36 under 44px before → 31 after (exactly the
+  five icons fixed, nothing else moved). Icon boxes measured 40×40 before,
+  44×44 after. No horizontal overflow introduced — `scrollWidth ===
+  clientWidth === 375` in both `/ne` and `/en` after the change. Dev server
+  needed `pnpm --filter @swasthya/configuration build` first — `pnpm
+  install --frozen-lockfile` alone leaves workspace packages that ship
+  compiled `dist/` (unlike the mobile app's `react-native` source-entry
+  packages) unbuilt, so `next dev` 500s on `Module not found:
+  '@swasthya/configuration'` until that one package is built; the full
+  `pnpm build` gate below builds everything, this was only needed for the
+  live browser measurement step.
+
+  **Verify.** Full gate from the repository root: `pnpm install
+  --frozen-lockfile` clean; `pnpm lint` 40/40; `pnpm typecheck` 40/40;
+  `pnpm test` 75/75 tasks (824 API tests, unchanged — a Tailwind class
+  swap on an existing static link has no unit-testable behaviour, same
+  convention as every prior run of this shape); `pnpm build` 40/40,
+  including the Expo web export. `git status` after the full gate showed
+  only the one intended file changed.
+
+  **For the next run.** All seven standing blockers are unchanged;
+  re-verify each before skipping past it. The one remaining runner-up from
+  the previous audit is still open and still borderline:
+  `apps/web/src/components/layout/MobileNav.tsx` — a nested sub-nav link
+  uses `py-1.5` with no explicit `min-h-11`, smaller than sibling
+  top-level links. Worth a fresh look, but it was correctly judged not a
+  clear violation last time, so don't take it on autopilot — check whether
+  it actually renders under 44px before spending the run on it.
+
 - 2026-08-18 — **Exhausted-queue improvement: translated twelve hardcoded
   English labels on the mobile home tab (`apps/mobile/app/(tabs)/index.tsx`),
   the first screen most users see.** Done.

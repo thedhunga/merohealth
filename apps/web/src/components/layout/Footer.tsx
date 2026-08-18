@@ -164,7 +164,7 @@ export function Footer() {
                   <li key={key}>
                     <a
                       aria-label={label}
-                      className="grid size-10 place-items-center rounded-full border border-white/25 text-white transition-colors hover:bg-white/10"
+                      className="grid size-11 place-items-center rounded-full border border-white/25 text-white transition-colors hover:bg-white/10"
                       href={href}
                       rel="noreferrer noopener"
                       target="_blank"
