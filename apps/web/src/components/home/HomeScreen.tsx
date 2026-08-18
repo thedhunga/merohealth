@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
-import { ArrowRight, BookOpenCheck, Keyboard, MessageCircleHeart, Mic, Users } from 'lucide-react';
+import { ArrowRight, BookOpenCheck, Keyboard, MessageCircleHeart, Users } from 'lucide-react';
 
 import { Link, useRouter } from '@/i18n/navigation';
 import { useSpeechDictation } from '@/hooks/useSpeechDictation';
@@ -13,6 +13,7 @@ import { history } from '@/lib/anonymous-history';
 import { storeCareListenIntent, storeCareQuestion } from '@/lib/get-care-session';
 import { dailyArticle, greetingPeriod, micHeroLayout } from '@/lib/home-screen';
 import { cn } from '@/lib/cn';
+import { MicHero } from './MicHero';
 
 const CHIP_KEYS = ['fever', 'headache', 'medicine', 'report'] as const;
 
@@ -80,25 +81,11 @@ export function HomeScreen() {
         </h1>
 
         <div className="mt-6 flex flex-col items-center">
-          <button
-            aria-label={layout === 'voiceFirst' ? t('micLabel') : t('micUnavailable')}
-            className={cn(
-              'grid size-28 place-items-center rounded-full shadow-lift transition-transform duration-150',
-              layout === 'voiceFirst'
-                ? 'bg-marigold-500 text-indigo-950 hover:bg-marigold-300 active:scale-95'
-                : 'cursor-not-allowed bg-indigo-100 text-ink-soft',
-            )}
-            disabled={layout === 'textFirst'}
+          <MicHero
+            label={layout === 'voiceFirst' ? t('micLabel') : t('micUnavailable')}
             onClick={handleMicTap}
-            type="button"
-          >
-            <Mic aria-hidden className="size-10" />
-          </button>
-          {layout === 'voiceFirst' ? (
-            <p className="mt-3 text-base font-bold text-indigo-950">{t('micLabel')}</p>
-          ) : (
-            <p className="mt-3 max-w-[24ch] text-center text-sm text-ink-soft">{t('micUnavailable')}</p>
-          )}
+            state={layout === 'voiceFirst' ? 'idle' : 'unavailable'}
+          />
 
           <button
             className={cn(

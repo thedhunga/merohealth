@@ -197,10 +197,11 @@ absent, this section is the source of truth), `frontend-design` skill.
 
 ## P. Mic-as-hero and conversation entry (touches Round five H)
 
-- [ ] `MicHero` component: ≥ 96 px target, pulsing ring while listening
+- [x] `MicHero` component: ≥ 96 px target, pulsing ring while listening
       (CSS animation, reduced-motion → static ring), haptic-like micro-scale
       on press, clear states: idle / listening / thinking / speaking; label
       changes with state in Nepali. One tap = conversation mode (continuous).
+      **Done 2026-08-18 — see the log entry below.**
 - [ ] Text entry is a secondary control that expands on tap; on desktop both
       are visible.
 - [ ] Permission denied / no mic → the text field becomes primary, one calm
@@ -1894,6 +1895,86 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-18 — **Round seven, task P (first box): `MicHero` component —
+  absorbed the duplicated mic-disc markup out of `HomeScreen.tsx` and
+  `FirstVisitScreen.tsx`.** Done.
+
+  **Housekeeping, first.** `git checkout main && git pull` failed with
+  diverged histories again (local tip `9bdf548`, unrelated to
+  `origin/main`'s `c8d20f2`) — the same failure the last four log entries
+  described in detail and asked the owner to look at directly. Fixed the
+  same way (`git reset --hard origin/main`; nothing lost, the old local tip
+  is still reachable by hash). Not re-diagnosing further, per the prior
+  entries' own request — this is the fifth occurrence in a row now.
+
+  **What was built.** The previous entry's own "next run" note flagged it:
+  `HomeScreen.tsx` and `FirstVisitScreen.tsx` each hand-rolled an identical
+  mic-disc-plus-label block (button, icon, conditional label paragraph),
+  one copy per file, that only differed in nothing at all — genuine
+  duplication task P exists to absorb, not two designs that happened to
+  look alike. Added `MicHero.tsx` to `components/home/`: a presentational
+  component taking `state` (`'idle' | 'listening' | 'thinking' | 'speaking'
+  | 'unavailable'`), `label`, and `onClick`. Both screens now render
+  `<MicHero state={layout === 'voiceFirst' ? 'idle' : 'unavailable'} .../>`
+  in place of their own copy of the block; the type-toggle control beside it
+  (a `<button>` on `HomeScreen`, a `<Link>` on `FirstVisitScreen` — a real
+  difference, not accidental duplication) was left alone, since absorbing it
+  is explicitly task P's *second* box, not this one.
+
+  The disc stays the existing 112 px (`size-28`, already past the 96 px
+  floor) with the existing `active:scale-95` press feedback. New: a pulsing
+  ring behind the disc for `listening` (`animate-ping` on a separate
+  absolutely-positioned span, so the ring pulses without the disc's own
+  fill pulsing against it), `motion-reduce:animate-none` leaving it as a
+  visible but static ring rather than vanishing the one live-recording cue.
+  `thinking`/`speaking`/`listening` reuse color pairings that already exist
+  elsewhere for the same states rather than inventing new ones:
+  `bg-danger-100 text-danger-500` for listening (`GetCareFlow`'s own mic
+  button), `animate-pulse bg-indigo-800 text-white` for thinking
+  (`LoadingPanel`), `bg-indigo-100 text-indigo-800` for speaking (the
+  playback-active Listen button in `ConversationPanel`/`OffTopicPanel`).
+
+  Neither caller can actually reach `listening`/`thinking`/`speaking`
+  today — both still call `storeCareListenIntent()` and `router.push
+  ('/get-care')` in the same tick, so the disc never survives to render
+  anything past `idle`/`unavailable` before the screen unmounts. Built
+  anyway, deliberately: the ledger box asks for the full state contract, not
+  just the two states this run's callers exercise, and `GetCareFlow` (which
+  already has real `dictation.status`/`playback.speaking` state) is the
+  obvious next adopter. No new message keys needed — both wired states
+  reuse the existing `homeScreen.micLabel` / `homeScreen.micUnavailable`
+  strings unchanged.
+
+  No colocated test: `MicHero` is pure presentation with no branching logic
+  worth unit-testing standalone (the one real decision — voice-first vs.
+  text-first — already lives in and is tested via `micHeroLayout` in
+  `lib/home-screen.ts`, untouched by this change), and this codebase has no
+  React-rendering test harness, matching every other file in
+  `components/home/`.
+
+  **Measured at 375×812**, production build, real Chromium, all four
+  variants (returning/first-time × voice-capable/no-speech-API): identical
+  to the numbers in the last two log entries — returning 1231px/1.52
+  screens (voice) and 1247px/1.54 (no-speech); first-time lean
+  1627px/2.00 and 1643px/2.02. Tap targets: 100 (returning) / 95
+  (first-time), 1 under 44px in every variant — the same single
+  pre-existing target the last entry already traced and ruled unrelated.
+  Screenshots confirm the disc, ring-less idle state, and the promoted
+  type-action pill all render pixel-identical to before the refactor — this
+  was a structural extraction, not a visual change, and the measurements
+  bear that out exactly.
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm
+  typecheck`, `pnpm test` (75/75 task suites, 824 API tests + all others
+  green), `pnpm build` (40/40 tasks) all passed clean.
+
+  **Next run:** task P's remaining two boxes — text entry as a secondary
+  control that expands on tap (desktop shows both), and the permission-
+  denied/no-mic state promoting text with a calm one-line note (`'denied'`
+  from `useSpeechDictation` — reachable once a screen actually calls
+  `dictation.start()` rather than only checking `.supported`, which none of
+  today's `MicHero` callers do yet).
 
 - 2026-08-18 — **Round seven, task O (fourth/last box): outage tests —
   history unreadable → first-time layout; no speech API → text-first mic

@@ -2,13 +2,14 @@
 
 import Image from 'next/image';
 import { useLocale, useTranslations } from 'next-intl';
-import { ArrowRight, Keyboard, Mic, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, Keyboard, ShieldCheck, Sparkles } from 'lucide-react';
 
 import { Link, useRouter } from '@/i18n/navigation';
 import { useSpeechDictation } from '@/hooks/useSpeechDictation';
 import { storeCareListenIntent } from '@/lib/get-care-session';
 import { micHeroLayout } from '@/lib/home-screen';
 import { cn } from '@/lib/cn';
+import { MicHero } from './MicHero';
 
 const CARDS = [
   { key: 'record', src: '/imagery/mero-family-report.webp', altKey: 'imageAlt' as const },
@@ -68,25 +69,11 @@ export function FirstVisitScreen() {
           </h1>
 
           <div className="mt-6 flex flex-col items-center">
-            <button
-              aria-label={layout === 'voiceFirst' ? homeScreenT('micLabel') : homeScreenT('micUnavailable')}
-              className={cn(
-                'grid size-28 place-items-center rounded-full shadow-lift transition-transform duration-150',
-                layout === 'voiceFirst'
-                  ? 'bg-marigold-500 text-indigo-950 hover:bg-marigold-300 active:scale-95'
-                  : 'cursor-not-allowed bg-indigo-100 text-ink-soft',
-              )}
-              disabled={layout === 'textFirst'}
+            <MicHero
+              label={layout === 'voiceFirst' ? homeScreenT('micLabel') : homeScreenT('micUnavailable')}
               onClick={handleMicTap}
-              type="button"
-            >
-              <Mic aria-hidden className="size-10" />
-            </button>
-            {layout === 'voiceFirst' ? (
-              <p className="mt-3 text-base font-bold text-indigo-950">{homeScreenT('micLabel')}</p>
-            ) : (
-              <p className="mt-3 max-w-[24ch] text-center text-sm text-ink-soft">{homeScreenT('micUnavailable')}</p>
-            )}
+              state={layout === 'voiceFirst' ? 'idle' : 'unavailable'}
+            />
 
             <Link
               className={cn(
