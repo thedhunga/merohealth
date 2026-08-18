@@ -226,9 +226,10 @@ absent, this section is the source of truth), `frontend-design` skill.
 
 ## R. PWA — finish what `8ed647f` started
 
-- [ ] Verify install on Android Chrome (install prompt appears; icon,
+- [x] Verify install on Android Chrome (install prompt appears; icon,
       splash, standalone) and iOS Safari (Add to Home Screen; icon; no
-      Safari chrome). Record findings in `docs/product/pwa.md`.
+      Safari chrome). Record findings in `docs/product/pwa.md`. **Done
+      2026-08-18 — see the log entry below.**
 - [ ] `InstallPrompt` component: after the second answer, one calm card
       "फोनमा राख्नुहोस् — एक ट्यापमा खोल्नुहोस्" using `beforeinstallprompt`
       on Android; on iOS a two-step picture of Share → Add to Home Screen.
@@ -1900,6 +1901,59 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-18 — **Round seven, task R (first box): verify PWA install on
+  Android Chrome and iOS Safari.** Done.
+
+  **Housekeeping, first.** Local `main` had no computable merge-base
+  against `origin/main` (76 local commits vs. 50 on origin, unrelated
+  histories) — the same per-container shallow-clone symptom the last four
+  entries diagnosed. Working tree was clean, so `git reset --hard
+  origin/main` realigned the branch pointer with nothing lost.
+
+  **What "verify" means without a phone.** This container has no physical
+  Android/iOS device and only Chromium installed (no WebKit), so the
+  closest honest verification is reading Chrome's own installability
+  signal rather than guessing from the manifest. Built and served the site
+  (`pnpm build` from the repo root — must be root, not `apps/web`, or
+  Turbo's package build order breaks and `apps/web`'s own `pnpm build`
+  fails on an unbuilt `@swasthya/language-corpus`), then drove a real
+  (non-incognito — `launchPersistentContext`, since an ephemeral
+  `chromium.launch()` context reports a useless `in-incognito` error) headless
+  Chromium against it via CDP.
+
+  **Android Chrome — installable, zero errors.** `Page.getInstallabilityErrors`
+  returned `[]` and `Page.getAppManifest` returned zero parse errors on `/`.
+  Confirmed by hand rather than trusted from the manifest source: fetched
+  `/icon-192.png`, `/icon-512.png`, `/icon-maskable-512.png` directly and
+  decoded each with `file` to their declared pixel sizes (192², 512², 512²).
+  No service worker exists yet (task R's second bullet, still open) —
+  Chrome's installability check did not require one.
+
+  **iOS Safari — correctly tagged, one framework-driven gap recorded, not
+  fixed.** `apple-touch-icon` (180×180), `apple-mobile-web-app-title`,
+  `apple-mobile-web-app-status-bar-style`, and `viewport-fit=cover` are all
+  present and correct. Next.js 16.3's metadata API now only emits the
+  modern `mobile-web-app-capable` tag, not the legacy
+  `apple-mobile-web-app-capable` one (confirmed in
+  `next/dist/lib/metadata/metadata.js`) — Apple added standard-tag support
+  in Safari 17.4 (March 2024), so by now this should be moot for anyone
+  actually installing today. Documented rather than patched: there's no
+  `Metadata` field for the legacy tag, and fighting Next's considered
+  default for a two-year-obsolete Safari version isn't worth it.
+
+  Full findings, method, and what to re-check if the service-worker bullet
+  lands are in the new `docs/product/pwa.md`. Screenshot at 375×812 (no
+  history → first-time-visitor layout): 1627 px scroll height / 812 px
+  viewport = 2.00 screens, inside the Round seven "under 2.5 screens"
+  budget.
+
+  **Next run:** a real phone spot-check (does the Android mini-infobar
+  actually appear and launch standalone; does iOS Add to Home Screen launch
+  chrome-free) is still open and cheap — worth doing opportunistically, not
+  worth blocking on. Re-run the CDP installability check after the service
+  worker lands, since a bad fetch handler is a way to regress a currently
+  clean verdict.
 
 - 2026-08-18 — **Round seven, task Q (last box): the motion budget audit —
   "no animation over 400 ms; nothing animates that costs bytes."** Done.
