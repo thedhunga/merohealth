@@ -59,7 +59,9 @@ export default function HomeScreen() {
         <View style={styles.heroRingOne} />
         <View style={styles.heroRingTwo} />
         <View style={styles.copy}>
-          <Text style={styles.label}>YOUR GUIDED HEALTH COMPANION</Text>
+          <Text style={styles.label}>
+            {language === 'en' ? 'YOUR GUIDED HEALTH COMPANION' : 'तपाईंको मार्गदर्शित स्वास्थ्य साथी'}
+          </Text>
           <Text style={styles.title}>{t(language, 'homePrompt')}</Text>
           <Text style={styles.body}>
             {language === 'en'
@@ -96,7 +98,7 @@ export default function HomeScreen() {
             <CalendarDays color={colors.primary} size={19} />
           </View>
           <View style={styles.contextCopy}>
-            <Text style={styles.contextLabel}>TODAY</Text>
+            <Text style={styles.contextLabel}>{language === 'en' ? 'TODAY' : 'आज'}</Text>
             <Text style={styles.contextTitle}>
               {language === 'en' ? 'No upcoming care' : 'आगामी कुनै सेवा छैन'}
             </Text>
@@ -107,7 +109,9 @@ export default function HomeScreen() {
             <MapPin color={colors.info} size={19} />
           </View>
           <View style={styles.contextCopy}>
-            <Text style={styles.contextLabel}>CARE NETWORK</Text>
+            <Text style={styles.contextLabel}>
+              {language === 'en' ? 'CARE NETWORK' : 'सेवा सञ्जाल'}
+            </Text>
             <Text style={styles.contextTitle}>
               {language === 'en' ? 'Explore verified demo listings' : 'प्रमाणित डेमो सूची हेर्नुहोस्'}
             </Text>
@@ -117,7 +121,9 @@ export default function HomeScreen() {
 
       <View style={styles.sectionHead}>
         <View>
-          <Text style={styles.sectionEyebrow}>ONE PLACE, CLEAR NEXT STEPS</Text>
+          <Text style={styles.sectionEyebrow}>
+            {language === 'en' ? 'ONE PLACE, CLEAR NEXT STEPS' : 'एउटै ठाउँ, स्पष्ट अर्को कदम'}
+          </Text>
           <Text style={styles.section}>
             {language === 'en' ? 'What do you need?' : 'तपाईंलाई के चाहिन्छ?'}
           </Text>
@@ -130,7 +136,7 @@ export default function HomeScreen() {
       <View style={[styles.actions, wide && styles.actionsWide]}>
         <View style={styles.actionColumn}>
           <ActionCard
-            badge="AVAILABLE"
+            badge={language === 'en' ? 'AVAILABLE' : 'उपलब्ध'}
             icon={Stethoscope}
             onPress={() => router.push('/(tabs)/care')}
             subtitle={
@@ -141,7 +147,7 @@ export default function HomeScreen() {
             title={t(language, 'doctor')}
           />
           <ActionCard
-            badge="PATIENT-CONTROLLED"
+            badge={language === 'en' ? 'PATIENT-CONTROLLED' : 'बिरामी-नियन्त्रित'}
             icon={FileHeart}
             onPress={() => router.push('/(tabs)/twin')}
             subtitle={
@@ -153,7 +159,7 @@ export default function HomeScreen() {
             tone="jade"
           />
           <ActionCard
-            badge="GUIDED PREVIEW"
+            badge={language === 'en' ? 'GUIDED PREVIEW' : 'मार्गदर्शित पूर्वावलोकन'}
             icon={Beaker}
             onPress={() => router.push('/(tabs)/learn')}
             subtitle={
@@ -165,7 +171,7 @@ export default function HomeScreen() {
             tone="forest"
           />
           <ActionCard
-            badge="PHOTOGRAPH & CONFIRM"
+            badge={language === 'en' ? 'PHOTOGRAPH & CONFIRM' : 'फोटो खिच्नुहोस् र पुष्टि गर्नुहोस्'}
             icon={FileText}
             onPress={() => router.push('/records')}
             subtitle={
@@ -178,7 +184,7 @@ export default function HomeScreen() {
         </View>
         <View style={styles.actionColumn}>
           <ActionCard
-            badge="VIDEO ROOM"
+            badge={language === 'en' ? 'VIDEO ROOM' : 'भिडियो कोठा'}
             icon={Camera}
             onPress={() => router.push('/consultation')}
             subtitle={
@@ -188,7 +194,7 @@ export default function HomeScreen() {
             tone="forest"
           />
           <ActionCard
-            badge="WORKFLOW PREVIEW"
+            badge={language === 'en' ? 'WORKFLOW PREVIEW' : 'प्रक्रिया पूर्वावलोकन'}
             icon={Package}
             onPress={() => router.push('/(tabs)/learn')}
             subtitle={
@@ -200,7 +206,7 @@ export default function HomeScreen() {
             tone="warm"
           />
           <ActionCard
-            badge="SAFETY INTERRUPT"
+            badge={language === 'en' ? 'SAFETY INTERRUPT' : 'सुरक्षा अवरोध'}
             icon={PhoneCall}
             onPress={() =>
               router.push({ pathname: '/(tabs)/companion', params: { demo: 'emergency' } })
@@ -219,7 +225,9 @@ export default function HomeScreen() {
           <HeartPulse color="white" size={26} />
         </View>
         <View style={styles.healthStoryCopy}>
-          <Text style={styles.healthStoryKicker}>YOUR HEALTH STORY</Text>
+          <Text style={styles.healthStoryKicker}>
+            {language === 'en' ? 'YOUR HEALTH STORY' : 'तपाईंको स्वास्थ्य कथा'}
+          </Text>
           <Text style={styles.healthStoryTitle}>
             {language === 'en'
               ? 'A useful picture grows one confirmed fact at a time.'

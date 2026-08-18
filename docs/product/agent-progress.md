@@ -1738,6 +1738,97 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-18 — **Exhausted-queue improvement: translated twelve hardcoded
+  English labels on the mobile home tab (`apps/mobile/app/(tabs)/index.tsx`),
+  the first screen most users see.** Done.
+
+  **Housekeeping first.** Local `main` at container start again shared no
+  `git merge-base` with `origin/main` — the same divergent-history shape
+  every recent entry reports (this container: `git checkout main` warned
+  about leaving 50 commits behind not connected to any branch, then
+  `git pull` failed with "need to specify how to reconcile divergent
+  branches" once the fetch force-updated the local `origin/main` tracking
+  ref; `git rev-list --count` confirmed local `main` and `origin/main` share
+  zero common history — 76 local-only commits vs. 50 origin-only commits).
+  `git status` was clean, so `git reset --hard origin/main` and moved on.
+  Still worth fixing at the infrastructure level — this is now well past
+  twenty runs reporting the identical overhead.
+
+  **Selection.** Fresh `grep -n "^\s*- \[ \]"`: the same seven boxes as
+  every recent run, all re-verified genuinely still blocked — K′'s findings
+  box (`GEMINI_LIVE_ENABLED` still unset), §M's licence decision, §N
+  payments, the voice-architecture doc (owner's phone testing), Google
+  sign-in (`GOOGLE_CLIENT_ID` still empty), the two missing testimonial
+  portraits (Higgsfield credits), and the homepage-height box (two
+  independent 2026-08-16 audits already agreed reaching 4–5 screens from
+  today's ~5.6/6.06 means a content cut, a product call). None of these had
+  changed state since the immediately preceding entry, so per the working
+  agreement's own fallback, delegated a fresh read-only audit (Explore
+  subagent) against the standing constraints and art direction, explicitly
+  told which classes of bug prior runs already fixed (hardcoded mobile
+  strings in `consultation.tsx`/`learn.tsx`, the homepage h1 matra clip, the
+  homepage alt text, the two tap-target fixes) so it wouldn't re-report them.
+  It came back with one high-confidence winner and three lower-priority
+  candidates (a 40px footer social-icon tap target, a borderline sub-nav tap
+  target, and confirmation that `packages/*` test coverage and the palette
+  are both actually clean — no stray green/blue, no `leading-*` on a
+  heading). Took the winner.
+
+  **What was found and fixed.** `apps/mobile/app/(tabs)/index.tsx` — the
+  home tab, the actual landing screen of the mobile app — follows the
+  `language === 'en' ? '...' : '...'` convention correctly for every
+  sentence-level string, but twelve short labels were raw English literals
+  with no Nepali branch, sitting beside siblings that do it correctly: the
+  hero eyebrow ("YOUR GUIDED HEALTH COMPANION"), two context-card kickers
+  ("TODAY", "CARE NETWORK"), the action-grid section eyebrow ("ONE PLACE,
+  CLEAR NEXT STEPS"), the health-story kicker ("YOUR HEALTH STORY"), and all
+  eight `ActionCard` `badge` props ("AVAILABLE", "PATIENT-CONTROLLED",
+  "GUIDED PREVIEW", "PHOTOGRAPH & CONFIRM", "VIDEO ROOM", "WORKFLOW
+  PREVIEW", "SAFETY INTERRUPT"). Confirmed `badge` renders as a visible
+  `<Text>` in `ui.tsx`'s `ActionCard`, not decorative markup, so these are
+  real user-facing copy, not internal labels. All twelve now branch on
+  `language`, matching every neighbouring string in the same file. Reused
+  existing terminology where the file or its siblings already established
+  it — "पूर्वावलोकन" for "preview" (already used in the file's own English
+  side and in the earlier `consultation.tsx` fix), "भिडियो कोठा" for "video
+  room" (mirrors that same fix's "निजी भिडियो कोठा"). Left the "MERO
+  HEALTH"/"स्वास्थ्य साथी" brand lockup (line 38) and the identical string in
+  `apps/mobile/app/index.web.tsx` alone — proper-noun brand marks, the same
+  convention as the untranslated "Google Play"/"App Store" labels in
+  `Footer.tsx`, not a translation gap. No invented facts — these are UI
+  chrome labels (status badges and section eyebrows), not clinical content.
+
+  **Verify.** Full gate from the repository root: `pnpm install
+  --frozen-lockfile` clean; `pnpm lint` 40/40; `pnpm typecheck` 40/40;
+  `pnpm test` 75/75 tasks (824 API tests, none added — same convention as
+  every prior run of this shape: no unit tests for static JSX ternaries);
+  `pnpm build` 40/40, including the Expo web export. `git status` after the
+  full gate showed only the one intended file changed — no `next dev`/`expo
+  build` side-effect files to discard this run.
+
+  **Mobile measurement.** This is a mobile-app text swap, not a web page —
+  the usual 375px `document.body.scrollHeight`/tap-target sweep is a web
+  measurement and doesn't apply here (same reasoning the immediately
+  preceding mobile-strings entry gave). No layout, spacing, or tap-target
+  change: every edit replaces a string literal with a ternary yielding a
+  string of comparable length inside the same `<Text>`/`badge` prop, so
+  nothing on the phone screen moves or resizes.
+
+  **For the next run.** All seven standing blockers are unchanged;
+  re-verify each before skipping past it, they've held for many runs now.
+  The audit's three runner-up candidates are recorded here for whoever
+  audits next, so they aren't re-discovered from scratch: (1)
+  `apps/web/src/components/layout/Footer.tsx` — social-icon links are
+  `size-10` (40px) against this repo's 44px/`min-h-11` tap-target rule,
+  while the adjacent app-store links in the same footer already use
+  `min-h-11` — real but low-impact (footer, not above-the-fold); (2)
+  `apps/web/src/components/layout/MobileNav.tsx` — a nested sub-nav link
+  uses `py-1.5` with no explicit `min-h-11`, smaller than sibling top-level
+  links — borderline, arguably a secondary/collapsed-menu judgment call
+  rather than a clear violation. Neither was taken this run because the
+  home-tab translations were the higher-confidence, higher-impact (first
+  screen every user sees) candidate.
+
 - 2026-08-17 — **Exhausted-queue improvement: translated the four hardcoded
   English "eyebrow" labels the previous run's audit had flagged and left for
   next time, in `apps/mobile/app/consultation.tsx` and
