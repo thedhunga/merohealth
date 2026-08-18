@@ -210,9 +210,10 @@ absent, this section is the source of truth), `frontend-design` skill.
 
 ## Q. Motion system
 
-- [ ] `useReveal` hook + `Reveal` wrapper: elements fade/translate 12 px in
+- [x] `useReveal` hook + `Reveal` wrapper: elements fade/translate 12 px in
       when 20% visible; 280 ms ease-out; disabled under reduced-motion; no
-      layout shift (transform/opacity only).
+      layout shift (transform/opacity only). **Done 2026-08-18 — see the log
+      entry below.**
 - [ ] View Transitions API for route changes where supported (Next 16 has
       first-class support behind a flag — check `docs`); fallback is
       instant. Never block navigation on it.
@@ -1896,6 +1897,70 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-18 — **Round seven, task Q (first box): `useReveal` hook +
+  `Reveal` wrapper for fade/translate-in-on-scroll.** Done.
+
+  **Housekeeping, first.** Same story as the last seven entries: `git
+  checkout main && git pull` hit a force-updated `origin/main` with no
+  common ancestor against local `main` (76 local commits vs. 50 on origin,
+  `git merge-base` returned nothing). Working tree was clean, so `git reset
+  --hard origin/main` was the safe fix. Still outside this agent's control
+  and still needs a human, not another paragraph — not repeating the fuller
+  investigation the earlier entries already did.
+
+  **What was built.** `globals.css` already has a scroll-reveal
+  (`.reveal`/`.reveal-stagger`, `animation-timeline: view()`) used by
+  `Hero`, `CtaBand`, `ServiceCards`, `Testimonials` and `TestimonialsGrid`,
+  but its own comment says it's unsupported in Firefox and simply skips the
+  animation there rather than degrading to a matching one — this task is
+  the cross-browser complement, not a duplicate. Added
+  `apps/web/src/hooks/useReveal.ts`: an exported pure `shouldAnimateReveal`
+  decision function (injectable `matchMedia`, mirrors
+  `LoopVideo.tsx`'s `shouldPlayAmbientLoop` pattern exactly, since that's
+  the established way this repo keeps browser-API decisions testable
+  without a DOM) plus the `useReveal` hook itself, which uses
+  `IntersectionObserver` at a 20%-visible default threshold. The hook
+  exposes an `armed` flag, deliberately separate from `visible`: nothing
+  renders hidden until `armed` is true, and `armed` only flips once
+  `useEffect` has run client-side *and* confirmed both motion is wanted and
+  `IntersectionObserver` exists. That means server render, first paint, a
+  stalled/failed script, and `prefers-reduced-motion` all leave the content
+  fully visible by default — a JS-driven reveal that instead started hidden
+  by default would permanently hide content for anyone whose script never
+  ran, which is a worse failure than "no animation" on a product whose own
+  ledger flags slow/flaky connections as a real constraint. Added
+  `apps/web/src/components/ui/Reveal.tsx`: a thin `'use client'` wrapper
+  that calls the hook and toggles `translate-y-3 opacity-0` (exactly 12px on
+  the default Tailwind scale) via an exported `revealClassName(hidden,
+  className)` pure function, transitioning only `opacity`/`transform` over
+  `duration-[280ms] ease-out` — never a layout property, so it can't shift
+  anything around it. Not wired into any page yet; the queue item is the
+  primitive itself, and nothing in Round seven's remaining boxes names a
+  specific page to apply it to first.
+
+  **Test.** `useReveal.test.ts` covers `shouldAnimateReveal`'s three cases
+  (no preference, reduced motion, `matchMedia` unavailable). `Reveal.test.ts`
+  covers `revealClassName`'s hidden/visible/className-passthrough cases. No
+  render-level test for the hook or component itself — consistent with
+  every other browser-API hook and component in this repo (`LoopVideo`,
+  `useSpeechDictation`), which test the extracted pure decision function and
+  leave the DOM-touching wiring untested, since there's no `renderHook` or
+  DOM-testing setup here to introduce cleanly in one box.
+
+  **Measured at 375px.** No page changed, so no before/after screen-height
+  or tap-target numbers apply this run — `Reveal` isn't rendered by any
+  route yet. Recording that plainly rather than measuring an unrelated page
+  and implying it was this task's effect.
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm
+  typecheck`, `pnpm test` (75/75 task suites; web 305 tests, up from 299;
+  api 824 tests unchanged), `pnpm build` (40/40 tasks) all passed clean.
+
+  **Next run:** Round seven, task Q's next unchecked box is the View
+  Transitions API for route changes (second box) — check whether Next 16's
+  support is stable enough to use behind a flag before wiring it, per the
+  box's own note to check the docs first.
 
 - 2026-08-18 — **Round seven, task P (third box, last in the section):
   permission denied / no mic → text field primary, one calm sentence, no
