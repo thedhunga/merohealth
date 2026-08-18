@@ -4,6 +4,7 @@ import { Play, Quote, Sparkles, User } from 'lucide-react';
 import { testimonialKeys } from '@/content/home';
 import { EditorialImage } from '@/components/ui/EditorialImage';
 import { hasAsset } from '@/lib/assets';
+import { StoryVideo } from './StoryVideo';
 import { TestimonialsGrid } from './TestimonialsGrid';
 
 const STORY_VIDEO = '/video/mero-health-story.mp4';
@@ -86,16 +87,13 @@ export function Testimonials() {
               testimonial cards below carry the same content), so it only
               renders once there is room for it beside the text column. */}
           <div className="group relative hidden aspect-video overflow-hidden rounded-[2rem] bg-indigo-900 shadow-menu ring-1 ring-white/10 lg:block">
-            <video
-              aria-label={t('watchVideo')}
-              className="size-full object-cover"
-              controls
-              playsInline
-              poster="/imagery/mero-community-care.webp"
-              preload="metadata"
-            >
-              {storyReady ? <source src={STORY_VIDEO} type="video/mp4" /> : null}
-            </video>
+            {storyReady ? (
+              <StoryVideo
+                label={t('watchVideo')}
+                poster="/imagery/mero-community-care.webp"
+                src={STORY_VIDEO}
+              />
+            ) : null}
             {storyReady ? null : (
               <span
                 aria-hidden

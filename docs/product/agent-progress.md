@@ -248,9 +248,12 @@ absent, this section is the source of truth), `frontend-design` skill.
 
 ## S. Page weight and paint
 
-- [ ] First-load budget on `/` at 375 px: ≤ 600 KB transferred, LCP < 2.5 s
+- [x] First-load budget on `/` at 375 px: ≤ 600 KB transferred, LCP < 2.5 s
       on a throttled 4G profile. Add a check to `pnpm build` output or a
-      script that fails CI when exceeded.
+      script that fails CI when exceeded. **Done 2026-08-18 — see the log
+      entry below.** The gate is real and wired into CI; the page itself
+      does not yet pass it (899 KB / 3.44 s at the time of this entry) — the
+      next two `S` boxes are the concrete path to closing that gap.
 - [ ] Every `AmbientLoop`/`EditorialImage` gets `sizes` matched to its slot;
       hero poster `priority`; all others lazy.
 - [ ] Fonts: confirm only Devanagari+Latin subsets ship; preload the two
@@ -1905,6 +1908,126 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-18 — **Round seven, task S (first box): a real, CI-enforced
+  first-load budget for `/`.** Done — the gate exists and is calibrated
+  against real numbers; the page itself does not yet pass it (see below).
+
+  **Housekeeping, first.** Local `main` was on a stale, unrelated lineage
+  (`9bdf548`, "round three" — no `git merge-base` with `origin/main` at all)
+  while `origin/main` had already progressed to "round seven" — same
+  per-container symptom the last several entries diagnosed. `git reset
+  --hard origin/main` realigned it; nothing local was lost, the stale branch
+  was never pushed anywhere.
+
+  **The gate.** `apps/web/scripts/check-page-weight.mjs`, run via a new
+  `pnpm --filter @swasthya/web check:budget` script: boots the already-built
+  app with `next start`, loads `/` in a **fresh** browser context (no
+  history → the bare-path first-visit screen `homeVariant` already picks —
+  see `src/lib/home-screen.ts`) at 375×812 through a Chrome DevTools
+  Protocol session, with `Network.emulateNetworkConditions` set to
+  Lighthouse's own documented default mobile throttling profile (150 ms
+  latency, 1.6 Mbps down / 750 Kbps up — labelled "Slow 4G" today, "Fast 3G"
+  previously; https://github.com/GoogleChrome/lighthouse/blob/main/docs/throttling.md)
+  paired with Lighthouse's matching 4x CPU slowdown, since an unthrottled
+  build machine's CPU would make LCP look better than it will on the phones
+  this ships to. Sums `Network.loadingFinished`'s `encodedDataLength` for
+  real on-the-wire "transferred" bytes (not uncompressed body size), and
+  reads LCP via a `PerformanceObserver` with `buffered: true`, settled
+  500 ms after `networkidle`. Exits non-zero if either budget (600 KB
+  transferred, 2500 ms LCP) is exceeded, printing both numbers either way.
+  Added `playwright` as a real devDependency of `apps/web` — pinned to
+  `1.56.1`, the exact version whose bundled Chromium revision (1194) matches
+  what this container already has at `/opt/pw-browsers`, so the script needs
+  no `executablePath` override here and will resolve its own managed browser
+  identically in CI after an explicit `playwright install`. This is the
+  "future task that needs browser automation repeatedly" the last several
+  hand-rolled-CDP entries flagged as due — the first time this ledger adds a
+  real, checked-in browser-automation dependency instead of a one-off script.
+  Deliberately **not** wired into `apps/web`'s own `build` script or
+  `vercel-build.sh` — running a full Chromium session during the production
+  deploy is a bigger, riskier change than the task needs, and a missing
+  browser on Vercel's build image would take the live site down with it for
+  an unrelated reason. Instead it is a new step in `.github/workflows/ci.yml`
+  (`pnpm turbo build --filter=@swasthya/web...` → `playwright install
+  --with-deps chromium` → `check:budget`), which is the literal "or a script
+  that fails CI when exceeded" the task offered as the alternative to
+  hooking `next build`'s own output.
+
+  **What it found, and one real bug fixed along the way.** First run: 1052.5
+  KB transferred, 4720 ms LCP — both badly over budget. Investigating why
+  before just recording the failure surfaced a genuine, in-scope bug:
+  `Testimonials.tsx`'s story-video player is wrapped in `hidden lg:block`
+  (desktop-only, by design — "on a phone it is pure height with no extra
+  information," the file's own comment says), but the `<video>` itself was a
+  plain element with `preload="metadata"`, and `display:none` does not stop
+  a browser from fetching it — the *exact* bug `LoopVideo.tsx`'s doc comment
+  already diagnosed for the hero loop a round ago ("autoplay makes browsers
+  fetch the file regardless of preload... display:none hides a video
+  without stopping the download"), recurring in a sibling component that
+  fix never touched. Worse here: this MP4's moov atom sits at the end of the
+  file, so "metadata" preload pulled megabytes probing for it, plus the
+  poster image's separate ~153 KB fetch (a plain HTML attribute, not routed
+  through `next/image`) — both fired on every phone visit for a player no
+  phone visitor can ever see. Fixed the same way `LoopVideo` already does it
+  for the hero: extracted `StoryVideo.tsx` (`components/home/`), a small
+  client component that decides *whether to render the element at all*,
+  matching the same `lg` (1024 px) breakpoint the wrapping CSS uses to hide
+  it, rather than trying to stop a fetch after the element already exists.
+  Deliberately did not reuse `LoopVideo`'s `shouldPlayAmbientLoop` outright —
+  this player has visible `controls` and is never autoplayed, so its
+  Save-Data/`effectiveType`/reduced-motion checks don't apply here; the only
+  question for this element is visibility, so `StoryVideo` is a plain
+  `matchMedia` check. No test file, matching the precedent set by
+  `useBackButtonClose.ts` two entries ago: there is no branching logic here
+  worth extracting into a pure function the way `shouldPlayAmbientLoop`
+  itself is (a one-line `matches` check), so a fabricated test would not add
+  real coverage.
+  Verified the fix is real, not just "no video element found on the happy
+  path": drove `next start` with headless Chromium directly (this repo still
+  has no browser-automation dependency beyond the one added here, and no
+  jsdom — `document.querySelectorAll('video')` on `/en` returns 0 at 375 px
+  and 2 at 1280 px — the hero loop and this player, both correctly gated —
+  confirming the fix works exactly where it needs to and doesn't touch the
+  desktop experience it deliberately still serves.
+  Second run of the budget check after the fix: **899.2 KB transferred
+  (was 1052.5 KB), 3440 ms LCP (was 4720 ms)** — real, measured improvement,
+  still over both budgets.
+
+  **What's still over, for whoever picks up the next two `S` boxes.** A
+  one-off network trace (not committed — a throwaway variant of the same
+  script, `page.on('response')`, unthrottled) of the remaining 899 KB found
+  ~522 KB of it is fonts: 15 separate `.woff2` files load on first paint —
+  Martel (4 weights × 2 subsets) and Mukta (5 weights × 2 subsets) declared
+  in `[locale]/layout.tsx` are not currently trimmed to what's actually used
+  above the fold, which is exactly the third `S` box's own description. The
+  three photographs are already reasonably sized (`next/image` AVIF variants
+  at 15–19 KB each via the existing `sizes` prop), so the second `S` box
+  (`sizes`/`priority`/lazy audit) likely has less headroom left than the
+  font box does — start with fonts.
+
+  **Measurements at 375×812** (production build, bare `/`, fresh context —
+  first-time-visitor path): `document.body.scrollHeight` 1627 px /
+  `innerHeight` 812 px → **2.00 screens**, unchanged by this task (it
+  touches network/loading behaviour, not layout). Not a tap-target task,
+  so none re-measured here; the round intro's separate finding stands.
+
+  All green (install/lint/typecheck/test/build) plus the two new gates
+  (`check:budget` fails loudly and correctly on the real numbers above, and
+  passes its own internal logic checks — there is nothing to unit-test in a
+  script whose entire job is talking to a real browser and a real server).
+
+  **For the next run:** the queue's next unchecked item is the second `S`
+  box (image `sizes`/`priority`/lazy audit), but per the finding above,
+  fonts are the bigger lever — consider picking the third `S` box first, or
+  at minimum reading this entry's numbers before assuming image work alone
+  will close the gap. **Also note:** this run's CI change means
+  `.github/workflows/ci.yml` will now genuinely fail its new `check:budget`
+  step on `main` until the page is brought under budget — this is the gate
+  working as designed (the owner's own round-seven complaint was about page
+  weight going unnoticed), not a broken pipeline, but it is a visible,
+  real change to the repo's CI status that whoever looks at GitHub next
+  should not mistake for a regression in this task's own work.
 
 - 2026-08-18 — **Round seven, task R (fourth box): standalone-mode fixes —
   safe-area insets, external links, back navigation.** Done.

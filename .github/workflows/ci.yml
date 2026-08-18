@@ -22,3 +22,6 @@ jobs:
       - run: pnpm test
       - run: pnpm --filter @swasthya/mobile exec expo export --platform web
         env: { EXPO_PUBLIC_API_URL: "http://localhost:4000" }
+      - run: pnpm turbo build --filter=@swasthya/web...
+      - run: pnpm --filter @swasthya/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @swasthya/web check:budget
