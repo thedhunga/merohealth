@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
-import { ArrowRight, BookOpenCheck, Keyboard, MessageCircleHeart, Users } from 'lucide-react';
+import { ArrowRight, BookOpenCheck, MessageCircleHeart, Users } from 'lucide-react';
 
 import { Link, useRouter } from '@/i18n/navigation';
 import { useSpeechDictation } from '@/hooks/useSpeechDictation';
@@ -12,8 +12,8 @@ import { buildActingSubjects } from '@/lib/acting-subjects';
 import { history } from '@/lib/anonymous-history';
 import { storeCareListenIntent, storeCareQuestion } from '@/lib/get-care-session';
 import { dailyArticle, greetingPeriod, micHeroLayout } from '@/lib/home-screen';
-import { cn } from '@/lib/cn';
 import { MicHero } from './MicHero';
+import { TextEntryToggle } from './TextEntryToggle';
 
 const CHIP_KEYS = ['fever', 'headache', 'medicine', 'report'] as const;
 
@@ -30,6 +30,7 @@ export function HomeScreen() {
   const t = useTranslations('homeScreen');
   const switcherT = useTranslations('account.switcher');
   const articleT = useTranslations('healthLibrary.articles');
+  const getCareT = useTranslations('getCare');
   const locale = useLocale();
   const router = useRouter();
   // No callback is ever invoked here — this screen never listens itself, it
@@ -87,19 +88,13 @@ export function HomeScreen() {
             state={layout === 'voiceFirst' ? 'idle' : 'unavailable'}
           />
 
-          <button
-            className={cn(
-              'mt-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold transition-colors',
-              layout === 'voiceFirst'
-                ? 'px-2 text-indigo-700 hover:text-indigo-800'
-                : 'rounded-pill bg-marigold-500 px-5 text-indigo-950 hover:bg-marigold-300',
-            )}
-            onClick={() => goToGetCare()}
-            type="button"
-          >
-            <Keyboard aria-hidden className="size-4" />
-            {t('typeLabel')}
-          </button>
+          <TextEntryToggle
+            onSubmit={(question) => goToGetCare(question || undefined)}
+            placeholder={getCareT('form.placeholder')}
+            promoted={layout === 'textFirst'}
+            submitLabel={getCareT('form.submit')}
+            toggleLabel={t('typeLabel')}
+          />
         </div>
 
         <ul aria-label={t('chipsLabel')} className="mt-6 flex flex-wrap justify-center gap-2">

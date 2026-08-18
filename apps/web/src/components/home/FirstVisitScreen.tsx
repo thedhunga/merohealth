@@ -2,14 +2,14 @@
 
 import Image from 'next/image';
 import { useLocale, useTranslations } from 'next-intl';
-import { ArrowRight, Keyboard, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
 
 import { Link, useRouter } from '@/i18n/navigation';
 import { useSpeechDictation } from '@/hooks/useSpeechDictation';
-import { storeCareListenIntent } from '@/lib/get-care-session';
+import { storeCareListenIntent, storeCareQuestion } from '@/lib/get-care-session';
 import { micHeroLayout } from '@/lib/home-screen';
-import { cn } from '@/lib/cn';
 import { MicHero } from './MicHero';
+import { TextEntryToggle } from './TextEntryToggle';
 
 const CARDS = [
   { key: 'record', src: '/imagery/mero-family-report.webp', altKey: 'imageAlt' as const },
@@ -54,6 +54,11 @@ export function FirstVisitScreen() {
     router.push('/get-care');
   };
 
+  const goToGetCare = (question?: string) => {
+    if (question) storeCareQuestion(question);
+    router.push('/get-care');
+  };
+
   const layout = micHeroLayout(dictation.supported);
 
   return (
@@ -75,18 +80,13 @@ export function FirstVisitScreen() {
               state={layout === 'voiceFirst' ? 'idle' : 'unavailable'}
             />
 
-            <Link
-              className={cn(
-                'mt-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold transition-colors',
-                layout === 'voiceFirst'
-                  ? 'px-2 text-indigo-700 hover:text-indigo-800'
-                  : 'rounded-pill bg-marigold-500 px-5 text-indigo-950 hover:bg-marigold-300',
-              )}
-              href="/get-care"
-            >
-              <Keyboard aria-hidden className="size-4" />
-              {homeScreenT('typeLabel')}
-            </Link>
+            <TextEntryToggle
+              onSubmit={(question) => goToGetCare(question || undefined)}
+              placeholder={getCareT('form.placeholder')}
+              promoted={layout === 'textFirst'}
+              submitLabel={getCareT('form.submit')}
+              toggleLabel={homeScreenT('typeLabel')}
+            />
           </div>
         </div>
       </section>

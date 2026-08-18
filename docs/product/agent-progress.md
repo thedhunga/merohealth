@@ -202,8 +202,8 @@ absent, this section is the source of truth), `frontend-design` skill.
       on press, clear states: idle / listening / thinking / speaking; label
       changes with state in Nepali. One tap = conversation mode (continuous).
       **Done 2026-08-18 — see the log entry below.**
-- [ ] Text entry is a secondary control that expands on tap; on desktop both
-      are visible.
+- [x] Text entry is a secondary control that expands on tap; on desktop both
+      are visible. **Done 2026-08-18 — see the log entry below.**
 - [ ] Permission denied / no mic → the text field becomes primary, one calm
       Nepali sentence explains, no error styling.
 
@@ -1895,6 +1895,101 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-18 — **Round seven, task P (second box): text entry as a
+  secondary, expand-on-tap control; both controls visible on desktop.**
+  Done.
+
+  **Housekeeping, first — sixth run in a row now.** `git checkout main &&
+  git pull` again reported local `main` and `origin/main` with no common
+  ancestor (76 local commits vs. 50 on origin, disjoint history — confirmed
+  by `git merge-base`, which returned nothing). Same fix as the last five
+  entries: `git reset --hard origin/main`. Nothing lost — the diverged
+  local tip's own history is independently reachable from
+  `origin/mero-health/platform-foundation` and
+  `origin/codex/world-class-interactive-experience`, which I checked this
+  time via `git merge-base main origin/<branch>` before resetting, to be
+  certain the old work has a home before discarding the local ref. Not
+  spending more words on the diagnosis than that, per the prior five
+  entries' own request — the fix is one command and the cause (something
+  outside this agent force-pushes `main` between runs) needs a human to
+  look at, not another paragraph here. I did send a fresh notification.
+
+  **What was built.** The previous entry's own "next run" note named this
+  task exactly: the "लेख्नुहोस्" (type) control beside `MicHero` was a bare
+  button/link (`<button>` on `HomeScreen`, `<Link>` on `FirstVisitScreen`)
+  that jumped straight to `/get-care` with an empty field — every visitor
+  who preferred typing paid for a blank screen before they could start
+  typing what they came to ask. Added `TextEntryToggle.tsx` to
+  `components/home/`: a collapsed pill by default on phones; tapping it
+  reveals an inline `<input>` + submit button right there, and submitting
+  hands the typed text to `/get-care` pre-filled via `storeCareQuestion` —
+  the same pre-fill-not-auto-submit pattern the quick chips already use
+  (`GetCareFlow` fills the field from session storage but never submits it
+  itself, so a short or accidental value is never sent without the person
+  seeing it first). `lg:` always shows the input, never the toggle
+  (`lg:hidden` on the toggle, `hidden lg:flex` on the form) — a
+  mouse-and-keyboard visitor has no reason to tap a button to reveal a
+  field a screen that size has room to show already, next to the mic, per
+  the ledger box's own wording. No new copy: the toggle label reuses
+  `homeScreen.typeLabel` (unchanged), and the placeholder/submit
+  aria-label reuse `getCare.form.placeholder` / `getCare.form.submit`
+  outright rather than inventing near-duplicate strings, since the two
+  fields do the same job (get a typed question safely checked) —
+  `HomeScreen` picked up a `getCareT` translator it didn't have before,
+  `FirstVisitScreen` already had one.
+
+  **A real bug, caught by testing the interaction rather than trusting the
+  class names.** First implementation put `expanded && 'hidden'` alongside
+  an unconditional `inline-flex` on the toggle button (mirroring how
+  `ServiceCards`' "Show more" pattern layers `hidden`/`lg:*` onto a base
+  class). A headless-Chromium click-through showed the toggle staying
+  visible after tap despite `className` correctly including `hidden` —
+  `getComputedStyle` confirmed `display: flex` won anyway. This codebase's
+  `cn()` is a plain joiner (see `lib/cn.ts`), not `tailwind-merge`, so two
+  *unscoped* utilities that both set `display` (`inline-flex` and
+  `hidden`) land in the same Tailwind layer and the cascade order is
+  whatever order the build happens to emit them in — not attribute order,
+  and not something to rely on. `ServiceCards`' own pattern is safe only
+  because its unconditional class is *not* a competing display utility on
+  that combination, and separately because `lg:hidden`/`lg:flex` are
+  *scoped* (media-query) utilities that Tailwind always emits after the
+  unscoped layer, so those reliably win at their breakpoint — confirmed
+  separately, since the desktop check depends on exactly that. Fixed by
+  making display a single ternary (`expanded ? 'hidden' : 'inline-flex'`)
+  instead of layering a second one on top, then re-verified with
+  `getComputedStyle` before and after a real click. **If a future task adds
+  another conditionally-hidden element here or elsewhere, do not add
+  `hidden` next to an existing unconditional `flex`/`inline-flex`/`grid` on
+  the same element — pick one or the other.**
+
+  No colocated test: like `MicHero`, this is presentational with the one
+  real decision (expanded vs. not) being local `useState`, not exported
+  logic, and this codebase has no React-rendering test harness in
+  `components/home/` to assert against.
+
+  **Measured at 375×812**, production build, real Chromium
+  (`/opt/pw-browsers/chromium`), both variants: identical to every prior
+  entry — first-time 1627px/2.00 screens, returning 1231px/1.52. Tap
+  targets: 19 (first-time) / 24 (returning), 1 under 44px in both — the
+  same pre-existing skip-link target every recent entry has already traced
+  and ruled unrelated. Screenshots (collapsed, expanded-after-tap, and
+  desktop at 1440×900) confirm the toggle cleanly disappears in favour of
+  the input on tap, and both `MicHero` and the input render simultaneously
+  at desktop width with no toggle in sight, on both the returning and
+  first-visit screens.
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm
+  typecheck`, `pnpm test` (75/75 task suites, 297 web tests + 824 API
+  tests + all others green), `pnpm build` (40/40 tasks) all passed clean
+  after the fix.
+
+  **Next run:** task P's last remaining box — permission denied / no mic
+  promoting the text field to primary with a calm one-line note. This is
+  the box that actually reaches `useSpeechDictation`'s `'denied'` state,
+  which no caller triggers today (today's `MicHero` callers only ever read
+  `.supported`, checked before any `dictation.start()` call exists) — that
+  wiring will need to happen as part of this box, not before it.
 
 - 2026-08-18 — **Round seven, task P (first box): `MicHero` component —
   absorbed the duplicated mic-disc markup out of `HomeScreen.tsx` and
