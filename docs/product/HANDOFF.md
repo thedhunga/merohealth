@@ -111,7 +111,7 @@ pnpm install --frozen-lockfile
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
 
-Then read `docs/product/agent-progress.md` from `# Round four` and take the
+Then read `docs/product/agent-progress.md` from `# Round seven` (phone-first home, mic-as-hero, motion, PWA) and take the
 first unchecked task. The scheduled cloud agent does the same hourly on
 `main`; check the log at the bottom of that file for what it did overnight.
 

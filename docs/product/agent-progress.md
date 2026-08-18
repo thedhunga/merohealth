@@ -116,6 +116,143 @@ read that before the first task.
 
 ## Task queue
 
+# Round seven — a phone-first home people come back to every day
+
+> Owner, 2026-08-18, looking at a full-page phone screenshot of `/`:
+> "Look at the gaps and theme and overall UI/UX. If users come to the site
+> and it looks like this when we want people to visit nearly every day, they
+> won't come back. Why don't you use Apple UI aesthetics? Clean, moving
+> images, animations, videos, graphics."
+>
+> The screenshot showed: a hero with a bare navy slab where the media should
+> be (a real bug — fixed, `8ed647f`); then 5+ screens of marketing sections
+> with large empty gaps between them; a mic that is a 48 px icon beside a
+> 138 px text field; grey testimonial cards; a long footer. Measured page
+> weight was 2.85 MB (2.5 MB of hero video, fixed `0e9eb65`).
+>
+> **The diagnosis is structural, not cosmetic.** A marketing homepage is not
+> a daily surface. People return daily to a *home screen*: greeting, one big
+> way to ask, what they asked last time, their family, one useful thing for
+> today. The marketing story belongs to first-time visitors and to `/en` SEO
+> pages, not to the person opening the app for the fourth time this week.
+
+## Design principles for this round (the "Apple" the owner means)
+
+Not Apple's chrome — Apple's discipline. Every item below is checked
+against these:
+
+1. **One purpose per screen.** The home screen exists to let a person ask,
+   by voice, in one tap. Everything else is secondary and below the fold.
+2. **Big type, few words, real space.** Display 34–40 px on phones, body
+   17–18 px, one idea per block, generous *purposeful* spacing — never the
+   empty gaps the screenshot shows between sections. If a section can't
+   justify a full phone screen, it doesn't get one.
+3. **Motion that means something.** Elements arrive with a soft
+   spring/ease when they enter (`IntersectionObserver` + CSS transitions,
+   or the View Transitions API on route change); the mic pulses gently
+   while listening; the answer streams in. Respect `prefers-reduced-motion`
+   in every case. No decorative motion that costs data — see round-six
+   `LoopVideo`: video only on wide screens and good connections.
+4. **Photography full-bleed, graphics as system.** Real people (the
+   existing editorial photography), edge-to-edge on phones, with the glass
+   pill/label style already used in the hero. Icons from one set, one
+   weight. No stock-illustration mixture.
+5. **Materials, not borders.** Cards on warm paper with soft shadow and
+   20–24 px radius; frosted-glass surfaces over imagery; borders only as
+   hairlines. Dark mode is real (indigo-950 ground), not an afterthought.
+6. **Cost is a design constraint.** Under 600 KB first load on a phone;
+   posters over video; fonts subset; images sized to the slot.
+7. **Nepali first, mobile first, measured at 375 px** — every task below
+   ships with a 375×812 screenshot in the PR/commit and a note of first-load
+   KB.
+
+Reference reading before building: `docs/product/design-language.md` (if
+absent, this section is the source of truth), `frontend-design` skill.
+
+## O. The home screen — `/` for someone who has been here before
+
+- [ ] `HomeScreen` client component rendered at `/` **when the device has
+      history or a returning-visitor flag** (anonymous id present):
+      greeting by time of day in Nepali; **the mic as the hero** — a large
+      (≥ 96 px) marigold disc, centred, label "बोल्नुहोस्" beneath, tapping
+      starts conversation mode directly; a smaller "लेख्नुहोस्" text option
+      beneath it; the four most useful chips (ज्वरो, टाउको दुख्ने, औषधि,
+      रिपोर्ट); **"पछिल्लो कुराकानी"** — the last conversation as one
+      tappable card; **family** row (if profiles exist); one **"आजको एक
+      कुरा"** card (from the existing conditions content, rotated daily,
+      deterministic by date — never generated). Nothing else above the fold.
+      Marketing sections are *not* rendered for returning visitors.
+- [ ] `/` for a **first-time visitor**: the same mic-hero, then at most
+      three short sections — what you get (three cards, images), safety
+      promise (one line), be-first (premium coming soon) — then footer. Under
+      2.5 phone screens total. Everything else moves to `/en`, `/individuals`,
+      `/about`.
+- [ ] Reduce the footer on phones to: four links, language, social, legal
+      line. The rest folds behind "थप".
+- [ ] Outage tests: history unreadable → first-time layout; no speech API →
+      text-first layout with the mic disabled and a one-line note.
+
+## P. Mic-as-hero and conversation entry (touches Round five H)
+
+- [ ] `MicHero` component: ≥ 96 px target, pulsing ring while listening
+      (CSS animation, reduced-motion → static ring), haptic-like micro-scale
+      on press, clear states: idle / listening / thinking / speaking; label
+      changes with state in Nepali. One tap = conversation mode (continuous).
+- [ ] Text entry is a secondary control that expands on tap; on desktop both
+      are visible.
+- [ ] Permission denied / no mic → the text field becomes primary, one calm
+      Nepali sentence explains, no error styling.
+
+## Q. Motion system
+
+- [ ] `useReveal` hook + `Reveal` wrapper: elements fade/translate 12 px in
+      when 20% visible; 280 ms ease-out; disabled under reduced-motion; no
+      layout shift (transform/opacity only).
+- [ ] View Transitions API for route changes where supported (Next 16 has
+      first-class support behind a flag — check `docs`); fallback is
+      instant. Never block navigation on it.
+- [ ] The answer panel streams text in (word-chunked reveal from the
+      response), and the advisory block slides up after the answer.
+- [ ] Budget: no animation over 400 ms; nothing animates that costs bytes.
+
+## R. PWA — finish what `8ed647f` started
+
+- [ ] Verify install on Android Chrome (install prompt appears; icon,
+      splash, standalone) and iOS Safari (Add to Home Screen; icon; no
+      Safari chrome). Record findings in `docs/product/pwa.md`.
+- [ ] `InstallPrompt` component: after the second answer, one calm card
+      "फोनमा राख्नुहोस् — एक ट्यापमा खोल्नुहोस्" using `beforeinstallprompt`
+      on Android; on iOS a two-step picture of Share → Add to Home Screen.
+      Dismissible once, then never again (device flag).
+- [ ] Service worker via `@serwist/next` (or Next's recommended approach):
+      cache the app shell, fonts, imagery; **never cache `/api/*`**;
+      offline page in Nepali that still shows the emergency numbers and the
+      last saved conversation. Update-on-reload, no stale-forever bugs.
+- [ ] Standalone-mode fixes: safe-area insets (`env(safe-area-inset-*)`)
+      on header/footer/mic; no external-link surprises (none exist by
+      design); back navigation works inside the app.
+
+## S. Page weight and paint
+
+- [ ] First-load budget on `/` at 375 px: ≤ 600 KB transferred, LCP < 2.5 s
+      on a throttled 4G profile. Add a check to `pnpm build` output or a
+      script that fails CI when exceeded.
+- [ ] Every `AmbientLoop`/`EditorialImage` gets `sizes` matched to its slot;
+      hero poster `priority`; all others lazy.
+- [ ] Fonts: confirm only Devanagari+Latin subsets ship; preload the two
+      display weights actually used above the fold.
+
+## T. Dark mode
+
+- [ ] Real dark theme on indigo-950 with the marigold accent; images get a
+      subtle scrim; forms and cards re-tokened; respects system setting;
+      toggle in the account/menu. Verify contrast (WCAG AA) on both.
+
+## Owner-gated (not for the agent)
+
+- Store apps: Apple Developer + Google Play accounts, then EAS builds — after
+  the API server, so the first store version can sign in.
+
 # Round six — freemium on purpose, duplex voice, and a spoken-Nepali corpus
 
 > Owner direction 2026-08-17. Full reasoning and the rules that make it safe
