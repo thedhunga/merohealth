@@ -188,8 +188,9 @@ absent, this section is the source of truth), `frontend-design` skill.
       promise (one line), be-first (premium coming soon) — then footer. Under
       2.5 phone screens total. Everything else moves to `/en`, `/individuals`,
       `/about`. **Done 2026-08-18 — see the log entry below.**
-- [ ] Reduce the footer on phones to: four links, language, social, legal
-      line. The rest folds behind "थप".
+- [x] Reduce the footer on phones to: four links, language, social, legal
+      line. The rest folds behind "थप". **Done 2026-08-18 — see the log entry
+      below.**
 - [ ] Outage tests: history unreadable → first-time layout; no speech API →
       text-first layout with the mic disabled and a one-line note.
 
@@ -1892,6 +1893,66 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-18 — **Round seven, task O (third box): collapsed the phone
+  footer to four links, language, social and the legal line, with
+  everything else behind one "थप" disclosure.** Done.
+
+  **Housekeeping, first.** `git checkout main` again warned about commits
+  left behind (`git log main ^origin/main` showed 76 commits with no common
+  ancestor to `origin/main`'s tip). Same failure as the last two runs, same
+  fix: `git reset --hard origin/main` — nothing local was lost, the old tip
+  is still reachable at `9bdf548`. Three runs in a row now; this really is
+  something outside this file (the container not persisting `main` between
+  runs, or an external force-push) and deserves the owner's direct
+  attention rather than a fourth agent re-diagnosing it.
+
+  **What was built.** `Footer.tsx` previously rendered, below `sm`, an
+  always-visible brand block (name, tagline, HQ address) followed by a
+  five-column `<details>` accordion (closed headings, ~345px) — useful
+  progress over the old fully-open footer, but still more than a returning
+  visitor needs between them and the page they came for. Restructured the
+  mobile branch to match the owner's spec literally: a 2×2 grid of four
+  quick links (Help Center, Contact Us, Privacy, Pricing — the utility
+  links a worried visitor plausibly wants, picked over the marketing
+  catalogue; reuses existing `nav.items.*` strings, no new copy needed),
+  then language switcher + social icons on one row (the switcher was
+  previously desktop-only to avoid duplicating the hamburger drawer's
+  copy — now it's part of the four-things-visible set the owner asked for,
+  so it moved into the always-visible mobile row instead of being cut), then
+  one `<details>` "थप" (new key, `footer.more`, both message files) whose
+  panel holds the brand tagline, HQ address, download-app links (previously
+  desktop-only; dead weight on mobile since nothing rendered them there —
+  now reachable, not just hidden), and the original five-column link
+  accordion unchanged inside it. Legal line (demo notice + copyright) stays
+  unconditionally visible outside the disclosure, as specified. `sm` and up
+  is genuinely untouched — same JSX, just re-indented under an unchanged
+  `hidden sm:grid` / `sm:flex` split; no visual diff above the phone
+  breakpoint.
+
+  **Measured at 375×812** (`/en/about`, built production server, real
+  Chromium): footer closed is 572px tall (0.7 screens) showing 19 visible
+  tap targets, all ≥ 44px; opening "थप" grows it to 1093px with 49 visible
+  targets (the five column headings plus everything above), still all
+  ≥ 44px — the nested per-column accordions stay closed until tapped, so
+  opening "थप" doesn't dump the full catalogue at once. Screenshots
+  (`footer-closed-only.png`, `footer-open.png`) matched the owner's spec
+  exactly on inspection: four links, language pill, five social circles,
+  "MORE", legal line — nothing else — above the fold of the closed state.
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm
+  typecheck`, `pnpm test` (75/75 task suites, 824 API tests + all others
+  green), `pnpm build` (40/40 tasks) all passed clean. No colocated test
+  added — no other file in `components/layout/` has one; this app has no
+  React-rendering test harness (`@testing-library/react` isn't a
+  dependency anywhere in the repo), only `lib`/`server` unit tests, so a
+  test here would be the first of a kind this codebase doesn't otherwise
+  use. Verified by measurement instead, per the standing mobile-measurement
+  requirement.
+
+  **Next run:** task O's last box — outage tests (history unreadable →
+  first-time layout; no speech API → text-first, mic disabled, one-line
+  note) — is the next unchecked item, then task P (`MicHero` component).
 
 - 2026-08-18 — **Round seven, task O (second box): built `FirstVisitScreen`,
   the lean first-time home at bare `/`.** Done.
