@@ -632,7 +632,7 @@ const styles = StyleSheet.create({
   },
   sendText: { color: 'white', fontWeight: '900' },
   disabled: { opacity: 0.38 },
-  privacyCard: { alignItems: 'flex-start', flexDirection: 'row', gap: spacing.sm },
+  privacyCard: { alignItems: 'flex-start', flexDirection: 'row', gap: spacing.sm, minHeight: 44 },
   privacyDot: {
     backgroundColor: colors.primary,
     borderRadius: 4,

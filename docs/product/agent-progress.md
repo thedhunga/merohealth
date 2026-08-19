@@ -365,6 +365,11 @@ absent, this section is the source of truth), `frontend-design` skill.
 - [x] Audit every `Pressable`/`Touchable*` under `apps/mobile/app/**` and
       `apps/mobile/src/**` for a tap area under 44×44 logical pixels, fix
       what's found. **Done 2026-08-19 — see the log entry below.**
+- [x] **W′. Close the two gaps task W's own log entry left open**:
+      `companion.tsx`'s `privacyCard` Pressable had no height floor and was
+      never measured on a real render, and the `index.web.tsx` JS-bundle-404
+      seen while testing the `wide`-gated nav links was flagged as possibly a
+      real production bug. **Done 2026-08-19 — see the log entry below.**
 
 ## Owner-gated (not for the agent)
 
@@ -2029,6 +2034,81 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-19 — **Close the two gaps task W's own log entry left open (task
+  W′): the un-measured `privacyCard` tap target and the "possible real bug"
+  JS-bundle-404.** Done.
+
+  **Housekeeping first.** `git checkout main && git pull` hit the shallow-clone
+  shape a couple of recent entries have misdiagnosed as history divergence:
+  local `main` was genuinely behind `origin/main` (now `d943e4b`), but this
+  clone was shallow (`git rev-parse --is-shallow-repository` → `true`), so
+  `git merge-base` between the two tips came back empty and looked like
+  unrelated histories. Ran `git fetch --unshallow` instead of reaching for
+  `git reset --hard` — that resolved the real ancestry
+  (`9bdf548` confirmed an ancestor of `d943e4b`) and let `git merge --ff-only
+  origin/main` fast-forward cleanly. No content was ever actually at risk
+  either way (the backup branch is still there), but the earlier
+  `reset --hard` habit was solving the wrong problem three entries running.
+  **If a future run hits "no common ancestor" again, check
+  `--is-shallow-repository` and try `--unshallow` before assuming the
+  histories really diverged.**
+
+  **Why this task.** Re-ran the standing per-item audit: the same nine
+  unchecked queue boxes are unchanged — still either standing rules (task U's
+  "every future task adds a journey") or explicitly owner/asset-gated
+  (install-prompt priority call, premium/payment/duplex-voice owner
+  decisions, the two missing testimonial portraits, the pre-Round-seven
+  homepage-screen-count item that Round seven's rebuild has since
+  superseded). Queue genuinely exhausted again. Task W's own log entry named
+  two follow-ups explicitly — took both rather than starting a new sweep.
+
+  **What it found, measured for real this time.** Built the Expo web export
+  (`pnpm turbo build --filter=@swasthya/mobile...`) and served it nested
+  under `/app/` (matching how `scripts/vercel-build.sh` actually publishes
+  it into `apps/web/public/app`, unlike the previous run's harness which
+  served `apps/mobile/dist` at the server root). With the path correct:
+  - The JS bundle 404 **does not reproduce** — `index.html` already emits
+    `<script src="/app/_expo/static/js/web/entry-*.js">` (the app's
+    `experiments.baseUrl: "/app"` in `apps/mobile/app.json` was already
+    correct), and headless Chromium at both 375px and 1280px loaded with
+    zero failed network requests. The three `wide`-gated nav-link
+    `Pressable`s task W fixed blind now measure 44×65/56×44/44×25 on a real
+    render — confirmed working, not just compiled. The earlier 404 was
+    purely the old harness serving `dist/` un-nested; not a production bug,
+    nothing to fix.
+  - `companion.tsx`'s `privacyCard` **was** a real miss: clicking through
+    from the home screen's "स्वास्थ्य साथीसँग कुरा गर्नुहोस्" card to
+    `/(tabs)/companion` and measuring the live "this demo does not keep
+    answers…" consent-link row gave 34px tall at 375px and 17px tall at
+    1280px (text wraps to two lines on phones, one line on desktop — no
+    height floor either way) — both under the 44px minimum, on the
+    companion screen's own consent/privacy disclosure link.
+
+  **What shipped.** One line: `privacyCard` in
+  `apps/mobile/app/(tabs)/companion.tsx` gained `minHeight: 44`, matching
+  the file's own existing convention (`send`: `minHeight: 54`, `voiceButton`:
+  `minHeight: 48`) rather than inventing a new one. `alignItems: 'flex-start'`
+  was left as-is since the row's own children (a small dot plus wrapped
+  body text) still want top alignment, not centering. Re-measured after
+  rebuilding: 44px at both 375px and 1280px.
+
+  **Verification.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75/75, unchanged — pure style
+  edit) / `pnpm build` (40/40) all green from a clean tree. Both fixes were
+  confirmed by driving the actual Expo web export in headless Chromium
+  (`/opt/pw-browsers/chromium`) served correctly under `/app/`, not by
+  reading style objects — the thing task W's own entry flagged as missing.
+  No journey update under task U's standing rule — scoped to `apps/web/e2e/`,
+  untouched here.
+
+  **For the next run.** Both of task W's flagged gaps are closed; nothing
+  outstanding from this pass. The nine queue boxes are still exhausted, same
+  reasons as every recent entry. Worth knowing for any future "is `/app`
+  actually broken" question: it is not, as of this measurement, and the
+  right way to test it locally is to nest the Expo `dist/` output one level
+  under an `/app/` directory before serving it — serving `dist/` bare at a
+  server's root will falsely 404 every asset.
 
 - 2026-08-19 — **`apps/mobile` tap-target audit (task W): the 44px minimum,
   applied everywhere on `apps/web` since task B, had never been checked on
