@@ -119,10 +119,17 @@
    * reached for explicitly (see `font-display-black` below) rather than
    * appended to `--font-display`'s stack — a `font-weight: 900` on the
    * 700/800 family would just synthesize a fake black instead.
+   *
+   * Mukta gets the same split for the same reason: `--font-mukta` (400/600/
+   * 700, preloaded) is every body weight actually painted above the fold;
+   * `--font-mukta-medium` (500, not preloaded) exists only for `font-sans-medium`
+   * below — secondary labels (pill filters, table headers, the logo's
+   * Devanagari tagline), never a page's first paint.
    */
   --font-display: var(--font-martel), Georgia, serif;
   --font-display-black: var(--font-martel-black), Georgia, serif;
   --font-sans: var(--font-mukta), ui-sans-serif, system-ui, sans-serif;
+  --font-sans-medium: var(--font-mukta-medium), ui-sans-serif, system-ui, sans-serif;
 
   --radius-card: 1.25rem;
   --radius-pill: 999px;
@@ -365,6 +372,19 @@
 @utility font-display-black {
   font-family: var(--font-display-black);
   font-weight: 900;
+}
+
+/*
+ * The medium cut of the body face — the not-preloaded `--font-mukta-medium`
+ * family, not a bare `font-weight: 500` on `--font-sans`. Use this instead of
+ * `font-medium` wherever true medium-weight body text is wanted; `font-medium`
+ * alone has no matching face in `--font-mukta` (400/600/700 only) and would
+ * silently render at 600 instead — a heavier weight than the design calls for,
+ * not a crash, which is exactly why it's easy to miss without this utility.
+ */
+@utility font-sans-medium {
+  font-family: var(--font-sans-medium);
+  font-weight: 500;
 }
 
 /*

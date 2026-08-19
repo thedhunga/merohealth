@@ -128,9 +128,9 @@ export function BloodPressureTrendChart({ observations }: { observations: readon
         <table className="mt-2 w-full text-sm">
           <thead>
             <tr className="text-left text-ink-soft">
-              <th className="py-1 pr-3 font-medium" scope="col">{t('history.date')}</th>
-              <th className="py-1 pr-3 font-medium" scope="col">{t('history.systolic')}</th>
-              <th className="py-1 font-medium" scope="col">{t('history.diastolic')}</th>
+              <th className="py-1 pr-3 font-sans-medium" scope="col">{t('history.date')}</th>
+              <th className="py-1 pr-3 font-sans-medium" scope="col">{t('history.systolic')}</th>
+              <th className="py-1 font-sans-medium" scope="col">{t('history.diastolic')}</th>
             </tr>
           </thead>
           <tbody>

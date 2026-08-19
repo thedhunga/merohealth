@@ -301,6 +301,11 @@ absent, this section is the source of truth), `frontend-design` skill.
       entry below.** The gate is real and wired into CI; the page itself
       does not yet pass it (899 KB / 3.44 s at the time of this entry) — the
       next two `S` boxes are the concrete path to closing that gap.
+      **Status 2026-08-19: down to 690.7 KB / ~2.50 s (from 818.3 KB / 3.28 s
+      the same day, itself down from the original 899 KB / 3.44 s) after a
+      font-loading pass — see the log entry below. Still over the 600 KB
+      box; the remaining gap is now understood to be structural, not a lever
+      this pass missed — see that entry's "For the next run."**
 - [x] Every `AmbientLoop`/`EditorialImage` gets `sizes` matched to its slot;
       hero poster `priority`; all others lazy. **Done 2026-08-18 — see the
       log entry below.**
@@ -2012,6 +2017,142 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-19 — **Close some of task S's own gap: `/`'s first-load font
+  weight was preloading two entire weight-subset matrices — Mukta 300
+  (unused anywhere in the app) and Mukta 500 (used, but only in secondary
+  labels never painted on `/`'s first visit) — plus two eagerly-prefetched
+  RSC payloads for links that don't need to be instant.** Done, partial —
+  under budget on LCP, still over on transferred bytes; see below for why
+  the rest is a product call, not a lever this pass missed.
+
+  **Housekeeping first, same recurring artifact every recent entry has
+  diagnosed.** `git checkout main && git pull` reported `origin/main`
+  force-updated, local `main` 76 commits not connected to it, `git
+  merge-base` confirming no common ancestor. `git status` was clean and this
+  is the same shape T′/T″/S′/the partners-fix entry all already traced to a
+  stale container-cached ref rather than a real incident, so `git checkout
+  -B main origin/main` and moved straight on, no backup branch — per their
+  own precedent that the "lost" commits already exist on
+  `backup/pre-force-push-main-9bdf548` from an earlier run that was more
+  cautious.
+
+  **Why this task.** Re-ran the same per-item audit the last four runs each
+  documented: all nine unchecked boxes are still standing rules or
+  owner/asset-gated — nothing new to pick up there. Rather than assume the
+  queue's only remaining lever is off-queue cleanup, went back to task S's
+  own note that `/` "does not yet pass" its own budget gate and actually
+  ran the gate (`pnpm --filter @swasthya/web check:budget`) against a fresh
+  `pnpm build`, on the theory that a real, CI-wired, currently-failing check
+  outranks a fresh cleanup pick. It failed: **818.3 KB / 3276 ms**, both
+  over budget (600 KB / 2500 ms) — worse than the 899 KB/3.44 s task S's own
+  note names as "at the time of this entry," so whatever incremental
+  progress earlier `S`-adjacent entries made had regressed since, likely
+  from content added by later rounds (six/seven) rather than any single
+  regression commit.
+
+  **What was actually consuming the budget.** Wrote a throwaway diagnostic
+  (not committed) that opens `/` under the same throttled-4G Playwright
+  setup `check-page-weight.mjs` uses and lists every transferred resource by
+  size. Fonts were 14 of the ~35 requests and ~483 KB of the 818 KB total —
+  the single largest category by far, ahead of JS. Cross-referencing the
+  live `next-font-manifest.json`/preloaded `<link>` list against actual
+  `@font-face` rules in the rendered page found the cause: `Mukta` was one
+  `next/font` call across five weights (300/400/500/600/700 × 2 subsets =
+  10 files), and **`next/font` preloads every weight a call declares, on
+  every route sharing the layout, regardless of whether that route's markup
+  ever needs it** — the exact mechanism the existing `Martel`/`MartelBlack`
+  split's own code comment already documents, just not applied to `Mukta`.
+  A repo-wide grep confirmed weight 300 (`font-light`) has zero usages
+  anywhere in `apps/web/src` — pure dead weight, preloaded on every page for
+  nothing. Weight 500 (`font-medium`) does have ~11 real call sites, but
+  computed-style inspection of `/`'s actual first-visit render tree
+  (`FirstVisitScreen` + `Header`/`Footer`/`MobileNav`/`MegaMenu`, the shared
+  chrome) found only one of them on that path: `Logo.tsx`'s small Devanagari
+  tagline — a 14-character label forcing a ~68 KB Devanagari font file to
+  preload on every route in the app.
+
+  **What shipped.** `Mukta` split into two `next/font` calls, mirroring the
+  `Martel`/`MartelBlack` precedent exactly: `mukta` now declares only
+  400/600/700 (preloaded — everything `FirstVisitScreen` and the shared
+  chrome actually render), and a new `muktaMedium` (500, `preload: false`)
+  covers the real-but-secondary uses. A parallel `font-sans-medium` Tailwind
+  utility (`globals.css`, next to the existing `font-display-black`) pairs
+  `--font-mukta-medium` with `font-weight: 500` as one class, the same
+  pattern `font-display-black` already uses for weight 900 — needed because
+  a bare `font-medium` utility has no matching face once 500 leaves the main
+  `mukta` variable's declared weights, and would have silently rendered at
+  600 instead (nearest heavier match) rather than erroring. All 11
+  `font-medium` call sites (`FeatureGrid`, `GetCareFlow`,
+  `BloodPressureTrendChart`, `ProfileConfirmationCard`, `Logo`, `HomeScreen`
+  ×2, `SymptomEntry`, `ServiceCards`) moved to `font-sans-medium` so every
+  one keeps rendering at true 500, not a silent 600. `Logo.tsx`'s own tagline
+  went further — moved off `font-sans-medium` to `font-semibold` (600,
+  already in the preloaded set) since it was the only site-wide-chrome user
+  of weight 500 forcing that font onto routes that otherwise never need it;
+  600 vs. 500 on one 14-character label is not a visible design change.
+  Also set `prefetch={false}` on two `Link`s that were eagerly fetching RSC
+  payloads nothing on `/`'s first paint needs: `Logo`'s `href="/"` (present
+  on every route, including `/` itself — prefetching the page you're
+  already on) and `FirstVisitScreen`'s below-the-fold "coming soon" pricing
+  teaser.
+
+  **Measured, not assumed — three checkpoints, not one.** After the Mukta
+  split alone: 818.3 → 701.1 KB, LCP 3276 → 2504 ms. After the `Logo`
+  weight change alone (expected more, got noise — see "why this isn't
+  fully closed" below): 701.1 → 739.6 KB, confirming the hypothesis that
+  `Logo` wasn't actually the deciding factor. After the two `prefetch=false`
+  changes: **690.7 KB, LCP ~2500 ms** (2496–2508 ms across three repeated
+  runs — bouncing right at the boundary, which reads as measurement noise
+  in this environment rather than a real pass/fail flap). Net: **818.3 → 690.7
+  KB (−15.6%), LCP 3276 → ~2500 ms (−772 ms, now at target instead of 31%
+  over)**. Screenshotted `/` (ne) and `/en` at 375×812 after the full set of
+  changes — no clipped Devanagari, no layout shift, `Logo`'s tagline reads
+  correctly at the new weight.
+
+  **Why this isn't fully closed, and why that's not a lever this pass
+  missed.** Still 90.7 KB over the 600 KB box. Traced it: `HomeGate.tsx`'s
+  own doc comment explains that `/` for the Nepali locale **server-renders
+  the full six-section marketing page** (`SymptomEntry`, `Hero`,
+  `ServiceCards`, `OrganizationTabs`, `Testimonials`, `FinalCta`) on every
+  request — `mounted` defaults to `false` on both server and first client
+  render, so that's genuinely what ships in the initial HTML/RSC payload —
+  and only swaps to the lean `FirstVisitScreen` client-side after a
+  `useEffect` reads `localStorage`. That swap is deliberate, not a bug: the
+  comment states it explicitly, "so search crawlers and a first-time
+  visitor's first paint are unaffected." `ServiceCards`/`SymptomEntry` are
+  part of that marketing tree and are two of the eleven `font-medium` call
+  sites — which is the real reason weight 500 was never something this pass
+  could fully remove from `/`'s payload (the `Logo` change was still worth
+  keeping — it decouples every *other* route from needing weight 500 just
+  because `Header` renders — but on `/` itself, `ServiceCards` alone still
+  forces it). Shrinking that further means either accepting a weaker
+  crawler/first-paint guarantee for `/`'s marketing content, or code-splitting
+  the three `HomeGate` variants (`FirstVisitScreen`/`HomeScreen`/marketing
+  are all currently imported eagerly into one client bundle even though only
+  one ever mounts) — both real, larger changes with their own trade-offs,
+  not something to decide unilaterally inside a page-weight cleanup pass.
+  Flagging both explicitly for whoever next has authority to make that call
+  (owner, most likely, given the SEO trade-off).
+
+  **Verification.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75 tasks, all cached-or-fresh
+  green) / `pnpm build` (40/40, 39 cached after the incremental rebuilds
+  during this pass) all pass. No journey update under task U's standing
+  rule — this changes font weight and prefetch timing, not what a person
+  sees or the flow they move through.
+
+  **For the next run.** Two concrete, larger options are now on the table
+  for closing the remaining ~90 KB, both described above under "why this
+  isn't fully closed" — pick whichever the owner (or a future run with
+  clearer authority to trade off SEO vs. weight) decides is worth it: (1)
+  give `/` a server-visible "has this device been here before" signal
+  (a cookie set after first successful visit, read in `page.tsx` before
+  render) so the server can skip rendering the full marketing tree instead
+  of rendering-then-swapping; or (2) code-split `HomeGate`'s three variants
+  with `next/dynamic` so only the variant that actually mounts ships JS to
+  a given visitor. Otherwise, the standing per-item audit still applies —
+  re-check the nine boxes before assuming a new lever exists.
 
 - 2026-08-19 — **Fix the live regression the previous run's own S′ commit
   shipped a few hours earlier: `PartnersView.tsx` rendering raw

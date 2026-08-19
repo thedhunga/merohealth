@@ -166,7 +166,7 @@ export function SymptomEntry() {
               {QUICK_KEYS.map((key) => (
                 <li key={key}>
                   <button
-                    className="inline-flex min-h-11 items-center rounded-pill bg-white px-3.5 text-sm font-medium whitespace-nowrap text-ink ring-1 ring-line transition-colors hover:bg-indigo-50 hover:ring-indigo-200"
+                    className="inline-flex min-h-11 items-center rounded-pill bg-white px-3.5 text-sm font-sans-medium whitespace-nowrap text-ink ring-1 ring-line transition-colors hover:bg-indigo-50 hover:ring-indigo-200"
                     onClick={() => {
                       submit(symptom(`quick.${key}`));
                     }}

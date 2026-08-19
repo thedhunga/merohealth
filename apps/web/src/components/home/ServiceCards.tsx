@@ -116,7 +116,7 @@ export function ServiceCards() {
                         {links.map((link) => (
                           <li key={`${key}-${link.key}`}>
                             <Link
-                              className="inline-flex min-h-11 items-center rounded-pill bg-sand px-3 text-sm font-medium text-ink transition-colors hover:bg-indigo-100"
+                              className="inline-flex min-h-11 items-center rounded-pill bg-sand px-3 text-sm font-sans-medium text-ink transition-colors hover:bg-indigo-100"
                               href={link.href}
                             >
                               {nav(link.key)}

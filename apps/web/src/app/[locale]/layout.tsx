@@ -44,11 +44,26 @@ const martelBlack = Martel({
   preload: false,
 });
 
+// Same reasoning as the Martel split above, applied to the body face: this
+// call preloads only 400/600/700, the weights `font-normal`/`font-semibold`/
+// `font-bold` actually render site-wide (confirmed by grep — nothing in
+// `apps/web/src` uses `font-light`, and it was previously preloaded anyway).
+// 500 exists too (`font-sans-medium` below) but every one of its ~11 call
+// sites is a secondary label, never the first thing painted, so it doesn't
+// need preload priority.
 const mukta = Mukta({
   subsets: ['devanagari', 'latin'],
-  weight: ['300', '400', '500', '600', '700'],
+  weight: ['400', '600', '700'],
   variable: '--font-mukta',
   display: 'swap',
+});
+
+const muktaMedium = Mukta({
+  subsets: ['devanagari', 'latin'],
+  weight: ['500'],
+  variable: '--font-mukta-medium',
+  display: 'swap',
+  preload: false,
 });
 
 export function generateStaticParams() {
@@ -147,7 +162,7 @@ export default async function LocaleLayout({
 
   return (
     <html
-      className={`${martel.variable} ${martelBlack.variable} ${mukta.variable}`}
+      className={`${martel.variable} ${martelBlack.variable} ${mukta.variable} ${muktaMedium.variable}`}
       lang={locale}
       suppressHydrationWarning
     >

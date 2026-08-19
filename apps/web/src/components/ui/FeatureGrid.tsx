@@ -56,7 +56,7 @@ export function FeatureGrid({ items, learnMoreLabel, className }: FeatureGridPro
                 {links.map((link) => (
                   <li key={`${key}-${link.key}`}>
                     <Link
-                      className="inline-block rounded-pill bg-sand px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-indigo-100 hover:text-indigo-800"
+                      className="inline-block rounded-pill bg-sand px-3 py-1.5 text-sm font-sans-medium text-ink transition-colors hover:bg-indigo-100 hover:text-indigo-800"
                       href={link.href}
                     >
                       {link.label}

@@ -142,6 +142,11 @@ export function FirstVisitScreen() {
             <Link
               className="mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-pill bg-marigold-500 px-5 text-sm font-bold text-indigo-950 hover:bg-marigold-300"
               href="/pricing#early-access"
+              // A below-the-fold "coming soon" teaser, not a likely next tap
+              // — not worth prefetching `/pricing`'s RSC payload on every
+              // first-time `/` load just because it's in the viewport
+              // observer's margin.
+              prefetch={false}
             >
               {upsellT('comingSoonCta')}
               <ArrowRight aria-hidden className="size-4" />

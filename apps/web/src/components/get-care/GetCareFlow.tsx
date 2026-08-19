@@ -847,7 +847,7 @@ function ProfilePromptCard({
       <div className="mt-3 flex flex-wrap gap-2">
         {prompt.options.map((option) => (
           <button
-            className="inline-flex min-h-11 items-center rounded-pill bg-white px-4 text-sm font-medium text-ink ring-1 ring-line transition-colors hover:bg-indigo-100"
+            className="inline-flex min-h-11 items-center rounded-pill bg-white px-4 text-sm font-sans-medium text-ink ring-1 ring-line transition-colors hover:bg-indigo-100"
             key={option}
             onClick={() => onAnswer(option)}
             type="button"

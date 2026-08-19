@@ -15,6 +15,11 @@ export function Logo({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
       aria-label={t('name')}
       className="inline-flex items-center gap-3 rounded-xl"
       href="/"
+      // Logo renders on every route, home included, so its default
+      // viewport-triggered prefetch fetches `/`'s RSC payload on every page
+      // load — including on `/` itself. Not worth the bytes for a link
+      // that's rarely the fast path back to a page already one tap away.
+      prefetch={false}
     >
       <span
         aria-hidden
@@ -31,9 +36,14 @@ export function Logo({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
         >
           {t('nameLatin')}
         </span>
+        {/* `font-semibold` (600, already preloaded), not `font-sans-medium`
+            (500): Logo renders on every route including `/`'s first paint,
+            and this was the only site-wide-chrome user of weight 500 — it
+            alone forced a ~68 KB Devanagari font file into every page's
+            first load for 14 characters of tagline. */}
         <span
           className={cn(
-            'mt-1 text-sm font-medium',
+            'mt-1 text-sm font-semibold',
             tone === 'dark' ? 'text-accent-text' : 'text-indigo-200',
           )}
         >
