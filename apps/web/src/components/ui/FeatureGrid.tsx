@@ -34,7 +34,7 @@ export function FeatureGrid({ items, learnMoreLabel, className }: FeatureGridPro
     <ul className={cn('grid gap-6 md:grid-cols-2 lg:grid-cols-3', className)}>
       {items.map(({ key, href, Art, title, body, links }) => (
         <li key={key}>
-          <article className="group relative flex h-full flex-col gap-4 rounded-card border border-line bg-white p-7 transition-all duration-200 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-card">
+          <article className="group relative flex h-full flex-col gap-4 rounded-card border border-line bg-surface p-7 transition-all duration-200 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-card">
             <Art className="aspect-[3/2] w-full rounded-2xl" />
 
             <h3 className="text-xl font-bold text-ink">
@@ -66,7 +66,7 @@ export function FeatureGrid({ items, learnMoreLabel, className }: FeatureGridPro
               </ul>
             ) : null}
 
-            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-700">
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent-text">
               {learnMoreLabel}
               <ArrowRight
                 aria-hidden

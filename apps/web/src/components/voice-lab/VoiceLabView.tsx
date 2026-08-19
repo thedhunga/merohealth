@@ -59,7 +59,7 @@ export function VoiceLabView({ locale }: { locale: ResearchLanguage }) {
                   {t('start')}
                 </button>
               ) : status === 'connecting' ? (
-                <span className="min-h-12 px-6 py-3 text-sm font-semibold text-indigo-800" role="status">
+                <span className="min-h-12 px-6 py-3 text-sm font-semibold text-accent-text" role="status">
                   {t('connecting')}
                 </span>
               ) : (

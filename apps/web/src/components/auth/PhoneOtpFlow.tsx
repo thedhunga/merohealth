@@ -174,7 +174,7 @@ export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
                   </label>
                   <input
                     autoComplete="name"
-                    className="rounded-xl border border-line bg-white px-4 py-3 text-ink placeholder:text-ink-soft/60"
+                    className="rounded-xl border border-line bg-surface px-4 py-3 text-ink placeholder:text-ink-soft/60"
                     id={`${baseId}-name`}
                     onChange={(event) => setDisplayName(event.target.value)}
                     placeholder={t('phone.namePlaceholder')}
@@ -190,7 +190,7 @@ export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
                 </label>
                 <input
                   autoComplete="tel"
-                  className="rounded-xl border border-line bg-white px-4 py-3 text-ink placeholder:text-ink-soft/60"
+                  className="rounded-xl border border-line bg-surface px-4 py-3 text-ink placeholder:text-ink-soft/60"
                   id={`${baseId}-phone`}
                   inputMode="tel"
                   onChange={(event) => setPhone(event.target.value)}
@@ -212,14 +212,14 @@ export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
                 {intent === 'REGISTER' ? (
                   <>
                     {t('phone.switchPrompt')}{' '}
-                    <Link className="font-semibold text-indigo-800 underline" href={switchLinkHref('/signin', next)}>
+                    <Link className="font-semibold text-accent-text underline" href={switchLinkHref('/signin', next)}>
                       {nav('actions.signIn')}
                     </Link>
                   </>
                 ) : (
                   <>
                     {t('phone.switchPrompt')}{' '}
-                    <Link className="font-semibold text-indigo-800 underline" href={switchLinkHref('/register', next)}>
+                    <Link className="font-semibold text-accent-text underline" href={switchLinkHref('/register', next)}>
                       {nav('actions.register')}
                     </Link>
                   </>
@@ -253,7 +253,7 @@ export function PhoneOtpFlow({ intent }: { intent: AuthIntent }) {
                 </label>
                 <input
                   autoComplete="one-time-code"
-                  className="rounded-xl border border-line bg-white px-4 py-3 text-center text-2xl tracking-[0.5em] text-ink"
+                  className="rounded-xl border border-line bg-surface px-4 py-3 text-center text-2xl tracking-[0.5em] text-ink"
                   id={`${baseId}-code`}
                   inputMode="numeric"
                   maxLength={6}

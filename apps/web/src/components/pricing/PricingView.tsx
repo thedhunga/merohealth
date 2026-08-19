@@ -81,7 +81,7 @@ export function PricingView() {
         <ul className="mt-12 grid gap-6 lg:grid-cols-3">
           {plans.map((plan) => (
             <li key={plan.tier}>
-              <article className="flex h-full flex-col gap-6 rounded-card border border-line bg-white p-8">
+              <article className="flex h-full flex-col gap-6 rounded-card border border-line bg-surface p-8">
                 <div>
                   <h3 className="font-display-black text-2xl text-ink">
                     {locale === 'ne' ? plan.nameNe : plan.nameEn}
@@ -107,7 +107,7 @@ export function PricingView() {
                   </p>
                 )}
 
-                <p className="flex items-center gap-2 text-sm font-semibold text-indigo-700">
+                <p className="flex items-center gap-2 text-sm font-semibold text-accent-text">
                   <Mic aria-hidden className="size-4 shrink-0" />
                   {t('voiceMinutes.label')}:{' '}
                   {formatFreemiumMinutes(
@@ -140,7 +140,7 @@ export function PricingView() {
                 )}
 
                 <div>
-                  <h4 className="text-sm font-semibold tracking-wide text-indigo-700 uppercase">
+                  <h4 className="text-sm font-semibold tracking-wide text-accent-text uppercase">
                     {t('includedHeading')}
                   </h4>
                   <ul className="mt-3 flex flex-col gap-2">
@@ -167,7 +167,7 @@ export function PricingView() {
                 </div>
 
                 <div>
-                  <h4 className="text-sm font-semibold tracking-wide text-indigo-700 uppercase">
+                  <h4 className="text-sm font-semibold tracking-wide text-accent-text uppercase">
                     {t('limitsHeading')}
                   </h4>
                   <dl className="mt-3 flex flex-col gap-2 text-sm">

@@ -249,7 +249,7 @@ export function RegisterView() {
                     <label
                       className={cn(
                         'flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-colors',
-                        selected ? 'border-indigo-700 bg-indigo-50' : 'border-line bg-white hover:border-indigo-200',
+                        selected ? 'border-indigo-700 bg-indigo-50' : 'border-line bg-surface hover:border-indigo-200',
                       )}
                       htmlFor={optionId}
                       key={key}
@@ -277,7 +277,7 @@ export function RegisterView() {
                   {t('details.registrationNumberLabel')}
                 </label>
                 <input
-                  className="rounded-xl border border-line bg-white px-4 py-3 text-ink placeholder:text-ink-soft/60"
+                  className="rounded-xl border border-line bg-surface px-4 py-3 text-ink placeholder:text-ink-soft/60"
                   id={`${baseId}-registration-number`}
                   onChange={(event) => setRegistrationNumber(event.target.value)}
                   placeholder={t('details.registrationNumberPlaceholder')}

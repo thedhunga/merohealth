@@ -6,7 +6,7 @@ export function PartnerMarquee() {
   const t = useTranslations('home.partners');
 
   return (
-    <section aria-labelledby="partners-heading" className="border-y border-line bg-white py-14">
+    <section aria-labelledby="partners-heading" className="border-y border-line bg-surface py-14">
       <div className="container-site flex flex-col items-center gap-3 text-center">
         <h2 className="text-lg font-semibold text-ink" id="partners-heading">
           {t('heading')}

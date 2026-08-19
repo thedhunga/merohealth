@@ -24,14 +24,14 @@ export function FaqList({ items, className }: FaqListProps) {
       <div className={cn('flex flex-col gap-4', className)}>
         {items.map((item) => (
           <details
-            className="group rounded-card border border-line bg-white p-6 open:border-indigo-200"
+            className="group rounded-card border border-line bg-surface p-6 open:border-indigo-200"
             key={item.key}
           >
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-lg font-bold text-ink [&::-webkit-details-marker]:hidden">
               {item.question}
               <span
                 aria-hidden
-                className="inline-block shrink-0 text-2xl font-black text-indigo-600 transition-transform group-open:rotate-45"
+                className="inline-block shrink-0 text-2xl font-black text-accent-text transition-transform group-open:rotate-45"
               >
                 +
               </span>

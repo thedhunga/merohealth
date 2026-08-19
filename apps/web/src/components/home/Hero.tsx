@@ -59,13 +59,13 @@ export function Hero() {
               load-bearing on a phone where it's pure height with no extra
               information, so it only renders once there is room beside the
               text. */}
-          <div className="relative -mt-12 ml-auto hidden w-[88%] rounded-[1.5rem] border border-line bg-white p-4 shadow-menu sm:-mt-16 sm:w-[76%] sm:p-5 lg:block">
+          <div className="relative -mt-12 ml-auto hidden w-[88%] rounded-[1.5rem] border border-line bg-surface p-4 shadow-menu sm:-mt-16 sm:w-[76%] sm:p-5 lg:block">
             <div className="flex items-center gap-3 border-b border-line pb-3">
               <span className="grid size-10 place-items-center rounded-xl bg-indigo-100 text-indigo-800">
                 <FileCheck2 aria-hidden className="size-5" />
               </span>
               <div>
-                <p className="text-xs font-semibold tracking-wide text-indigo-600 uppercase">
+                <p className="text-xs font-semibold tracking-wide text-accent-text uppercase">
                   {t('recordEyebrow')}
                 </p>
                 <p className="text-sm font-semibold text-ink">{t('artCaption')}</p>
@@ -92,7 +92,7 @@ export function Hero() {
           <ol className="mt-6 space-y-2 sm:mt-8 sm:space-y-3">
             {steps.map(({ key, Icon }, index) => (
               <li
-                className="flex items-center gap-4 rounded-2xl border border-line bg-white p-3 shadow-[0_1px_0_rgb(23_20_41/.04)] sm:p-4"
+                className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-3 shadow-[0_1px_0_rgb(23_20_41/.04)] sm:p-4"
                 key={key}
               >
                 <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-700">

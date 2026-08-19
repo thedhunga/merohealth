@@ -45,7 +45,7 @@ export function ContactView() {
         <ul className="mt-12 grid gap-6 sm:grid-cols-3">
           {ROUTE_KEYS.map((key) => (
             <li key={key}>
-              <article className="group relative flex h-full flex-col gap-3 rounded-card border border-line bg-white p-7 transition-all duration-200 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-card">
+              <article className="group relative flex h-full flex-col gap-3 rounded-card border border-line bg-surface p-7 transition-all duration-200 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-card">
                 <h3 className="text-lg font-bold text-ink">
                   <Link
                     className="after:absolute after:inset-0 after:content-['']"
@@ -57,7 +57,7 @@ export function ContactView() {
                 <p className="flex-1 leading-relaxed text-ink-soft">
                   {t(`routes.items.${key}.body`)}
                 </p>
-                <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-700">
+                <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent-text">
                   {common('learnMore')}
                   <ArrowRight
                     aria-hidden

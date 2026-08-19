@@ -62,7 +62,7 @@ export function ServiceCards() {
                   className={
                     isFeatured
                       ? 'group relative isolate flex min-h-72 h-full overflow-hidden rounded-[2rem] bg-indigo-950 p-7 text-white shadow-card sm:min-h-[35rem] sm:p-10'
-                      : 'group relative flex h-full min-h-72 flex-col overflow-hidden rounded-[1.75rem] border border-line bg-white p-6 transition-all duration-300 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-card sm:p-7'
+                      : 'group relative flex h-full min-h-72 flex-col overflow-hidden rounded-[1.75rem] border border-line bg-surface p-6 transition-all duration-300 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-card sm:p-7'
                   }
                 >
                   {isFeatured ? (
@@ -130,7 +130,7 @@ export function ServiceCards() {
                       className={
                         isFeatured
                           ? 'mt-6 inline-flex items-center gap-2 font-semibold text-white'
-                          : 'mt-5 inline-flex items-center gap-2 font-semibold text-indigo-700'
+                          : 'mt-5 inline-flex items-center gap-2 font-semibold text-accent-text'
                       }
                     >
                       {t('learnMore')}

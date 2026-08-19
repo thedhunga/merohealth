@@ -319,6 +319,14 @@ absent, this section is the source of truth), `frontend-design` skill.
       several marketing/legal/auth pages still render their cards in light
       colours regardless of theme (safe, not illegible — just not dark yet).
       The log entry lists exactly which.**
+- [x] **T′. Close the coverage gap task T left**: `PricingView`, `ServiceCards`,
+      `PartnerMarquee`, `Hero`'s two floating stat cards, `FeatureGrid`,
+      `FaqList`, `HelpView`/`ContactView`/`LegalIndexView`'s article cards,
+      `PhoneOtpFlow`'s and `RegisterView`'s inputs. **Done 2026-08-19 — see
+      the log entry below.** `MegaMenu` was on the original list but turned
+      out, on inspection, to belong with the already-excluded permanently-dark
+      chrome (`Header`/`Footer`/`OrganizationTabs`) — left unconverted, see
+      the log for why.
 
 ## Owner-gated (not for the agent)
 
@@ -1969,6 +1977,110 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-19 — **Task T′: close the dark-mode coverage gap task T left
+  open.** Done.
+
+  **Housekeeping first, same pattern as every recent run.** `git checkout
+  main && git pull` hit the now-familiar divergent-history shape (local `main`
+  at `9bdf548`, 76 commits not on `origin/main`; `origin/main` at `f3bb64a`,
+  50 commits not on local). `git status` was clean, so `git checkout -B main
+  origin/main` reset the local branch to match the remote exactly — no work
+  lost, since the local commits were never anything this run produced.
+
+  **Why this task, not a queue item.** All nine unchecked boxes in the queue
+  were checked individually before picking anything: task U's third box and
+  `N`'s payment-provider line are standing rules, not one-time work; V, K′'s
+  findings box, M's licence decision, N's provider box, and D's Google
+  sign-in are explicitly owner-decision-gated (confirmed `GOOGLE_CLIENT_ID`
+  is still unset — only `.env.example` has the key); the two missing
+  testimonial portraits need real Higgsfield credits, not code; and B1's
+  11.8-screen box is explicitly left unchecked in its own text pending owner
+  authorization for a *content* cut, not a lever this run could find. With
+  the queue genuinely exhausted of actionable work, per the standing
+  instruction this run picked the highest-value improvement to work already
+  shipped: task T's own log entry ended with an exact, named list of
+  `bg-white` sites it hadn't converted yet, so that list was the task.
+
+  **What shipped.** For each of `PricingView`, `ServiceCards`,
+  `PartnerMarquee`, `Hero`'s two floating stat cards, `FeatureGrid`,
+  `FaqList`, `HelpView`/`ContactView`/`LegalIndexView`'s article cards, and
+  `PhoneOtpFlow`'s/`RegisterView`'s form inputs: the literal `bg-white`
+  "crisp card" idiom (always paired with `border-line`, per task T's own
+  rule) became `bg-surface`, the token that already carries the right value
+  in both themes. Reused task T's two contrast-bug classes rather than
+  reinventing them, and found real instances of the first class (a card
+  that's about to start flipping dark, still holding bare brand-colour text
+  that doesn't) inside several of these same cards — `text-indigo-600/700/800`
+  used bare, not inside a fixed chip, measure 1.1–1.7:1 against the new dark
+  `bg-surface` (`#171233`), read by the WCAG relative-luminance formula, not
+  eyeballed: `Hero`'s card eyebrow, `PricingView`'s voice-minutes line and
+  "included"/"limits" headings, `ServiceCards`'s "learn more" label,
+  `FeatureGrid`/`HelpView`/`ContactView`/`LegalIndexView`'s "learn more"
+  labels, `FaqList`'s "+" toggle glyph, and `PhoneOtpFlow`'s sign-in/register
+  switch links and `VoiceLabView`'s "connecting" status line (found while
+  covering that file's own "non-emergency panels" item — its one `bg-white`
+  turned out to already be inside a `.theme-pin-light` emergency panel task T
+  had already verified, so the actual gap there was this bare-text line, not
+  a card background). All of these moved to `text-accent-text`, the token
+  task T built for exactly this role and already measured at 6.9–7.5:1 dark.
+  Left `ServiceCards`'s `text-indigo-400` step-number digit alone rather than
+  reusing `accent-text` for it — that swap would have meaningfully darkened
+  the digit's light-mode appearance (indigo-400 `#6b5fd0`, 5.03:1 on white,
+  is a different colour from accent-text's light value `#2e2663`, not just a
+  darker step of the same one), and at 3.56:1 on the new dark surface it
+  already clears the non-text/decorative floor task T itself used to leave
+  `marigold-700`'s bare icon alone. Every other `text-accent-text` swap in
+  this run reused `text-indigo-700`'s or `-800`'s exact value with no
+  light-mode change, or `-600`'s close enough not to read as a different
+  colour (confirmed by screenshot, not assumed).
+
+  **`MegaMenu` was on task T's list; left unconverted, deliberately.** Its
+  own code comment says it uses "the same 'white card on a dark ground'
+  language `OrganizationTabs` uses" — and `OrganizationTabs`'s tab pills are
+  already one of task T's *explicitly excluded* permanently-dark-chrome
+  sites, popped forward off the header for contrast against it, not tied to
+  page theme. `MegaMenu` is structurally identical: a light panel that drops
+  from the always-dark `Header`, where flipping it dark would make it
+  visually merge into the header it's supposed to stand off from — the
+  opposite of the intent. Reclassified into the excluded group rather than
+  converted; task T's original list just hadn't looked at this file's own
+  reasoning closely enough to catch it.
+
+  **What's still open, found but out of scope for this run.** `Hero.tsx`
+  has the same eyebrow label twice — once inside the card just fixed above,
+  once directly in the text column on the section's own `bg-sand` (already a
+  flipping token, already live since task T shipped). Only the card instance
+  was touched here; the second one is bare `text-indigo-600` sitting directly
+  on `bg-sand`/`bg-paper` today, unrelated to any `bg-white` conversion, and
+  it's very likely not the only such instance app-wide — this run's scope was
+  "finish converting the named `bg-white` sites," not "find every bare
+  brand-colour text on a token background," which is a real, separate,
+  broader pass (a `grep -rn 'text-indigo-[0-9]\|text-marigold-[0-9]'
+  apps/web/src` against every match's ancestor background would find it) that
+  deserves its own queue item rather than scope-creeping into this one.
+
+  **Mobile measurement.** Same nature of change as task T itself — colour
+  tokens only, no markup or spacing touched — so reflow was measured, not
+  assumed, with a throwaway Playwright script at 375×812 against the
+  production build (`pnpm build && pnpm start`, headless Chromium, both
+  `colorScheme` values): `/` 1627px, `/individuals/faqs` 2469px, `/contact`
+  2070px, `/pricing` 5300px — every one identical between light and dark, no
+  reflow. Spot-checked actual computed styles rather than trusting the
+  source: `/pricing`'s plan-card `background-color` reads `rgb(255,255,255)`
+  light and `rgb(23,18,51)` dark (`#171233`, the intended `--color-surface`
+  dark value); the "included" card heading's `color` reads `rgb(156,144,221)`
+  (`#9c90dd`, `--color-accent-text` dark) against that same background — the
+  exact pairing task T's own log entry measured at 6.9–7.5:1.
+
+  **Verification.** `pnpm install --frozen-lockfile` (one transient
+  `ECONNRESET` on `@prisma/engines`'s postinstall, gone on retry — a network
+  blip, not a real failure) / `lint` (one transient TLS failure fetching a
+  Prisma engine binary through the sandbox's proxy, also gone on retry,
+  unrelated to `packages/database` itself or anything this run touched) /
+  `typecheck` / `test` (867 API + existing web suite, all green — no test
+  asserts on the literal class strings this run changed) / `build` all pass
+  cleanly on the real (non-flaky) attempt.
 
 - 2026-08-19 — **Task U's second box: a journey per persona.** Done.
 
