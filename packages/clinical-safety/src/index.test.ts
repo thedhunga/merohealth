@@ -171,3 +171,13 @@ describe('Nepal medicine lexicon — brand names people actually say, and the pr
     expect(commonMedicinesInNepal.length).toBeGreaterThanOrEqual(60);
   });
 });
+
+describe('one medicine, one name — across scripts', () => {
+  it('does not list a named medicine twice when a suffix pattern also hits its Latin form', () => {
+    const r = detectAdvisoryTriggers("'मोक्स' (Mox/Amoxicillin) एक एन्टिबायोटिक औषधि हो।", 'ne');
+    expect(r.medicines).toEqual(['एमोक्सिसिलिन']);
+    expect(r.prescriptionOnly).toEqual(['एमोक्सिसिलिन']);
+    const o = detectAdvisoryTriggers('ओमेज (Omez/Omeprazole) एसिड कम गर्ने औषधि हो।', 'ne');
+    expect(o.medicines).toEqual(['ओमेप्राजोल']);
+  });
+});

@@ -197,6 +197,9 @@ export function detectAdvisoryTriggers(answerText: string, lang: AdvisoryLanguag
   for (const pattern of genericMedicinePatterns) {
     const match = pattern.exec(normalized);
     if (!match) continue;
+    // A suffix hit on a word a named entry already recognises ("Amoxicillin"
+    // via -cillin) would list the same medicine twice, once per script.
+    if (medicines.some((entry) => entry.patterns.some((p) => p.test(match[0])))) continue;
     const key = match[0].toLowerCase();
     if (!found.has(key)) note(key, match[0], match.index);
     if (genericPrescriptionPattern.test(match[0])) prescription.add(key);
