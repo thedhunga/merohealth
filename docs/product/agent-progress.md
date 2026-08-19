@@ -176,15 +176,44 @@ absent, this section is the source of truth), `frontend-design` skill.
 > containment, premium coming-soon, PWA, phone layout, live answers) that run
 > on every push and nightly against production. See HANDOFF.
 
-- [ ] Add journeys for what Round seven built: returning-visitor home screen
+- [x] Add journeys for what Round seven built: returning-visitor home screen
       (last conversation card appears after one answer), conversation mode
       thread (two typed turns render as bubbles with the advisory under the
       right one), install prompt after the second answer, dark-mode toggle
-      persists, offline page renders the emergency template.
+      persists, offline page renders the emergency template. **Done
+      2026-08-19 — see the log entry below. Four of five shipped as
+      originally asked; the install-prompt piece surfaced a real bug
+      instead (`InstallPrompt` can never actually render — see the new V
+      task below) and its journey locks in the true current behaviour
+      rather than a false pass.**
 - [ ] Add a journey per persona in `docs/product/user-journey-gap.md` (Sabina
       at 11 pm; grandson asking for grandmother; English-speaking returnee).
 - [ ] Every future task in this ledger that changes what a person sees adds or
       updates a journey in the same commit. Reviewers: no journey, not done.
+
+## V. Owner decision needed — the install prompt can never actually show
+
+> Found 2026-08-19 while writing task U's journeys, confirmed empirically
+> (not just by reading the code) with a throwaway Playwright script against
+> the real `/get-care` flow. Not fixed here — this is a UX priority call,
+> out of scope for "add journeys".
+
+- [ ] `InstallPrompt` and `SignInSuggestion` (`GetCareFlow.tsx`) both trigger
+      on the exact same `answeredCount >= 2` condition, set in the same
+      handler call. `SignInSuggestion` has no dismiss (unlike `UpsellCard`
+      and `InstallPrompt`, which both persist "never again" once closed),
+      and the render stack always prefers it — `InstallPrompt` only mounts
+      when `!suggestSignIn`. Net effect: once a device crosses two answered
+      exchanges, `SignInSuggestion` wins that slot forever, for the rest of
+      that browser's history, and task R's "install prompt after the second
+      answer" can never reach the screen through the real flow. Owner needs
+      to pick one: give `SignInSuggestion` a dismiss (matching the product's
+      own "never nagging" stance elsewhere in this doc), change the
+      priority order, or decide the sign-in nudge should simply win and
+      retire the install-prompt trigger. Whichever is chosen, update
+      `apps/web/e2e/round-seven.journeys.spec.ts`'s "the second-answer
+      reaction card" test to match — it currently locks in today's
+      behaviour on purpose.
 
 ## O. The home screen — `/` for someone who has been here before
 
@@ -1939,6 +1968,87 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-19 — **Task U: journeys for what Round seven built.** Done, 4 of 5
+  as asked; the 5th surfaced a real product bug instead of a false pass —
+  see task V, added this run.
+
+  **Housekeeping first.** Local `main` (76 commits) and `origin/main` (50
+  commits) shared no common ancestor — a genuine history rewrite upstream,
+  newer on `origin/main` (2026-08-18 tip vs. 2026-08-15) and authored by the
+  same account, matching the pattern several previous runs already
+  documented. `git status` was clean, so `git reset --hard origin/main` was
+  safe.
+
+  **What shipped.** `apps/web/e2e/round-seven.journeys.spec.ts`, four
+  passing journeys against a mocked `/api/companion/research`
+  (`page.route`, not `E2E_LIVE` — these prove the UI Round seven built, not
+  the research provider's answer quality, which is already
+  `premium-and-answers.journeys.spec.ts`'s job): returning-visitor home
+  screen (a seeded one-exchange history shows "पछिल्लो कुराकानी" with the
+  question/answer text and opens `/get-care`; a seeded emergency exchange
+  shows its outcome label, not a stored answer, proving any outcome — not
+  only "answered" — counts as history); conversation-mode thread (two real
+  typed turns through the actual `/get-care` form, second one carrying a
+  medicine advisory, asserting the advisory renders inside *that* turn's
+  own `<li>` and not the first one's, and not a stray page-level block);
+  dark-mode persistence (a mocked `GET /v1/auth/me` — `apps/api` is not
+  deployed here, matching HANDOFF's own note — reaches the real `/account`
+  toggle, not just `useTheme.test.ts`'s unit coverage of the storage layer;
+  toggling sets `data-theme` and `localStorage`, a `page.reload()` proves
+  the pre-hydration inline script in `layout.tsx` re-applies it, not React
+  state); offline page in both locales (`/offline`/`/en/offline` are real,
+  directly navigable routes — no service-worker/`context.setOffline`
+  gymnastics needed — asserting the exact fixed `clinical-safety` emergency
+  template, not a paraphrase). Added two small e2e helpers alongside these,
+  `seedAnonymousHistory`/`mockResearchAnswers` in `helpers.ts`, following
+  the existing `askOnGetCare`/`expectTapTargets` pattern.
+
+  Two non-obvious fixes needed before these were reliable, both left as
+  comments in the spec so the next run doesn't rediscover them by
+  debugging: a `<textarea>` does not submit its form on Enter the way an
+  `<input>` does, so followup turns need the real submit button, not
+  `box.press('Enter')`; and `ThemeToggle`'s native checkbox is `sr-only` by
+  design (the visible switch pill sits on top), so the click needs `force:
+  true` rather than fighting the component's own styling — a real tap never
+  lands on the input either.
+
+  **The 5th journey — install prompt after the second answer — could not
+  be written as asked, because the behaviour it describes cannot happen.**
+  Traced in `GetCareFlow.tsx`, then confirmed empirically (not just by
+  reading the code) with a throwaway Playwright script driving the real
+  flow with two mocked answers and no `E2E_LIVE`: `InstallPrompt` and
+  `SignInSuggestion` both fire on `answeredCount >= 2`, set in the same
+  handler call, and `SignInSuggestion` — unlike every other card in that
+  same reaction stack — has no dismiss, so it wins the shared slot forever
+  once triggered. The install prompt is not flaky or hard to reach; it is
+  structurally unreachable through the real UI as currently written. This
+  is a UX priority decision (give the sign-in card a dismiss? reorder
+  priority? retire the install trigger?), not a testing gap, so it was not
+  fixed here — that would have been a second task and a product call this
+  run has no standing to make unilaterally. Instead: wrote the journey that
+  *is* true — after two answers, the sign-in suggestion shows and the
+  install button does not — with a comment explaining why, so the gap is
+  locked in as a visible regression test rather than silently absent, and
+  added task V above with the specifics for the owner.
+
+  **Environment note, not a regression.** The `iphone` Playwright project
+  (WebKit) cannot launch in this sandbox — `/opt/pw-browsers/webkit-2215/`
+  does not exist, only Chromium is pre-installed here — and this affects
+  every existing spec file equally, including ones untouched by this run
+  (`safety.journeys.spec.ts`, `phone.journeys.spec.ts`). Verified `phone`
+  and `desktop` projects instead (32 tests, all green). CI itself should
+  have WebKit and is unaffected; flagging so the next run doesn't waste
+  time treating a sandbox gap as a code problem.
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm
+  typecheck`, `pnpm test` (867 API + 340 web, unchanged from HANDOFF's
+  count — no regressions), `pnpm build` all green. `pnpm test:e2e` is not
+  part of the standard gate (`pnpm test` runs `turbo test`, which is
+  Vitest; Playwright is separate) but was run manually against the built
+  app (`next start`, matching CI's `verify` job) for every journey in this
+  file plus the full existing suite, per the "no journey, not done" rule
+  this same task exists to enforce.
 
 - 2026-08-19 — **Round five, task K: `docs/product/voice-architecture.md`.**
   Done. First unchecked box in the queue that was actually agent-actionable
