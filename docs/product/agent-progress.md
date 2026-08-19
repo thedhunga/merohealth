@@ -2018,6 +2018,74 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-19 — **Colocated tests for `sms-provider.ts`'s and
+  `delivery-provider.ts`'s matching throw-on-unknown-provider guards, the
+  pair the previous two entries' Explore survey named as the next
+  untested-branching candidates.** Done.
+
+  **Housekeeping first.** `git checkout main && git pull` hit the now-familiar
+  shape: local `main` stuck at a stale `9bdf548` tip sharing no common
+  ancestor with `origin/main` (`0c4b0cb`). Confirmed, before resetting, that
+  local `main` was byte-identical to `origin/backup/pre-force-push-main-9bdf548`
+  (`git rev-parse` on both) — the old tip is already preserved remotely under
+  that name, so nothing was at risk. `git reset --hard origin/main` and moved
+  on, per the established precedent.
+
+  **Why this task.** Re-ran the standing per-item audit: all nine unchecked
+  queue boxes are unchanged — still either standing rules (task U's third
+  bullet, N's payment-provider line) or explicitly owner/asset-gated (V's
+  `InstallPrompt`/`SignInSuggestion` priority call, L′'s premium-flag rule,
+  K′'s findings box, M's licence decision, D's Google sign-in —
+  `GOOGLE_CLIENT_ID` still unset in `apps/web/.env.example` — the two missing
+  testimonial portraits, B1's screen-count box). Queue genuinely exhausted
+  again. Took the next candidate the prior two entries had already named and
+  left unpicked.
+
+  **What shipped.** `createSmsProvider()` (`apps/api/src/auth/sms-provider.ts`)
+  and `createEngagementDeliveryProvider()` (`apps/api/src/engagement/delivery-provider.ts`)
+  share one shape: read an env var, default to the mock adapter, throw a
+  named error for anything else rather than silently falling back — the
+  boot-time-failure-over-silent-data-loss precedent both files' own comments
+  state. Neither had a colocated test. Added
+  `apps/api/src/auth/sms-provider.test.ts` and
+  `apps/api/src/engagement/delivery-provider.test.ts`: unset env → mock;
+  explicit `mock` → mock; an unrecognised value → throws the exact message;
+  plus one test per `Mock*Provider.send()` confirming it resolves without
+  throwing and never reaches a real gateway (console output stubbed, not
+  asserted — the log line itself isn't the contract). Neither source file was
+  touched — pure test addition, no behaviour change. Matched the existing
+  save/restore-env pattern from `gemini-extraction.service.test.ts` rather
+  than inventing a new one.
+
+  **One real snag, fixed, not a scope change.** Both files first failed
+  `pnpm lint` with a wall of `@typescript-eslint/no-unsafe-*` errors that
+  looked unrelated to the new code. `tsc --noEmit` named the actual cause:
+  this package's `moduleResolution` is `nodenext`, which requires the
+  explicit `.js` extension on relative imports even in a `.ts` file (as
+  `directory.controller.test.ts` already does) — a bare `'./sms-provider'`
+  import resolves to nothing, which cascades into ESLint treating every
+  member of the unresolved import as type `error`. Added the `.js`
+  extensions; both checks went green.
+
+  **Verification.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75 tasks; API tests 879, up from
+  871 — the 8 new cases; web tests unchanged) / `pnpm build` (40/40, zero
+  `MISSING_MESSAGE`) all green from a clean tree. No journey update under
+  task U's standing rule — this adds test coverage only, nothing a person
+  sees changed.
+
+  **For the next run.** Queue still genuinely exhausted (same nine boxes,
+  same reasons) — re-run the per-item audit before assuming otherwise. The
+  one remaining candidate from the last two Explore surveys is
+  `app-icon.tsx`'s size-math contract, flagged both times as lower priority
+  and a borderline component — worth a fresh Explore survey rather than
+  taking it on faith, since two rounds of `sms-provider.ts`/`delivery-provider.ts`-style
+  finds may mean the low-hanging untested-branching fruit in `apps/api` and
+  `packages/*` is now genuinely picked over and the next pass should widen
+  the search (e.g. into `apps/mobile/src`, not yet surveyed by name in any
+  recent entry). Task S's ~90 KB page-weight gap remains open and still an
+  owner-level call, unchanged.
+
 - 2026-08-19 — **Colocated test for `directory.controller.ts`'s `search()`,
   the type-filter validation the previous entry's Explore survey named as
   the top remaining untested-with-real-branching candidate.** Done.
