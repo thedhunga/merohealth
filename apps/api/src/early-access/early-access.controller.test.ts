@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import type { Response } from 'express';
 import { describe, expect, it } from 'vitest';
 import { EarlyAccessRateLimiter } from './early-access-rate-limiter.js';
 import { EarlyAccessController } from './early-access.controller.js';
@@ -84,5 +85,40 @@ describe('EarlyAccessController.register', () => {
     await controller.register(VALID_BODY, { socket: { remoteAddress: '10.0.0.1' } });
 
     expect(store.rows).toHaveLength(1);
+  });
+});
+
+describe('EarlyAccessController.export', () => {
+  function fakeResponse(): { res: Response; headers: Record<string, string> } {
+    const headers: Record<string, string> = {};
+    const res = { setHeader: (name: string, value: string) => { headers[name] = value; } } as unknown as Response;
+    return { res, headers };
+  }
+
+  it('returns a CSV body with the registered contact', async () => {
+    const { controller } = buildController();
+    await controller.register(VALID_BODY, { ip: '1.2.3.4' });
+
+    const csv = await controller.export(fakeResponse().res);
+
+    expect(csv).toContain('9812345678,pricing');
+  });
+
+  it('sets the CSV content type and a download filename', async () => {
+    const { controller } = buildController();
+    const { res, headers } = fakeResponse();
+
+    await controller.export(res);
+
+    expect(headers['Content-Type']).toBe('text/csv; charset=utf-8');
+    expect(headers['Content-Disposition']).toBe('attachment; filename="early-access.csv"');
+  });
+
+  it('returns just the header row when nobody has registered', async () => {
+    const { controller } = buildController();
+
+    const csv = await controller.export(fakeResponse().res);
+
+    expect(csv).toBe('contact,source,registeredAt,signedIn\r\n');
   });
 });

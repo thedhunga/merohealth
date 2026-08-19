@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import type { EarlyAccessStore, RegisterEarlyAccessInput, RegisterEarlyAccessOutcome } from './early-access-store.js';
+import type { EarlyAccessRow, EarlyAccessSource, EarlyAccessStore, RegisterEarlyAccessInput, RegisterEarlyAccessOutcome } from './early-access-store.js';
 
 const UNIQUE_CONSTRAINT_VIOLATION = 'P2002';
 
@@ -39,6 +39,20 @@ export class PrismaEarlyAccessStore implements EarlyAccessStore {
       }
       return { outcome: 'alreadyRegistered' };
     }
+  }
+
+  async list(): Promise<EarlyAccessRow[]> {
+    const rows = await this.prisma.client.earlyAccess.findMany({ orderBy: { registeredAt: 'asc' } });
+    // `source` is a free-form `String` column at the database boundary (see the schema comment) but every write
+    // goes through `registerSchema`'s `EARLY_ACCESS_SOURCES` enum, so this cast reflects a real invariant rather
+    // than asserting one away.
+    return rows.map((row) => ({
+      id: row.id,
+      contact: row.contact,
+      source: row.source as EarlyAccessSource,
+      registeredAt: row.registeredAt,
+      userId: row.userId,
+    }));
   }
 }
 

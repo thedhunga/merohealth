@@ -1,5 +1,5 @@
 import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { EARLY_ACCESS_STORE, type EarlyAccessSource, type EarlyAccessStore } from './early-access-store.js';
+import { EARLY_ACCESS_STORE, type EarlyAccessRow, type EarlyAccessSource, type EarlyAccessStore } from './early-access-store.js';
 import { EarlyAccessRateLimiter } from './early-access-rate-limiter.js';
 
 export interface RegisterInput {
@@ -37,5 +37,10 @@ export class EarlyAccessService {
   /** Called from `HistoryController.migrate` once a person is signed in — never reachable anonymously, so no rate limit. */
   async linkToUser(input: LinkToUserInput): Promise<void> {
     await this.store.register({ ...input, userId: input.userId });
+  }
+
+  /** The launch-day contact list — `EarlyAccessController.export`, behind `OwnerGuard`. No rate limit: an owner-only route, not a public write. */
+  list(): Promise<EarlyAccessRow[]> {
+    return this.store.list();
   }
 }

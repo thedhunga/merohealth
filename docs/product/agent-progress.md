@@ -328,8 +328,9 @@ absent, this section is the source of truth), `frontend-design` skill.
       device anon id is deliberately never sent pre-sign-in (see
       `anonymousId()`'s own doc comment); linking instead rides the local
       contact along with `HistoryController.migrate` at sign-in.**
-- [ ] Owner-only export of the early-access list (CSV) behind auth — this is
-      the launch-day contact list.
+- [x] Owner-only export of the early-access list (CSV) behind auth — this is
+      the launch-day contact list. **Done 2026-08-19 — see the log entry
+      below.**
 - [ ] Never flip `NEXT_PUBLIC_PREMIUM_LAUNCH=live` from the agent; owner only.
 
 ## K′. Duplex voice spike — gated on `GEMINI_LIVE_ENABLED=true` (owner turns on billing)
@@ -1920,6 +1921,57 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-19 — **Round six, task L′: owner-only CSV export of the
+  early-access list.** Done. First unchecked box in the queue at the start
+  of this run (the schema comment on `EarlyAccess` already anticipated this
+  exact feature).
+
+  **Housekeeping first.** Local `main` had a shallow clone stuck at `9bdf548`
+  again — same artifact the previous two runs hit, not a real divergence.
+  `git fetch --unshallow` then `git merge --ff-only origin/main` (223
+  commits) resolved it cleanly this time; no reset needed.
+
+  **What shipped.** `GET /early-access/export`
+  (`apps/api/src/early-access/early-access.controller.ts`), gated by a new
+  `apps/api/src/auth/owner.guard.ts` (`OwnerGuard`) requiring
+  `UserRole.SUPER_ADMIN` behind `SessionAuthGuard` — the exact same shape as
+  `IdentityReviewerGuard`/`CorpusReviewerGuard`/`ReviewerGuard`, which is
+  also why it lives in `auth/` rather than `early-access/`: it is a
+  cross-cutting "general admin power" concern, not a domain-specific
+  reviewer role (those three guards' own tests exist specifically to prove
+  `SUPER_ADMIN` does *not* get their narrower access — this is the
+  complementary guard that *does* accept it). `EarlyAccessStore` gained
+  `list()` (both adapters — `PrismaEarlyAccessStore` via `findMany`,
+  `InMemoryEarlyAccessStore` from its in-memory rows) and
+  `EarlyAccessService.list()` wraps it, unauthenticated internally since the
+  controller route above it is already the auth boundary. CSV formatting is
+  new, hand-rolled (`early-access-csv.ts`) since no CSV library or prior
+  pattern exists anywhere in the repo — columns are `contact, source,
+  registeredAt, signedIn` (an id/userId-free view: internal identifiers an
+  owner reading a contact list has no use for), CRLF-terminated per RFC
+  4180, and every cell is defused against CSV injection (a `contact` of
+  `=cmd|'/c calc'!A1` gets a leading `'` before quoting) since `contact` is
+  free-text a person typed into a phone or pricing-page field.
+
+  **A real gap flagged, not solved.** There is no admin-provisioning
+  tooling anywhere in this codebase — no seed row, script, or env-var
+  allowlist ever assigns `SUPER_ADMIN` to an account. Granting it to the
+  owner's own account today means a manual database update. That is a
+  deliberate non-decision, not an oversight: it is the same category as the
+  store-developer accounts already called out under "Owner-gated" above,
+  and inventing a provisioning mechanism (an `OWNER_EMAIL` env allowlist, a
+  seed script gated by `NODE_ENV`) wasn't asked for and would be a guess at
+  how the owner wants to manage that role. Flagged here so the next run — or
+  the owner — doesn't have to rediscover it.
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` (867 tests, all passing — 14 new: `owner.guard.test.ts` (3),
+  `early-access-csv.test.ts` (7), plus additions to
+  `early-access.controller.test.ts`, `early-access.service.test.ts`), and
+  `pnpm build` all green. No UI or layout changed — this is a
+  server-side-only, owner-facing route with no rendered page — so no 375px
+  screenshots were taken.
 
 - 2026-08-19 — **Round six, task L′: `POST /v1/early-access` and the
   anon→account link.** Done. First unchecked box in the queue at the start

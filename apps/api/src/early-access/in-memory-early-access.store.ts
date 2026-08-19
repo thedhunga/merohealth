@@ -1,4 +1,4 @@
-import type { EarlyAccessStore, RegisterEarlyAccessInput, RegisterEarlyAccessOutcome } from './early-access-store.js';
+import type { EarlyAccessRow, EarlyAccessStore, RegisterEarlyAccessInput, RegisterEarlyAccessOutcome } from './early-access-store.js';
 
 interface Row extends RegisterEarlyAccessInput {
   id: string;
@@ -19,5 +19,10 @@ export class InMemoryEarlyAccessStore implements EarlyAccessStore {
     }
     this.rows.push({ ...input, id: `early-${this.rows.length + 1}` });
     return Promise.resolve({ outcome: 'created' });
+  }
+
+  list(): Promise<EarlyAccessRow[]> {
+    const sorted = [...this.rows].sort((a, b) => a.registeredAt.getTime() - b.registeredAt.getTime());
+    return Promise.resolve(sorted.map(({ id, contact, source, registeredAt, userId }) => ({ id, contact, source, registeredAt, userId })));
   }
 }

@@ -1,7 +1,11 @@
-import { BadRequestException, Body, Controller, Post, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { z } from 'zod';
+import { OwnerGuard } from '../auth/owner.guard.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { normaliseContact } from './contact.js';
+import { earlyAccessToCsv } from './early-access-csv.js';
 import { EARLY_ACCESS_SOURCES } from './early-access-store.js';
 import { EarlyAccessService } from './early-access.service.js';
 
@@ -63,6 +67,21 @@ export class EarlyAccessController {
       requestIp(request),
     );
     return { ok: true, alreadyRegistered: result.outcome === 'alreadyRegistered' };
+  }
+
+  /**
+   * The launch-day contact list. Owner-only: `OwnerGuard` requires the
+   * `SUPER_ADMIN` role behind a verified session, same shape as every other
+   * role-gated route in this codebase (`IdentityReviewerGuard` et al.).
+   */
+  @Get('export')
+  @UseGuards(SessionAuthGuard, OwnerGuard)
+  @ApiOperation({ summary: 'Export the early-access contact list as CSV (owner-only)' })
+  async export(@Res({ passthrough: true }) res: Response): Promise<string> {
+    const rows = await this.earlyAccess.list();
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="early-access.csv"');
+    return earlyAccessToCsv(rows);
   }
 }
 

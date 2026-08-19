@@ -74,3 +74,15 @@ describe('EarlyAccessService.linkToUser', () => {
     // No throw — the loop completing is the assertion.
   });
 });
+
+describe('EarlyAccessService.list', () => {
+  it('returns every registered row', async () => {
+    const { service } = buildService();
+    await service.register({ contact: '9812345678', source: 'pricing', registeredAt: new Date() }, '1.2.3.4');
+    await service.register({ contact: null, source: 'get-care', registeredAt: new Date() }, '5.6.7.8');
+
+    const rows = await service.list();
+
+    expect(rows).toHaveLength(2);
+  });
+});

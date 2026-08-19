@@ -16,6 +16,15 @@ export interface RegisterEarlyAccessInput {
 
 export type RegisterEarlyAccessOutcome = 'created' | 'alreadyRegistered' | 'linked';
 
+/** One row of the launch-day contact list — everything the CSV export needs, nothing more. */
+export interface EarlyAccessRow {
+  id: string;
+  contact: string | null;
+  source: EarlyAccessSource;
+  registeredAt: Date;
+  userId: string | null;
+}
+
 /**
  * Port behind `POST /early-access` and `HistoryController.migrate`'s
  * anon→account linking step — same "port here, `Prisma*` adapter plus an
@@ -36,4 +45,7 @@ export interface EarlyAccessStore {
    * existing link.
    */
   register(input: RegisterEarlyAccessInput): Promise<{ outcome: RegisterEarlyAccessOutcome }>;
+
+  /** Every row, oldest registration first — the owner-only CSV export reads this and nothing else. */
+  list(): Promise<EarlyAccessRow[]>;
 }
