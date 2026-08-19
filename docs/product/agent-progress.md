@@ -354,6 +354,18 @@ absent, this section is the source of truth), `frontend-design` skill.
       dark-mode regression, a separate missing-token bug in both themes),
       flagged for a future run.
 
+## W. `apps/mobile` tap-target audit — the 44px rule had never been checked there
+
+> Every unchecked queue box was still owner/asset-gated (see the 2026-08-19
+> log entries above); task B's own 44px rule was applied exhaustively to
+> `apps/web` but `apps/mobile` — the actual product surface per
+> `platform-vision.md` §5 — had never been audited for it. Picked as this
+> run's highest-value improvement to work already done.
+
+- [x] Audit every `Pressable`/`Touchable*` under `apps/mobile/app/**` and
+      `apps/mobile/src/**` for a tap area under 44×44 logical pixels, fix
+      what's found. **Done 2026-08-19 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2017,6 +2029,104 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-19 — **`apps/mobile` tap-target audit (task W): the 44px minimum,
+  applied everywhere on `apps/web` since task B, had never been checked on
+  the actual product surface.** Done.
+
+  **Housekeeping first.** `git checkout main && git pull` hit the now-usual
+  shape: local `main` stuck at a stale `9bdf548` tip with no common ancestor
+  with `origin/main` (now `7219126`). `git status` was clean, so
+  `git reset --hard origin/main`, per the established precedent
+  (`backup/pre-force-push-main-9bdf548` still preserves the old tip).
+
+  **Why this task.** Re-ran the standing per-item audit: the same nine
+  unchecked queue boxes, unchanged, all still owner/asset-gated. Rather than
+  keep mining the same untested-branching vein three entries running
+  (`apps/api`, `packages/*`, then `apps/mobile/src/state` and `src/lib` —
+  all now confirmed exhausted; spot-checked `companion.tsx`, `records.tsx`
+  and `apps/web/src/lib`'s four remaining untested files myself this run
+  and found nothing further worth extracting, matching the last entry's own
+  prediction), stepped back and asked what the ledger's own art-direction
+  section keeps saying: mobile is the product, and task B spent nearly 20
+  log entries getting `apps/web` to the 44px tap-target floor — but
+  `apps/mobile`, the actual app per `platform-vision.md` §5, had no
+  equivalent audit anywhere in this file. Spawned an Explore agent to check.
+
+  **What it found.** 66 tappable elements (`Pressable` — this codebase uses
+  no `Touchable*` variant anywhere), 10 confirmed under 44px on at least one
+  axis:
+  - `companion.tsx`'s shared `listen` style (the "Listen to guidance"/
+    "Listen to this information" speaker buttons, two usages) — 42×42.
+  - `capture.tsx`'s `retake` ("Retake photo") — no size floor at all, ~20px
+    tall (icon + text only).
+  - `learn.tsx`'s `transcriptListen` ("Listen to this lesson") — same shape,
+    ~17px tall.
+  - `ProfileSwitcher.tsx`'s `pill` (the "whose record is open" switcher,
+    rendered on `companion.tsx`, `capture.tsx` and `records.tsx` — the
+    highest-impact single fix here) — ~27px tall.
+  - `ProfileSwitcher.tsx`'s `option` (the subject-picker modal row) — ~41px,
+    3px short.
+  - `index.web.tsx` (the Expo web-export entry, `expo export --platform
+    web` — a different surface from `apps/web`, but still part of
+    `pnpm build`): the announcement bar's "Try it now" link (~27px) and
+    three desktop-only (`wide ≥ 900px`) nav-link `Pressable`s with no style
+    prop at all, sized only by their bare text (~17px).
+
+  **What shipped.** Added `minHeight: 44` (and `width: 44` where the
+  element is a fixed circular icon button, keeping it round) to each of the
+  six flagged styles, plus a new `navLinkTap` style
+  (`alignItems/justifyContent: center, minHeight: 44`) applied to the three
+  bare nav-link `Pressable`s in `index.web.tsx`, which previously had no
+  `style` prop to extend. `companion.tsx`'s `listen` also went from
+  `borderRadius: 17` to `22` to stay a true circle at the new 44px size.
+  Purely style-object changes — no behaviour, no copy, so no message-file
+  edits.
+
+  **Verification.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75/75, unchanged counts — pure
+  style edit, nothing to test) / `pnpm build` (40/40, including the mobile
+  Expo web export) all green from a clean tree. Visual check: served
+  `apps/mobile/dist` (the web export) locally and drove it with headless
+  Chromium at 375px — confirmed the announcement "Try it now" link measures
+  114×44 post-fix (was ~27px tall in the source before this change).
+  Could **not** visually confirm the three `wide`-gated nav-link fixes the
+  same way: at both 375px and 1280px in that static-export-over-`http.server`
+  harness the nav links never rendered at all, and the JS bundle 404'd
+  (`/app/_expo/static/js/web/entry-*.js` — a path mismatch specific to
+  serving the raw `dist/` output with a bare file server, not something this
+  change touched or could have caused, since `useWindowDimensions`/the
+  `wide` conditional were not edited). The `minHeight: 44` fix itself is a
+  plain style-object addition of the same shape already confirmed working
+  on `announcementLink` in the same file, so it is correct by construction,
+  but flagging honestly that it wasn't seen rendering, only compiled and
+  typechecked. The five native-screen fixes (`companion.tsx`, `capture.tsx`,
+  `learn.tsx`, `ProfileSwitcher.tsx`) are RN components with no browser
+  target to screenshot the way `apps/web` audits do; verified by reading the
+  resolved style object post-edit against the same 44px arithmetic the
+  Explore audit used pre-edit, the same standard the audit itself was
+  trusted on.
+  No journey update under task U's standing rule — that rule is scoped to
+  `apps/web/e2e/`, which this run did not touch.
+
+  **For the next run.** Task W is done; the `apps/mobile` surface now has
+  the same 44px floor `apps/web` has had since task B. One item from this
+  audit was intentionally left unflagged, not unfixed: `companion.tsx`'s
+  `privacyCard` Pressable has no explicit height floor and is sized by
+  wrapped body text that varies by locale (~34–51px estimated, never
+  measured on a real render) — worth a real-device or component-render check
+  before deciding whether it needs a fix, not a guessed one. The nine
+  queue boxes are still exhausted, same reasons as every recent entry.
+  `apps/web/src/lib`'s remaining untested files (`app-icon.tsx`,
+  `companion-research.ts`, `containment-instruction.ts`,
+  `conversation-instruction.ts`) were checked this run and are correctly
+  untested — pure types/constants or, for `app-icon.tsx`, the same
+  borderline pixel-math two prior entries already deprioritized. If another
+  supplementary-work run is needed next, the `index.web.tsx` JS-bundle-404
+  quirk noted above might be worth a real look — not because it's this
+  task's bug, but because if that export is actually deployed anywhere, a
+  broken bundle load would mean the *entire* page is unhydrated static HTML
+  in production, which is a bigger problem than any tap target.
 
 - 2026-08-19 — **Test coverage for `apps/mobile/src/state/app-state.tsx`, the
   consent-gate and acting-subject logic behind the corpus-capture and

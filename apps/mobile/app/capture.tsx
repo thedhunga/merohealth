@@ -315,6 +315,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     flexDirection: 'row',
     gap: spacing.sm,
+    minHeight: 44,
   },
   retakeText: { color: colors.primaryDark, fontSize: 13, fontWeight: '800' },
   label: { color: colors.ink, fontSize: 13, fontWeight: '900', marginTop: spacing.sm },

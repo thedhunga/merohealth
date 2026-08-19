@@ -208,16 +208,17 @@ export default function WebWelcomeScreen() {
 
         {wide ? (
           <View style={styles.navLinks}>
-            <Pressable onPress={() => router.push('/(tabs)/learn')}>
+            <Pressable onPress={() => router.push('/(tabs)/learn')} style={styles.navLinkTap}>
               <Text style={styles.navLink}>{en ? 'How it works' : 'कसरी चलाउने'}</Text>
             </Pressable>
-            <Pressable onPress={() => router.push('/(tabs)/care')}>
+            <Pressable onPress={() => router.push('/(tabs)/care')} style={styles.navLinkTap}>
               <Text style={styles.navLink}>{en ? 'Care' : 'स्वास्थ्य सेवा'}</Text>
             </Pressable>
             <Pressable
               onPress={() =>
                 router.push({ pathname: '/(tabs)/companion', params: { demo: 'emergency' } })
               }
+              style={styles.navLinkTap}
             >
               <Text style={styles.navLink}>{en ? 'Safety' : 'सुरक्षा'}</Text>
             </Pressable>
@@ -773,6 +774,7 @@ const styles = StyleSheet.create({
   brandName: { color: colors.ink, fontSize: 13, fontWeight: '900', letterSpacing: 1.4 },
   brandNepali: { color: colors.muted, fontSize: 11, fontWeight: '700', marginTop: 1 },
   navLinks: { alignItems: 'center', flexDirection: 'row', gap: 32 },
+  navLinkTap: { alignItems: 'center', justifyContent: 'center', minHeight: 44 },
   navLink: { color: colors.muted, fontSize: 13, fontWeight: '700' },
   navButton: {
     alignItems: 'center',
@@ -1216,6 +1218,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 6,
     marginLeft: 14,
+    minHeight: 44,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },

@@ -453,7 +453,7 @@ const styles = StyleSheet.create({
   transcript: { backgroundColor: colors.canvas, gap: spacing.sm, padding: spacing.lg },
   transcriptHead: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   transcriptLabel: { color: colors.primary, fontSize: 9, fontWeight: '900', letterSpacing: 0.9 },
-  transcriptListen: { alignItems: 'center', flexDirection: 'row', gap: 6 },
+  transcriptListen: { alignItems: 'center', flexDirection: 'row', gap: 6, minHeight: 44 },
   transcriptListenText: { color: colors.primary, fontSize: 10, fontWeight: '900' },
   transcriptText: { color: colors.ink, fontSize: 13, lineHeight: 21 },
 });

@@ -587,10 +587,10 @@ const styles = StyleSheet.create({
   listen: {
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,.75)',
-    borderRadius: 17,
-    height: 42,
+    borderRadius: 22,
+    height: 44,
     justifyContent: 'center',
-    width: 42,
+    width: 44,
   },
   card: { ...uiStyles.card, gap: spacing.lg },
   stepLabel: { color: colors.primary, fontSize: 9, fontWeight: '900', letterSpacing: 0.9 },
