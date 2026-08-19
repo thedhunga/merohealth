@@ -2018,6 +2018,77 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-19 — **Colocated test for `cn.ts`, the class-name joiner used in 31
+  component files with zero prior coverage.** Done.
+
+  **Housekeeping first.** `git checkout main && git pull` reported the same
+  recurring shape every recent entry has diagnosed: `origin/main` at
+  `4d50ffa`, local `main` at a stale `9bdf548` tip sharing no common ancestor
+  (`backup/pre-force-push-main-9bdf548` already preserves that old tip from an
+  earlier cautious run). `git status` was clean, so `git reset --hard
+  origin/main` and moved on, per that established precedent.
+
+  **Why this task.** Re-ran the standing per-item audit before anything else:
+  all nine unchecked queue boxes are still either standing rules (task U's
+  third bullet, task N's payment-provider line) or explicitly owner/asset-gated
+  (task V's `InstallPrompt`/`SignInSuggestion` priority call, task L′'s
+  premium-flag rule, task K′'s findings box, task M's licence decision, task D's
+  Google sign-in — `GOOGLE_CLIENT_ID` still unset — the two missing testimonial
+  portraits, task B1's screen-count box, which stays unchecked per two prior
+  independent audits until the owner authorizes a specific content cut). Before
+  trusting that and picking an off-queue improvement, ran a full `pnpm build`
+  from a clean tree first — the same check that caught the `home.partners`
+  regression two entries back — and it was clean: 40/40, zero
+  `MISSING_MESSAGE` occurrences, only the pre-existing benign
+  `@swasthya/database#build` turbo output-key warning. `pnpm lint`,
+  `typecheck`, and `test` (75 tasks, 867 API / 498 web, matching the last
+  entry's baseline exactly) were all green too, so there was no bug to fix
+  this run, unlike the last two off-queue picks.
+
+  **What shipped.** Used an Explore agent to survey `apps/web/src/lib`,
+  `apps/api/src`, and `packages/*/src` for files with real branching logic and
+  no colocated test — the same pattern the `get-care-session.ts` and
+  `translation-namespaces.test.ts` entries both used. Most untested files
+  there are pure type/interface definitions or static data tables (correctly
+  excluded). The clear top candidate: `apps/web/src/lib/cn.ts`, a ~10-line
+  recursive class-name joiner (falsy-filtering with a deliberate `=== 0`
+  exception, array flattening, join) imported in 31 component files
+  repo-wide, with no test anywhere exercising it directly. Added
+  `apps/web/src/lib/cn.test.ts`: truthy joining, falsy-value dropping, the `0`
+  exception, nested-array flattening (including arrays of arrays), an array
+  that flattens to nothing, non-string stringification, and the fully-empty
+  case. `cn.ts` itself was not touched — pure test addition, no behaviour
+  change.
+
+  **Confirmed the test actually catches a regression, not just passes by
+  construction** — this codebase's own standing practice
+  (`translation-namespaces.test.ts`'s entry did the same). Temporarily
+  changed the guard from `if (!value && value !== 0) continue;` to `if
+  (!value) continue;` (dropping the `0` exception) and re-ran just
+  `cn.test.ts`: it failed exactly on the `0`-exception case, naming the right
+  assertion. Restored `cn.ts` with `git checkout --` before touching anything
+  else, confirmed byte-identical via `git status`.
+
+  **Verification.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75 tasks, 867 API tests, 505 web
+  tests — up from 498, the 7 new cases — all passing) / `pnpm build` (40/40,
+  zero `MISSING_MESSAGE`) all green from a clean tree. No journey update under
+  task U's standing rule — this adds test coverage only, nothing a person
+  sees changed.
+
+  **For the next run.** Queue still genuinely exhausted (same nine boxes,
+  same reasons) — re-run the per-item audit before assuming otherwise. The
+  Explore agent's survey also surfaced further untested-but-real-branching
+  candidates worth picking up next, in priority order: `directory.controller.ts`'s
+  `search()` (untested `type`-filter validation, distinct from the
+  already-tested `searchDirectory` it calls), `sms-provider.ts` and
+  `delivery-provider.ts`'s matching untested throw-on-unknown-provider guards
+  (good to test together, same shape), and `app-icon.tsx`'s size-math
+  contract (lower priority, borderline component). Task S's ~90 KB page-weight
+  gap and its two named options (server-visible returning-visitor cookie vs.
+  `HomeGate` code-splitting) are both still open and still owner-level calls,
+  unchanged since the last two entries.
+
 - 2026-08-19 — **Tried, measured, and reverted the previous run's option (2)
   for closing task S's remaining page-weight gap (`next/dynamic` code-split
   of `HomeGate`'s variants); shipped a different, verified-safe improvement
