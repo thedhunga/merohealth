@@ -2018,6 +2018,66 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-19 — **Colocated test for `directory.controller.ts`'s `search()`,
+  the type-filter validation the previous entry's Explore survey named as
+  the top remaining untested-with-real-branching candidate.** Done.
+
+  **Housekeeping first.** `git checkout main && git pull` hit the same
+  recurring shape every recent entry has diagnosed: local `main` stale at
+  `9bdf548`, sharing no common ancestor with `origin/main` (now `2b58794`).
+  `git status` was clean, so `git reset --hard origin/main`, per the
+  established precedent (`backup/pre-force-push-main-9bdf548` already
+  preserves the old tip from the one run that was cautious about it).
+
+  **Why this task.** Re-ran the standing per-item audit: all nine unchecked
+  queue boxes are unchanged and still either standing rules (task U's third
+  bullet, N's payment-provider line) or explicitly owner/asset-gated (V's
+  `InstallPrompt`/`SignInSuggestion` priority call, L′'s premium-flag rule,
+  K′'s findings box, M's licence decision, D's Google sign-in —
+  `GOOGLE_CLIENT_ID` still unset — the two missing testimonial portraits,
+  B1's screen-count box). Queue genuinely exhausted again. The immediately
+  prior entry's Explore survey had already named the next three
+  untested-branching candidates in priority order; took the first:
+  `directory.controller.ts`'s `search()`.
+
+  **What shipped.** `search()` has a real, untested branch:
+  `rawType && allowedTypes.has(rawType) ? rawType : undefined` — an
+  unrecognised `type` query param is silently dropped rather than filtering
+  to nothing or throwing. `packages/care-directory/src/index.test.ts`
+  already covers `searchDirectory` itself; nothing exercised this
+  controller-level validation. Added `apps/api/src/directory.controller.test.ts`
+  (matching `companion.controller.test.ts`'s plain-instantiation style,
+  no NestJS test harness needed for a controller with no injected
+  dependencies): a valid `type` filters correctly; an invalid `type` string
+  falls back to unfiltered results rather than throwing or returning
+  nothing (asserted by comparing counts against the valid-filter case, since
+  the demo directory is fictional seed data whose exact size is an
+  implementation detail not worth pinning); `text` and `type` combine; and
+  the response envelope (`total === items.length`,
+  `dataClassification: 'FICTIONAL_DEMONSTRATION'`, `realTimeAvailability:
+  false`) is asserted directly since nothing else in the test suite checks
+  it. `directory.controller.ts` itself was not touched — pure test
+  addition, no behaviour change.
+
+  **Verification.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75 tasks; API tests 871, up from
+  867 — the 4 new cases; web tests unchanged at 505) / `pnpm build` (40/40,
+  zero `MISSING_MESSAGE`) all green from a clean tree. No journey update
+  under task U's standing rule — this adds test coverage only, nothing a
+  person sees changed.
+
+  **For the next run.** Queue still genuinely exhausted (same nine boxes,
+  same reasons) — re-run the per-item audit before assuming otherwise. Two
+  candidates remain from the prior entry's Explore survey, still untested:
+  `sms-provider.ts` and `delivery-provider.ts`'s matching
+  throw-on-unknown-provider guards (good to test together, same shape), and
+  `app-icon.tsx`'s size-math contract (lower priority, borderline
+  component — judge whether it's worth a test or better left as-is when
+  picked up). Task S's ~90 KB page-weight gap and its two named options
+  (server-visible returning-visitor cookie vs. `HomeGate` code-splitting,
+  the latter already tried and reverted two entries back) are both still
+  open and still owner-level or already-exhausted calls, unchanged.
+
 - 2026-08-19 — **Colocated test for `cn.ts`, the class-name joiner used in 31
   component files with zero prior coverage.** Done.
 
