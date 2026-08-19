@@ -1993,11 +1993,111 @@ re-read the table itself rather than trust this paragraph.
       2026-08-15 log entry below (the one added by this run) for the trace,
       the fix, and why `openEncounter`/`closeEncounter`/`recordNote`/
       `reviseNote`/`attachDocument`/the template routes stay unguarded.
+- [x] Fixed a live regression the previous run's own S′ cleanup shipped the
+      same day: it deleted the `home.partners` message block from both
+      locale files on the stated belief that only the deleted
+      `PartnerMarquee` read that namespace, but `PartnersView.tsx`
+      (`/organizations/partners`) reads it too — its own doc comment says so
+      — and `next-intl` doesn't fail a build on a missing namespace, so the
+      page silently started rendering raw key paths as visible text in both
+      locales. Restored the exact deleted copy (recovered verbatim from the
+      S′ commit's diff, not rewritten) and added
+      `apps/web/src/i18n/translation-namespaces.test.ts`, which scans every
+      literal `useTranslations('...')` call under `src` and asserts the
+      namespace resolves in both `en.json` and `ne.json` — 151 checks,
+      confirmed it fails without the fix and passes with it. See the log
+      entry below.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-19 — **Fix the live regression the previous run's own S′ commit
+  shipped a few hours earlier: `PartnersView.tsx` rendering raw
+  `home.partners.*` key paths instead of real copy, in both locales.** Done.
+
+  **Housekeeping first, same recurring artifact every recent entry has hit
+  and re-diagnosed.** `git checkout main && git pull` reported `origin/main`
+  force-updated with 50 unfamiliar commits and local `main` "leaving 50
+  commits behind, not connected to any of your branches"; `git merge-base`
+  confirmed no common ancestor. `git status` was clean, so per the T′/T″/S′
+  precedent this is not a real incident — `git reset --hard origin/main` and
+  moved on without a backup branch.
+
+  **Why this task, not a queue item.** Ran the same per-item audit the last
+  three runs each documented: all nine unchecked boxes are still standing
+  rules or owner/asset-gated (task U's third bullet, task V, task N's
+  payment-provider line, task K′'s findings box, task M's licence decision,
+  task D's Google sign-in — `GOOGLE_CLIENT_ID` still unset — the two missing
+  testimonial portraits, task B1's screen-count box). Rather than trust that
+  conclusion and immediately jump to "pick a new improvement," ran
+  `pnpm build` from a clean install first, on the theory that three
+  consecutive off-queue cleanup/fix commits were worth re-verifying against
+  a real build before adding a fourth. That build printed
+  `Error: MISSING_MESSAGE: home.partners (en)` and `(ne)` six times each
+  during static generation of `/organizations/partners` — a real bug, and
+  the exit code was still 0, so `pnpm build` alone would never have
+  surfaced it to a future run trusting a green pipeline.
+
+  **The bug.** The 2026-08-19 S′ commit (same day, a few commits back)
+  deleted the `home.partners` block from both message files, reasoning in
+  its own commit message that "only `PartnerMarquee` read that namespace."
+  That was wrong: `PartnersView.tsx` (`/organizations/partners`, a live,
+  linked route in both locales) reads `useTranslations('home.partners')`
+  directly for its heading, body and placeholder-badge text — its own doc
+  comment even explains why, deliberately reusing the homepage marquee's
+  disclaimer copy rather than duplicating it. `next-intl` has no `onError`
+  configured in `src/i18n/request.ts`, so a missing message doesn't throw —
+  it logs to stderr and falls back to rendering the dotted key path itself
+  as the visible string. Nothing in the pipeline that S′ ran (`lint`,
+  `typecheck`, `test`, `build`) fails on that fallback, so it shipped to
+  `main` looking green.
+
+  **What shipped.** Restored `home.partners.{heading,body,placeholderNote}`
+  to both `messages/en.json` and `messages/ne.json`, recovered verbatim from
+  `git show <S′ commit> -- apps/web/messages/*.json` rather than rewritten —
+  same English and Nepali strings that existed before S′ deleted them, per
+  "invent no facts." Added
+  `apps/web/src/i18n/translation-namespaces.test.ts`: it walks every
+  `.ts`/`.tsx` file under `apps/web/src`, regex-extracts every literal
+  `useTranslations('a.b.c')` call (62 files use `useTranslations`; a
+  pre-check found only two call sites with a non-literal namespace argument,
+  both skipped — the rest are plain string literals), and asserts the
+  dotted path resolves to an object in both locale files. 151 generated
+  checks. Confirmed it actually catches this bug class before trusting it:
+  stashed the messages fix and re-ran the test — it failed with
+  `en.json has no "home.partners" namespace`, naming the exact file and
+  namespace; unstashed and it passed. No `onError`/build-time-throw change
+  to `next-intl` itself — that would be a broader, riskier change (it would
+  turn every future missing message into a hard 500 at runtime, not just a
+  build-time signal) than one run's scope justifies; flagging it here as a
+  real option for whoever next has reason to touch `src/i18n/request.ts`.
+
+  **Verified live, not just by test.** Built (`pnpm build`), started the
+  production server, and curled `/en/organizations/partners` and
+  `/organizations/partners`: both now return the real strings ("Partners
+  and acceptance" / "साझेदार र स्वीकृति" etc.), not the bare key path.
+
+  **Verification.** `pnpm install --frozen-lockfile` / `lint` (40/40) /
+  `typecheck` (40/40, after fixing one `string | undefined` narrowing the
+  new test itself needed) / `test` (75 tasks, 867 API tests, 493 web tests
+  including the 151 new ones) / `build` (40/40, zero `MISSING_MESSAGE`
+  occurrences this time, confirmed by grepping the build log) all pass.
+  Single new test file plus the two message-file restorations; `PartnersView.tsx`
+  itself was not touched. No journey update under task U's standing rule —
+  the fix restores the page to what it already looked like before S′, it
+  doesn't change what a person sees relative to the intended design.
+
+  **For the next run.** Queue still genuinely exhausted (same nine boxes,
+  same reasons) — re-run the per-item audit before assuming otherwise. New
+  standing lesson worth carrying forward explicitly: when a cleanup commit
+  deletes a message namespace because grep says only one component reads
+  it, grep for the namespace string itself (`home.partners`, not just the
+  component name `PartnerMarquee`) before deleting — a second, unrelated
+  component can read the same namespace by design, as this one did. The new
+  `translation-namespaces.test.ts` now catches this specific failure mode
+  going forward regardless.
 
 - 2026-08-19 — **S′: delete the dead video files and dead `PartnerMarquee`
   component/CSS that a prior motion-budget audit (task Q) flagged but left
