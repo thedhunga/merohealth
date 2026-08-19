@@ -2018,6 +2018,108 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-19 — **Tried, measured, and reverted the previous run's option (2)
+  for closing task S's remaining page-weight gap (`next/dynamic` code-split
+  of `HomeGate`'s variants); shipped a different, verified-safe improvement
+  instead: a colocated test file for `get-care-session.ts`'s untested
+  one-shot storage handoff.** Done.
+
+  **Housekeeping first, same recurring shape every recent run has hit.**
+  `git checkout main && git pull` reported local `main` (tip `9bdf548`) and
+  `origin/main` (tip `08120af`) sharing no common ancestor — confirmed with
+  `git merge-base`. `git status` was clean and this is the exact,
+  already-diagnosed stale-container-ref shape every run since T′ has
+  documented (never a real incident, per that precedent — the pre-existing
+  `backup/pre-force-push-main-9bdf548` already covers the one time a run
+  was cautious about it), so `git reset --hard origin/main` and moved on.
+
+  **Why this task.** Re-ran the standing per-item audit: all nine unchecked
+  queue boxes are still either standing rules (task U's third bullet, N's
+  payment-provider line) or explicitly owner/asset-gated (V, K′'s findings
+  box, M's licence decision, D's Google sign-in — `GOOGLE_CLIENT_ID` still
+  unset in `.env.example` — the two missing testimonial portraits, B1's
+  screen-count box). Nothing new there. The previous entry (immediately
+  below) left two concrete, named options for closing `/`'s remaining
+  ~90 KB page-weight gap and explicitly did not pick one, calling both a
+  trade-off "not something to decide unilaterally." Read both before
+  picking either: (1) a server-visible "has this device asked before"
+  cookie so `page.tsx` can skip constructing the marketing tree entirely
+  for a known-returning visitor was rejected outright, not attempted — read
+  `apps/web/src/lib/anonymous-history.ts` first, whose own doc comment
+  states the *deliberate* design that nothing about an anonymous visitor
+  ever reaches the server ("a store of unauthenticated health questions on
+  our servers would be a liability with no owner to answer to"); even a
+  non-identifying boolean cookie sent on every request crosses that line,
+  which is exactly the kind of call the previous entry was right to flag as
+  the owner's, not this run's.
+
+  **Option (2) was attempted, measured, and found not to work — recorded
+  here so the next run doesn't re-try it on faith.** `next/dynamic`-wrapped
+  only `HomeScreen` (not `FirstVisitScreen`, which is deliberately what
+  `check:budget` measures and whose hero image is the LCP element) with
+  `ssr: false`, reasoning that `HomeScreen` already never renders during
+  SSR (`HomeGate` only swaps to it post-mount) so this should have been a
+  free win: same behaviour, smaller initial bundle. Measured before/after
+  with `pnpm --filter @swasthya/web check:budget`, three runs each:
+  baseline (matching the previous entry's own numbers) **690.7 KB / ~2500 ms
+  (2496–2508 ms, called "measurement noise" by that entry)**; after the
+  dynamic-import change, **685.8–690.2 KB / 2552–2756 ms** — bytes
+  effectively unchanged (noise-level), but LCP moved from bouncing at the
+  pass/fail boundary to consistently failing it, ~50–250 ms worse. Root
+  cause not fully chased down (a plausible read: the dynamic-import wrapper
+  and its chunk-boundary bookkeeping cost more on the critical path than
+  `HomeScreen`'s own code ever did, since that code wasn't reachable before
+  first paint either way), but the measurement was unambiguous enough not
+  to need the full explanation before reverting — `git checkout --
+  apps/web/src/components/home/HomeGate.tsx` restored the original file
+  byte-for-byte before anything else was touched. **Lesson for whoever next
+  has authority on this trade-off:** a change that looks free on paper
+  (defer a component that never SSRs anyway) is not free in practice here;
+  budget-check it before trusting the reasoning, the same way this entry
+  did.
+
+  **What shipped instead.** With both flagged options closed off (one on
+  principle, one on measurement), looked for a different, unambiguously
+  safe improvement rather than force either. A sweep of `apps/web/src/lib`
+  for files with real branching logic but no colocated test (the pattern
+  every recent `T`/`S` entry has used for `globals.css` tokens, applied
+  here to test coverage instead) found `get-care-session.ts` untested:
+  four functions implementing a one-shot `sessionStorage` handoff (the
+  question typed on the home screen, and the mic-hero's "start listening
+  immediately" intent, both carried across the navigation to `/get-care`
+  and meant to fire exactly once). Added
+  `apps/web/src/lib/get-care-session.test.ts`, matching
+  `install-prompt.test.ts`'s existing hand-rolled storage-fake pattern
+  exactly (a `Map`-backed `Storage` stub via `vi.stubGlobal('window', ...)`
+  rather than a new mocking approach): the store → consume → consume-again
+  round trip for both the question and the listen intent (proving the
+  one-shot contract — a second read must come back empty/false, or a page
+  refresh on `/get-care` would replay a stale question or restart
+  listening unexpectedly), the empty-state case for both, and — matching
+  this codebase's own standing practice of testing the storage-unavailable
+  path, not just the happy path (`install-prompt.test.ts`,
+  `anonymous-history.test.ts`) — a case where `sessionStorage` throws
+  (private browsing/quota), asserting all four functions degrade to
+  `false`/`''` instead of throwing, since every call site already only
+  branches on the boolean/string return and would otherwise crash a mic-tap
+  or a typed question on exactly the browsers most likely to hit this.
+  Pure test addition: `get-care-session.ts` itself was not touched, so no
+  behaviour or copy changed and no journey update applies under task U's
+  standing rule.
+
+  **Verification.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40)
+  / `pnpm typecheck` (40/40) / `pnpm test` (75 tasks, 867 API tests, 498 web
+  tests — up from 493, the 5 new cases — all passing) / `pnpm build`
+  (40/40) all green from a clean tree.
+
+  **For the next run.** Queue still genuinely exhausted (same nine boxes,
+  same reasons) — re-run the per-item audit before assuming otherwise.
+  Task S's page-weight gap is still open at ~690 KB / 600 KB budget; both
+  of the previous entry's options are now closed off for a future run to
+  reopen only with new information (the cookie needs an owner call on the
+  privacy trade-off; the dynamic-import path needs an explanation for why
+  it regressed LCP before it's worth re-attempting, not just a retry).
+
 - 2026-08-19 — **Close some of task S's own gap: `/`'s first-load font
   weight was preloading two entire weight-subset matrices — Mukta 300
   (unused anywhere in the app) and Mukta 500 (used, but only in secondary
