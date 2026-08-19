@@ -759,7 +759,7 @@ longer the integration point.
 
 ### B · The owner's open complaints — these are the point
 
-- [ ] **The homepage is still about 11.8 screens on a 375px phone.** It should
+- [x] **The homepage is still about 11.8 screens on a 375px phone.** It should
       be four or five. Cut, do not reorder: collapse or drop `PartnerMarquee`
       and `OrganizationTabs` below `lg`, trim `Testimonials` to two cards with
       a link to the rest, and shorten `ServiceCards` copy. Measure with
@@ -777,7 +777,28 @@ longer the integration point.
       three-step list, a testimonial card, or a footer nav column) — a
       product call, not a code task. Leave unchecked until either the owner
       authorizes a specific content cut, or someone finds a lever the two
-      audits missed.**
+      audits missed.** **Closed 2026-08-19 — the lever was Round seven's
+      task O, which this box's own log thread never connected back to: the
+      six-section `PartnerMarquee`/`OrganizationTabs`/`Testimonials`/
+      `ServiceCards` page this box has been trimming since 2026-08-16 is no
+      longer what the bare Nepali path serves at all. `homeVariant()`
+      (`apps/web/src/lib/home-screen.ts`) now sends every Nepali visitor —
+      first-time and returning alike — to `FirstVisitScreen` or `HomeScreen`,
+      both built around the round-seven mic-hero, not the marketing page;
+      that heavy page only remains reachable at `/en`, the deliberate
+      SEO/acquisition front door `platform-vision.md` describes. Measured
+      fresh with a throwaway Playwright script against a real `next dev`
+      render at 375×812: bare `/` first-time (ne) = **2.0 screens** (was
+      11.82), bare `/` returning (ne, seeded history) = **1.52 screens**,
+      `/en` marketing = 5.9 screens (unchanged, and out of scope — it is not
+      the daily surface). The 4–5 screen target for the actual product
+      surface is beaten, not just met. This is also not a new claim: `apps/web/e2e/phone.journeys.spec.ts`'s "first visit: the mic is the
+      hero, the page is short" journey already asserts `screens <=
+      3` against `/` and has been green in CI since task U shipped
+      2026-08-19 — the regression guard already existed, this box just
+      never noticed the underlying page had changed out from under it.
+      No code changed to close this box; `/en`'s own length is intentional
+      per `platform-vision.md` and not this box's target.**
 - [x] **Tap-target sizing, split off from B1's own scroll-height focus.** 42
       of 110 interactive elements on the homepage are under the 44px minimum
       at 375px (tracked informally across a dozen "B1 continued" log entries
@@ -2050,6 +2071,62 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-19 — **Round three task B (the 11.8-screen homepage) closed as
+  superseded, not re-fixed.** No source changed; this run corrected a stale
+  ledger status against the app's actual current behaviour.
+
+  **Housekeeping first.** Same shape as recent runs: local `main` (`9bdf548`)
+  and `origin/main` (`9b2cc0c`, 50 commits ahead, force-pushed at some point —
+  `origin/backup/pre-force-push-main-9bdf548` holds the pre-force history)
+  shared no reachable common ancestor from the local ref's point of view.
+  `git status` was clean and `9bdf548` was already the exact backup tip on
+  the remote, so `git reset --hard origin/main` lost nothing.
+
+  **Why this task.** Every other unchecked box was still genuinely
+  owner/asset-gated (`GOOGLE_CLIENT_ID`, two missing testimonial portraits,
+  payment-provider/licence/duplex-findings owner calls, task V's priority
+  call, task U's standing rule). Task B — "the homepage is still about 11.8
+  screens" — was the one exception: it reads as a live, agent-actionable
+  product-call box, but its own log thread (~18 "B1 continued" entries
+  through 2026-08-16) had stalled on "reaching 4–5 screens means dropping
+  real content," written *before* Round seven existed.
+
+  **What actually happened since.** Round seven's task O (2026-08-18)
+  rebuilt `/` from scratch around the mic-hero and, per `home-screen.ts`'s
+  own doc comment, deliberately stopped serving the six-section marketing
+  page (`SymptomEntry`/`Hero`/`ServiceCards`/`OrganizationTabs`/
+  `Testimonials`/`FinalCta`) on the bare Nepali path at all — that page now
+  only renders at `/en`, the SEO/acquisition front door. Nobody went back to
+  close task B once this shipped, so it sat unchecked citing components that
+  had already stopped being the homepage.
+
+  **Verified, not assumed.** Built the workspace packages (`pnpm --filter
+  "./packages/*" build` — `apps/web`'s `next dev` 500s without this; the
+  ledger doesn't currently say so anywhere, worth remembering), ran a real
+  `next dev` server, and measured with a throwaway Playwright script at
+  375×812 rather than trusting the doc comment: bare `/` first-time (ne) =
+  **2.0 screens** (was 11.82 at task B's start), bare `/` returning (ne,
+  seeded `mero-health:anon-history`) = **1.52 screens**. `/en` marketing is
+  unchanged at 5.9 screens, which is correct — it's not the daily surface
+  platform-vision.md scopes this box to. Also found the regression guard
+  already exists and is already green: `apps/web/e2e/phone.journeys.spec.ts`
+  asserts `screens <= 3` against `/` and has run in CI since task U shipped
+  2026-08-19, several hours before this entry — it just was never connected
+  back to this ledger box.
+
+  **Gate:** `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` all
+  green from the repo root (docs-only change; no source touched). No new
+  journey needed — nothing about what a person sees changed, and the
+  existing phone journey already locks in the number this entry reports.
+
+  **For the next run:** the marketing `page.tsx` (`SymptomEntry`, `Hero`,
+  `ServiceCards`, `OrganizationTabs`, `Testimonials`, `FinalCta`) is now only
+  reachable at `/en` and via `HomeGate`'s `marketing` branch for a
+  non-Nepali first-time visitor. If `/en`'s 5.9 screens ever becomes a
+  complaint, that is a fresh product call — the reasoning task B closed on
+  does not carry over automatically, because `/en`'s brief is different
+  (acquisition/SEO, not daily use).
 
 - 2026-08-19 — **Exhausted-queue improvement: security response headers
   (`Strict-Transport-Security`, a scoped `Content-Security-Policy`,
