@@ -55,7 +55,7 @@ export const commonMedicinesInNepal: readonly MedicineEntry[] = [
   otc('pain-relief balm', 'दुखाइको मलम', 'muscle / joint pain (topical)', 'मांसपेशी / जोर्नीको दुखाइ (बाहिरी)', [/\bmoov\b/i, /\bvolini\b/i, /\bzandu balm\b/i, /\biodex\b/i, /vaporub/i, /\bvicks\b/i, /मुभ(?![\p{L}\p{M}])/u, /भोलिनी/u, /जान्डु/u, /आयोडेक्स/u, /भिक्स/u]),
 
   // ── Cold, cough, allergy ─────────────────────────────────────────────
-  otc('cetirizine', 'सेटिरिजिन', 'allergy / runny nose', 'एलर्जी / रुघा', [/cetirizine/i, /\bcetzine\b/i, /\balerid\b/i, /सेटिरिजिन/u, /सेट्जिन/u]),
+  otc('cetirizine', 'सेटिरिजिन', 'allergy / runny nose', 'एलर्जी / रुघा', [/\bcetirizine/i, /\bcetzine\b/i, /\balerid\b/i, /सेटिरिजिन/u, /सेट्जिन/u]),
   otc('levocetirizine', 'लेभोसेटिरिजिन', 'allergy', 'एलर्जी', [/levocetirizine/i, /लेभोसेटिरिजिन/u]),
   otc('chlorpheniramine', 'क्लोरफेनिरामिन', 'allergy / cold', 'एलर्जी / रुघा', [/chlorphen/i, /\bcpm\b/i, /क्लोरफेनिरामिन/u]),
   otc('loratadine', 'लोराटाडिन', 'allergy', 'एलर्जी', [/loratadine/i, /लोराटाडिन/u]),
@@ -104,7 +104,7 @@ export const commonMedicinesInNepal: readonly MedicineEntry[] = [
   rx('amoxicillin', 'एमोक्सिसिलिन', 'antibiotic', 'एन्टिबायोटिक', [/amoxicillin/i, /amoxycillin/i, /\bamoxil\b/i, /\bmox\b/i, /\bnovamox\b/i, /एमोक्सिसिलिन/u, /अमोक्सिल/u, /मोक्स(?![\p{L}\p{M}])/u]),
   rx('azithromycin', 'एजिथ्रोमाइसिन', 'antibiotic', 'एन्टिबायोटिक', [/azithromycin/i, /\bazithral\b/i, /\bzithro/i, /एजिथ्रोमाइसिन/u, /एजिथ्रल/u]),
   rx('ciprofloxacin', 'सिप्रोफ्लोक्सासिन', 'antibiotic', 'एन्टिबायोटिक', [/ciprofloxacin/i, /\bciplox\b/i, /\bcifran\b/i, /सिप्रोफ्लोक्सासिन/u, /सिप्लोक्स/u]),
-  rx('ofloxacin', 'ओफ्लोक्सासिन', 'antibiotic', 'एन्टिबायोटिक', [/ofloxacin/i, /\bzanocin\b/i, /ओफ्लोक्सासिन/u]),
+  rx('ofloxacin', 'ओफ्लोक्सासिन', 'antibiotic', 'एन्टिबायोटिक', [/\bofloxacin/i, /\bzanocin\b/i, /ओफ्लोक्सासिन/u]),
   rx('cefixime', 'सेफिक्सिम', 'antibiotic', 'एन्टिबायोटिक', [/cefixime/i, /\btaxim-?o\b/i, /सेफिक्सिम/u]),
   rx('doxycycline', 'डक्सिसाइक्लिन', 'antibiotic', 'एन्टिबायोटिक', [/doxycycline/i, /डक्सिसाइक्लिन/u]),
   rx('cotrimoxazole', 'कोट्रिमोक्साजोल', 'antibiotic', 'एन्टिबायोटिक', [/cotrimoxazole/i, /co-?trimoxazole/i, /\bseptran\b/i, /\bbactrim\b/i, /कोट्रिमोक्साजोल/u, /सेप्ट्रान/u]),
