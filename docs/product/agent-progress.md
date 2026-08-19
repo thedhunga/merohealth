@@ -1993,6 +1993,89 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-19 — **Define the two undefined marigold shades T″'s own log entry
+  flagged: `text-marigold-800` / `text-marigold-900`.** Done.
+
+  **Housekeeping first, same recurring shape today's two earlier runs (T′,
+  T″) both hit and documented.** `git checkout main && git pull` reported
+  `origin/main` force-updated and local `main` (also tipped at `9bdf548`,
+  the exact commit T″'s entry names) "leaving 50 commits behind, not
+  connected to any of your branches." Before finding today's log entries
+  that explain this as a known per-run artifact, treated it as a possible
+  real incident: confirmed with `git merge-base` that the two histories
+  share no common ancestor at all, then — since that local `main` was not
+  reachable from any other branch on GitHub and would otherwise vanish with
+  this container — pushed it to `backup/pre-force-push-main-9bdf548` before
+  resetting. Only after that did today's own T′/T″ entries turn up
+  describing the identical shape recurring on every run and always
+  resolved the same way (plain `reset`/`checkout -B`, no backup, since
+  `git status` is always clean). Leaving the backup branch in place since
+  it already exists and costs nothing, but per T′/T″'s own precedent a
+  future run can skip the backup step and go straight to `git checkout -B
+  main origin/main` — the loss is apparently not real. Told the owner both
+  things: flagged it as a possible real incident first, then corrected
+  that once the ledger's own history made clear it is not. If this keeps
+  recurring, worth someone eventually finding *why* the container's
+  cached `origin/main` ref is stale at clone time rather than each run
+  re-diagnosing it.
+
+  **Why this task, not a queue item.** Re-ran the same per-item audit T″
+  documents: all nine unchecked boxes are still either standing rules
+  (U's third box, N's payment-provider line) or explicitly owner/asset-gated
+  (V, K′'s findings box, M's licence decision, D's Google sign-in —
+  `GOOGLE_CLIENT_ID` still unset — the two missing portraits, B1's
+  11.8-screen box). Queue genuinely exhausted again, so per the standing
+  instruction this run took T″'s own flagged follow-up: `text-marigold-800`
+  (`PricingView.tsx`, `EarlyAccessCard.tsx`) and `text-marigold-900`
+  (`GetCareFlow.tsx`'s `AdvisoryBlock`) referenced classes with no matching
+  `@theme` entry — `globals.css` only defined `marigold-100/300/500/600/700`
+  — so Tailwind v4 generated no CSS for either class and the text silently
+  inherited its ancestor's color in both themes, on all three call sites.
+
+  **What shipped.** Added `--color-marigold-800: #764305` and
+  `--color-marigold-900: #573105` to the `@theme` block, in the existing
+  scale's own ~33° hue, as two more fixed (non-theme-flipping) steps —
+  matching every other entry in the marigold scale, which the file's own
+  dark-mode comment already documents as intentionally invariant because
+  these back small badge/callout chips (here, `marigold-100`) "meant to
+  read the same regardless of site theme." All three call sites already
+  paired the class with a `marigold-100` background, so a fixed text token
+  on a fixed chip background is the correct answer, not a per-theme one —
+  no component changed, only the two missing token definitions.
+
+  **Verified two ways.** Hand-computed WCAG relative-luminance contrast
+  against the actual `marigold-100` background (`#fdf0d8`, luminance
+  0.880) before picking the hex values: 800 → 7.22:1, 900 → 10.07:1, both
+  comfortably past the 4.5:1 AA floor (700 itself already clears it at
+  4.76:1, which is why 800/900 exist only as a deliberate deeper step for
+  these badges, not a contrast fix on 700). Then built the app
+  (`pnpm build && pnpm start`) and drove real Playwright browser contexts
+  at 375×812 against `/en/pricing` (both `PricingView` and
+  `EarlyAccessCard` render their badge there) in both `colorScheme` values,
+  reading the actual computed `color` off the live DOM: `rgb(118, 67, 5)` —
+  exactly `#764305` — in both light and dark, confirming the class now
+  generates real CSS and is correctly theme-invariant. Did not drive
+  `GetCareFlow.tsx`'s `AdvisoryBlock` (marigold-900) live — it only renders
+  after a real assistant answer that mentions a medicine, which needs a
+  live model call — but it is the identical `bg-marigold-100 text-marigold-*`
+  construct on the same now-defined token, and a full grep confirmed every
+  `text-/bg-/border-/ring-/from-/to-/via-{marigold,indigo,danger,success}-*`
+  class used anywhere in `apps/web/src` now has a matching `@theme` entry —
+  this was the only remaining instance of the bug shape, not just these two
+  files' instances of it.
+
+  **Verification.** `pnpm install --frozen-lockfile` / `lint` / `typecheck`
+  / `test` (75 tasks, 867 API tests, full web suite) / `build` (40 tasks)
+  all pass cleanly. Single-file diff (`globals.css`, two new custom
+  properties), no component touched, so no journey update applies under
+  task U's standing rule — nothing about what a person sees changed, a
+  previously-invisible/wrong-colored badge now renders as originally
+  designed.
+
+  **For the next run:** queue still genuinely exhausted (same nine boxes,
+  same reasons). No new off-queue follow-up surfaced this time — re-run the
+  same per-item audit before assuming otherwise.
+
 - 2026-08-19 — **Task T″: close the bare-brand-text-on-token-background gap
   T′'s own log entry flagged.** Done.
 

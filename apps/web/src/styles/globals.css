@@ -47,7 +47,17 @@
   --color-success-700: #146c43;
   --color-success-600: #198754;
 
-  /* Marigold — the accent. Used sparingly and never for body text. */
+  /*
+   * Marigold — the accent. Used sparingly and never for body text.
+   *
+   * 800/900 exist only for text set directly on the fixed `marigold-100`
+   * chip background (a badge/label, same idiom as `danger-500` on
+   * `danger-100`) — 700 is already the accent's own text-on-paper step and
+   * is too light there: 4.76:1 on `marigold-100`, versus 7.22:1 (800) and
+   * 10.07:1 (900), computed the same way as every other pair in this file.
+   */
+  --color-marigold-900: #573105;
+  --color-marigold-800: #764305;
   --color-marigold-700: #9a5c08;
   --color-marigold-600: #c97a12;
   --color-marigold-500: #f4a62a;
