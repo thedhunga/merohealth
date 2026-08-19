@@ -27,6 +27,36 @@ opens the site at 11pm because her mother sounded unwell on the phone.
 | 11 | Find a clinic near her mother that is open now | ⚠️ | `care-directory` searches fictional demo data |
 | 12 | Trust that what she typed stays private | ✅ | never leaves the phone until sign-in; corpus is opt-in |
 
+## The person — Prakash, grandson asking on her behalf
+
+Prakash, 22, Kathmandu, university student. Devanagari-comfortable but not a
+confident reader of long Nepali medical text; English is for coursework, not
+health. His हजुरआमा (grandmother) lives with the family and does not use a
+smartphone herself — when something is wrong, Prakash is the one who checks.
+
+| # | He wants to… | Today (production) | Why not |
+|---|---|---|---|
+| 1 | Ask about her without filling in who she is first — "हजुरआमालाई घुँडा दुखेको छ, के गर्ने?" | ✅ | `nextProfilePrompt` never gates an answer on identity |
+| 2 | Be asked *who* the question is for, not his own age, since it obviously isn't about him | ✅ | `behalfWords` (`packages: apps/web/src/lib/profile-prompts.ts`) matches हजुरआमा and fires the `askingFor` prompt ahead of `ageBand`; "अरू कसैका लागि" (other) is a real, reachable option — see `personas.journeys.spec.ts` |
+| 3 | Have that answer picked up regardless — voice or typed, Nepali script | ✅ | same containment + research path as everyone else |
+| 4 | Actually add her as a person in the account, not just an unlabelled "other" | ❌ **fails silently** | web calls `http://localhost:4000` — **the API is not deployed**, so `packages/family` is unreachable |
+| 5 | See her by name in the family row next time he opens the home screen | ❌ same | `HomeScreen`'s family row only populates from an authenticated session's guardianship/delegation grants (`useFamilyGrants`) — there is no session to have any |
+| 6 | Trust nothing about her condition was invented | ✅ | same no-fabrication guarantee as row 12 above |
+
+## The person — Anish, English-speaking returnee
+
+Anish, 29, moved back to Kathmandu last year after years abroad. Reads
+English fluently, speaks Nepali but is slower reading long Nepali medical
+text, so he uses the site under `/en`. He asked one question here last week
+on this phone.
+
+| # | He wants to… | Today (production) | Why not |
+|---|---|---|---|
+| 1 | Land on `/en` and see *his* home, not the marketing pitch again | ✅ | `homeVariant` (`apps/web/src/lib/home-screen.ts`) returns `'returning'` for any device with history, in either locale — only a first visit branches on language. Verified live and locked in by `personas.journeys.spec.ts`. |
+| 2 | See last week's question, the mic hero, the chips — all in English | ✅ | `HomeScreen` reads every label through `next-intl`; nothing is hardcoded, so `homeScreen.*` in `en.json` covers it exactly as `ne.json` does |
+| 3 | Ask a new question and get an answer in English | ✅ answer **not blocked** (superseded row 1 above — see HANDOFF.md: Gemini quota forces the ungrounded path, but it answers) | citation-free, ~5 s, stronger disclaimer instead of sources |
+| 4 | Sign in and keep using the product past the anonymous/local-only stage | ❌ | same API-not-deployed gap as everyone else |
+
 ## The shape of the gap
 
 Rows 6–10 are **one gap, not five**. Every one of them is domain code that is
@@ -72,3 +102,12 @@ ships with: force it `DOWN`, assert the rest still works.
 
 - 2026-08-16 — Written after finding that every authenticated web call
   targets `localhost:4000` in production. The API has never been deployed.
+- 2026-08-19 — Added the two other personas task U asked for (Prakash,
+  grandson asking on his grandmother's behalf; Anish, English-speaking
+  returnee), each checked against the current source rather than assumed,
+  with a matching Playwright journey in
+  `apps/web/e2e/personas.journeys.spec.ts`. Sabina's answer row (row 1) is
+  now stale in one respect noticed in passing: HANDOFF.md records that
+  answers are no longer blocked as of 2026-08-17 (ungrounded, citation-free,
+  ~5 s) — left as-is here since re-verifying that table end to end is a
+  separate task from adding personas.

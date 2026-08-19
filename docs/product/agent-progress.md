@@ -186,8 +186,9 @@ absent, this section is the source of truth), `frontend-design` skill.
       instead (`InstallPrompt` can never actually render — see the new V
       task below) and its journey locks in the true current behaviour
       rather than a false pass.**
-- [ ] Add a journey per persona in `docs/product/user-journey-gap.md` (Sabina
+- [x] Add a journey per persona in `docs/product/user-journey-gap.md` (Sabina
       at 11 pm; grandson asking for grandmother; English-speaking returnee).
+      **Done 2026-08-19 — see the log entry below.**
 - [ ] Every future task in this ledger that changes what a person sees adds or
       updates a journey in the same commit. Reviewers: no journey, not done.
 
@@ -1968,6 +1969,53 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-19 — **Task U's second box: a journey per persona.** Done.
+
+  **Housekeeping first, same pattern as the previous run.** Local `main`
+  and `origin/main` again shared no common ancestor (76 local commits vs.
+  50 on `origin/main`, tip `3a1be50`). `git status` was clean, so `git
+  reset --hard origin/main` was safe and is not repeated here in detail —
+  see the previous entry below for the full note. Flagging again only so a
+  future run does not assume the local checkout can ever be trusted over
+  `origin/main` without checking first.
+
+  **What shipped.** Two personas were still missing from
+  `docs/product/user-journey-gap.md` beyond Sabina (who already had both a
+  table there and a safety journey): a full "wants / today / why not" table
+  each for Prakash (a grandson asking on his हजुरआमा's behalf — the
+  `askingFor` profile prompt's "other" branch, never previously exercised)
+  and Anish (an English-speaking returnee at `/en`), grounded against the
+  actual source rather than assumed — read `profile-prompts.ts`,
+  `home-screen.ts`, `HomeScreen.tsx`, and cross-checked the still-current
+  API-not-deployed blocker against `HANDOFF.md` rather than trusting the
+  gap doc's own 2026-08-16 date. New `apps/web/e2e/personas.journeys.spec.ts`
+  proves both: the grandson journey types a real Nepali question about
+  हजुरआमा, asserts the `askingFor` prompt (not `ageBand`) fires and that
+  "अरू कसैका लागि" is a reachable, clickable answer that actually persists
+  to `localStorage`'s `profile.askingFor`; the returnee journey seeds
+  English anonymous history, loads `/en`, and asserts the returning-visitor
+  `HomeScreen` renders (English "Last conversation" card, English mic
+  label) rather than the full marketing page — the real assertion is the
+  *absence* of the marketing-only `Testimonials` heading, since that is
+  what actually distinguishes the two render branches. All 9 tests across
+  the new file and the existing `round-seven.journeys.spec.ts` pass
+  (`npx playwright test --project=phone`).
+
+  **One thing worth a note for whoever verifies the Sabina table next.**
+  While checking the grandson/returnee tables against current behaviour,
+  Sabina's own row 1 turned out to be stale: `HANDOFF.md` records that
+  Gemini answers stopped being blocked on 2026-08-17 (ungrounded,
+  citation-free, ~5 s — the owner's chosen fallback for the quota issue).
+  Left Sabina's table itself untouched — re-verifying it end to end is a
+  different task from adding personas — but logged in the gap doc's own
+  Log section so it isn't lost.
+
+  **No UI changed this run** (docs + a new e2e spec only), so task U's
+  third, standing box ("every future task that changes what a person sees
+  adds a journey") does not apply here — noted so the next run does not
+  read this entry as evidence that box can be ticked as a one-time task; it
+  is a rule for every future round, not a checklist item that completes.
 
 - 2026-08-19 — **Task U: journeys for what Round seven built.** Done, 4 of 5
   as asked; the 5th surfaced a real product bug instead of a false pass —
