@@ -511,12 +511,13 @@ helpfulness, never on safety text).
 
 ## K. Real-time voice — owner decision, document only
 
-- [ ] `docs/product/voice-architecture.md`: Web Speech API (free, browser-
+- [x] `docs/product/voice-architecture.md`: Web Speech API (free, browser-
       dependent, patchy Nepali TTS on Android) vs server STT/TTS vs Gemini
       Live (`gemini-3.1-flash-live-preview` — true real-time turn-taking,
       needs billing). Requirements, what each can and cannot do for a
       Nepali speaker on a mid-range Android phone, and cost *sources* (link
-      the pricing pages; do not state prices). Stop; owner decides.
+      the pricing pages; do not state prices). Stop; owner decides. **Done
+      2026-08-19 — see the log entry below.**
 
 ## Owner decisions outstanding (blocking answers today)
 
@@ -1921,6 +1922,57 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-19 — **Round five, task K: `docs/product/voice-architecture.md`.**
+  Done. First unchecked box in the queue that was actually agent-actionable
+  at the start of this run — the four boxes ahead of it in file order (Round
+  six L′'s "never flip `NEXT_PUBLIC_PREMIUM_LAUNCH=live` from the agent"
+  reminder, K′'s findings box, M's licence decision, N's payments box) are
+  either standing constraints that can never be ticked by an agent or
+  explicitly wait on an owner choice/an owner's physical phone, so they were
+  read and skipped rather than actioned. None of them changed.
+
+  **Housekeeping first.** Local `main` and `origin/main` shared no common
+  commit — a genuine history rewrite upstream, not the shallow-clone
+  artifact two previous runs hit (see the L′ CSV entry below). `git status`
+  was clean, so `git reset --hard origin/main` was safe: it only dropped a
+  stale local tracking ref, not uncommitted work. Flagging this because it
+  is a different failure mode than the shallow-clone one and the next run
+  should not assume it's the same fix.
+
+  **What shipped.** A pure documentation task, no code or UI. The doc
+  compares the three real voice architectures: Web Speech API (shipped,
+  `useSpeechDictation.ts`/`useSpeechPlayback.ts`), server STT/TTS (not
+  built, no vendor chosen anywhere in the repo — deliberately not invented
+  here either), and Gemini Live (built as the Round six K′ spike, gated off
+  by `GEMINI_LIVE_ENABLED`). Every behavioural claim is cited to the actual
+  code that implements it rather than asserted; the model id in the queue
+  text (`gemini-3.1-flash-live-preview`) is stale next to what the K′ spike
+  actually shipped (`gemini-live-2.5-flash-preview`, in
+  `useGeminiLiveSession.ts`) — noted in the doc so nobody chases the wrong
+  id. The central trade-off surfaced plainly: Gemini Live's safety
+  interception is concurrent-on-transcript (~1 s to interrupt) instead of
+  the pre-model guarantee every other voice and text path in this product
+  has, which the ledger already flagged under K′ but hadn't laid next to
+  the other two options for comparison. Cost sources are links only, per
+  the task's own instruction — no price was stated or guessed anywhere.
+  `ai.google.dev` is blocked by this sandbox's own network egress policy
+  (confirmed by a direct failed fetch, not assumed); the Gemini pricing
+  link is included as the correct canonical URL with that verification gap
+  disclosed, rather than either omitting the link or silently pretending it
+  was checked. The two `cloud.google.com` pricing links were fetched and
+  confirmed live.
+
+  **What is still open.** This document does not decide anything — Round
+  six K′'s own findings box (Nepali quality/interruption/latency/3G,
+  measured on the owner's real phone) is untouched and still blocks the
+  actual go/no-go on duplex-by-default. That box was read and correctly
+  left unchecked; it needs a phone, not more analysis.
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`,
+  `pnpm test`, `pnpm build` all green. No UI or copy changed, so no 375px
+  screenshots or `messages/*.json` edits — this task had no user-facing
+  surface.
 
 - 2026-08-19 — **Round six, task L′: owner-only CSV export of the
   early-access list.** Done. First unchecked box in the queue at the start
