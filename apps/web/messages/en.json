@@ -1805,5 +1805,16 @@
     "heading": "No internet connection",
     "body": "This page will update automatically once your connection returns.",
     "emergencyLabel": "In an emergency"
+  },
+  "notFound": {
+    "heading": "This page could not be found",
+    "body": "The link may be out of date, or the address may be mistyped.",
+    "cta": "Back to home"
+  },
+  "errorBoundary": {
+    "heading": "Something went wrong",
+    "body": "The page hit an error while loading. Try again, or go back to home.",
+    "retry": "Try again",
+    "cta": "Back to home"
   }
 }

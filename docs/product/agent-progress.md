@@ -2035,7 +2035,126 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
-- 2026-08-19 — **Close the two gaps task W's own log entry left open (task
+- 2026-08-19 — **Exhausted-queue improvement: branded `not-found`/`error`
+  boundaries for `[locale]`, closing the one visible inconsistency none of
+  the prior tap-target/dark-mode/page-weight/a11y audits would ever reach,
+  since it only exists outside the normal render path.** Done, with a real
+  gap found and left honestly documented rather than papered over.
+
+  **Housekeeping first.** `git checkout main && git pull` hit the
+  now-familiar shape: local `main` stuck at a stale tip with no common
+  ancestor with `origin/main` (force-updated, latest tip `cfe2d94`).
+  `git status` was clean, so `git reset --hard origin/main`, per the
+  established precedent (`backup/pre-force-push-main-9bdf548` already
+  covers the one time a run was cautious about it).
+
+  **Why this task.** Re-ran the standing per-item audit: the same nine
+  unchecked queue boxes, unchanged, all still owner/asset-gated or standing
+  rules (task U's third bullet, task V's install-prompt priority call, N's
+  payment-provider line, K′'s findings box, M's licence decision, D's
+  Google sign-in — `GOOGLE_CLIENT_ID` still unset — the two missing
+  testimonial portraits, B1's screen-count box). The task-coverage and
+  page-weight veins both prior entries explicitly closed off are still
+  closed (test fakes/pure-type files/DB-integration stores have no test
+  pattern in this repo; both page-weight options need an owner call or new
+  information neither exists yet). Rather than re-mine either, spawned a
+  research-only agent with the full list of what's already been audited
+  (tap targets, dark mode/contrast, page weight, i18n message-key coverage,
+  accessibility labels, test coverage) and asked it to find a dimension
+  nobody has swept. It found, and I verified directly by reading the code:
+  `apps/web` has no `not-found.tsx` or `error.tsx` anywhere —
+  `find apps/web/src/app -iname "*not-found*" -o -iname "*error*"` returns
+  nothing. Two real call sites throw `notFound()` today:
+  `[locale]/layout.tsx` (unknown locale segment) and
+  `health-library/[slug]/page.tsx` (unknown slug — a stale or mistyped
+  article link, the everyday case). With no boundary file, both fall
+  through to Next's stock 404: unstyled, English-only, unbranded, on a
+  Nepali-first health app whose entire design investment is aimed at not
+  looking untrustworthy to exactly the visitor type most likely to hit a
+  stale link on a phone.
+
+  **What shipped.** `notFound`/`errorBoundary` message namespaces (both
+  locales, same shape as the existing `offline` namespace: heading, body,
+  CTA). `NotFoundView.tsx` (plain server component, `OfflineView.tsx`'s own
+  pattern: `container-site`/`bg-paper`/`text-ink` tokens, a `ButtonLink`
+  home). `[locale]/not-found.tsx` renders it. `[locale]/error.tsx` (a
+  required client component per Next's own `error.tsx` contract) renders
+  the equivalent for unhandled render errors, with a "try again" button
+  wired to `reset()` plus a "back to home" link, and a plain
+  `console.error(error)` — no error-tracking service exists in this repo
+  yet, and wiring one would be scope creep on a 404-page fix.
+
+  One deliberate implementation choice: `NotFoundView` does **not** take an
+  explicit `locale` prop the way `OfflineView` does. Next's `not-found.tsx`
+  convention does not reliably hand a segment's dynamic `params` to the
+  component (confirmed by reading Next's own compiled source — the prop is
+  wired for one internal "unmatched parallel route" fallback path, not
+  guaranteed generally), so this uses `getTranslations`'s ambient-locale
+  form instead, which resolves off the same URL-derived `requestLocale`
+  `src/i18n/request.ts` already reads — next-intl's own documented
+  mechanism for exactly this "no params available" case. `error.tsx` uses
+  the client `useTranslations` hook for the same reason, one layer up
+  (`NextIntlClientProvider` context instead of the server request config).
+
+  **The real gap this run found and did NOT paper over.** A genuinely
+  unmatched path with no route file anywhere in the tree —
+  `/en/some-typo-nobody-wrote`, the single most common real 404 — never
+  enters `[locale]/layout.tsx` at all (Next can't build a layout chain for
+  a path with no matching page), so it can't reach `[locale]/not-found.tsx`
+  either; empirically (curl against a clean production build, not assumed)
+  it still falls straight through to Next's stock default. So does a bad
+  locale segment (`/xx/foo`) — `[locale]/layout.tsx` throws `notFound()`
+  before `<html>` renders, so only a *parent* boundary can catch it, and
+  this app has none. **First tried the obvious fix — a root
+  `app/not-found.tsx` — and it does not work here.** Wired one, confirmed
+  via the compiled chunk that Next's own route manifest referenced the
+  file correctly, did a fully clean rebuild (`rm -rf .next`, no Turbo
+  cache) — and a fresh `pnpm start` still served Next's stock boilerplate
+  for every unmatched-path case. Root cause not fully chased down, but the
+  measurement was unambiguous: this app has no root `app/layout.tsx` (every
+  real route lives under `[locale]`, and next-intl resolves locale from the
+  URL rather than middleware — see `i18n/routing.ts`'s own comment), and a
+  root `not-found.tsx` without one plausibly can't render for a request
+  that never matched any route file, as opposed to a `notFound()` thrown
+  from inside an already-matched tree, which is a different internal Next
+  code path. Fixing it for real means adding a root `layout.tsx` — but
+  `[locale]/layout.tsx` already renders `<html>`/`<body>` for every actual
+  route, so a second one at the true root would double those tags across
+  the entire site. That is a real, deliberate restructuring, not something
+  to take on as a side effect of a 404-page fix, so the root file was
+  **removed** rather than shipped half-working, and the finding is recorded
+  in `[locale]/not-found.tsx`'s own doc comment in detail so a future run
+  doesn't re-spend the same effort re-discovering it.
+
+  **Verification.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75 tasks, all green, no new test
+  files — matches this repo's own convention of leaving `apps/web`
+  presentational components untested; zero `.tsx` component tests exist
+  anywhere in `apps/web/src/components`, confirmed before deciding not to
+  add one here) / `pnpm build` (40/40) all green from a clean tree.
+  Verified live, not just by build, exactly as the "root file doesn't work"
+  finding demanded real proof: built, served with `pnpm start`, and curled
+  four cases against a fresh server — `health-library/bad-slug-xyz` (both
+  locales) renders the new branded copy with a 404 status; a throwaway
+  `force-dynamic` page that throws (added, screenshotted, then deleted
+  before committing — never part of this diff) renders the new branded
+  error copy with a 500 status in both locales. Screenshotted both at 375px
+  with headless Chromium (`/opt/pw-browsers/chromium-1194`, same approach
+  as prior visual runs): `[locale]/not-found.tsx` is 1.09/1.18 screens (ne/
+  en), no horizontal overflow, its CTA measures 44×144px — clears the
+  tap-target floor without needing a fix. `[locale]/error.tsx` is 1.09
+  screens, both its buttons ("try again"/"back home") measure exactly
+  44px tall. No journey update under task U's standing rule — these
+  boundaries render on framework-level failures, not a flow a Playwright
+  journey drives through on purpose.
+
+  **For the next run.** The nine queue boxes are still exhausted, same
+  reasons as every recent entry. The real remaining gap: a genuinely
+  mistyped URL (not a stale-but-valid-shape link like a health-library
+  slug) still gets Next's unbranded default, and fixing it requires
+  deliberately introducing a root `app/layout.tsx` and re-verifying every
+  existing route still renders with exactly one `<html>`/`<body>` pair
+  afterward — real scope, flagged here rather than attempted piecemeal.
   W′): the un-measured `privacyCard` tap target and the "possible real bug"
   JS-bundle-404.** Done.
 
