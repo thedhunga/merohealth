@@ -307,6 +307,12 @@ absent, this section is the source of truth), `frontend-design` skill.
 - [x] Fonts: confirm only Devanagari+Latin subsets ship; preload the two
       display weights actually used above the fold. **Done 2026-08-18 — see
       the log entry below.**
+- [x] **S′. Delete the dead weight a motion-budget audit flagged but didn't
+      touch.** `mero-health-hero.mp4`/`mero-health-capture.mp4` (4.9 MB,
+      unreferenced since the 2026-08-15 homepage rebuild) and
+      `PartnerMarquee.tsx`/its `.marquee`/`.marquee-track` CSS (unreferenced
+      since the same rebuild dropped it from `page.tsx`). **Done 2026-08-19 —
+      see the log entry below.**
 
 ## T. Dark mode
 
@@ -1992,6 +1998,86 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-19 — **S′: delete the dead video files and dead `PartnerMarquee`
+  component/CSS that a prior motion-budget audit (task Q) flagged but left
+  for "whoever next touches page weight (task S) or does a cleanup pass."**
+  Done.
+
+  **Housekeeping first, same divergent-history shape every recent run has
+  hit.** `git checkout main && git pull` reported `origin/main`
+  force-updated with 50 unfamiliar commits and local `main` "leaving 50
+  commits behind, not connected to any of your branches." `git merge-base`
+  confirmed no common ancestor, same as every recent entry describes as a
+  recurring, already-diagnosed artifact (not a real incident — `git status`
+  was clean, nothing of this run's was ever on the stale local branch), so
+  `git reset --hard origin/main` and moved on without re-creating a backup
+  branch this time, per T′/T″'s own precedent that the loss is not real.
+
+  **Why this task, not a queue item.** Same per-item audit every recent run
+  has done first: all nine unchecked boxes are still either standing rules
+  (task U's third bullet, task N's payment-provider line) or explicitly
+  owner/asset-gated (task V, task K′'s findings box, task M's licence
+  decision, task D's Google sign-in — `GOOGLE_CLIENT_ID` still unset — the
+  two missing testimonial portraits, task B1's screen-count box, which its
+  own text says stays unchecked "until either the owner authorizes a
+  specific content cut, or someone finds a lever the two audits missed").
+  Before accepting that B1 lever search had already been exhausted, actually
+  re-measured rather than trusting the 2026-08-16 numbers: Round seven's
+  task O rebuilt `/` since then, so `document.body.scrollHeight /
+  innerHeight` at 375×812 was re-run against the live production build for
+  every `/` variant — first-time ne 2.00 screens, first-time en (the
+  `/en` SEO/marketing surface `homeVariant`'s own doc comment says is
+  deliberately kept full-length) 5.90, returning-visitor ne 1.52, returning
+  en 1.60 (seeded via a real `mero-health:anon-history` v1 store, not a
+  guess — `read()` silently discards anything that isn't exactly that
+  shape, so a first attempt with a bare array measured the wrong screen
+  entirely). The two Nepali variants — the actual daily surface for the
+  default locale — are already well inside the 2.5-screen target task O set;
+  `/en`'s 5.90 is the same long marketing page B1 was written about, which
+  `homeVariant`'s own reasoning documents as intentionally out of that
+  scope now. Tap-target sweep on all four variants found exactly one
+  under-44px element each, every time the same `sr-only` skip-to-content
+  link (32px wide because it's off-screen until focused, not a real tap
+  target) — so no lever there either; B1 stays unchecked, correctly, and
+  this entry is the re-verification the next run can point to instead of
+  re-doing it. With no queue item and no new B1 lever, fell through to the
+  standing instruction: pick the highest-value improvement to work already
+  shipped. Task Q's own log entry (page weight/motion pass) had already
+  named two dead video files and a dead component as *found but not fixed*
+  — re-confirmed both still true today with a repo-wide grep before
+  touching anything: `mero-health-hero.mp4`/`mero-health-capture.mp4` (2.5 MB
+  + 2.4 MB) have zero references anywhere in `apps/web/src` (the sibling
+  `mero-health-story.mp4` is still live in `Testimonials.tsx` and was left
+  alone), and `PartnerMarquee.tsx` has zero importers anywhere in the repo —
+  the 2026-08-15 homepage rebuild dropped it from `page.tsx` and nothing
+  ever re-added it.
+
+  **What shipped.** Deleted both `.mp4` files and `PartnerMarquee.tsx`;
+  removed the `.marquee`/`.marquee-track`/`marquee-scroll` CSS block from
+  `globals.css` (its only consumer was the deleted component, confirmed with
+  a grep before removing); removed the now-orphaned `home.partners`
+  message block from both `messages/en.json` and `messages/ne.json` (only
+  `PartnerMarquee` read that namespace — `organizations.partners`, a
+  different key used by the still-live `/organizations/partners` page via
+  `PartnersView.tsx`, is untouched, as is `partnerPlaceholders` in
+  `content/home.ts`, which `PartnersView.tsx` still imports directly). Net:
+  4.9 MB removed from `apps/web/public`, one dead component and its CSS and
+  copy removed from the codebase, nothing renders any differently since
+  none of it was reachable.
+
+  **Verified.** Repo-wide grep confirmed zero remaining references to any
+  of the four deleted names before committing. Rebuilt
+  (`pnpm build && pnpm start`) and hit `/` and `/en/organizations/partners`
+  for 200s. Full pipeline — `pnpm install --frozen-lockfile`, `pnpm lint`
+  (40/40), `pnpm typecheck` (40/40), `pnpm test` (75 tasks, 867 API tests),
+  `pnpm build` (40/40) — all green.
+
+  **For the next run.** Queue still genuinely exhausted, now re-verified
+  including a fresh B1 remeasurement (numbers above) rather than trusting a
+  three-day-old one — B1 stays unchecked for the same reason, still a
+  product call. No new off-queue lead surfaced from this cleanup; the next
+  run should still re-run the per-item audit before assuming otherwise.
 
 - 2026-08-19 — **Define the two undefined marigold shades T″'s own log entry
   flagged: `text-marigold-800` / `text-marigold-900`.** Done.
