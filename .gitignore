@@ -14,3 +14,7 @@ packages/database/generated/
 apps/web/public/app/
 
 *.tsbuildinfo
+
+# Playwright
+apps/web/playwright-report/
+apps/web/test-results/

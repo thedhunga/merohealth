@@ -87,6 +87,26 @@ question → one answer, no turn memory, no containment, no medicine
 advisory, single-utterance dictation. The ledger's Round five specifies it
 in the deliberate order advisory → containment → conversation.
 
+## User-journey tests (Playwright) — the closest thing to "test the whole site"
+
+Real situations, phone first, in `apps/web/e2e/`: father with chest pain →
+emergency; "बाँच्न मन छैन" → crisis template; weather → off-topic; pricing
+shows no price and "be first" works; manifest/icons served; homepage is a
+home screen (big mic above the fold, ≤ 3 screens, no video on phones, 44 px
+targets, no sideways scroll); and two `@live` answer journeys.
+
+```bash
+pnpm --filter @swasthya/web test:e2e          # local dev server, deterministic journeys
+pnpm --filter @swasthya/web test:e2e:prod     # against production, phone profile
+E2E_LIVE=1 E2E_BASE_URL=https://merohealth-beta.vercel.app pnpm --filter @swasthya/web exec playwright test --project=phone   # + live answers
+```
+
+CI runs the deterministic set on every push (`verify` job) and the full set
+including live answers **nightly against production** (`journeys-production`,
+22:15 UTC = 04:00 Nepal). A failing nightly is the first thing to read in the
+morning. **Rule for every round: a new journey or safety property ships with
+its Playwright journey**, or it is not done.
+
 ## Standing rules (do not undo these)
 
 - **Nepali first.** Bare paths are Nepali; `/en` is English. Every string in
@@ -102,6 +122,7 @@ in the deliberate order advisory → containment → conversation.
 - **Palette:** indigo `#221C4B` + marigold `#F4A62A` on warm paper. Never the
   old green. Never a health-tech blue.
 - **Mobile is the product.** Measure at 375px; 44px tap targets.
+- **Every user-facing change ships with its Playwright journey** in `apps/web/e2e/` (see above).
 
 ## How to resume
 

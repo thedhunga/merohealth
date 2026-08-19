@@ -9,7 +9,9 @@
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run src --passWithNoTests",
-    "check:budget": "node scripts/check-page-weight.mjs"
+    "check:budget": "node scripts/check-page-weight.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:prod": "node -e \"process.env.E2E_BASE_URL='https://merohealth-beta.vercel.app';require('child_process').execSync('pnpm exec playwright test --project=phone',{stdio:'inherit',env:process.env})\""
   },
   "dependencies": {
     "@swasthya/clinical-safety": "workspace:*",
@@ -29,6 +31,7 @@
     "react-dom": "19.2.3"
   },
   "devDependencies": {
+    "@playwright/test": "1.56.1",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "24.1.0",
     "@types/react": "~19.2.2",

@@ -3,6 +3,11 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    # Nightly, 22:15 UTC = 04:00 Nepal: the real journeys against production,
+    # including live answers.
+    - cron: '15 22 * * *'
+  workflow_dispatch:
 permissions: { contents: read }
 jobs:
   verify:
@@ -25,3 +30,29 @@ jobs:
       - run: pnpm turbo build --filter=@swasthya/web...
       - run: pnpm --filter @swasthya/web exec playwright install --with-deps chromium
       - run: pnpm --filter @swasthya/web check:budget
+      # User-journey tests, phone profile, against the built app. Deterministic
+      # journeys only (safety, containment, premium coming-soon, PWA, layout);
+      # live-answer journeys run nightly against production below.
+      - run: pnpm --filter @swasthya/web exec playwright test --project=phone
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: playwright-report, path: apps/web/playwright-report, retention-days: 7 }
+
+  journeys-production:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24.6.0, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @swasthya/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @swasthya/web exec playwright test --project=phone --project=iphone
+        env:
+          E2E_BASE_URL: https://merohealth-beta.vercel.app
+          E2E_LIVE: "1"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: playwright-report-production, path: apps/web/playwright-report, retention-days: 14 }

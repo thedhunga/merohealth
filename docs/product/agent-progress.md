@@ -169,6 +169,23 @@ against these:
 Reference reading before building: `docs/product/design-language.md` (if
 absent, this section is the source of truth), `frontend-design` skill.
 
+## U. Journey tests are part of done — standing rule from 2026-08-19
+
+> The owner asked for testing from a user's perspective with real-life
+> situations. `apps/web/e2e/` now holds Playwright journeys (safety,
+> containment, premium coming-soon, PWA, phone layout, live answers) that run
+> on every push and nightly against production. See HANDOFF.
+
+- [ ] Add journeys for what Round seven built: returning-visitor home screen
+      (last conversation card appears after one answer), conversation mode
+      thread (two typed turns render as bubbles with the advisory under the
+      right one), install prompt after the second answer, dark-mode toggle
+      persists, offline page renders the emergency template.
+- [ ] Add a journey per persona in `docs/product/user-journey-gap.md` (Sabina
+      at 11 pm; grandson asking for grandmother; English-speaking returnee).
+- [ ] Every future task in this ledger that changes what a person sees adds or
+      updates a journey in the same commit. Reviewers: no journey, not done.
+
 ## O. The home screen — `/` for someone who has been here before
 
 - [x] `HomeScreen` client component rendered at `/` **when the device has
