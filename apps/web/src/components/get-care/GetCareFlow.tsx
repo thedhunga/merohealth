@@ -146,9 +146,11 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
       if (answered && body.research?.answer) {
         const answerText = body.research.answer;
         const advisoryText = body.advisory
-          ? body.advisory.kind === 'medicine'
-            ? advisoryT('medicine', { medicines: formatMedicineList(body.advisory.medicines, locale) })
-            : advisoryT('advice')
+          ? body.advisory.kind === 'prescription'
+            ? advisoryT('prescription', { medicines: formatMedicineList(body.advisory.medicines, locale) })
+            : body.advisory.kind === 'medicine'
+              ? advisoryT('medicine', { medicines: formatMedicineList(body.advisory.medicines, locale) })
+              : advisoryT('advice')
           : null;
 
         setTurns((prev) => [

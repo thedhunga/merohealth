@@ -58,7 +58,7 @@ export interface HealthResearch {
  * variant for instruction-shaped text that named nothing specific.
  */
 export interface ResearchAdvisory {
-  kind: 'medicine' | 'advice';
+  kind: 'prescription' | 'medicine' | 'advice';
   medicines: string[];
 }
 

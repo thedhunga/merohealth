@@ -1,4 +1,8 @@
 import type { LanguageCode, RiskLevel, SafetyAssessment } from '@swasthya/shared-types';
+import { commonMedicinesInNepal, type MedicineEntry, type MedicineTier } from './medicines.js';
+
+export { commonMedicinesInNepal };
+export type { MedicineEntry, MedicineTier };
 interface SafetyRule {
   id: string;
   level: RiskLevel;
@@ -107,32 +111,19 @@ export interface AdvisoryTriggers {
   medicines: string[];
   /** Whether the text instructs an action — take, apply, stop, adjust a dose. */
   givesAdvice: boolean;
+  /**
+   * The subset of `medicines` that are prescription-tier — antibiotics,
+   * steroids, sedatives, hormonal and chronic-disease medicines. Non-empty
+   * means the advisory must say "not without a doctor's prescription", not
+   * merely "see a doctor first". Suffix-only matches for antibiotic classes
+   * (-cillin, -mycin, -floxacin, cef-) count too.
+   */
+  prescriptionOnly: string[];
 }
-interface MedicineEntry {
-  en: string;
-  ne: string;
-  patterns: RegExp[];
-}
-// A word list about *language* — brand and generic drug names as they are
-// written — not a clinical claim, so "invent no facts" does not apply here,
-// same as the ledger task that specified this list says explicitly.
-const medicines: readonly MedicineEntry[] = [
-  { en: 'paracetamol', ne: 'प्यारासिटामोल', patterns: [/paracetamol/i, /\bcetamol\b/i, /प्यारासिटामोल/u, /सिटामोल/u] },
-  { en: 'ibuprofen', ne: 'आइबुप्रोफेन', patterns: [/ibuprofen/i, /आइबुप्रोफेन/u] },
-  { en: 'ORS', ne: 'जीवनजल (ORS)', patterns: [/\bORS\b/i, /oral rehydration/i, /जीवनजल/u] },
-  { en: 'cetirizine', ne: 'सेटिरिजिन', patterns: [/cetirizine/i, /सेटिरिजिन/u] },
-  { en: 'omeprazole', ne: 'ओमेप्राजोल', patterns: [/omeprazole/i, /ओमेप्राजोल/u] },
-  { en: 'pantoprazole', ne: 'प्यान्टोप्राजोल', patterns: [/pantoprazole/i, /प्यान्टोप्राजोल/u] },
-  { en: 'amoxicillin', ne: 'एमोक्सिसिलिन', patterns: [/amoxicillin/i, /एमोक्सिसिलिन/u] },
-  { en: 'azithromycin', ne: 'एजिथ्रोमाइसिन', patterns: [/azithromycin/i, /एजिथ्रोमाइसिन/u] },
-  { en: 'metformin', ne: 'मेटफर्मिन', patterns: [/metformin/i, /मेटफर्मिन/u] },
-  { en: 'amlodipine', ne: 'एम्लोडिपिन', patterns: [/amlodipine/i, /एम्लोडिपिन/u] },
-  { en: 'losartan', ne: 'लोसार्टान', patterns: [/losartan/i, /लोसार्टान/u] },
-  { en: 'salbutamol', ne: 'साल्बुटामोल', patterns: [/salbutamol/i, /साल्बुटामोल/u] },
-  { en: 'zinc', ne: 'जिंक', patterns: [/\bzinc\b/i, /जिंक/u, /जिङ्क/u] },
-  { en: 'iron/folic acid', ne: 'आइरन/फोलिक एसिड', patterns: [/iron.{0,12}folic/i, /folic acid/i, /आइरन.{0,12}फोलिक/u, /फोलिक एसिड/u] },
-  { en: 'albendazole', ne: 'एल्बेन्डाजोल', patterns: [/albendazole/i, /एल्बेन्डाजोल/u] },
-];
+// The recognition list lives in ./medicines.ts — one source of truth for the
+// detector, the reference document and any future 'what is this' card.
+const medicines = commonMedicinesInNepal;
+
 // Catches a medicine not on the named list above — pharmaceutical suffixes
 // are conventionally shared across a whole drug class, so a name this list
 // has never heard of still reads as "probably a medicine." टेबलेट/क्याप्सुल
@@ -141,13 +132,18 @@ const medicines: readonly MedicineEntry[] = [
 const genericMedicinePatterns: readonly RegExp[] = [
   /\w+cillin\b/i,
   /\w+mycin\b/i,
+  /\w+floxacin\b/i,
+  /\bcef\w+/i,
   /\w+prazole\b/i,
   /\w+olol\b/i,
   /\w+sartan\b/i,
+  /\w+statin\b/i,
   /\d+\s?mg\b/i,
   /टेबलेट/u,
   /क्याप्सुल/u,
 ];
+/** Suffix-only matches that are antibiotic or chronic-disease classes → prescription tier. */
+const genericPrescriptionPattern = /cillin\b|mycin\b|floxacin\b|^cef|olol\b|sartan\b|statin\b|एन्टिबायोटिक|antibiotic/i;
 // English, Devanagari, and romanised Nepali, in that order — matched
 // regardless of `lang`, unlike the medicine names below, because whether the
 // text instructs an action is the safety-relevant fact and must not be
@@ -179,21 +175,36 @@ export function detectAdvisoryTriggers(answerText: string, lang: AdvisoryLanguag
   // Keyed by the lower-cased display name so a named match (e.g.
   // "amoxicillin") and a generic-pattern match on the same word (`-cillin`)
   // collapse into one entry instead of naming the same medicine twice.
-  const found = new Map<string, string>();
+  // display name → position of its first mention, so the output reads in the
+  // order the answer named them, not the order of our list.
+  const found = new Map<string, { display: string; at: number }>();
+  const prescription = new Set<string>();
+  const note = (key: string, display: string, at: number) => {
+    const prev = found.get(key);
+    if (!prev || at < prev.at) found.set(key, { display, at });
+  };
   for (const entry of medicines) {
-    if (entry.patterns.some((pattern) => pattern.test(normalized))) {
-      const display = entry[lang];
-      found.set(display.toLowerCase(), display);
+    let earliest = -1;
+    for (const pattern of entry.patterns) {
+      const m = pattern.exec(normalized);
+      if (m && (earliest < 0 || m.index < earliest)) earliest = m.index;
     }
+    if (earliest < 0) continue;
+    const display = entry[lang];
+    note(display.toLowerCase(), display, earliest);
+    if (entry.tier === 'prescription') prescription.add(display.toLowerCase());
   }
   for (const pattern of genericMedicinePatterns) {
-    const match = normalized.match(pattern);
+    const match = pattern.exec(normalized);
     if (!match) continue;
     const key = match[0].toLowerCase();
-    if (!found.has(key)) found.set(key, match[0]);
+    if (!found.has(key)) note(key, match[0], match.index);
+    if (genericPrescriptionPattern.test(match[0])) prescription.add(key);
   }
+  const ordered = [...found.entries()].sort((a, b) => a[1].at - b[1].at);
   return {
-    medicines: [...found.values()],
+    medicines: ordered.map(([, v]) => v.display),
     givesAdvice: adviceVerbPatterns.some((pattern) => pattern.test(normalized)),
+    prescriptionOnly: ordered.filter(([key]) => prescription.has(key)).map(([, v]) => v.display),
   };
 }

@@ -20,7 +20,12 @@ export function computeAdvisory(
   detect: typeof detectAdvisoryTriggers = detectAdvisoryTriggers,
 ): ResearchAdvisory | null {
   try {
-    const { medicines, givesAdvice } = detect(answer, language);
+    const { medicines, givesAdvice, prescriptionOnly } = detect(answer, language);
+    if (prescriptionOnly.length > 0) {
+      // Prescription-tier first so the copy names them; the rest follow.
+      const rest = medicines.filter((m) => !prescriptionOnly.includes(m));
+      return { kind: 'prescription', medicines: [...prescriptionOnly, ...rest] };
+    }
     if (medicines.length > 0) return { kind: 'medicine', medicines };
     if (givesAdvice) return { kind: 'advice', medicines: [] };
     return null;

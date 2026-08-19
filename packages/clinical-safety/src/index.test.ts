@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { approvedSafetyTemplates, assessSafety, detectAdvisoryTriggers, getSafetyTemplate } from './index';
+import { approvedSafetyTemplates, assessSafety, commonMedicinesInNepal, detectAdvisoryTriggers, getSafetyTemplate } from './index';
 describe('clinical safety routing', () => {
   it.each([
     ['I cannot breathe', 'EMERGENCY_NOW'], ["I can't breathe", 'EMERGENCY_NOW'],
@@ -112,6 +112,62 @@ describe('detectAdvisoryTriggers', () => {
     expect(detectAdvisoryTriggers('What foods are high in iron?', 'en')).toEqual({
       medicines: [],
       givesAdvice: false,
+      prescriptionOnly: [],
     });
+  });
+});
+
+describe('Nepal medicine lexicon — brand names people actually say, and the prescription tier', () => {
+  it.each([
+    // brand → generic (Latin)
+    ['Cetamol le jworo ghatauncha', 'en', 'paracetamol', 'otc'],
+    ['She bought Flexon from the pharmacy', 'en', 'ibuprofen', 'otc'],
+    ['Omez before breakfast', 'en', 'omeprazole', 'otc'],
+    ['Take Mox three times a day', 'en', 'amoxicillin', 'prescription'],
+    ['Azithral 500', 'en', 'azithromycin', 'prescription'],
+    ['Ciplox for the loose motion', 'en', 'ciprofloxacin', 'prescription'],
+    ['Flagyl and ORS', 'en', 'metronidazole', 'prescription'],
+    ['Asthalin inhaler when breathless', 'en', 'salbutamol', 'prescription'],
+    ['an i-pill within 72 hours', 'en', 'emergency contraceptive pill', 'prescription'],
+    ['Betnovate on the rash', 'en', 'betamethasone (steroid cream)', 'prescription'],
+    ['Thyronorm every morning', 'en', 'levothyroxine', 'prescription'],
+    // Devanagari, brand and generic
+    ['सिटामोल दुई चक्की', 'ne', 'प्यारासिटामोल', 'otc'],
+    ['ओमेज खाली पेटमा', 'ne', 'ओमेप्राजोल', 'otc'],
+    ['जीवनजल र जिंक', 'ne', 'जीवनजल (ORS)', 'otc'],
+    ['मोक्स तीन पटक', 'ne', 'एमोक्सिसिलिन', 'prescription'],
+    ['एजिथ्रल ५००', 'ne', 'एजिथ्रोमाइसिन', 'prescription'],
+    ['डायजेपाम सुत्नुअघि', 'ne', 'डायजेपाम', 'prescription'],
+    ['जुकाको औषधि खुवाउनुहोस्', 'ne', 'एल्बेन्डाजोल', 'otc'],
+    ['बेटाडिन लगाउनुहोस्', 'ne', 'पोभिडोन आयोडिन', 'otc'],
+  ] as const)('%s → %s (%s)', (text, lang, display, tier) => {
+    const r = detectAdvisoryTriggers(text, lang);
+    expect(r.medicines).toContain(display);
+    if (tier === 'prescription') expect(r.prescriptionOnly).toContain(display);
+    else expect(r.prescriptionOnly).not.toContain(display);
+  });
+
+  it('flags an unknown antibiotic by suffix as prescription-tier', () => {
+    const r = detectAdvisoryTriggers('The doctor may consider levofloxacin or cefuroxime.', 'en');
+    expect(r.prescriptionOnly.map((m) => m.toLowerCase())).toEqual(expect.arrayContaining(['levofloxacin', 'cefuroxime']));
+  });
+
+  it('does not treat everyday words as medicines', () => {
+    for (const s of ['Drink warm water and rest.', 'पानी धेरै पिउनुहोस् र आराम गर्नुहोस्।', 'I have no energy today', 'The Panasonic TV']) {
+      expect(detectAdvisoryTriggers(s, 'ne').medicines).toEqual([]);
+    }
+  });
+
+  it('every entry has both names, a category in both languages, and at least one Devanagari pattern', () => {
+    for (const m of commonMedicinesInNepal) {
+      expect(m.en.length).toBeGreaterThan(1);
+      expect(m.ne).toMatch(/[ऀ-ॿ]/);
+      expect(m.use.en.length).toBeGreaterThan(2);
+      expect(m.use.ne).toMatch(/[ऀ-ॿ]/);
+      expect(m.patterns.some((p) => /[ऀ-ॿ]/.test(p.source))).toBe(true);
+      // No dose ever sneaks into the category label.
+      expect(m.use.en).not.toMatch(/\d+\s?(mg|ml)/i);
+    }
+    expect(commonMedicinesInNepal.length).toBeGreaterThanOrEqual(60);
   });
 });

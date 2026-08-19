@@ -1341,7 +1341,8 @@
     },
     "advisory": {
       "medicine": "This information is for research and understanding only. Before taking {medicines}, see a doctor or an authorised health worker.",
-      "advice": "This information is for research and understanding only. Before taking any medicine or following this advice, see a doctor or an authorised health worker."
+      "advice": "This information is for research and understanding only. Before taking any medicine or following this advice, see a doctor or an authorised health worker.",
+      "prescription": "This information is for research and understanding only. Do not take {medicines} without a doctor's prescription — even if a pharmacy will sell it. Only a doctor or an authorised health worker can decide the dose, the duration, and whether it is right for you."
     },
     "setup": {
       "heading": "Answers are briefly unavailable",

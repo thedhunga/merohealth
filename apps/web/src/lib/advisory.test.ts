@@ -31,3 +31,18 @@ describe('computeAdvisory', () => {
     });
   });
 });
+
+describe('prescription tier', () => {
+  it('names prescription-tier medicines first and uses the firmer kind', () => {
+    const r = computeAdvisory('जीवनजल दिनुहोस् र चिकित्सकले भने मात्र मोक्स लिनुहोस्।', 'ne');
+    expect(r?.kind).toBe('prescription');
+    expect(r?.medicines[0]).toBe('एमोक्सिसिलिन');
+    expect(r?.medicines).toContain('जीवनजल (ORS)');
+  });
+
+  it('stays at "medicine" when only OTC-tier medicines are named', () => {
+    const r = computeAdvisory('Take Cetamol for the fever and drink ORS.', 'en');
+    expect(r?.kind).toBe('medicine');
+    expect(r?.medicines).toEqual(['paracetamol', 'ORS']);
+  });
+});

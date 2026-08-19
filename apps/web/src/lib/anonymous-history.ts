@@ -46,7 +46,7 @@ export interface AnonymousExchange {
    * migration runs over what is already in localStorage, so a pre-existing
    * entry simply has no opinion on whether it warranted one.
    */
-  advisory?: { kind: 'medicine' | 'advice'; medicines: string[] };
+  advisory?: { kind: 'prescription' | 'medicine' | 'advice'; medicines: string[] };
   /**
    * Round five, task H: groups the exchanges asked in one sitting so the
    * thread UI can render them as a single conversation rather than a flat
