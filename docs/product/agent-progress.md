@@ -387,6 +387,30 @@ absent, this section is the source of truth), `frontend-design` skill.
       single global allowance rather than per-visitor. **Done 2026-08-19 —
       see the log entry below.**
 
+## Y. Rate limiting on `apps/web`'s own `/api/companion/research` — the actual live path, task X's own sibling gap
+
+> Every unchecked queue box was still owner/asset-gated. Picked as this
+> run's highest-value improvement to work already done: task X rate-limited
+> the NestJS API's paid routes, but `GetCareFlow.tsx` — the real symptom
+> conversation every website visitor uses today, before the mobile app has
+> shipped to any store — never calls that API. It calls `apps/web`'s own
+> Next.js Route Handler, `/api/companion/research`, which reaches a paid
+> Gemini or Perplexity key directly and had no rate limit of any kind.
+> Confirmed by reading the call site, not assumed: `apps/mobile`'s companion
+> tab calls the NestJS API on native but this same web route on Expo web
+> builds, so it is the one path both today's website and any web build of
+> the app share.
+
+- [x] Per-caller rate limit on `POST /api/companion/research`, 30 calls per
+      10 minutes, checked before the request body is even parsed. **Done
+      2026-08-19 — see the log entry below.** One honest limit this task
+      does not close: `apps/web` deploys to Vercel, not the single dedicated
+      container `apps/api`'s equivalent limiter assumes, so an in-memory
+      per-instance map bounds a sequential script but not a caller spread
+      across concurrently-cold serverless instances. Documented in
+      `rate-limiter.ts`'s own comment; a shared store (Vercel KV or
+      equivalent) is the upgrade if abuse is ever observed in practice.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2071,6 +2095,91 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-19 — **Task Y — exhausted-queue improvement: rate limiting on
+  `apps/web`'s own `/api/companion/research`, the actual unauthenticated
+  paid-LLM route the live website calls.** Done.
+
+  **Housekeeping first.** `git checkout main` left a detached 50-commit
+  history behind (`bb8a38c`, the previous run's task-B closure) and
+  `git pull` refused with divergent branches. Confirmed the shape seen in
+  every recent entry: `origin/backup/pre-force-push-main-9bdf548` holds the
+  pre-force history, `git status` was clean, and `bb8a38c` was already
+  `origin/main`'s tip — `git reset --hard origin/main` lost nothing.
+
+  **Why this task, and why not the obvious one.** All nine queue boxes are
+  still owner/asset-gated, unchanged from the last several entries. Rather
+  than re-sweep ground already covered (tap targets, dark mode, page
+  weight, i18n parity, journeys, CSP, OTP rate limiting), asked a research
+  agent to sweep `apps/api` and `apps/mobile` — the two surfaces getting
+  less attention than `apps/web` — for a new gap, and it correctly found
+  that `POST /companion/research` on the NestJS API has no rate limit and
+  calls Perplexity Sonar with high-cost web search context on every
+  request. Read the actual call sites before building anything, though, and
+  found that finding was aimed at the wrong side of a fork the codebase
+  already has: `researchHealthQuestion` in `apps/web/src/server/` picks
+  Gemini or Perplexity by whichever key is configured, and the real
+  frontend — `GetCareFlow.tsx`, what every website visitor's symptom
+  conversation actually calls — fetches `apps/web`'s own
+  `/api/companion/research` Route Handler, never the NestJS API. Confirmed
+  from `apps/mobile/app/(tabs)/companion.tsx`: native builds call the
+  NestJS API (task X's fix does matter there), but Expo *web* builds call
+  this same Next.js route. So the NestJS controller is real but secondary;
+  the Next.js route is the one path every current visitor's questions
+  already go through, unauthenticated, with no cost limit at all — task X's
+  own log entry never mentioned this second endpoint because it was never
+  read.
+
+  **What shipped.** `apps/web/src/lib/rate-limiter.ts`: a
+  `SlidingWindowRateLimiter` mirroring `apps/api/src/common/`'s copy
+  (colocated rather than shared — the two apps deploy independently and
+  neither imports the other), plus a `requestIp` that reads the first
+  `x-forwarded-for` entry. Wired into `route.ts` as a check before the
+  request body is even parsed (same ordering `AuthService.requestOtp`
+  already uses, for the same reason: a caller spraying malformed bodies
+  shares the same allowance as one spraying valid ones): 30 calls per 10
+  minutes per IP, returning `429 { code: 'RATE_LIMITED' }` on a no-store
+  response. The number is deliberately looser than OTP's 10/10min — this is
+  a multi-turn *conversation*, not a once-or-twice sign-in step, and
+  Nepali carrier-grade NAT puts many real subscribers behind one address,
+  the same reasoning `OtpRequestRateLimiter`'s own comment gives. A blocked
+  call needed no new UI: `GetCareFlow.tsx` already treats any non-`ok`
+  response as its existing `'unavailable'` phase, so the 429 degrades into
+  copy that already ships and is already covered elsewhere.
+
+  **The one gap left open, on purpose.** `apps/web` deploys to Vercel, not
+  the single dedicated container `apps/api`'s limiter assumes (confirmed in
+  `docs/deployment/dedicated-server.md`). An in-memory per-instance map on
+  serverless bounds one sequential script but not a caller whose requests
+  land on several concurrently-cold instances — a real, honest difference
+  from task X's guarantee, documented in the new file's own comment and in
+  the ledger's task Y rather than overclaimed. A shared store (Vercel KV or
+  equivalent) is the upgrade if real abuse is ever observed; not building
+  it speculatively here.
+
+  **Verification.** `pnpm --filter "./packages/*" build` first (still
+  required — `next dev`/build 500s without it, per the last entry's note).
+  New tests: `rate-limiter.test.ts` (the limiter's own behaviour plus
+  `requestIp`'s header parsing) and two additions to `route.test.ts` — 30
+  accepted calls from one IP then a 429 on the 31st with the provider never
+  called for it, and a second IP's own unaffected allowance. `pnpm install
+  --frozen-lockfile` / `pnpm lint` (40/40) / `pnpm typecheck` (40/40) /
+  `pnpm test` (75/75, 887 API tests + the new web ones) / `pnpm build`
+  (40/40) all green from the repo root. Confirmed in the build's own route
+  table that `/api/companion/research` is unchanged at `ƒ` (it was always a
+  dynamic POST handler) — no static-rendering regression, unlike the CSP
+  nonce trade-off a prior entry deliberately avoided. No journey update
+  under task U's standing rule: the only visible-on-block state is the
+  existing `'unavailable'` phase, already shipped and already exercised by
+  other outage paths.
+
+  **For the next run.** The queue is exhausted again on the same nine
+  boxes. If a future sweep wants the next real gap, `POST
+  /medication-safety/check` on the NestJS API (`apps/api/src/
+  medication-safety/medication-safety.controller.ts`) has no auth guard at
+  all — a local-DB-read access-control gap the same research agent surfaced
+  as a runner-up here, smaller blast radius than a paid external call but
+  still real. Left undone this run to keep to one task.
 
 - 2026-08-19 — **Round three task B (the 11.8-screen homepage) closed as
   superseded, not re-fixed.** No source changed; this run corrected a stale

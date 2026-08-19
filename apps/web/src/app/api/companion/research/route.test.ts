@@ -21,7 +21,51 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+function requestFrom(ip: string, body: unknown) {
+  return new Request('http://localhost/api/companion/research', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-forwarded-for': ip },
+    body: JSON.stringify(body),
+  });
+}
+
 describe('POST /api/companion/research', () => {
+  it('rate-limits a caller past the per-IP ceiling, without ever reaching the provider on the blocked call', async () => {
+    vi.stubEnv('PERPLEXITY_API_KEY', 'test-key');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ choices: [{ message: { content: 'Answer.' } }] }), { status: 200 }),
+    );
+    const ip = '203.0.113.99';
+    const question = { message: 'What can cause a mild headache?', language: 'en' };
+
+    for (let i = 0; i < 30; i++) {
+      const response = await POST(requestFrom(ip, question));
+      expect(response.status).toBe(200);
+    }
+    expect(fetchSpy).toHaveBeenCalledTimes(30);
+
+    const blocked = await POST(requestFrom(ip, question));
+    const body = (await blocked.json()) as { code: string };
+
+    expect(blocked.status).toBe(429);
+    expect(body.code).toBe('RATE_LIMITED');
+    expect(blocked.headers.get('Cache-Control')).toBe('no-store');
+    expect(fetchSpy).toHaveBeenCalledTimes(30);
+  });
+
+  it('gives a caller behind a different IP its own, unaffected allowance', async () => {
+    vi.stubEnv('PERPLEXITY_API_KEY', 'test-key');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ choices: [{ message: { content: 'Answer.' } }] }), { status: 200 }),
+    );
+    const question = { message: 'What can cause a mild headache?', language: 'en' };
+
+    for (let i = 0; i < 30; i++) await POST(requestFrom('203.0.113.100', question));
+
+    const response = await POST(requestFrom('203.0.113.101', question));
+    expect(response.status).toBe(200);
+  });
+
   it('rejects invalid input', async () => {
     const response = await POST(request({ message: 'x' }));
 

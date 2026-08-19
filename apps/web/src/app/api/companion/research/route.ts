@@ -3,12 +3,26 @@ import { assessSafety, getSafetyTemplate } from '@swasthya/clinical-safety';
 import { computeAdvisory } from '@/lib/advisory';
 import type { CompanionResearchResponse, ConversationTurn, ResearchLanguage } from '@/lib/companion-research';
 import { classifyMessageDomain } from '@/lib/domain-classification';
+import { requestIp, SlidingWindowRateLimiter } from '@/lib/rate-limiter';
 import { researchHealthQuestion } from '@/server/research-provider';
 
 export const runtime = 'nodejs';
 // Three fast grounded refusals plus one ungrounded answer from a thinking
 // model can exceed a minute's default budget on some plans; be explicit.
 export const maxDuration = 60;
+
+/**
+ * This is the only unauthenticated route in the app that spends real money
+ * on every accepted call — `researchHealthQuestion` reaches a paid Gemini or
+ * Perplexity key with no per-caller cost limit anywhere upstream of it.
+ * Thirty in ten minutes is deliberately generous for a *conversation*
+ * (unlike the once-or-twice OTP route): a real exchange is several turns,
+ * and Nepali mobile networks put many subscribers behind one shared address
+ * (carrier-grade NAT), so a tight per-IP ceiling would throttle real
+ * neighbours together. It still bounds a scripted loop that would otherwise
+ * run unmetered.
+ */
+const researchRateLimiter = new SlidingWindowRateLimiter(30, 10 * 60 * 1000);
 
 /** Prior turns are capped so a runaway conversation can't blow the prompt budget: last 6, 2000 characters each. */
 const MAX_TURNS = 6;
@@ -47,6 +61,16 @@ function parseRequest(
 }
 
 export async function POST(request: Request) {
+  if (!researchRateLimiter.allow(requestIp(request))) {
+    return Response.json(
+      {
+        code: 'RATE_LIMITED',
+        message: 'Too many questions from this connection — wait a few minutes and try again.',
+      },
+      { status: 429, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();
