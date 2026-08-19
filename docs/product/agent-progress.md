@@ -2018,6 +2018,116 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-19 — **Test coverage for `apps/mobile/src/state/app-state.tsx`, the
+  consent-gate and acting-subject logic behind the corpus-capture and
+  family-and-proxy safety properties — the mobile equivalent of this run's
+  now-familiar `apps/api`/`packages/*` coverage sweep, taken up a level to a
+  React hook rather than a plain function.** Done.
+
+  **Housekeeping first.** `git checkout main` landed on a local `main` stuck
+  at the stale `9bdf548` tip with no common ancestor with `origin/main`
+  (now `c5e1f0f`) — the same recurring shape every recent entry has
+  diagnosed. `git status` was clean, so `git reset --hard origin/main`, per
+  the established precedent (`backup/pre-force-push-main-9bdf548` already
+  preserves the old tip).
+
+  **Why this task.** Re-ran the standing per-item audit: all nine unchecked
+  queue boxes are unchanged — still either standing rules or explicitly
+  owner/asset-gated (same list the last several entries have named). Queue
+  genuinely exhausted again. Rather than assume the `apps/api`/`packages/*`
+  coverage vein was still the right one to keep mining, spawned a fresh
+  Explore survey (this run's own predecessor entries had flagged the vein
+  might be picked over and recommended widening into `apps/mobile/src`,
+  not yet surveyed by name). Findings: `apps/mobile/src/lib/*.ts` (5 files)
+  is already fully covered; `components/`, `app/` (the Expo-router screens),
+  and the rest of `state/` have branching logic, but every candidate there
+  only exists to pick what JSX to render — observable by rendering only, out
+  of reach for a plain unit test. One exception: `state/app-state.tsx`. It
+  is the one file in that survey where the branches are a real, named safety
+  property (its own doc comments say so) rather than a rendering choice —
+  `switchActingSubject` throwing on an id outside the authorised list
+  (family-and-proxy.md §1), `captureUtterance`'s silent-no-op consent gate,
+  and `grantConsentAndCapture`'s single-update fix for a stale-closure bug
+  its own doc comment names by name. All three were completely untested.
+  Also sanity-checked the other candidate two prior entries had flagged and
+  deprioritized twice (`apps/web/src/lib/app-icon.tsx`'s icon-geometry
+  math) — confirmed correctly deprioritized again: the only branch is one
+  ternary feeding pixel output only a rendered image could verify, and
+  testing it at all would mean extracting a function that does not exist
+  today, not just adding a test file, for an assertion that would just
+  restate the arithmetic.
+
+  **What shipped.** `state/app-state.tsx`'s logic only runs inside
+  `AppStateProvider`'s React context, so exercising it needed an actual
+  render — no jsdom or React Native mocking anywhere in this repo (confirmed
+  by survey), so the safe option was `react-test-renderer`: a pure-JS
+  package (only depends on `react`/`scheduler`, no `react-native`) that
+  renders to a JSON tree, unlike `@testing-library/react-native`, which
+  would have pulled `react-native`'s own platform-specific requires into a
+  bare Vitest/Node run with no Metro/Jest-RN transform to handle them. Added
+  `react-test-renderer@19.2.3` + its types (pinned to the exact peer version
+  `react@19.2.3` needs) to `apps/mobile`'s devDependencies. `apps/mobile` had
+  no `vitest.config.ts` at all — its 5 existing tests are plain `.ts` with no
+  JSX to transform, so it never needed one — added one mirroring
+  `apps/web/vitest.config.ts` exactly (the `@/*` → `./src/*` alias,
+  `oxc: false` + `esbuild: { jsx: 'automatic' }`, both needed the first time
+  any `.tsx` file enters the mobile test run). New
+  `apps/mobile/src/state/app-state.test.tsx`: a small `renderAppState()`
+  harness (a `Probe` component that calls `useAppState()` and stashes the
+  value, mounted via `act(() => create(<AppStateProvider><Probe/></AppStateProvider>))`)
+  plus six tests — the single SELF acting subject and the throw on an
+  unauthorised id; `captureUtterance` as a no-op with no live consent;
+  `captureUtterance` succeeding once consent is granted; `setConsent(...,
+  false)` revoking so a later capture is a no-op again; `grantConsentAndCapture`
+  granting and retaining in one update; `useAppState()` throwing outside a
+  provider. `state/app-state.tsx` itself was not touched — pure test
+  addition, no behaviour change. **Self-check, not just written on faith:**
+  temporarily rewrote `grantConsentAndCapture` back into the two-separate-
+  `setState`-calls shape its own doc comment says was the bug, reran —
+  the new test failed with exactly the expected symptom (`corpusUtterances`
+  stayed empty), confirming the test would actually catch a regression here,
+  not just pass by construction. Reverted before committing;
+  `git diff apps/mobile/src/state/app-state.tsx` is empty.
+
+  **One real snag, not fixed as a suppression.** `act(...)` warned "the
+  current testing environment is not configured to support act(...)" until
+  `globalThis.IS_REACT_ACT_ENVIRONMENT = true` was set explicitly in the test
+  file — there is no DOM/RN test environment here to set it implicitly the
+  way `@testing-library/*` normally would. `react-test-renderer` itself also
+  logs a one-line "is deprecated" notice on every render (React's own
+  upstream steer toward `@testing-library/react`/`-native`) — left as-is
+  rather than silenced: it is accurate, this package is genuinely unmaintained
+  going forward, and the note above already explains why the RN-flavoured
+  alternative was not safe to pull into this specific harness today. If a
+  future run adds a second hook/provider test, revisit whether
+  `@testing-library/react-native` is worth the setup cost at that point
+  rather than adding a second one-off `react-test-renderer` harness.
+
+  **Verification.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75 tasks; mobile tests 28, up from
+  22 — the 6 new cases; web 505 and api 879 unchanged) / `pnpm build` (40/40,
+  including the mobile Expo web export) all green from a clean tree. No
+  journey update under task U's standing rule — this adds test coverage
+  only, nothing a person sees changed.
+
+  **For the next run.** Queue still genuinely exhausted (same nine boxes,
+  same reasons) — re-run the per-item audit before assuming otherwise. This
+  survey found `apps/mobile/src/components/`, `app/`, and the rest of
+  `state/` are not further mineable with plain unit tests as they stand
+  (everything left is rendering-only branching) — do not re-survey the same
+  ground without a reason to think it changed. `packages/*` was also
+  spot-checked this run (`configuration` and `shared-types` are pure data,
+  `clinical-safety/medicines.ts` is data + two trivial factories already
+  exercised transitively through `index.test.ts`) — nothing there either.
+  The realistic next untested-branching candidates, if this vein is still
+  worth mining, are `apps/mobile/app/(tabs)/companion.tsx`'s inline
+  consent-ask/interrupt/response-error branches and the screen files under
+  `apps/mobile/app/*.tsx` — all currently entangled in component
+  state/effects and `react-native`/`expo-*` imports, so each would need its
+  own judgement call about what, if anything, is cleanly extractable before
+  attempting one. Task S's ~90 KB page-weight gap remains open and still an
+  owner-level call, unchanged.
+
 - 2026-08-19 — **Colocated tests for `sms-provider.ts`'s and
   `delivery-provider.ts`'s matching throw-on-unknown-provider guards, the
   pair the previous two entries' Explore survey named as the next
