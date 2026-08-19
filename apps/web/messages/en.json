@@ -1630,6 +1630,12 @@
         "GENERIC": "Something went wrong — please try again."
       }
     },
+    "theme": {
+      "heading": "Dark mode",
+      "body": "A darker look that's easier on the eyes at night. Follows your device's setting until you choose one here.",
+      "lightLabel": "Light",
+      "darkLabel": "Dark"
+    },
     "voiceContribution": {
       "heading": "Contribute your voice",
       "body": "Read a short line or answer a question in your own words to help train a Nepali speech model — kept separate from your health conversations. {count} verified recordings earn a month of Plus.",

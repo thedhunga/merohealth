@@ -100,7 +100,7 @@ export function DelegationForm({ onCreated }: { onCreated: () => void }) {
           </label>
           <input
             autoComplete="tel"
-            className="rounded-xl border border-line bg-white px-4 py-3 text-ink placeholder:text-ink-soft/60"
+            className="rounded-xl border border-line bg-surface px-4 py-3 text-ink placeholder:text-ink-soft/60"
             id={`${baseId}-phone`}
             inputMode="tel"
             onChange={(event) => setPhone(event.target.value)}
@@ -128,7 +128,7 @@ export function DelegationForm({ onCreated }: { onCreated: () => void }) {
             {t('expiresLabel')}
           </label>
           <input
-            className="rounded-xl border border-line bg-white px-4 py-3 text-ink"
+            className="rounded-xl border border-line bg-surface px-4 py-3 text-ink"
             id={`${baseId}-expires`}
             min={earliestSelectableExpiryDate(new Date())}
             onChange={(event) => {
@@ -142,7 +142,7 @@ export function DelegationForm({ onCreated }: { onCreated: () => void }) {
 
         <FormError message={error} />
         {created ? (
-          <p className="text-sm font-semibold text-success-700" role="status">
+          <p className="text-sm font-semibold text-accent-success" role="status">
             {t('success')}
           </p>
         ) : null}

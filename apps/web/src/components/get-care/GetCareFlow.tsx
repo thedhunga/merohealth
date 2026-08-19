@@ -315,7 +315,7 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
                 <label className="text-base font-bold" htmlFor="health-question">
                   {t('form.label')}
                 </label>
-                <div className="mt-3 rounded-2xl bg-white p-3 ring-1 ring-line focus-within:ring-2 focus-within:ring-indigo-600">
+                <div className="mt-3 rounded-2xl bg-surface p-3 ring-1 ring-line focus-within:ring-2 focus-within:ring-indigo-600">
                   <textarea
                     className="min-h-32 w-full resize-y bg-transparent p-2 text-lg leading-relaxed outline-none placeholder:text-ink-soft"
                     disabled={phase === 'loading'}
@@ -339,7 +339,7 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
                           'inline-flex min-h-12 items-center justify-center gap-2 rounded-pill px-4 text-sm font-semibold transition-colors',
                           dictation.status === 'listening'
                             ? 'animate-pulse bg-danger-100 text-danger-500 motion-reduce:animate-none'
-                            : 'text-indigo-800 hover:bg-indigo-50',
+                            : 'text-accent-text hover:bg-indigo-50',
                         )}
                         disabled={phase === 'loading'}
                         onClick={handleMicClick}
@@ -453,7 +453,7 @@ function IdlePanel() {
   return (
     <Panel className="bg-sand">
       <div className="flex items-start gap-3">
-        <HeartPulse aria-hidden className="mt-1 size-6 shrink-0 text-indigo-700" />
+        <HeartPulse aria-hidden className="mt-1 size-6 shrink-0 text-accent-text" />
         <div>
           <h2 className="text-xl">{t('idle.heading')}</h2>
           <p className="mt-2 leading-relaxed text-ink-soft">{t('idle.body')}</p>
@@ -466,7 +466,7 @@ function IdlePanel() {
 function LoadingPanel() {
   const t = useTranslations('getCare');
   return (
-    <Panel className="bg-indigo-50">
+    <Panel className="theme-pin-light bg-indigo-50">
       <div className="flex items-center gap-4" role="status">
         <span className="grid size-11 shrink-0 animate-pulse place-items-center rounded-full bg-indigo-800 text-white motion-reduce:animate-none">
           <Search aria-hidden className="size-5" />
@@ -489,7 +489,7 @@ function EmergencyPanel({
 }) {
   const t = useTranslations('getCare');
   return (
-    <Panel className="bg-danger-100 ring-1 ring-danger-500/25">
+    <Panel className="theme-pin-light bg-danger-100 ring-1 ring-danger-500/25">
       <div role="alert">
         <div className="flex items-center gap-3 text-danger-500">
           <TriangleAlert aria-hidden className="size-7" />
@@ -658,9 +658,9 @@ function ConversationPanel({
     : research.answer;
 
   return (
-    <Panel className="bg-white ring-1 ring-line">
+    <Panel className="bg-surface ring-1 ring-line">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 text-success-700">
+        <div className="flex items-center gap-3 text-accent-success">
           <CheckCircle2 aria-hidden className="size-6" />
           <p className="text-sm font-extrabold tracking-wide uppercase">{t('result.eyebrow')}</p>
         </div>
@@ -676,7 +676,7 @@ function ConversationPanel({
               'inline-flex min-h-11 shrink-0 items-center gap-2 rounded-pill px-4 text-sm font-semibold transition-colors',
               playback.speaking
                 ? 'bg-indigo-100 text-indigo-800'
-                : 'text-indigo-800 hover:bg-indigo-50',
+                : 'text-accent-text hover:bg-indigo-50',
             )}
             onClick={() => playback.toggle(spokenText ?? '')}
             type="button"
@@ -717,7 +717,7 @@ function ConversationPanel({
 
       {turns.length > 0 ? (
         <p className="mt-4 flex items-center gap-2 text-xs font-semibold text-ink-soft">
-          <ShieldCheck aria-hidden className="size-3.5 shrink-0 text-indigo-600" />
+          <ShieldCheck aria-hidden className="size-3.5 shrink-0 text-accent-text" />
           {conversationT('safeNote')}
         </p>
       ) : null}
@@ -725,14 +725,14 @@ function ConversationPanel({
       {research.citations.length > 0 ? (
         <div className="mt-7 border-t border-line pt-6">
           <h3 className="flex items-center gap-2 text-lg">
-            <BookOpenCheck aria-hidden className="size-5 text-indigo-700" />
+            <BookOpenCheck aria-hidden className="size-5 text-accent-text" />
             {t('result.sources')}
           </h3>
           <ol className="mt-3 grid gap-3">
             {research.citations.map((citation, index) => (
               <li className="rounded-xl bg-sand p-4" key={citation.url}>
                 <a
-                  className="font-bold text-indigo-800 underline decoration-indigo-200 underline-offset-4 hover:decoration-indigo-700"
+                  className="font-bold text-accent-text underline decoration-indigo-200 underline-offset-4 hover:decoration-indigo-700"
                   href={citation.url}
                   rel="noreferrer noopener"
                   target="_blank"
@@ -789,12 +789,12 @@ function SetupPanel({ research, reset }: { research: HealthResearch; reset: () =
   const unavailable = research.status === 'unavailable';
   return (
     <Panel className="bg-sand">
-      <BookOpenCheck aria-hidden className="size-7 text-indigo-700" />
+      <BookOpenCheck aria-hidden className="size-7 text-accent-text" />
       <h2 className="mt-4 text-2xl">{t(unavailable ? 'unavailable.heading' : 'setup.heading')}</h2>
       <p className="mt-3 leading-relaxed text-ink-soft">
         {t(unavailable ? 'unavailable.body' : 'setup.body')}
       </p>
-      <p className="mt-4 rounded-xl bg-white p-4 text-sm leading-relaxed">{research.disclaimer}</p>
+      <p className="mt-4 rounded-xl bg-surface p-4 text-sm leading-relaxed">{research.disclaimer}</p>
       <div className="mt-5 flex flex-col gap-3 sm:flex-row">
         <button
           className="inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-indigo-800 px-5 font-bold text-white hover:bg-indigo-700"
@@ -839,7 +839,7 @@ function ProfilePromptCard({
 }) {
   const t = useTranslations('getCare.profilePrompts');
   return (
-    <div className="mt-4 rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+    <div className="theme-pin-light mt-4 rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
       <p className="text-sm font-semibold text-indigo-900">{t(`${prompt.key}.question`)}</p>
       <p className="mt-1 text-xs text-ink-soft">{t(`${prompt.key}.why`)}</p>
       <div className="mt-3 flex flex-wrap gap-2">
@@ -868,7 +868,7 @@ function ProfilePromptCard({
 function SignInSuggestion() {
   const t = useTranslations('getCare.signInSuggestion');
   return (
-    <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-marigold-300 bg-marigold-100/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="theme-pin-light mt-4 flex flex-col gap-3 rounded-2xl border border-marigold-300 bg-marigold-100/60 p-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p className="text-sm font-semibold text-ink">{t('heading')}</p>
         <p className="mt-0.5 text-xs text-ink-soft">{t('body')}</p>
@@ -908,7 +908,7 @@ function UpsellCard({
   const premiumLive = isPremiumLive();
 
   return (
-    <div className="mt-4 flex items-start gap-3 rounded-2xl border border-marigold-300 bg-marigold-100/60 p-4">
+    <div className="theme-pin-light mt-4 flex items-start gap-3 rounded-2xl border border-marigold-300 bg-marigold-100/60 p-4">
       <p className="flex-1 text-sm leading-relaxed font-semibold text-ink">
         {premiumLive ? t('body', { price }) : t('comingSoonBody')}
       </p>

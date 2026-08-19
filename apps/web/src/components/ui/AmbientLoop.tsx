@@ -58,6 +58,7 @@ export function AmbientLoop({
     <div className={cn('overflow-hidden', positioned ? 'size-full' : 'relative', className)}>
       <Image alt={alt} className="object-cover" fill priority={priority} sizes={sizes} src={poster} />
       {ready ? <LoopVideo poster={poster} src={src} /> : null}
+      <div aria-hidden className="image-scrim absolute inset-0" />
     </div>
   );
 }

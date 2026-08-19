@@ -47,9 +47,13 @@ export function EarlyAccessCard({ source = 'pricing' }: { source?: 'pricing' | '
   }
 
   return (
+    // `theme-pin-light`: `bg-marigold-100/50` is a fixed brand tint, not a
+    // theme token — without it, the `text-ink`/`text-ink-soft` below would
+    // flip to near-white in dark mode and go illegible against this
+    // still-light card (see `globals.css`'s dark-theme comment).
     <section
       aria-labelledby="early-access-heading"
-      className="mx-auto max-w-2xl scroll-mt-24 rounded-card border border-marigold-300 bg-marigold-100/50 p-6 sm:p-8"
+      className="theme-pin-light mx-auto max-w-2xl scroll-mt-24 rounded-card border border-marigold-300 bg-marigold-100/50 p-6 sm:p-8"
       id="early-access"
     >
       <p className="flex items-center gap-2 text-sm font-bold tracking-wide text-marigold-800 uppercase">

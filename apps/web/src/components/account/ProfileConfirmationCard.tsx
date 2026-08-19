@@ -78,7 +78,7 @@ export function ProfileConfirmationCard() {
 
       <ul className="flex flex-wrap gap-2">
         {items.map((item) => (
-          <li className="inline-flex min-h-11 items-center rounded-pill bg-white px-4 text-sm font-medium text-ink ring-1 ring-line" key={item}>
+          <li className="inline-flex min-h-11 items-center rounded-pill bg-surface px-4 text-sm font-medium text-ink ring-1 ring-line" key={item}>
             {item}
           </li>
         ))}

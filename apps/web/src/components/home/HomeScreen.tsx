@@ -78,7 +78,7 @@ export function HomeScreen() {
   return (
     <section aria-labelledby="home-screen-heading" className="bg-paper py-8 sm:py-12">
       <div className="container-site max-w-xl">
-        <h1 className="text-2xl font-bold text-indigo-950" id="home-screen-heading">
+        <h1 className="text-2xl font-bold text-ink" id="home-screen-heading">
           {greeting}
         </h1>
 
@@ -108,7 +108,7 @@ export function HomeScreen() {
           {CHIP_KEYS.map((key) => (
             <li key={key}>
               <button
-                className="inline-flex min-h-11 items-center rounded-pill bg-white px-4 text-sm font-medium text-ink ring-1 ring-line transition-colors hover:bg-indigo-50 hover:ring-indigo-200"
+                className="inline-flex min-h-11 items-center rounded-pill bg-surface px-4 text-sm font-medium text-ink ring-1 ring-line transition-colors hover:bg-indigo-50 hover:ring-indigo-200"
                 onClick={() => goToGetCare(t(`chips.${key}`))}
                 type="button"
               >
@@ -120,13 +120,13 @@ export function HomeScreen() {
 
         {lastExchange ? (
           <button
-            className="mt-6 flex w-full items-start gap-3 rounded-2xl bg-white p-4 text-left ring-1 ring-line transition-colors hover:bg-indigo-50"
+            className="mt-6 flex w-full items-start gap-3 rounded-2xl bg-surface p-4 text-left ring-1 ring-line transition-colors hover:bg-indigo-50"
             onClick={() => goToGetCare()}
             type="button"
           >
-            <MessageCircleHeart aria-hidden className="mt-0.5 size-5 shrink-0 text-indigo-700" />
+            <MessageCircleHeart aria-hidden className="mt-0.5 size-5 shrink-0 text-accent-text" />
             <div className="min-w-0">
-              <p className="text-xs font-bold tracking-wide text-indigo-700 uppercase">
+              <p className="text-xs font-bold tracking-wide text-accent-text uppercase">
                 {t('lastConversation.heading')}
               </p>
               <p className="mt-1 truncate text-sm font-semibold text-ink">{lastExchange.question}</p>
@@ -141,7 +141,7 @@ export function HomeScreen() {
 
         {familyMembers.length > 0 ? (
           <div className="mt-6">
-            <p className="flex items-center gap-1.5 text-xs font-bold tracking-wide text-indigo-700 uppercase">
+            <p className="flex items-center gap-1.5 text-xs font-bold tracking-wide text-accent-text uppercase">
               <Users aria-hidden className="size-3.5" />
               {t('family.heading')}
             </p>
@@ -149,7 +149,7 @@ export function HomeScreen() {
               {familyMembers.map((member) => (
                 <li key={member.id}>
                   <Link
-                    className="inline-flex min-h-11 items-center rounded-pill bg-white px-4 text-sm font-medium text-ink ring-1 ring-line hover:bg-indigo-50"
+                    className="inline-flex min-h-11 items-center rounded-pill bg-surface px-4 text-sm font-medium text-ink ring-1 ring-line hover:bg-indigo-50"
                     href="/account"
                   >
                     {member.displayName}
@@ -163,8 +163,14 @@ export function HomeScreen() {
           </div>
         ) : null}
 
+        {/*
+          `theme-pin-light`: `bg-indigo-50`/`ring-indigo-100` are fixed brand
+          tints, not theme tokens (see `globals.css`'s dark-theme comment) —
+          without this, `text-ink` inside would flip to near-white in dark
+          mode and go illegible against this still-light card.
+        */}
         <Link
-          className="mt-6 flex items-center gap-3 rounded-2xl bg-indigo-50 p-4 ring-1 ring-indigo-100 transition-colors hover:bg-indigo-100"
+          className="theme-pin-light mt-6 flex items-center gap-3 rounded-2xl bg-indigo-50 p-4 ring-1 ring-indigo-100 transition-colors hover:bg-indigo-100"
           href={`/health-library/${article.slug}`}
         >
           <BookOpenCheck aria-hidden className="size-5 shrink-0 text-indigo-700" />

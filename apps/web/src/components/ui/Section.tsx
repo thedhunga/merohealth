@@ -7,7 +7,10 @@ type Tone = 'surface' | 'canvas' | 'mint' | 'deep';
 const tones: Record<Tone, string> = {
   surface: 'bg-paper text-ink',
   canvas: 'bg-sand text-ink',
-  mint: 'bg-indigo-50 text-ink',
+  // `theme-pin-light`: indigo-50 is a fixed brand tint, not a theme token —
+  // without it, `text-ink` would flip to near-white in dark mode and go
+  // illegible against this still-light section (see `globals.css`).
+  mint: 'theme-pin-light bg-indigo-50 text-ink',
   deep: 'bg-indigo-900 text-white',
 };
 

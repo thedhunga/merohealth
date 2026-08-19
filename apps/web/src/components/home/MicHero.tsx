@@ -17,7 +17,10 @@ const DISC_TONE: Record<MicHeroState, string> = {
   listening: 'bg-danger-100 text-danger-500',
   thinking: 'animate-pulse bg-indigo-800 text-white motion-reduce:animate-none',
   speaking: 'bg-indigo-100 text-indigo-800',
-  unavailable: 'cursor-not-allowed bg-indigo-100 text-ink-soft',
+  // `text-indigo-700`, not `text-ink-soft`: `bg-indigo-100` is a fixed brand
+  // tint (see `globals.css`'s dark-theme comment), and `ink-soft` flips to a
+  // light colour in dark mode that would go illegible against it.
+  unavailable: 'cursor-not-allowed bg-indigo-100 text-indigo-700',
 };
 
 /**
@@ -70,7 +73,7 @@ export function MicHero({ state, label, onClick }: MicHeroProps) {
       {disabled ? (
         <p className="mt-3 max-w-[24ch] text-center text-sm text-ink-soft">{label}</p>
       ) : (
-        <p className="mt-3 text-base font-bold text-indigo-950">{label}</p>
+        <p className="mt-3 text-base font-bold text-ink">{label}</p>
       )}
     </div>
   );

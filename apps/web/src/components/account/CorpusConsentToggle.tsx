@@ -79,7 +79,7 @@ export function CorpusConsentToggle({
             )}
           >
             <span
-              className={cn('inline-block size-5 rounded-full bg-white shadow transition-transform', checked ? 'translate-x-6' : 'translate-x-1')}
+              className={cn('inline-block size-5 rounded-full bg-surface shadow transition-transform', checked ? 'translate-x-6' : 'translate-x-1')}
             />
           </span>
           <input

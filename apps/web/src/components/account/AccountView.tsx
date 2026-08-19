@@ -12,6 +12,7 @@ import { DelegationsGrantedList } from '@/components/account/DelegationsGrantedL
 import { IdentityVerification } from '@/components/account/IdentityVerification';
 import { ProfileConfirmationCard } from '@/components/account/ProfileConfirmationCard';
 import { ProfileSwitcher } from '@/components/account/ProfileSwitcher';
+import { ThemeToggle } from '@/components/account/ThemeToggle';
 import { Button, ButtonLink } from '@/components/ui/Button';
 import { PageTemplate } from '@/components/ui/PageTemplate';
 import { Section } from '@/components/ui/Section';
@@ -133,6 +134,8 @@ export function AccountView() {
             onChanged={refreshCorpusConsent}
             state={corpusConsent.status === 'loaded' ? { grants: corpusConsent.grants } : 'loading'}
           />
+
+          <ThemeToggle />
 
           {/*
             `/contribute` and `/validate` (Round six §M) have been fully built for

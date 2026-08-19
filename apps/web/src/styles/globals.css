@@ -60,6 +60,40 @@
   --color-danger-100: #fee4e2;
 
   /*
+   * The "card on paper" idiom (`border border-line bg-surface`) alongside
+   * the softer "tinted card" idiom (`bg-sand/70 ring-1 ring-line`) — two
+   * surfaces already used throughout the app under the literal name `white`.
+   * Kept as its own token, distinct from `--color-paper`, because dark mode
+   * needs to tell "the page" and "a card raised off the page" apart, the
+   * same way light mode already does (`#ffffff` cards on `#fffcf7` paper).
+   * Literal Tailwind `white` stays untouched on purpose: it also backs
+   * frosted-glass treatments floating on the permanently-dark, full-bleed
+   * indigo sections (`Hero`'s photo backdrop, `Header`, `Footer`,
+   * `OrganizationTabs`) which do not change with site theme, so `white`
+   * there must not either.
+   */
+  --color-surface: #ffffff;
+
+  /*
+   * Small accent text (an eyebrow label, an inline icon) that sits directly
+   * on the page — `paper`/`sand`/`surface` — rather than inside a fixed
+   * light chip. Light mode keeps the existing `indigo-700` exactly; dark
+   * mode needs its own lighter step, because `indigo-700` was chosen to
+   * read on paper and goes dark-on-dark once paper flips.
+   */
+  --color-accent-text: #2e2663;
+
+  /*
+   * Same idea as `accent-text`, for the rare alert/error line that has no
+   * chip background of its own (most `danger`/`success` usage does, via
+   * `danger-100`/`indigo-100`, and stays fixed — see the dark-theme block
+   * below for why those must NOT flip).
+   */
+  --color-accent-danger: #b42318;
+  /** Same idea, for a bare success/confirmation line (e.g. "invite sent"). */
+  --color-accent-success: #146c43;
+
+  /*
    * Type. Martel and Mukta are both Devanagari-native, so Nepali leads the
    * type system instead of being bolted onto a Latin face as an afterthought.
    *
@@ -88,6 +122,97 @@
   --shadow-lift: 0 2px 4px rgb(23 20 41 / 0.06), 0 28px 56px -20px rgb(23 20 41 / 0.3);
 
   --container-site: 80rem;
+}
+
+/*
+ * Dark theme — Round seven, task T.
+ *
+ * Three states, resolved in this order: an explicit `data-theme="dark"` on
+ * `<html>` (set by the account-page toggle, `useTheme.ts`) always wins;
+ * absent that, the OS/browser `prefers-color-scheme` decides live, with no
+ * JavaScript involved for that default case at all — only an explicit
+ * choice needs the toggle's localStorage read-back (see the inline script
+ * in `layout.tsx`) to avoid a flash of the wrong theme on load.
+ *
+ * Only the tokens that genuinely mean "the page" change here — `paper`,
+ * `ink`, `ink-soft`, `sand`, `line`, `surface`, `accent-text`. The indigo
+ * and marigold scales themselves do NOT change: they are already the
+ * confident, full-bleed brand grounds in light mode (`Hero`, `Header`,
+ * `Footer`, `OrganizationTabs`), so "dark theme" for this app is largely
+ * "the page background joins the brand panels that were already dark," not
+ * a second palette. `--color-indigo-50/100`, `marigold-100`, `danger-100`,
+ * `success-600/700`, `danger-500` etc. also stay fixed on purpose — they
+ * back small badge/callout chips (a verified status, an emergency notice)
+ * that are meant to read the same regardless of site theme, the way a
+ * coloured status pill does in most dark UIs. A first attempt also flipped
+ * `success-600/700`/`danger-500` for dark mode, on the assumption they were
+ * only ever read as plain text; they turned out to be paired with exactly
+ * those fixed light chips in most of the app (`bg-danger-100
+ * text-danger-500`, `bg-indigo-100 text-success-700`), so flipping only the
+ * text half broke every one of those pairings (measured 2.4:1 for the
+ * danger pairing, 1.76:1 for success — see the task log). The handful of
+ * genuine bare usages (no chip background) are pinned to light with
+ * `.theme-pin-light` at their call site instead, same as any other raw
+ * light tint.
+ *
+ * Values picked and checked against WCAG AA (4.5:1 normal text, 3:1 large
+ * text/non-text) with the actual hex pairs, not eyeballed — see the Round
+ * seven task T log entry for the numbers.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --color-paper: #0e0b1f;
+    --color-ink: #f1effb;
+    --color-ink-soft: #bdb4ee;
+    --color-sand: #171233;
+    --color-line: rgb(255 255 255 / 14%);
+    --color-surface: #171233;
+    --color-accent-text: #9c90dd;
+    --color-accent-danger: #f2705a;
+    --color-accent-success: #2fbf71;
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.45), 0 18px 40px -18px rgb(0 0 0 / 0.7);
+    --shadow-menu: 0 28px 64px -24px rgb(0 0 0 / 0.8);
+    --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.45), 0 28px 56px -20px rgb(0 0 0 / 0.75);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-paper: #0e0b1f;
+  --color-ink: #f1effb;
+  --color-ink-soft: #bdb4ee;
+  --color-sand: #171233;
+  --color-line: rgb(255 255 255 / 14%);
+  --color-surface: #171233;
+  --color-success-600: #2fbf71;
+  --color-success-700: #2fbf71;
+  --color-danger-500: #f2705a;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.45), 0 18px 40px -18px rgb(0 0 0 / 0.7);
+  --shadow-menu: 0 28px 64px -24px rgb(0 0 0 / 0.8);
+  --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.45), 0 28px 56px -20px rgb(0 0 0 / 0.75);
+}
+
+/*
+ * Escape hatch for the handful of subtrees that must render identically in
+ * both themes: a translucent light "glass" card floating on photography or
+ * on one of the permanently-dark full-bleed brand sections, where the card
+ * itself — not the page — is the thing setting the ground these tokens
+ * describe. Resets every dark-reactive token back to its light-mode value,
+ * so nesting `bg-sand`/`text-ink`/`border-line` etc. inside stays correct
+ * regardless of site theme instead of silently going near-white-on-white.
+ */
+.theme-pin-light {
+  color-scheme: light;
+  --color-paper: #fffcf7;
+  --color-ink: #171429;
+  --color-ink-soft: #55506e;
+  --color-sand: #f5f0e6;
+  --color-line: #e6e0d6;
+  --color-surface: #ffffff;
+  --color-accent-text: #2e2663;
+  --color-accent-danger: #b42318;
+  --color-accent-success: #146c43;
 }
 
 @layer base {
@@ -166,10 +291,38 @@
     }
   }
 
+  /*
+   * `marigold-300` doesn't change with theme (see the dark-theme block
+   * above), so its paired text colour is hardcoded rather than
+   * `var(--color-ink)` — `ink` flips to a near-white in dark mode, which
+   * would put light text on this same light highlight.
+   */
   ::selection {
     background-color: var(--color-marigold-300);
-    color: var(--color-ink);
+    color: #171429;
   }
+}
+
+/*
+ * Dark-mode scrim for photography — Round seven, task T. A flat wash rather
+ * than `AmbientLoop`/`EditorialImage`'s own light-mode gradient scrims
+ * (those exist for text legibility over an image and are theme-invariant),
+ * so it can layer under a caller's own gradient without doubling up.
+ * Subtle on purpose: the point is to keep a bright photograph from reading
+ * as a lit window on an otherwise dark page, not to darken the photo itself.
+ */
+.image-scrim {
+  background: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .image-scrim {
+    background: rgb(14 11 31 / 22%);
+  }
+}
+
+:root[data-theme='dark'] .image-scrim {
+  background: rgb(14 11 31 / 22%);
 }
 
 @utility container-site {

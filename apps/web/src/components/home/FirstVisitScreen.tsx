@@ -100,7 +100,7 @@ export function FirstVisitScreen() {
 
       <section aria-labelledby="what-you-get-heading" className="bg-paper pb-10 sm:pb-14">
         <div className="container-site max-w-xl">
-          <h2 className="text-center text-sm font-bold tracking-wide text-indigo-700 uppercase" id="what-you-get-heading">
+          <h2 className="text-center text-sm font-bold tracking-wide text-accent-text uppercase" id="what-you-get-heading">
             {whatYouGetT('heading')}
           </h2>
           <ul className="mt-4 grid grid-cols-3 gap-3">
@@ -115,7 +115,7 @@ export function FirstVisitScreen() {
                     src={src}
                   />
                 </div>
-                <p className="mt-2 text-xs font-bold text-indigo-950">{cardsT(`${key}.title`)}</p>
+                <p className="mt-2 text-xs font-bold text-ink">{cardsT(`${key}.title`)}</p>
                 <p className="mt-0.5 text-xs leading-snug text-ink-soft">{cardsT(`${key}.body`)}</p>
               </li>
             ))}
@@ -125,7 +125,7 @@ export function FirstVisitScreen() {
 
       <section aria-label={getCareT('eyebrow')} className="bg-paper pb-10 sm:pb-14">
         <div className="container-site max-w-xl">
-          <p className="flex items-center justify-center gap-2 text-center text-sm font-semibold text-indigo-800">
+          <p className="flex items-center justify-center gap-2 text-center text-sm font-semibold text-accent-text">
             <ShieldCheck aria-hidden className="size-4 shrink-0 text-marigold-500" />
             {hero('trustOne')}
           </p>
@@ -134,7 +134,8 @@ export function FirstVisitScreen() {
 
       <section aria-labelledby="be-first-heading" className="bg-paper pb-12 sm:pb-16">
         <div className="container-site max-w-xl">
-          <div className="rounded-card border border-marigold-300 bg-marigold-100/50 p-5 text-center sm:p-6">
+          {/* `theme-pin-light`: see `EarlyAccessCard.tsx`'s identical card for why. */}
+          <div className="theme-pin-light rounded-card border border-marigold-300 bg-marigold-100/50 p-5 text-center sm:p-6">
             <h2 className="text-lg font-bold text-ink" id="be-first-heading">
               {upsellT('comingSoonBody')}
             </h2>

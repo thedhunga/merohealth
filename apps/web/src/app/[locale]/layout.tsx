@@ -55,14 +55,29 @@ export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }
 
-// Browser chrome takes the brand indigo; `viewportFit: cover` lets the
-// installed app paint under the iPhone notch/home bar like a native app.
+// Browser chrome takes the brand indigo, light or dark depending on the OS
+// preference — `useTheme.ts`'s `applyTheme` overwrites this same
+// `theme-color` meta directly when a person picks an explicit theme via the
+// account toggle, so an override doesn't leave the chrome mismatched.
+// `viewportFit: cover` lets the installed app paint under the iPhone
+// notch/home bar like a native app.
 export const viewport: Viewport = {
-  themeColor: '#171233',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#171233' },
+    { media: '(prefers-color-scheme: dark)', color: '#0e0b1f' },
+  ],
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
 };
+
+// Runs before hydration so an explicit dark-mode override (`useTheme.ts`,
+// stored in `localStorage`) paints on the very first frame instead of
+// flashing light first. The OS-default case needs none of this — it's
+// handled by a plain `prefers-color-scheme` media query in `globals.css`
+// with zero JavaScript — so this only ever sets the attribute when there is
+// a real stored choice to honour.
+const THEME_INIT_SCRIPT = `try{var t=localStorage.getItem('mero-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}`;
 
 export async function generateMetadata({
   params,
@@ -134,7 +149,11 @@ export default async function LocaleLayout({
     <html
       className={`${martel.variable} ${martelBlack.variable} ${mukta.variable}`}
       lang={locale}
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="flex min-h-dvh flex-col bg-paper">
         <OrganizationJsonLd locale={locale} />
         <ServiceWorkerRegistration />

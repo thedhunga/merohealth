@@ -46,7 +46,7 @@ export function ProfileSwitcher({
   // accent marigold, a status indicator that happens to share the palette.
   const pillClasses = cn(
     'inline-flex items-center gap-2 rounded-pill border px-4 py-2 text-sm font-semibold',
-    active.relationship === 'SELF' ? 'border-line bg-white text-ink' : 'border-marigold-700/40 bg-marigold-100 text-marigold-700',
+    active.relationship === 'SELF' ? 'border-line bg-surface text-ink' : 'border-marigold-700/40 bg-marigold-100 text-marigold-700',
   );
 
   return (

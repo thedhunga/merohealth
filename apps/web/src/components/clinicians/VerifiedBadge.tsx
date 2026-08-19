@@ -34,7 +34,12 @@ export function VerifiedBadge({ badge, now }: { badge: CredentialingBadge; now: 
     <div
       className={cn(
         'flex flex-col gap-1 rounded-2xl p-4 ring-1',
-        verified ? 'bg-indigo-50 ring-indigo-200' : 'bg-sand/70 ring-line',
+        // `theme-pin-light` only on the verified branch: `indigo-50` is a
+        // fixed brand tint (see `globals.css`'s dark-theme comment) that
+        // would otherwise go illegible under `text-ink` in dark mode. The
+        // unverified branch already uses real theme tokens (`sand`/`line`)
+        // and flips correctly on its own.
+        verified ? 'theme-pin-light bg-indigo-50 ring-indigo-200' : 'bg-sand/70 ring-line',
       )}
       role="status"
     >

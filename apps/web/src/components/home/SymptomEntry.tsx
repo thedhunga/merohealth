@@ -80,7 +80,15 @@ export function SymptomEntry() {
         </div>
 
         <div className="mt-16 max-w-3xl lg:mt-10">
-          <div className="rounded-[1.75rem] border border-white/20 bg-white/95 p-4 text-ink shadow-lift backdrop-blur-xl sm:p-6">
+          {/*
+            `theme-pin-light`: this glass card is a translucent overlay on
+            the photo behind it, not "the page" — it must read the same
+            regardless of site theme, the same as the always-dark
+            `bg-indigo-950` section it sits in. Pins every token it and its
+            children (`bg-sand`, `text-ink`, `ring-line`) use back to their
+            light-mode values (see `globals.css`).
+          */}
+          <div className="theme-pin-light rounded-[1.75rem] border border-white/20 bg-white/95 p-4 text-ink shadow-lift backdrop-blur-xl sm:p-6">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
               <div>
                 <h2 className="font-sans text-xl font-bold tracking-normal text-ink sm:text-2xl">

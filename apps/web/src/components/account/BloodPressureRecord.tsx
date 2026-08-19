@@ -205,7 +205,7 @@ export function BloodPressureRecord() {
           <p className="font-semibold text-ink">{t('confirmation.heading')}</p>
           <ul className="flex flex-col gap-3">
             {capture.drafts.map((draft) => (
-              <li className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-4 ring-1 ring-line" key={draft.id}>
+              <li className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-surface p-4 ring-1 ring-line" key={draft.id}>
                 <div>
                   <p className="font-semibold text-ink">{locale === 'ne' ? draft.labelNe : draft.labelEn}</p>
                   <p className="text-ink-soft">

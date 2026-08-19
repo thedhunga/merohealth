@@ -115,7 +115,7 @@ function TranscriptList({ transcript }: { transcript: LiveTranscriptTurn[] }) {
 function EmergencyPanel({ template, onRestart }: { template: string | null; onRestart: () => void }) {
   const t = useTranslations('voiceLab.emergency');
   return (
-    <div className="mt-6 rounded-2xl bg-danger-100 p-5 ring-1 ring-danger-500/25 sm:p-6" role="alert">
+    <div className="theme-pin-light mt-6 rounded-2xl bg-danger-100 p-5 ring-1 ring-danger-500/25 sm:p-6" role="alert">
       <div className="flex items-center gap-3 text-danger-500">
         <TriangleAlert aria-hidden className="size-7" />
         <p className="text-sm font-extrabold tracking-wide uppercase">{t('eyebrow')}</p>

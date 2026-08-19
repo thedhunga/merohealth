@@ -207,7 +207,7 @@ export function RegisterView() {
                   aria-current={isCurrent ? 'step' : undefined}
                   className={cn(
                     'flex items-center gap-2',
-                    isCurrent ? 'text-indigo-800' : isComplete ? 'text-success-600' : 'text-ink-soft',
+                    isCurrent ? 'text-accent-text' : isComplete ? 'text-accent-success' : 'text-ink-soft',
                   )}
                   key={key}
                 >

@@ -77,7 +77,8 @@ export function InstallPrompt({ show, onDismissed }: { show: boolean; onDismisse
   };
 
   return (
-    <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-marigold-300 bg-marigold-100/60 p-4 sm:flex-row sm:items-start sm:justify-between">
+    // `theme-pin-light`: see `EarlyAccessCard.tsx`'s identical card for why.
+    <div className="theme-pin-light mt-4 flex flex-col gap-3 rounded-2xl border border-marigold-300 bg-marigold-100/60 p-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex-1">
         <p className="text-sm font-semibold text-ink">{t('heading')}</p>
         {platform === 'android' ? (

@@ -263,9 +263,15 @@ absent, this section is the source of truth), `frontend-design` skill.
 
 ## T. Dark mode
 
-- [ ] Real dark theme on indigo-950 with the marigold accent; images get a
+- [x] Real dark theme on indigo-950 with the marigold accent; images get a
       subtle scrim; forms and cards re-tokened; respects system setting;
-      toggle in the account/menu. Verify contrast (WCAG AA) on both.
+      toggle in the account/menu. Verify contrast (WCAG AA) on both. **Done
+      2026-08-19 — see the log entry below. Coverage is real but not
+      exhaustive: the account page, home screen (both first-time and
+      returning-visitor), get-care flow, and the toggle itself are verified;
+      several marketing/legal/auth pages still render their cards in light
+      colours regardless of theme (safe, not illegible — just not dark yet).
+      The log entry lists exactly which.**
 
 ## Owner-gated (not for the agent)
 
@@ -1910,6 +1916,215 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-19 — **Round seven, task T: real dark theme, marigold accent,
+  system-setting-aware, toggle in the account page.** Done, with a
+  documented coverage gap (see below). This was the last unchecked box in
+  Round seven.
+
+  **Housekeeping first.** Local `main` was a shallow clone stuck at
+  `9bdf548` (round three) while `origin/main` was 50 commits ahead at
+  `e054fbe` (round seven, task S). `git fetch --unshallow` then confirmed
+  `9bdf548` really is an ancestor of `e054fbe` — this was a shallow-clone
+  artifact, not a diverged history like a previous run hit — so a plain
+  `git merge --ff-only origin/main` was enough, no backup branch needed.
+
+  **Mechanism.** No `next-themes` or any new dependency — this repo has none
+  of that kind already, so a small hand-rolled `useTheme.ts` hook fits the
+  existing style better. Three states, resolved in this order: an explicit
+  `data-theme="dark"`/`"light"` on `<html>` (set by the account-page toggle,
+  written to `localStorage['mero-theme']`) always wins; absent that,
+  `@media (prefers-color-scheme: dark)` in `globals.css` decides live, with
+  **zero JavaScript** for that default case — confirmed by inspecting a
+  fresh page load with `data-theme` absent and the body still painting the
+  correct colours for the emulated `prefers-color-scheme`. Only the explicit
+  case needs JS at all, and only to avoid a flash: a tiny inline script in
+  `layout.tsx`'s `<head>` (not `next/script`, a bare `<script
+  dangerouslySetInnerHTML>` — needs to block paint, so `beforeInteractive`
+  would still be too late) reads `localStorage` and sets `data-theme` before
+  first paint, `suppressHydrationWarning` on `<html>` for that one attribute
+  write. `viewport.themeColor` is now the array form (`prefers-color-scheme:
+  light`/`dark` pair) so the browser chrome colour also needs no JS for the
+  default case; `useTheme`'s `applyTheme` overwrites the `<meta
+  name="theme-color">` content directly only when a person picks an explicit
+  override, so the chrome doesn't end up mismatched against a deliberate
+  choice.
+
+  **Tokens, not component-by-component styling.** `globals.css`'s `@theme`
+  block already defines `--color-paper`/`ink`/`ink-soft`/`sand`/`line` as
+  real CSS custom properties, and Tailwind v4 utilities (`bg-paper`,
+  `text-ink`, …) reference the variable rather than inlining its value — so
+  overriding those five under a `[data-theme="dark"]`/`prefers-color-scheme`
+  selector re-themes every consumer automatically, no per-component edits
+  needed for the common case. Added one new token, `--color-surface`
+  (`#ffffff` light / `indigo-900` dark), to carry the second existing card
+  idiom this app already had two of: `bg-sand/70 ring-1 ring-line` (soft
+  tint, already a token, already flips) and `border border-line bg-white`
+  (crisp card, was hardcoded `white` — swapped to `bg-surface` at every
+  genuine paper-card site, see below). Two more small tokens,
+  `--color-accent-text`/`accent-danger`/`accent-success`, for the "small
+  accent label/icon that sits directly on the page" role — see the
+  contrast-bug paragraph below for why these exist. Literal Tailwind `white`
+  itself is untouched on purpose: it also backs frosted-glass treatments
+  floating on the *permanently*-dark full-bleed indigo sections (`Hero`'s
+  photo backdrop, `Header`, `Footer`, `OrganizationTabs`'s tab pills, the
+  skip-to-content link) which do not change with site theme, so `white`
+  there must not either — conflating the two would have been the easy
+  mistake.
+
+  **The real difficulty was contrast bugs a naive token flip introduces,
+  not the flip itself.** Three separate classes of bug, found by an
+  audit agent (grepping `text-ink`/`text-ink-soft`/`bg-sand`/`border-line`/
+  `ring-line` against every ancestor background across `apps/web/src`) plus
+  manual follow-up once the pattern was clear, not by guessing:
+
+  1. **Raw palette background + token text.** `bg-marigold-100/50`,
+     `bg-indigo-50`, `bg-danger-100` etc. are deliberately fixed (badges and
+     callouts, e.g. a verified checkmark or an emergency notice, are meant
+     to read the same regardless of theme) — but several of them nest
+     `text-ink`/`text-ink-soft`, which DOES flip. `EarlyAccessCard`'s whole
+     "be first" section, `SymptomEntry`'s hero glass card (`bg-white/95` on
+     a permanently-dark photo backdrop, itself nesting a `bg-sand` search
+     bar and `bg-white` chips), `Section`'s `tone="mint"` (used by 4 pages),
+     `VerifiedBadge`'s verified state, `InstallPrompt`, `OfflineView`'s
+     emergency box, `FirstVisitScreen`'s early-access card, and three
+     `GetCareFlow` panels (`SignInSuggestion`, `UpsellCard`,
+     `ProfilePromptCard`) all had this. Fixed with a new `.theme-pin-light`
+     utility class (resets every dark-reactive token back to its light
+     value) applied at each of those container's own `className`, rather
+     than touching every descendant individually.
+  2. **Token background + fixed brand-colour text.** The inverse: a
+     literal `text-indigo-700`/`800`/`900`/`950` chosen because it "reads
+     dark on paper" breaks once paper (or `sand`, or the new `surface`)
+     itself goes dark — dark-on-dark. Found in `MicHero`'s disabled label,
+     `HomeScreen`'s heading and two accent rows, `OfflineView`'s heading,
+     `FirstVisitScreen`'s two accent rows, `TextEntryToggle`, `Button`'s
+     `secondary` variant, and six spots inside `GetCareFlow`'s conversation
+     panel and toggles. Fixed the ones sitting on the page/sand/surface
+     tokens directly (not inside a raw-tint chip, which is safe) either by
+     switching to `text-ink` (when the colour
+     wasn't really doing brand work) or the new `--color-accent-text` token
+     (indigo-700 light / a lighter indigo-ish tone dark, 6.9:1+ either way)
+     when it was.
+  3. **The one real backtrack: `success-600/700`/`danger-500` should not
+     have been flipped as plain tokens.** First pass redefined them for
+     dark mode on the assumption they were mostly read as bare text. They
+     turned out to be paired with their own fixed light chip
+     (`bg-danger-100 text-danger-500`, `bg-indigo-100 text-success-700`) in
+     the large majority of real usage — flipping only the text half of a
+     pairing whose background stays fixed is exactly bug class 2 in
+     miniature, and measured out at **2.4:1** (danger) and **1.76:1**
+     (success) against their own unflipped chip once dark-mode values were
+     in. Reverted the global override entirely and added
+     `--color-accent-danger`/`accent-success` instead, applied only at the
+     handful of genuinely bare (no-chip) usages found by hand:
+     `VoiceContributionView`'s two error lines, `DelegationForm`'s success
+     line, `GetCareFlow`'s result eyebrow, `RegisterView`'s step indicator.
+     Left every chip-paired usage (the majority) untouched — it was never
+     broken.
+
+  **Contrast, measured not eyeballed.** Every new hex pair run through the
+  actual WCAG relative-luminance formula (sRGB → linear → `0.2126R +
+  0.7152G + 0.0722B`), not approximated: dark ink `#f1effb` on dark paper
+  `#0e0b1f` → 17.0:1; dark ink-soft `#bdb4ee` → 10.1:1; dark surface
+  `#171233` (= `indigo-900`, reused rather than inventing a new hex) against
+  dark ink → 15.8:1; `accent-text` dark `#9c90dd` → 6.9–7.5:1 against
+  paper/surface; `accent-danger` dark `#f2705a` → 6.7:1; `accent-success`
+  dark `#2fbf71` → 7.5–8.1:1. All comfortably clear AA's 4.5:1 (normal text)
+  / 3:1 (large text, non-text UI) floor — chosen with headroom rather than
+  right at the line, since these are read by a worried person, not a
+  procurement team. `marigold-700` used as a bare decorative icon (not text)
+  in `GetCareFlow`'s `UnavailablePanel` measured 3.34:1 against the dark
+  surface — passes the non-text floor, left as-is.
+
+  **Image scrim.** A new `.image-scrim` overlay div (`indigo-950` at 22%
+  opacity, dark-mode/`data-theme` gated the same three-state way as the
+  tokens) added inside `EditorialImage` and `AmbientLoop` themselves, so
+  every photograph gets it automatically rather than per-caller. Deliberately
+  separate from those components' own light-mode legibility gradients
+  (`Hero`, `ServiceCards`, `SectionIntro` each layer their own
+  `from-indigo-950/NN` scrim already, for text-over-image contrast) so the
+  two can stack without fighting.
+
+  **Toggle.** `ThemeToggle.tsx` in `components/account/`, same native
+  `<input type="checkbox">` switch shape `CorpusConsentToggle.tsx` already
+  established (a real checkbox needs no ARIA role invention) — but
+  synchronous and device-local, not account-backed, since there is no
+  server concept of a person's theme. Mounted in `AccountView` next to the
+  corpus-consent toggle. New `account.theme` message keys in both
+  `en.json`/`ne.json` (Nepali: "गाढा मोड" / "उज्यालो" / "गाढा", matching the
+  existing "मोड" = "mode" convention already used for "कुराकानी मोड").
+  `CorpusConsentToggle`'s and `DataConsentView`'s own switch thumbs, which
+  were hardcoded `bg-white`, moved to `bg-surface` too — otherwise the new
+  dark-aware toggle would have sat next to two switches that stayed
+  stubbornly white.
+
+  **Coverage: what's verified, what's a known, documented gap.** Verified
+  correct (visually, at 375px, both `prefers-color-scheme` values, headless
+  Chromium against the production build) and structurally audited for the
+  two contrast-bug classes above: `Header`/`Footer` (unaffected — already
+  permanently-dark chrome), `AccountView` and its entire subtree
+  (`CorpusConsentToggle`, `ThemeToggle`, `DelegationForm`,
+  `DelegationsGrantedList`, `ProfileConfirmationCard`, `ProfileSwitcher`,
+  `BloodPressureRecord`), `HomeScreen` (the returning-visitor daily
+  surface), `FirstVisitScreen`, `MicHero`, `TextEntryToggle`, `SymptomEntry`
+  (pinned light, being a glass card on a permanently-dark photo hero),
+  `GetCareFlow`'s interactive panels (idle/loading/emergency/off-topic/
+  conversation/setup/unavailable, the sign-in and upsell cards), `Section`'s
+  `tone="mint"` (so `HealthLibraryArticleView`/`PrivacyView`/
+  `AccessibilityView`/`DataConsentView`'s second section too),
+  `DataConsentView`, `VoiceLabView`'s emergency panel, `VerifiedBadge`,
+  `InstallPrompt`, `OfflineView`, `VoiceContributionView`'s core flow,
+  `RegisterView`'s step indicator. **Not yet converted** (their cards stay
+  literal `bg-white`, which is self-consistent and not illegible — just not
+  dark — rather than half-fixed and actually broken): `PricingView`,
+  `ServiceCards`, `PartnerMarquee`, `Hero`'s two floating stat cards,
+  `MegaMenu`, `FeatureGrid`, `FaqList`, `HelpView`/`ContactView`/
+  `LegalIndexView`'s article cards, most of `PhoneOtpFlow`'s inputs/links,
+  most of `RegisterView`, the non-emergency panels in `VoiceLabView`. A
+  screenshot of `/en/account` unauthenticated (redirects to `/signin`) in
+  dark mode confirms this concretely: the page background, header, and
+  "Send code" button are all correctly dark/marigold; the phone-number input
+  is a plain white box, exactly the documented gap, not a contrast failure.
+  **For the next run, if this is picked back up:** the remaining `bg-white`
+  sites are enumerated by `grep -rn 'bg-white' apps/web/src` minus everything
+  already converted in this entry's diff; classify each against its
+  ancestor background using the same two rules above before converting —
+  several of them (`OrganizationTabs`'s tab pills, `Header`'s skip link and
+  active-tab state, `LocaleSwitcher`'s dark-header branch) are deliberately
+  excluded, not missed, because they sit on the permanently-dark chrome.
+
+  **Not fixed, called out rather than silently shipped:** `hover:bg-indigo-50`
+  /`hover:bg-indigo-100`-style hover tints paired with token text (several
+  dozen sites, including `Button`'s own `secondary` variant) have the same
+  light-tint-flash issue on `:hover` in dark mode. Left alone deliberately —
+  `:hover` essentially never fires on the touch devices this product is
+  built for ("MOBILE IS THE PRODUCT"), so this is a real but low-visibility,
+  desktop-mouse-only gap, not a shipped-broken state for the actual
+  audience.
+
+  **Mobile measurement.** This task changes colour tokens only — no markup,
+  no spacing, no new elements in the layout tree (the toggle is a new
+  section on `/account`, sized like every other section there; the image
+  scrim is an absolutely-positioned overlay with no box of its own).
+  Measured anyway rather than assumed: `document.body.scrollHeight` at
+  375×812 was identical before and after on both checked pages (home:
+  1627px, account/signin: 1762px) across both `prefers-color-scheme`
+  values — confirms no reflow, as expected for a pure re-tokening. No new
+  tap targets were added below 44px; `ThemeToggle`'s switch is the same
+  44px-tall label/checkbox shape `CorpusConsentToggle` already uses.
+
+  **Verification.** `pnpm install --frozen-lockfile` / `lint` / `typecheck`
+  / `test` (338 web + 824 api, all green, plus one new colocated
+  `useTheme.test.ts`) / `build` all pass. Caught two real syntax errors at
+  lint time before they would have failed build — `{/* JSX comment */}`
+  used as if it were a plain-JS comment directly inside `return (` (invalid;
+  a JSX comment must be a child of a JSX element, not a sibling expression
+  next to the returned root) in `EarlyAccessCard.tsx` and `OfflineView.tsx`
+  — fixed by switching those two to plain `//` comments, which are valid
+  inside a parenthesized expression. Visually verified both themes at 375px
+  with headless Chromium against the production build (`pnpm build && pnpm
+  start`), not just the dev server.
 
 - 2026-08-18 — **Round seven, task S (third box, last box in `S`):
   Devanagari+Latin subsets confirmed; Martel preload trimmed to the two

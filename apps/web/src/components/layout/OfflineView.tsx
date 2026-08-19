@@ -38,11 +38,12 @@ export async function OfflineView({ locale }: { locale: Locale }) {
   return (
     <section className="bg-paper py-12">
       <div className="container-site max-w-xl">
-        <h1 className="text-2xl font-bold text-indigo-950">{t('heading')}</h1>
+        <h1 className="text-2xl font-bold text-ink">{t('heading')}</h1>
         <p className="mt-2 text-sm text-ink-soft">{t('body')}</p>
 
         {safetyMessage ? (
-          <div className="mt-6 rounded-2xl bg-marigold-100/60 p-4 ring-1 ring-marigold-300">
+          // `theme-pin-light`: see `EarlyAccessCard.tsx`'s identical card for why.
+          <div className="theme-pin-light mt-6 rounded-2xl bg-marigold-100/60 p-4 ring-1 ring-marigold-300">
             <p className="text-xs font-bold tracking-wide text-indigo-700 uppercase">{t('emergencyLabel')}</p>
             <p className="mt-1 text-sm text-ink">{safetyMessage}</p>
           </div>

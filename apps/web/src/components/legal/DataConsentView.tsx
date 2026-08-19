@@ -102,7 +102,7 @@ export function DataConsentView() {
 
             return (
               <li
-                className="flex flex-col gap-4 rounded-card border border-line bg-white p-6 sm:flex-row sm:items-start sm:justify-between sm:gap-8"
+                className="flex flex-col gap-4 rounded-card border border-line bg-surface p-6 sm:flex-row sm:items-start sm:justify-between sm:gap-8"
                 key={purpose}
               >
                 <div className="flex-1">
@@ -126,7 +126,7 @@ export function DataConsentView() {
                   >
                     <span
                       className={cn(
-                        'inline-block size-5 rounded-full bg-white shadow transition-transform',
+                        'inline-block size-5 rounded-full bg-surface shadow transition-transform',
                         checked ? 'translate-x-6' : 'translate-x-1',
                       )}
                     />

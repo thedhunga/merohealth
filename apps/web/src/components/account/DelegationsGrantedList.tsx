@@ -81,7 +81,7 @@ export function DelegationsGrantedList({ grants, onRevoked }: { grants: readonly
         {grants.map((grant) => {
           const status = statusKey(grant, now);
           return (
-            <li className="flex flex-col gap-2 rounded-xl border border-line bg-white p-4" key={grant.id}>
+            <li className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4" key={grant.id}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-semibold text-ink">
                   {t('delegateLabel')} {grant.delegateId}

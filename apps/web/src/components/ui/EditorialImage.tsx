@@ -43,6 +43,7 @@ export function EditorialImage({
   return (
     <div className={cn('relative overflow-hidden', className)}>
       <Image alt={alt} className="object-cover" fill priority={priority} sizes={sizes} src={src} />
+      <div aria-hidden className="image-scrim absolute inset-0" />
     </div>
   );
 }

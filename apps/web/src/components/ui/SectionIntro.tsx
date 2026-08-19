@@ -174,7 +174,7 @@ export function SectionIntro({
                 {video ? <LoopVideo poster={image.src} src={video} /> : null}
                 <div className="absolute inset-0 bg-gradient-to-t from-indigo-950/30 via-transparent to-transparent" />
               </div>
-              <div className="absolute right-5 bottom-0 w-[48%] min-w-44 rounded-[1.25rem] border border-line bg-white p-3 shadow-lift sm:right-8 sm:p-4">
+              <div className="absolute right-5 bottom-0 w-[48%] min-w-44 rounded-[1.25rem] border border-line bg-surface p-3 shadow-lift sm:right-8 sm:p-4">
                 <Art className="aspect-[3/2] w-full rounded-xl" />
               </div>
             </>

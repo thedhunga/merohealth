@@ -40,7 +40,7 @@ export function EvidenceCapture({
   onCapture: (event: ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-4">
+    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
       <div>
         <p className="font-semibold text-ink">{label}</p>
         <p className="text-sm text-ink-soft">{hint}</p>

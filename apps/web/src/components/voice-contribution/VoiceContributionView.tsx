@@ -134,7 +134,7 @@ function SelfReportForm({ onSubmit }: { onSubmit: (report: VoiceClipSelfReport) 
     onSubmit({ district: district.trim(), motherTongue, ageBand, gender: gender === '' ? null : gender });
   }
 
-  const fieldClass = 'rounded-xl border border-line bg-white px-4 py-3 text-ink';
+  const fieldClass = 'rounded-xl border border-line bg-surface px-4 py-3 text-ink';
 
   return (
     <section className="container-site py-10 sm:py-16">
@@ -287,7 +287,7 @@ function TaskRecorder({
   return (
     <section className="container-site py-10 sm:py-16">
       <div className="mx-auto max-w-xl">
-        <p className="text-sm font-semibold text-indigo-800">{t('progress', { done: completedCount, total: totalTasks })}</p>
+        <p className="text-sm font-semibold text-accent-text">{t('progress', { done: completedCount, total: totalTasks })}</p>
         <h1 className="mt-2 text-2xl">{t(`tasks.${task.kind === 'READ_PROMPT' ? 'readPromptHeading' : 'freeSpeechHeading'}`)}</h1>
 
         <div className="mt-6 rounded-[1.75rem] bg-paper p-6 shadow-lift sm:p-8">
@@ -296,11 +296,11 @@ function TaskRecorder({
           </p>
 
           {status === 'unsupported' ? (
-            <p className="mt-6 text-sm font-semibold text-danger-500" role="alert">
+            <p className="mt-6 text-sm font-semibold text-accent-danger" role="alert">
               {recorderT('unsupported')}
             </p>
           ) : status === 'permission-denied' ? (
-            <p className="mt-6 text-sm font-semibold text-danger-500" role="alert">
+            <p className="mt-6 text-sm font-semibold text-accent-danger" role="alert">
               {recorderT('permissionDenied')}
             </p>
           ) : null}
