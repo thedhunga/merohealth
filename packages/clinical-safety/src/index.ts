@@ -9,7 +9,42 @@ interface SafetyRule {
 export const safetyRules: readonly SafetyRule[] = [
   { id: 'emergency-breathing-001', level: 'EMERGENCY_NOW', interrupt: true, templateId: 'emergency-general-v1', phrases: [/can'?t breathe/i, /cannot breathe/i, /difficulty breathing/i, /सास फेर्न (गाह्रो|सक्दिन)/u, /saas ferna (garo|sakdina)/i] },
   { id: 'emergency-chest-001', level: 'EMERGENCY_NOW', interrupt: true, templateId: 'emergency-general-v1', phrases: [/(?=.*chest (pain|pressure))(?=.*(severe|sweat|faint|arm|jaw))/i, /छाती.*(कडा|दुखाइ|पसिना|बेहोस)/u, /chati.*(kada|dukhai|pasina|behos)/i] },
-  { id: 'self-harm-001', level: 'MENTAL_HEALTH_CONCERN', interrupt: true, templateId: 'mental-health-crisis-v1', phrases: [/kill myself/i, /suicide/i, /end my life/i, /आत्महत्या/u, /मर्न मन लाग/u, /aatmahatya/i, /marna man lag/i] },
+  // Journey test 2026-08-19: "मलाई अब बाँच्न मन छैन" — the most common way a
+  // Nepali speaker says it — reached the model. Widened to the phrasings
+  // people actually use, in Devanagari, English and romanised Nepali. These
+  // are language patterns, not clinical claims; err towards matching.
+  {
+    id: 'self-harm-001',
+    level: 'MENTAL_HEALTH_CONCERN',
+    interrupt: true,
+    templateId: 'mental-health-crisis-v1',
+    phrases: [
+      // English
+      /kill myself/i,
+      /suicid/i,
+      /end (my|it all|everything)/i,
+      /(don'?t|do not|no longer) want to (live|be alive|be here|wake up)/i,
+      /want to die/i,
+      /better off dead/i,
+      /(hurt|harm|cut)(ing)? myself/i,
+      /no reason to (live|go on)/i,
+      // Devanagari
+      /आत्महत्या/u,
+      /मर्न (मन|चाहन्छु|चाहन्छ|मन लाग)/u,
+      /(बाँच्न|जिउन|जिउने|बाँच्ने) (मन छैन|मन लाग्दैन|इच्छा छैन|चाहन्न|चाहँदिन)/u,
+      /(बाँच्नुको|जिउनुको) (अर्थ|मतलब) छैन/u,
+      /आफैलाई (मार्न|हानि|चोट)/u,
+      /आफूलाई (मार्न|हानि|चोट)/u,
+      /मरे हुन्थ्यो/u,
+      // Romanised Nepali
+      /aatmahatya|atmahatya/i,
+      /marna (man|chahanchu|chahanchhu|man lag)/i,
+      /(bachna|bãchna|banchna|jiuna) (man chaina|man lagdaina|ichha chaina|chahanna)/i,
+      /(bachnuko|jiunuko) (artha|matlab) chaina/i,
+      /(aafailai|afailai|aafulai|afulai) (marna|hani|chot)/i,
+      /mare hunthyo/i,
+    ],
+  },
   { id: 'pregnancy-warning-001', level: 'MATERNAL_CONCERN', interrupt: true, templateId: 'maternal-urgent-v1', phrases: [/(?=.*(pregnant|pregnancy))(?=.*(heavy bleeding|seizure|severe headache))/i, /(?=.*गर्भवती)(?=.*(धेरै रगत|दौरा|कडा टाउको))/u, /(?=.*garbhawati)(?=.*(dherai ragat|daura|kada tauko))/i] },
   { id: 'pediatric-warning-001', level: 'PEDIATRIC_CONCERN', interrupt: true, templateId: 'pediatric-urgent-v1', phrases: [/(?=.*(baby|infant))(?=.*(blue|not breathing|unresponsive|seizure))/i, /(?=.*बच्चा)(?=.*(नीलो|सास.*छैन|बेहोस|दौरा))/u, /(?=.*bachcha)(?=.*(nilo|saas.*chaina|behos|daura))/i] },
 ];
