@@ -1120,3 +1120,24 @@ model HistoryExchange {
 
   @@index([userId, askedAt])
 }
+
+// Round six L′ — "premium is not for sale yet" interest list; the owner-only
+// CSV export (next queue box) reads straight off this table. `contact` is
+// the only dedupe key: the device's anonymous id is deliberately never sent
+// to `POST /early-access` (see `anonymousId()`'s own doc comment in
+// `apps/web/src/lib/anonymous-history.ts` — it stays device-local until
+// sign-in), so a contact-less registration has nothing to de-duplicate
+// against and just adds a row. `userId` starts null and is filled in later
+// by `HistoryController.migrate`, which carries the same locally-stored
+// contact along with the anon→account history migration and links any
+// matching anonymous row to the new account — see `EarlyAccessStore`.
+model EarlyAccess {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String?  @db.Uuid
+  contact      String?  @unique
+  source       String
+  registeredAt DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}

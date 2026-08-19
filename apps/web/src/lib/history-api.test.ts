@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { history, profile, recordExchange, updateProfile } from '@/lib/anonymous-history';
+import { registerEarlyAccess } from '@/lib/early-access';
 import { migrateAnonymousHistory } from '@/lib/history-api';
 
 /**
@@ -88,5 +89,28 @@ describe('migrateAnonymousHistory', () => {
     await migrateAnonymousHistory();
 
     expect(history()).toHaveLength(1);
+  });
+
+  it('still calls the server for a person who only registered early-access interest, with no history at all', async () => {
+    registerEarlyAccess({ contact: '9812345678', source: 'pricing' });
+    const fetchMock = mockFetchOnce(200);
+
+    await migrateAnonymousHistory();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as { earlyAccess?: { contact: string | null; source: string; registeredAt: string } };
+    expect(body.earlyAccess).toEqual({ contact: '9812345678', source: 'pricing', registeredAt: expect.any(String) as string });
+  });
+
+  it('omits earlyAccess from the payload when no local record exists', async () => {
+    recordExchange({ question: 'आमालाई टाउको दुख्यो', answer: 'आराम गर्नुहोस्।', language: 'ne', outcome: 'answered' });
+    const fetchMock = mockFetchOnce(200);
+
+    await migrateAnonymousHistory();
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as { earlyAccess?: unknown };
+    expect(body.earlyAccess).toBeUndefined();
   });
 });

@@ -12,6 +12,7 @@
  */
 
 import { clearAfterMigration, snapshotForMigration, stashPendingProfileConfirmation } from './anonymous-history';
+import { getEarlyAccess } from './early-access';
 
 export interface HistoryApiErrorBody {
   code?: string;
@@ -42,10 +43,17 @@ function historyUrl(path: string): string {
  * only runs once the server has actually confirmed the exchanges landed, so
  * a 500 here leaves `localStorage` exactly as it was — safe to retry on the
  * next sign-in.
+ *
+ * Round six L′: also carries the local `EarlyAccess` record, if one exists,
+ * so `HistoryController.migrate` can link it to the account that just
+ * signed in — see that route's own doc comment. This runs even for someone
+ * with no history at all, since an early-access-only registration would
+ * otherwise never reach the server authenticated.
  */
 export async function migrateAnonymousHistory(): Promise<void> {
   const snapshot = snapshotForMigration();
-  if (snapshot.store.exchanges.length === 0 && !hasProfileData(snapshot.store.profile)) {
+  const earlyAccess = getEarlyAccess();
+  if (snapshot.store.exchanges.length === 0 && !hasProfileData(snapshot.store.profile) && !earlyAccess) {
     return;
   }
   try {
@@ -53,7 +61,12 @@ export async function migrateAnonymousHistory(): Promise<void> {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(snapshot),
+      body: JSON.stringify({
+        ...snapshot,
+        ...(earlyAccess
+          ? { earlyAccess: { contact: earlyAccess.contact, source: earlyAccess.source, registeredAt: earlyAccess.registeredAt } }
+          : {}),
+      }),
     });
     if (!response.ok) return;
     // Round four F2: the raw hint just landed server-side

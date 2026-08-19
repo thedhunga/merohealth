@@ -1,6 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import type { CurrentUserResult } from '../auth/auth.service.js';
+import { EarlyAccessRateLimiter } from '../early-access/early-access-rate-limiter.js';
+import { EarlyAccessService } from '../early-access/early-access.service.js';
+import { InMemoryEarlyAccessStore } from '../early-access/in-memory-early-access.store.js';
 import { HistoryController } from './history.controller.js';
 import { HistoryService } from './history.service.js';
 import { InMemoryHistoryStore } from './in-memory-history.store.js';
@@ -32,8 +35,12 @@ const VALID_BODY = {
   },
 };
 
-function buildController(store = new InMemoryHistoryStore()) {
-  return { controller: new HistoryController(new HistoryService(store)), store };
+function buildController(store = new InMemoryHistoryStore(), earlyAccessStore = new InMemoryEarlyAccessStore()) {
+  return {
+    controller: new HistoryController(new HistoryService(store), new EarlyAccessService(earlyAccessStore, new EarlyAccessRateLimiter())),
+    store,
+    earlyAccessStore,
+  };
 }
 
 describe('HistoryController.migrate', () => {
@@ -138,6 +145,49 @@ describe('HistoryController.migrate', () => {
         profile: {},
       },
     };
+    await expect(controller.migrate(currentUser('sunita'), body)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('links a matching early-access record to the signed-in account — round six L′', async () => {
+    const { controller, earlyAccessStore } = buildController();
+    await earlyAccessStore.register({ contact: '9812345678', source: 'pricing', registeredAt: new Date(), userId: null });
+    const body = {
+      ...VALID_BODY,
+      earlyAccess: { contact: '9812345678', source: 'pricing', registeredAt: '2026-08-18T10:00:00.000Z' },
+    };
+
+    await controller.migrate(currentUser('sunita'), body);
+
+    expect(earlyAccessStore.rows[0]?.userId).toBe('sunita');
+  });
+
+  it('creates an early-access row for someone who never registered anonymously', async () => {
+    const { controller, earlyAccessStore } = buildController();
+    const body = {
+      ...VALID_BODY,
+      earlyAccess: { contact: null, source: 'other', registeredAt: '2026-08-18T10:00:00.000Z' },
+    };
+
+    await controller.migrate(currentUser('sunita'), body);
+
+    expect(earlyAccessStore.rows).toHaveLength(1);
+    expect(earlyAccessStore.rows[0]?.userId).toBe('sunita');
+  });
+
+  it('migrates history normally when there is no earlyAccess field at all', async () => {
+    const { controller, store, earlyAccessStore } = buildController();
+
+    const result = await controller.migrate(currentUser('sunita'), VALID_BODY);
+
+    expect(result).toEqual({ ok: true, alreadyMigrated: false });
+    expect(store.migrations).toHaveLength(1);
+    expect(earlyAccessStore.rows).toHaveLength(0);
+  });
+
+  it('rejects an earlyAccess block with a made-up source', async () => {
+    const { controller } = buildController();
+    const body = { ...VALID_BODY, earlyAccess: { contact: null, source: 'made-up', registeredAt: '2026-08-18T10:00:00.000Z' } };
+
     await expect(controller.migrate(currentUser('sunita'), body)).rejects.toBeInstanceOf(BadRequestException);
   });
 });

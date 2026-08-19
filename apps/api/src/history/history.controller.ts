@@ -4,6 +4,8 @@ import { z } from 'zod';
 import type { CurrentUserResult } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { SessionAuthGuard } from '../auth/session-auth.guard.js';
+import { EARLY_ACCESS_SOURCES } from '../early-access/early-access-store.js';
+import { EarlyAccessService } from '../early-access/early-access.service.js';
 import { HistoryService } from './history.service.js';
 
 // Mirrors `AnonymousExchange` in `apps/web/src/lib/anonymous-history.ts` —
@@ -32,6 +34,17 @@ const profileSchema = z.object({
   askingFor: z.string().trim().max(200).optional(),
 });
 
+// Round six L′ — mirrors the local `EarlyAccessRecord` in
+// `apps/web/src/lib/early-access.ts`, carried alongside the history snapshot
+// so a person who registered interest before signing in ends up linked to
+// their account. Optional: most migrations have no early-access record at
+// all.
+const earlyAccessSchema = z.object({
+  contact: z.string().trim().max(254).nullable(),
+  source: z.enum(EARLY_ACCESS_SOURCES),
+  registeredAt: z.string().trim().min(1),
+});
+
 // The literal shape `snapshotForMigration()` returns — `apps/web` posts it
 // to this route unmodified.
 const migrateSchema = z.object({
@@ -41,6 +54,7 @@ const migrateSchema = z.object({
     exchanges: z.array(exchangeSchema).max(40),
     profile: profileSchema,
   }),
+  earlyAccess: earlyAccessSchema.optional(),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
@@ -58,12 +72,16 @@ function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
  * (and later Google) calls this immediately after a successful verify, and
  * only clears `localStorage` once this responds 2xx — so this route must be
  * safe to retry, which is `HistoryService.migrate`'s whole idempotency
- * contract.
+ * contract. Round six L′ extended it to also link a pending `EarlyAccess`
+ * row — see `earlyAccessSchema`'s comment above.
  */
 @ApiTags('history')
 @Controller('history')
 export class HistoryController {
-  constructor(private readonly history: HistoryService) {}
+  constructor(
+    private readonly history: HistoryService,
+    private readonly earlyAccess: EarlyAccessService,
+  ) {}
 
   @Post('migrate')
   @UseGuards(SessionAuthGuard)
@@ -83,6 +101,15 @@ export class HistoryController {
             profile: { type: 'object' },
           },
         },
+        earlyAccess: {
+          type: 'object',
+          nullable: true,
+          properties: {
+            contact: { type: 'string', nullable: true },
+            source: { type: 'string', enum: EARLY_ACCESS_SOURCES as unknown as string[] },
+            registeredAt: { type: 'string' },
+          },
+        },
       },
     },
   })
@@ -94,6 +121,23 @@ export class HistoryController {
       exchanges: input.store.exchanges,
       profile: input.store.profile,
     });
+    if (input.earlyAccess) {
+      // Swallows its own failure — the history exchanges above are the
+      // point of this route, and a person's questions must land even if
+      // their interest registration can't be linked this time. A dropped
+      // link is safe to retry: the next sign-in sends the same local
+      // record again.
+      try {
+        await this.earlyAccess.linkToUser({
+          userId: user.subjectId,
+          contact: input.earlyAccess.contact,
+          source: input.earlyAccess.source,
+          registeredAt: new Date(input.earlyAccess.registeredAt),
+        });
+      } catch {
+        // See comment above.
+      }
+    }
     return { ok: true, alreadyMigrated: result.alreadyMigrated };
   }
 }

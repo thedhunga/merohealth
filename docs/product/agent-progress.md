@@ -320,10 +320,14 @@ absent, this section is the source of truth), `frontend-design` skill.
 > early access, the dialogue upsell says coming soon, interest is kept on the
 > device (`apps/web/src/lib/early-access.ts`) and flushed to the API when one exists.
 
-- [ ] `apps/api`: `POST /v1/early-access` `{contact?, source, registeredAt}` →
+- [x] `apps/api`: `POST /v1/early-access` `{contact?, source, registeredAt}` →
       `EarlyAccess` table (pseudonymous; contact optional; dedupe by contact
       or anon id); 201; rate-limited. Include the record in the anon→account
-      migration payload so a later sign-in links it.
+      migration payload so a later sign-in links it. **Done 2026-08-19 — see
+      the log entry below. Dedupe is by contact only, not anon id — the
+      device anon id is deliberately never sent pre-sign-in (see
+      `anonymousId()`'s own doc comment); linking instead rides the local
+      contact along with `HistoryController.migrate` at sign-in.**
 - [ ] Owner-only export of the early-access list (CSV) behind auth — this is
       the launch-day contact list.
 - [ ] Never flip `NEXT_PUBLIC_PREMIUM_LAUNCH=live` from the agent; owner only.
@@ -1916,6 +1920,73 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-19 — **Round six, task L′: `POST /v1/early-access` and the
+  anon→account link.** Done. First unchecked box in the queue at the start
+  of this run.
+
+  **Housekeeping first.** Local `main` had 76 commits with no common
+  ancestor with `origin/main`'s 50 — unlike the shallow-clone artifact the
+  previous run hit, this was a genuine rewrite: the ledger's own "Current
+  operating note" confirms `main` and `platform-foundation` were
+  deliberately squashed into one history on 2026-08-15. `git reset --hard
+  origin/main` synced local to the authoritative remote; nothing was lost,
+  the old ref just pre-dated the rewrite.
+
+  **What shipped.** `apps/api/src/early-access/` — `EarlyAccessStore` port
+  (`in-memory`/`Prisma` adapters, same shape as `HistoryStore`),
+  `EarlyAccessRateLimiter` (in-memory, per-IP, 5/10min), `EarlyAccessService`,
+  `EarlyAccessController` at `POST /early-access`, unauthenticated by design
+  — it's the pre-sign-in path `flushEarlyAccess` already calls. New
+  `EarlyAccess` table (`packages/database`, migration
+  `20260819000000_add_early_access`): `contact` nullable+unique, `userId`
+  nullable, `source`, `registeredAt`. `contact` is normalised server-side too
+  (`early-access/contact.ts`, reusing `normalizeNepaliPhone` from
+  `@swasthya/auth` plus an email check) so a request that skips the web
+  client still dedupes correctly.
+
+  **One deliberate deviation from the task text.** It says "dedupe by
+  contact **or anon id**" — the device anon id is never sent server-side
+  before sign-in (`anonymousId()`'s own doc comment: "Never sent anywhere
+  until sign-in"), so honouring that literally would have meant either
+  breaking that privacy invariant or silently ignoring it. Dedupe is by
+  `contact` only. The anon→account link the task also asks for
+  ("include the record in the anon→account migration payload") is what
+  actually needed the second key, and doesn't need the anon id at all:
+  `history-api.ts`'s `migrateAnonymousHistory()` now also reads the local
+  `EarlyAccess` record (`getEarlyAccess()`) and includes `{contact, source,
+  registeredAt}` in the same authenticated `POST /history/migrate` call;
+  `HistoryController.migrate` links any matching anonymous row to the
+  `userId` that request just proved (`EarlyAccessService.linkToUser`,
+  wrapped in try/catch so a bad early-access record can never fail the
+  history migration it's riding with). The early-return guard in
+  `migrateAnonymousHistory` that used to skip the call entirely when there
+  was no history is now also aware of a pending early-access record, so
+  someone who only registered interest — no questions asked yet — still
+  gets linked at sign-in.
+
+  **Rate limiting is intentionally narrow-scope.** Per-IP, in-memory,
+  resets on deploy — there is no IP-hashed durable limiter or
+  `x-forwarded-for` trust-proxy config anywhere in this codebase yet, and
+  `contact`'s unique constraint already makes a repeated *same* contact a
+  no-op regardless. This defends the actual gap (many distinct/contact-less
+  posts from one caller) without inventing new infrastructure for a
+  "register interest" feature that isn't security-critical. Flagged here as
+  the natural next upgrade if abuse is ever observed.
+
+  **Not done, deliberately out of scope for this run:** the owner-only CSV
+  export (next unchecked box) and the "never flip `NEXT_PUBLIC_PREMIUM_LAUNCH`"
+  reminder (a standing guardrail, not a task).
+
+  **Gates.** `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`,
+  `pnpm test` (853 tests, all passing, including 4 new/changed test files:
+  `contact.test.ts`, `early-access-rate-limiter.test.ts`,
+  `early-access.service.test.ts`, `early-access.controller.test.ts`, plus
+  extended `history.controller.test.ts` and `history-api.test.ts`), and
+  `pnpm build` all green. No UI or layout changed by this task — the one
+  visible-surface change is a new field in an existing background network
+  call — so no 375px screenshots were taken; nothing here touches a screen a
+  person looks at.
 
 - 2026-08-19 — **Round seven, task T: real dark theme, marigold accent,
   system-setting-aware, toggle in the account page.** Done, with a
