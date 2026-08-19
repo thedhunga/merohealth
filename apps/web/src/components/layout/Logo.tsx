@@ -34,7 +34,7 @@ export function Logo({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
         <span
           className={cn(
             'mt-1 text-sm font-medium',
-            tone === 'dark' ? 'text-indigo-600' : 'text-indigo-200',
+            tone === 'dark' ? 'text-accent-text' : 'text-indigo-200',
           )}
         >
           मेरो स्वास्थ्य

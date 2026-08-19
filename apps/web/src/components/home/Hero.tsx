@@ -76,7 +76,7 @@ export function Hero() {
         </div>
 
         <div className="reveal">
-          <p className="text-sm font-semibold tracking-[0.14em] text-indigo-600 uppercase">
+          <p className="text-sm font-semibold tracking-[0.14em] text-accent-text uppercase">
             {t('recordEyebrow')}
           </p>
           <h2

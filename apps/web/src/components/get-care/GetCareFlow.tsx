@@ -366,7 +366,7 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
                   </div>
                 </div>
                 <p className="mt-3 flex gap-2 text-xs leading-relaxed text-ink-soft">
-                  <ShieldCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-indigo-600" />
+                  <ShieldCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-accent-text" />
                   {t('form.privacy')}
                 </p>
               </form>

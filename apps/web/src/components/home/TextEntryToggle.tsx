@@ -50,7 +50,7 @@ export function TextEntryToggle({ toggleLabel, promoted, placeholder, submitLabe
           expanded ? 'hidden' : 'inline-flex',
           promoted
             ? 'rounded-pill bg-marigold-500 px-5 text-indigo-950 hover:bg-marigold-300'
-            : 'px-2 text-accent-text hover:text-indigo-800',
+            : 'px-2 text-accent-text hover:text-ink',
         )}
         onClick={() => setExpanded(true)}
         type="button"

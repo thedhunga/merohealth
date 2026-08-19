@@ -66,10 +66,12 @@ const toneStyles: Record<
   },
   paper: {
     section: 'bg-paper text-ink',
-    // indigo-600, matching `SectionHeading`'s light-tone eyebrow — `success`
-    // is reserved for verified/complete states and must never stand in for a
-    // brand accent, per the art direction's standing constraint.
-    eyebrow: 'text-indigo-600',
+    // `accent-text`, not a bare indigo-600: `bg-paper` is a theme token, and
+    // indigo-600 (chosen for the light value) drops to ~1.8:1 against dark
+    // mode's near-black paper. `success` stays reserved for verified/complete
+    // states and must never stand in for a brand accent, per the art
+    // direction's standing constraint.
+    eyebrow: 'text-accent-text',
     title: 'text-ink',
     body: 'text-ink-soft',
     caption: 'text-ink-soft',

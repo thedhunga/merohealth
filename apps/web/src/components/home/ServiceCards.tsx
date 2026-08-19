@@ -91,7 +91,7 @@ export function ServiceCards() {
                       className={
                         isFeatured
                           ? 'mb-4 inline-flex rounded-pill bg-marigold-500 px-3 py-1 text-xs font-bold tracking-wide text-indigo-950 uppercase'
-                          : 'mb-3 text-xs font-bold tracking-[.14em] text-indigo-400 uppercase'
+                          : 'mb-3 text-xs font-bold tracking-[.14em] text-accent-text uppercase'
                       }
                     >
                       0{index + 1}
@@ -149,7 +149,7 @@ export function ServiceCards() {
         {hiddenCount > 0 ? (
           <button
             aria-expanded={expanded}
-            className="mx-auto mt-8 flex min-h-11 items-center gap-2 rounded-pill border border-line px-5 text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 lg:hidden"
+            className="mx-auto mt-8 flex min-h-11 items-center gap-2 rounded-pill border border-line px-5 text-sm font-semibold text-accent-text transition-colors hover:bg-indigo-50 lg:hidden"
             onClick={() => {
               setExpanded((value) => !value);
             }}

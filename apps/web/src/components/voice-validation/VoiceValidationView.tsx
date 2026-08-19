@@ -120,7 +120,7 @@ export function VoiceValidationView() {
         <p className="mt-3 leading-relaxed text-ink-soft">{t('intro')}</p>
 
         <div className="mt-6 rounded-[1.75rem] bg-paper p-6 shadow-lift sm:p-8">
-          <p className="text-sm font-semibold text-indigo-800">
+          <p className="text-sm font-semibold text-accent-text">
             {t(clip.taskKind === 'READ_PROMPT' ? 'taskContext.readPromptHeading' : 'taskContext.freeSpeechHeading')}
           </p>
 

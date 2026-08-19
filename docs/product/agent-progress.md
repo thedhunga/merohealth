@@ -327,6 +327,21 @@ absent, this section is the source of truth), `frontend-design` skill.
       out, on inspection, to belong with the already-excluded permanently-dark
       chrome (`Header`/`Footer`/`OrganizationTabs`) — left unconverted, see
       the log for why.
+- [x] **T″. Close the *bare brand-text* gap T′'s own log entry found**:
+      T′ converted `bg-white` card backgrounds but flagged a second, broader
+      pattern as out of scope — a bare fixed-brand-colour text class
+      (`text-indigo-600` etc.) sitting directly on a *token* background
+      (`bg-paper`/`bg-sand`/`bg-surface`) rather than a matched fixed-brand
+      chip, so the text doesn't flip with its background and loses contrast
+      in dark mode. **Done 2026-08-19 — see the log entry below.** Full
+      app-wide audit of all 112 `text-indigo-*`/`text-marigold-*` usages;
+      11 real instances fixed (9 live, 2 latent/dead-code but same trap) —
+      the remaining ~99 were correctly-excluded fixed chrome or matched
+      fixed-brand chip pairs. Two undefined tokens (`marigold-800`,
+      `marigold-900`, used in three files but never defined in
+      `globals.css`) surfaced during the audit — out of scope here (not a
+      dark-mode regression, a separate missing-token bug in both themes),
+      flagged for a future run.
 
 ## Owner-gated (not for the agent)
 
@@ -1977,6 +1992,93 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-19 — **Task T″: close the bare-brand-text-on-token-background gap
+  T′'s own log entry flagged.** Done.
+
+  **Housekeeping first, same divergent-history shape as every recent run.**
+  Local `main` (tip `9bdf548`, 76 commits not on `origin/main`) and
+  `origin/main` (tip `3844456`, 50 commits not on local) again shared no
+  common ancestor — confirmed with `git merge-base main origin/main`
+  returning nothing at all, not just "diverged." `git status` was clean, so
+  `git reset --hard origin/main` was safe: no work of this run's was ever
+  on the stale local branch. Flagging again, as every recent entry has, so
+  a future run keeps checking rather than assuming.
+
+  **Why this task, not a queue item.** All nine unchecked boxes were
+  checked individually before picking anything, same audit every recent run
+  has done: task U's third box and N's payment-provider line are standing
+  rules, not one-time work; V, K′'s findings box, M's licence decision, and
+  D's Google sign-in are explicitly owner-decision-gated (`GOOGLE_CLIENT_ID`
+  is still unset — confirmed again); the two missing testimonial portraits
+  need real Higgsfield credits, not code; B1's 11.8-screen box is explicitly
+  left unchecked pending owner authorization for a content cut. With the
+  queue genuinely exhausted, per the standing instruction this run picked
+  the highest-value improvement to work already shipped: T′'s own log entry
+  ended by naming a second `Hero.tsx` eyebrow instance as "very likely not
+  the only such instance app-wide... deserves its own queue item," so that
+  became the task.
+
+  **What shipped.** Delegated the audit to a subagent (context budget: 112
+  grep matches across ~30 files is more than this run should read directly)
+  with the exact contrast-math and exclusion rules T/T′ had already
+  established, then verified its findings before touching any file. Fixed
+  9 confirmed dark-mode-only contrast failures — a bare fixed `text-indigo-*`
+  class sitting directly on a *flipping* token background (`bg-paper`/
+  `bg-sand`/`bg-surface`) instead of `text-accent-text`, so light mode looked
+  fine but dark mode's near-black token value collapsed contrast to
+  1.2–3.6:1 against a 4.5:1 (text) or 3:1 (icon/large-text) AA floor:
+  `Hero.tsx`'s second `recordEyebrow` instance (the one T′ didn't touch),
+  `Highlights.tsx`'s step number, `SectionIntro.tsx`'s `paper`-tone eyebrow
+  (the widest-blast-radius fix — nearly every inner-page hero uses this
+  component with its default tone), `GetCareFlow.tsx`'s privacy-line icon,
+  `ServiceCards.tsx`'s non-featured step number and "show more" toggle,
+  `TextEntryToggle.tsx`'s hover state (base was already correct;
+  `hover:text-indigo-800` regressed it), `VoiceValidationView.tsx`'s
+  task-context label, and `PricingView.tsx`'s plan checkmark icon. Also
+  fixed two more instances the audit found holding the identical bug shape
+  in currently-dead code paths (`Section.tsx`'s `SectionHeading` eyebrow —
+  no call site passes one today; `Logo.tsx`'s `tone === 'dark'` wordmark
+  branch — the only call site pins `tone="light"`): zero runtime impact
+  today, but the same trap waiting for the next call site that does pass an
+  eyebrow or a dark-tone logo, and each was a one-word swap once already
+  found, so fixing them now was cheaper than re-discovering them later.
+
+  **Verified two ways, not just eyeballed.** Hand-computed the WCAG
+  relative-luminance contrast for each fix against the token hex values in
+  `globals.css` before editing (documented per-file in this run's diff
+  review), then — since a class-name swap can silently no-op if the class
+  doesn't exist or Tailwind doesn't generate it — built the app
+  (`pnpm build && pnpm start`) and drove real Playwright browser contexts
+  at 375×812 against `/en` (`Hero`'s eyebrow only renders there per
+  `homeVariant` — `/`'s `ne` first-visit path shows `FirstVisitScreen`
+  instead, not the marketing `Hero`) and `/en/individuals/how-it-works`
+  (`SectionIntro`'s `paper` tone) in both `colorScheme` values, reading
+  actual computed `color`/`background-color` off the live DOM and
+  recomputing contrast from those measured pixels: `Hero` eyebrow 11.75:1
+  light / 6.36:1 dark, `SectionIntro` eyebrow 13.04:1 light / 6.86:1 dark —
+  both clear AA in both themes, matching the 6.9–7.5:1 dark range task T's
+  own entry measured for the same `accent-text` token elsewhere. Did not
+  re-measure page height/tap-targets: every change in this run is a class
+  swap on existing elements, no markup or spacing touched, same reasoning
+  T′ used to skip a full reflow pass — confirmed by the build producing an
+  identical route/bundle-size manifest to before this run's diff.
+
+  **What's still open.** Two undefined tokens surfaced during the audit:
+  `text-marigold-800` (`PricingView.tsx`, `EarlyAccessCard.tsx`) and
+  `text-marigold-900` (`GetCareFlow.tsx`) — `globals.css`'s `@theme` block
+  only defines `marigold-100/300/500/600/700`, so Tailwind v4 generates no
+  CSS for these two classes at all; the text silently inherits its
+  ancestor's color instead, in *both* themes. Not a dark-mode regression
+  (out of scope for this task) and not fixed here — it needs an owner-free
+  design call on the missing shade's hex value (or a decision to just use
+  the nearest defined step), a real queue item on its own.
+
+  **Verification.** `pnpm install --frozen-lockfile` / `lint` / `typecheck`
+  / `test` (75 tasks, 867 API tests, full web suite) / `build` (40 tasks)
+  all pass cleanly, no flakes this run. No test in the repo asserts on the
+  literal class strings this run changed, and none of the ten touched
+  components have a colocated test file.
 
 - 2026-08-19 — **Task T′: close the dark-mode coverage gap task T left
   open.** Done.

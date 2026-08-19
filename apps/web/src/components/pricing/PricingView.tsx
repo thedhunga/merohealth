@@ -155,7 +155,7 @@ export function PricingView() {
                           key={moduleKey}
                         >
                           {included ? (
-                            <Check aria-hidden className="size-4 shrink-0 text-indigo-600" />
+                            <Check aria-hidden className="size-4 shrink-0 text-accent-text" />
                           ) : (
                             <Minus aria-hidden className="size-4 shrink-0 text-ink-soft/40" />
                           )}
