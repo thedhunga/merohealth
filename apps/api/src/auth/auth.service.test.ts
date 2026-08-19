@@ -3,9 +3,12 @@ import { BadRequestException, ConflictException, NotFoundException, ServiceUnava
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthService } from './auth.service.js';
 import { InMemoryAuthStore } from './in-memory-auth.store.js';
+import { OtpRequestRateLimiter } from './otp-request-rate-limiter.js';
 import type { SmsProvider } from './sms-provider.js';
 
 const PHONE = '9812345678';
+/** The caller IP `AuthController` derives from the request and passes through. */
+const CALLER = '1.2.3.4';
 
 /* ------------------------------------------------------------------ *
  * Google ID token fixtures — the same shape `packages/auth`'s own
@@ -68,7 +71,7 @@ describe('AuthService', () => {
     process.env['AUTH_SECRET'] = 'test-secret-at-least-32-bytes-long!!';
     store = new InMemoryAuthStore();
     sms = { send: vi.fn().mockResolvedValue(undefined) };
-    service = new AuthService(store, sms as unknown as SmsProvider);
+    service = new AuthService(store, sms as unknown as SmsProvider, new OtpRequestRateLimiter());
   });
 
   afterEach(() => {
@@ -77,26 +80,58 @@ describe('AuthService', () => {
   });
 
   async function requestAndReadCode(phone = PHONE) {
-    const result = await service.requestOtp(phone);
+    const result = await service.requestOtp(phone, CALLER);
     if (!result.debugCode) throw new Error('expected a debugCode outside production');
     return { challengeId: result.challengeId, code: result.debugCode };
   }
 
   describe('requestOtp', () => {
     it('normalises the phone, creates a challenge and "sends" the code', async () => {
-      const result = await service.requestOtp('+977 981-234-5678');
+      const result = await service.requestOtp('+977 981-234-5678', CALLER);
       expect(result.challengeId).toBeTruthy();
       expect(sms.send).toHaveBeenCalledWith(PHONE, expect.stringContaining(result.debugCode!));
     });
 
     it('rejects a malformed phone before touching the store', async () => {
-      await expect(service.requestOtp('123')).rejects.toThrow(BadRequestException);
+      await expect(service.requestOtp('123', CALLER)).rejects.toThrow(BadRequestException);
       expect(sms.send).not.toHaveBeenCalled();
     });
 
     it('refuses a resend inside the cooldown window', async () => {
       await requestAndReadCode();
-      await expect(service.requestOtp(PHONE)).rejects.toMatchObject({ status: 429 });
+      await expect(service.requestOtp(PHONE, CALLER)).rejects.toMatchObject({ status: 429 });
+    });
+
+    // The abuse the per-phone cooldown above cannot see: every one of these
+    // is a *first* request for its number, so nothing else in the flow would
+    // stop a script walking the numbering range and billing us for an SMS
+    // each time.
+    it('cuts off one caller walking through distinct phone numbers, and stops sending SMS', async () => {
+      for (let i = 0; i < 10; i++) {
+        await service.requestOtp(`98123400${String(i).padStart(2, '0')}`, CALLER);
+      }
+      expect(sms.send).toHaveBeenCalledTimes(10);
+
+      await expect(service.requestOtp('9812340099', CALLER)).rejects.toMatchObject({
+        status: 429,
+        response: { code: 'OTP_RATE_LIMITED' },
+      });
+      expect(sms.send).toHaveBeenCalledTimes(10);
+    });
+
+    it('leaves a different caller their own allowance', async () => {
+      for (let i = 0; i < 10; i++) {
+        await service.requestOtp(`98123400${String(i).padStart(2, '0')}`, CALLER);
+      }
+      const result = await service.requestOtp(PHONE, '5.6.7.8');
+      expect(result.challengeId).toBeTruthy();
+    });
+
+    it('spends the caller allowance on malformed input too, so spraying garbage is throttled the same', async () => {
+      for (let i = 0; i < 10; i++) {
+        await expect(service.requestOtp('not-a-phone', CALLER)).rejects.toThrow(BadRequestException);
+      }
+      await expect(service.requestOtp(PHONE, CALLER)).rejects.toMatchObject({ status: 429 });
     });
   });
 

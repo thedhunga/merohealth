@@ -5,6 +5,7 @@ import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { SESSION_COOKIE_NAME } from './auth.constants.js';
 import { InMemoryAuthStore } from './in-memory-auth.store.js';
+import { OtpRequestRateLimiter } from './otp-request-rate-limiter.js';
 import type { AuthenticatedRequest } from './session-auth.guard.js';
 import type { SmsProvider } from './sms-provider.js';
 
@@ -20,26 +21,29 @@ function fakeResponse() {
   return { cookie: vi.fn(), clearCookie: vi.fn() };
 }
 
+/** Stands in for the Express request the controller reads a rate-limit key off. */
+const CALLER = { ip: '1.2.3.4' };
+
 describe('AuthController', () => {
   let controller: AuthController;
 
   beforeEach(() => {
     process.env['AUTH_SECRET'] = 'test-secret-at-least-32-bytes-long!!';
     const sms: SmsProvider = { send: vi.fn().mockResolvedValue(undefined) };
-    controller = new AuthController(new AuthService(new InMemoryAuthStore(), sms));
+    controller = new AuthController(new AuthService(new InMemoryAuthStore(), sms, new OtpRequestRateLimiter()));
   });
 
   it('otp/request rejects a missing phone', async () => {
-    await expect(controller.requestOtp({})).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.requestOtp({}, CALLER)).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('otp/request returns a challengeId for a valid phone', async () => {
-    const result = await controller.requestOtp({ phone: '9812345678' });
+    const result = await controller.requestOtp({ phone: '9812345678' }, CALLER);
     expect(result.challengeId).toBeTruthy();
   });
 
   it('otp/verify sets the session cookie and returns the new account', async () => {
-    const { challengeId, debugCode } = await controller.requestOtp({ phone: '9812345678' });
+    const { challengeId, debugCode } = await controller.requestOtp({ phone: '9812345678' }, CALLER);
     const res = fakeResponse();
 
     const result = await controller.verifyOtp(
@@ -53,7 +57,7 @@ describe('AuthController', () => {
   });
 
   it('otp/verify rejects a request missing the required intent field', async () => {
-    const { challengeId } = await controller.requestOtp({ phone: '9812345678' });
+    const { challengeId } = await controller.requestOtp({ phone: '9812345678' }, CALLER);
     await expect(
       controller.verifyOtp({ challengeId, code: '123456', phone: '9812345678' }, fakeResponse() as unknown as Response),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -101,7 +105,7 @@ describe('AuthController', () => {
   });
 
   it('logout revokes the session behind the request and clears the cookie', async () => {
-    const { challengeId, debugCode } = await controller.requestOtp({ phone: '9812345678' });
+    const { challengeId, debugCode } = await controller.requestOtp({ phone: '9812345678' }, CALLER);
     const verified = await controller.verifyOtp(
       { challengeId, code: debugCode, phone: '9812345678', intent: 'REGISTER', displayName: 'Sita Rai' },
       fakeResponse() as unknown as Response,

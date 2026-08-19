@@ -2,17 +2,13 @@ import { BadRequestException, Body, Controller, Get, Post, Req, Res, UseGuards }
 import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { z } from 'zod';
+import { requestIp, type IpRequest } from '../common/request-ip.js';
 import { OwnerGuard } from '../auth/owner.guard.js';
 import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { normaliseContact } from './contact.js';
 import { earlyAccessToCsv } from './early-access-csv.js';
 import { EARLY_ACCESS_SOURCES } from './early-access-store.js';
 import { EarlyAccessService } from './early-access.service.js';
-
-interface IpRequest {
-  ip?: string | undefined;
-  socket?: { remoteAddress?: string | undefined } | undefined;
-}
 
 const registerSchema = z.object({
   contact: z.string().trim().max(254).optional(),
@@ -26,10 +22,6 @@ function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
     throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Invalid request', details: parsed.error.flatten() });
   }
   return parsed.data;
-}
-
-function requestIp(request: IpRequest): string {
-  return request.ip ?? request.socket?.remoteAddress ?? 'unknown';
 }
 
 /**

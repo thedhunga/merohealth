@@ -29,6 +29,7 @@ import {
 } from '@swasthya/auth';
 import type { AssuranceLevel } from '@swasthya/shared-types';
 import { AUTH_STORE, type AuthStore, type AuthUserRecord } from './auth-store.js';
+import { OtpRequestRateLimiter } from './otp-request-rate-limiter.js';
 import { SMS_PROVIDER, type SmsProvider } from './sms-provider.js';
 
 export type AuthIntent = 'SIGN_IN' | 'REGISTER';
@@ -107,9 +108,23 @@ export class AuthService {
   constructor(
     @Inject(AUTH_STORE) private readonly store: AuthStore,
     @Inject(SMS_PROVIDER) private readonly sms: SmsProvider,
+    private readonly otpRateLimiter: OtpRequestRateLimiter,
   ) {}
 
-  async requestOtp(rawPhone: string): Promise<RequestOtpResult> {
+  /**
+   * `rateLimitKey` identifies the caller, not the phone — see
+   * `OtpRequestRateLimiter` for why the per-phone cooldown below cannot
+   * stand in for it. Checked before the phone is even parsed, so a caller
+   * spraying malformed input is throttled on the same allowance as one
+   * spraying valid numbers.
+   */
+  async requestOtp(rawPhone: string, rateLimitKey: string): Promise<RequestOtpResult> {
+    if (!this.otpRateLimiter.allow(rateLimitKey)) {
+      throw new HttpException(
+        { code: 'OTP_RATE_LIMITED', message: 'Too many code requests — try again later' },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
     const phone = parsePhone(rawPhone);
     const now = new Date();
 

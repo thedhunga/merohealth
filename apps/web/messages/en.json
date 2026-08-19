@@ -1415,6 +1415,7 @@
     "errors": {
       "INVALID_PHONE": "That doesn't look like a valid Nepali mobile number.",
       "OTP_COOLDOWN": "A code was already sent. Please wait a moment before requesting another.",
+      "OTP_RATE_LIMITED": "Too many code requests. Please try again in a few minutes.",
       "OTP_CHALLENGE_NOT_FOUND": "That code has expired or wasn't recognised. Request a new one.",
       "OTP_EXPIRED": "That code has expired. Request a new one.",
       "OTP_ATTEMPTS_EXCEEDED": "Too many incorrect attempts. Request a new code.",

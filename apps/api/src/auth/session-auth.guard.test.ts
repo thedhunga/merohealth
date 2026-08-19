@@ -2,6 +2,7 @@ import { UnauthorizedException, type ExecutionContext } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthService } from './auth.service.js';
 import { InMemoryAuthStore } from './in-memory-auth.store.js';
+import { OtpRequestRateLimiter } from './otp-request-rate-limiter.js';
 import { SESSION_COOKIE_NAME } from './auth.constants.js';
 import { SessionAuthGuard, type AuthenticatedRequest } from './session-auth.guard.js';
 import type { SmsProvider } from './sms-provider.js';
@@ -20,9 +21,9 @@ describe('SessionAuthGuard', () => {
   beforeEach(async () => {
     process.env['AUTH_SECRET'] = 'test-secret-at-least-32-bytes-long!!';
     const sms: SmsProvider = { send: vi.fn().mockResolvedValue(undefined) };
-    auth = new AuthService(new InMemoryAuthStore(), sms);
+    auth = new AuthService(new InMemoryAuthStore(), sms, new OtpRequestRateLimiter());
 
-    const { challengeId, debugCode } = await auth.requestOtp('9812345678');
+    const { challengeId, debugCode } = await auth.requestOtp('9812345678', '1.2.3.4');
     const verified = await auth.verifyOtp({
       challengeId,
       code: debugCode!,

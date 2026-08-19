@@ -50,7 +50,14 @@ can do; none of it can be automated from CI safely.
       then `certbot --apache -d api.<your-domain>`. `deploy/apache-mero-health.conf`
       is a starting point. **HTTPS is not optional**: the session cookie is
       `SameSite=None; Secure` and browsers drop it over plain HTTP, so every
-      sign-in would silently fail.
+      sign-in would silently fail. **Keep it to exactly one proxy in front of
+      the API.** `main.ts` sets Express's `trust proxy` to `1`, which is what
+      lets the rate limiters on `POST /auth/otp/request` and
+      `POST /early-access` see the real visitor instead of Apache — with a
+      second proxy in the chain they would all share one allowance again, and
+      with the API exposed directly a caller could pick its own allowance by
+      sending its own `X-Forwarded-For`. Change that number in the same
+      commit as any change to this hop count.
 - [ ] **DNS.** `api.<your-domain>` → `94.130.110.253` (A record). Wait for
       it to resolve before the certbot step.
 - [ ] **Smoke test from outside.** `curl -s https://api.<your-domain>/v1/health`

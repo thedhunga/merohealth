@@ -371,6 +371,22 @@ absent, this section is the source of truth), `frontend-design` skill.
       seen while testing the `wide`-gated nav links was flagged as possibly a
       real production bug. **Done 2026-08-19 — see the log entry below.**
 
+## X. Rate limiting on the public routes — the OTP endpoint spends real money
+
+> Every unchecked queue box was still owner/asset-gated (see the 2026-08-19
+> log entries above). Picked as this run's highest-value improvement to work
+> already done: `POST /auth/otp/request` is unauthenticated, hands a message
+> to a real SMS gateway on every accepted call, and had no per-caller limit
+> at all — only a cooldown per phone number, which a script walking the
+> numbering range never trips.
+
+- [x] Per-caller rate limit on `POST /auth/otp/request`, and make per-IP
+      keying actually work behind the documented reverse proxy — until now
+      Express reported Apache as the client on every request, so the one
+      limiter that already existed (`POST /early-access`) was silently a
+      single global allowance rather than per-visitor. **Done 2026-08-19 —
+      see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2034,6 +2050,107 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-19 — **Task X — exhausted-queue improvement: rate limiting on the
+  public API routes, and the trust-proxy bug that made the one existing
+  limiter useless.** Done.
+
+  **Housekeeping first.** `git checkout main && git pull` refused to
+  reconcile: local `main` sat at `9bdf548` with 76 commits the remote does
+  not have, and `origin/main` had been force-updated to `e0e4db8`. The
+  remote already carries `backup/pre-force-push-main-9bdf548`, so nothing was
+  at risk; `git checkout -B main origin/main` realigned it. Note for future
+  runs: this is now the *fourth* entry in a row describing the same
+  housekeeping, and the two earlier explanations conflict (one blamed a
+  shallow clone, one real divergence). This clone was **not** shallow
+  (`--is-shallow-repository` → `false`) and the histories genuinely had no
+  common ancestor, so `--unshallow` would not have helped here.
+
+  **Why this task.** The nine unchecked boxes are unchanged and all still
+  owner/asset-gated. Rather than re-mine the veins recent entries closed off
+  (tap targets, dark mode, page weight, test coverage, i18n parity, a11y
+  labels, error boundaries), asked a research agent for a dimension nobody
+  has swept, then verified its finding by reading the code directly: this
+  API has **no request-rate throttling of any kind** — no `@nestjs/throttler`,
+  no global guard, nothing in `main.ts`'s bootstrap. Two unauthenticated
+  `POST` routes are exposed by that, and one of them costs money.
+
+  **The real bug, and it is worse than the missing limit.**
+  `EarlyAccessRateLimiter` (the one limiter that did exist) keys on
+  `request.ip`. Production puts Apache in front of a loopback-bound API
+  (`docs/deployment/dedicated-server.md`), and Express does not read
+  `X-Forwarded-For` unless `trust proxy` is set — which it was not. So
+  `request.ip` was Apache's own address on **every** request, and that
+  "per-IP" limiter was in fact one global bucket for the whole country.
+  Measured rather than argued: booted the built API with the setting off and
+  sent one request each from twelve *different* forwarded client IPs — the
+  11th and 12th were refused 429 despite each visitor having made exactly one
+  request. That is the pre-existing behaviour, and any new per-IP limiter
+  would have inherited it.
+
+  **What shipped.**
+  - `main.ts`: `app.set('trust proxy', 1)` (typed via
+    `NestExpressApplication`). Exactly one hop, deliberately — trusting more
+    hops than really exist is what makes the header spoofable.
+  - `common/sliding-window-rate-limiter.ts` + test: the window logic lifted
+    out of `EarlyAccessRateLimiter`, now taking its numbers by constructor so
+    two callers can differ. Added key eviction it did not have: keys were
+    only pruned when that same key called again, so a caller rotating IPs
+    grew the map without bound — a leak that mattered little on a global
+    bucket and rather more now that keys are real client addresses.
+  - `common/request-ip.ts`: the `requestIp`/`IpRequest` pair, previously
+    inline in `EarlyAccessController`, now shared by both controllers and the
+    single place the trust-proxy dependency is documented.
+  - `auth/otp-request-rate-limiter.ts`: 10 per 10 minutes per caller.
+    `AuthService.requestOtp` takes a `rateLimitKey` and checks it *before*
+    parsing the phone, so spraying malformed input spends the same allowance.
+    Throws `OTP_RATE_LIMITED` / 429, matching the shape of the existing
+    `OTP_COOLDOWN`.
+  - `apps/web`: `OTP_RATE_LIMITED` added to `PhoneOtpFlow`'s
+    `KNOWN_ERROR_CODES` with copy in both locales, so the person sees "try
+    again in a few minutes" rather than the generic fallback.
+  - The runbook gained a line under the Apache step: the hop count and
+    `trust proxy` must change together.
+
+  **On the 10-per-10-minutes number.** Deliberately loose for a route a real
+  person uses once or twice, because Nepali mobile networks put many
+  subscribers behind carrier-grade NAT — a tight per-IP limit would lock real
+  people out of sign-in, which is a worse failure than a slower attacker.
+  Bounding the spend *at all* is the win; the ceiling should come down once
+  real traffic shows what normal looks like. Recorded here so a future run
+  tightening it knows the constraint it is trading against.
+
+  **Verification.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75/75) / `pnpm build` (40/40) all
+  green. Then proved it live against the built API rather than trusting the
+  unit tests: booted it with an unreachable `DATABASE_URL` (which conveniently
+  isolates the limiter — the store call 503s, so a 429 can only come from the
+  limiter itself) and drove `POST /v1/auth/otp/request` with curl. Requests
+  1–10 from one forwarded IP → 503; request 11 → 429 `OTP_RATE_LIMITED`. A
+  *different* forwarded IP immediately afterwards → 503, i.e. its own
+  allowance, which is the whole point and the thing that failed in the
+  before-measurement above. A caller prepending its own
+  `X-Forwarded-For: 9.9.9.9, 203.0.113.7` entry to escape its bucket → still
+  429, confirming one trusted hop takes the rightmost entry. No journey
+  update under task U's standing rule: no flow changed, and the only UI
+  change is one more error string rendered by the existing `FormError` at the
+  same place `OTP_COOLDOWN` already renders — no new element, no new tap
+  target, no layout change, so the 375px measurements are unchanged.
+
+  **For the next run.** The queue is exhausted again on the same nine boxes.
+  Two things this pass deliberately did not take on: (1) there is still no
+  *global* ceiling, so a genuine botnet with many real IPs can still run up
+  SMS cost — the honest fix is a spend cap at the SMS provider, which is an
+  owner action, not code; (2) the limiter is in-memory per instance, so it
+  silently weakens the moment the API runs more than one replica. Both are
+  written into the code's own doc comments. The other candidate the sweep
+  surfaced and left alone: `apps/web` sets `X-Frame-Options`,
+  `Referrer-Policy`, `X-Content-Type-Options` and `Permissions-Policy` in
+  `next.config.ts` but has **no Content-Security-Policy and no HSTS**. That
+  is a real gap, but a correct CSP needs per-request nonces for the
+  `application/ld+json` blocks in `OrganizationJsonLd.tsx`/`FaqList.tsx` and
+  there is no `middleware.ts` to mint them — a bigger, riskier change than it
+  looks, and worth its own run rather than a corner of this one.
 
 - 2026-08-19 — **Exhausted-queue improvement: branded `not-found`/`error`
   boundaries for `[locale]`, closing the one visible inconsistency none of

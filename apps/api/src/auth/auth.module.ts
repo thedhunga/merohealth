@@ -3,6 +3,7 @@ import { PrismaModule } from '../prisma/prisma.module.js';
 import { AUTH_STORE } from './auth-store.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
+import { OtpRequestRateLimiter } from './otp-request-rate-limiter.js';
 import { PrismaAuthStore } from './prisma-auth.store.js';
 import { createSmsProvider, SMS_PROVIDER } from './sms-provider.js';
 import { SessionAuthGuard } from './session-auth.guard.js';
@@ -12,6 +13,7 @@ import { SessionAuthGuard } from './session-auth.guard.js';
   controllers: [AuthController],
   providers: [
     AuthService,
+    OtpRequestRateLimiter,
     SessionAuthGuard,
     { provide: AUTH_STORE, useClass: PrismaAuthStore },
     { provide: SMS_PROVIDER, useFactory: createSmsProvider },

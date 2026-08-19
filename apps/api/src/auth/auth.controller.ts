@@ -3,6 +3,7 @@ import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SESSION_TTL_MS } from '@swasthya/auth';
 import type { Response } from 'express';
 import { z } from 'zod';
+import { requestIp, type IpRequest } from '../common/request-ip.js';
 import { SESSION_COOKIE_NAME } from './auth.constants.js';
 import { AuthService, type CurrentUserResult } from './auth.service.js';
 import { CurrentUser } from './current-user.decorator.js';
@@ -61,9 +62,9 @@ export class AuthController {
   @Post('otp/request')
   @ApiOperation({ summary: 'Send a one-time code to a Nepali mobile number' })
   @ApiBody({ schema: { type: 'object', required: ['phone'], properties: { phone: { type: 'string' } } } })
-  async requestOtp(@Body() body: unknown) {
+  async requestOtp(@Body() body: unknown, @Req() request: IpRequest) {
     const input = parseOrThrow(requestOtpSchema, body);
-    return this.auth.requestOtp(input.phone);
+    return this.auth.requestOtp(input.phone, requestIp(request));
   }
 
   @Post('otp/verify')
