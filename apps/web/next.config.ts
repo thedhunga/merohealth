@@ -2,7 +2,11 @@ import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
 
 import { getExpoStaticRewrites } from './expo-static-routes';
-import { SAME_ORIGIN_MEDIA_POLICY } from './security-policy';
+import {
+  SAME_ORIGIN_MEDIA_POLICY,
+  SCOPED_CONTENT_SECURITY_POLICY,
+  STRICT_TRANSPORT_SECURITY,
+} from './security-policy';
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
@@ -47,6 +51,18 @@ const nextConfig: NextConfig = {
             // Cross-origin frames remain blocked; location and payment stay off.
             value: SAME_ORIGIN_MEDIA_POLICY,
           },
+          { key: 'Content-Security-Policy', value: SCOPED_CONTENT_SECURITY_POLICY },
+          { key: 'Strict-Transport-Security', value: STRICT_TRANSPORT_SECURITY },
+          // Isolates this site's browsing context group from cross-origin
+          // windows it opens (the two `target="_blank"` links in
+          // `Footer.tsx`/`GetCareFlow.tsx`) — Spectre-class protection with
+          // no functional cost, since nothing here relies on `window.opener`
+          // and Google Identity Services' sign-in flow is iframe-based, not
+          // a popup this would sever.
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          // Nothing outside this origin is meant to hotlink our images or
+          // fonts; no partner embed depends on it today.
+          { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
         ],
       },
     ];

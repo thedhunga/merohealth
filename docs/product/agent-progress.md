@@ -2051,6 +2051,113 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-19 — **Exhausted-queue improvement: security response headers
+  (`Strict-Transport-Security`, a scoped `Content-Security-Policy`,
+  `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy`) — the exact
+  gap the previous run's own log entry named and deferred.** Done, at a
+  deliberately narrower scope than first planned, for a concrete reason
+  recorded below.
+
+  **Housekeeping first.** Same shape as the last several runs: local `main`
+  (`9bdf548`, 76 commits) and `origin/main` (`ee36cbd`, 50 commits) shared no
+  common ancestor. `git status` was clean, so `git reset --hard origin/main`.
+
+  **Why this task.** The nine queue boxes are unchanged, still all
+  owner/asset-gated (Google sign-in's `GOOGLE_CLIENT_ID`, two missing
+  testimonial portraits, three payment/licence/duplex-findings owner calls,
+  B1's screen-count product call, task V's priority call, task U's standing
+  rule). The previous entry (rate limiting) had already named the next real
+  gap in its own "for the next run" note: `apps/web` sets
+  `X-Content-Type-Options`/`Referrer-Policy`/`X-Frame-Options`/
+  `Permissions-Policy` but ships no CSP and no HSTS.
+
+  **What changed from the plan that entry sketched.** It assumed the hard
+  part was minting per-request nonces for the two inline
+  `application/ld+json` blocks. Building that (a `middleware.ts` per Next's
+  own documented CSP recipe) surfaced something worse, confirmed empirically
+  rather than assumed: reading `headers()` anywhere in the tree the root
+  layout shares — which a nonce-based approach requires, since
+  `OrganizationJsonLd` and the dark-mode-flash guard script both live in
+  `[locale]/layout.tsx` — forces Next to opt the *entire* route into
+  per-request dynamic rendering. Confirmed with `next build`'s own route
+  table before touching anything: every one of this app's ~50 locale routes
+  is `●` (SSG, prerendered at build time) today. A nonce-based CSP would
+  flip all of them to `ƒ` (server-rendered on every request), trading away
+  exactly the static-hosting foundation the `S`/`S′` page-weight tasks spent
+  several runs fighting for — a real, product-relevant regression, not
+  something to ship as a side effect of a header.
+
+  Considered a hash-based alternative next (SHA-256 sources for the known
+  inline scripts, computed at build time from a shared builder function so
+  the component and the hash-computation code can't drift) — this avoids
+  the dynamic-rendering trap since hashes need no per-request `headers()`
+  call. It fails for a different, harder reason: Next's own App Router
+  injects a `self.__next_f.push(...)` hydration script into *every* page,
+  with content that's unique per page and per build. No static hash list
+  can cover that, and without a nonce there's no way to tell Next to sign
+  its own script with one — confirmed by reading how Next's documented CSP
+  nonce support actually works, not assumed. So a real `script-src`
+  restriction on this app needs the nonce path, and the nonce path needs
+  the SSR trade-off above. That trade-off is a product call (page weight vs.
+  script-injection hardening), not a code task — left for an owner decision
+  or a dedicated run, and written here so the next run doesn't re-spend the
+  same investigation.
+
+  **What shipped instead, and why it's still real.** A `Content-Security-Policy`
+  that restricts only `object-src`/`base-uri`/`form-action`/`frame-ancestors`,
+  none of which touch how any script or style loads — so it needed no nonce,
+  no hash, and no `middleware.ts`, and every route stayed exactly as static
+  as it was (`next build`'s route table is unchanged, confirmed by diffing
+  it against a build from before this change). It still blocks plugin-embed
+  attacks, `<base>`-tag hijacking, and cross-origin form-hijacking redirects
+  — verified before shipping, not assumed, that nothing in `apps/web/src`
+  would be affected: no `<form>` sets a native `action` (every one is
+  `onSubmit`-driven) and nothing calls `window.open`. Alongside it:
+  `Strict-Transport-Security` (two years, subdomains, no `preload` —
+  submitting to the browser preload list is slow to reverse and is an owner
+  call, not this run's to make) and `Cross-Origin-Opener-Policy`/
+  `Cross-Origin-Resource-Policy: same-origin` (Spectre-class isolation;
+  confirmed safe against the two `target="_blank"` links in `Footer.tsx`/
+  `GetCareFlow.tsx` since neither relies on `window.opener`, and Google
+  Identity Services' sign-in is iframe/prompt-based, not a popup this would
+  sever). All four live in `security-policy.ts` (the same file
+  `SAME_ORIGIN_MEDIA_POLICY` already lived in) with a doc comment on the CSP
+  constant carrying the full reasoning above, plus a colocated test
+  (`src/lib/security-policy.test.ts`) that pins the exact directive list and
+  asserts `script-src`/`style-src`/`img-src`/`connect-src` are absent — so a
+  future edit that adds one of those without re-reading this reasoning fails
+  a test instead of silently regressing every hydration script in
+  production.
+
+  **Verification.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75/75) / `pnpm build` (40/40) all
+  green. Then proved it live rather than trusting the build output alone:
+  built and served with `pnpm start`, confirmed all four headers present via
+  `curl -I` on `/`, `/en`, and `/en/individuals/faqs`; drove `/`, `/en`,
+  `/en/individuals/faqs`, `/en/signin`, `/en/register` with headless
+  Chromium (`/opt/pw-browsers/chromium-1194`) and watched for
+  `securitypolicyviolation`/console "refused to" errors — none. Rebuilt once
+  more with a fake `NEXT_PUBLIC_GOOGLE_CLIENT_ID` set (unset in this
+  environment otherwise, so `GoogleSignInButton` renders nothing by default)
+  specifically to confirm the CSP doesn't block the external
+  `accounts.google.com/gsi/client` script tag it inserts — it loads fine
+  under this policy (the one failure was `ERR_CONNECTION_RESET` reaching
+  Google's real servers from this sandbox, unrelated to CSP). No journey
+  update under task U's standing rule: no flow, element, or layout changed,
+  only response headers — the 375px measurements from prior runs still
+  hold, confirmed by checking the response headers add no body bytes and
+  the `next build` output's static/dynamic route table is byte-identical to
+  before this change.
+
+  **For the next run.** The queue is exhausted again on the same nine boxes.
+  The CSP `script-src`/`style-src` gap this entry traced to its actual root
+  cause (SSG vs. per-request nonce) is now a documented, scoped decision
+  waiting on either an owner call on the performance trade-off, or a
+  from-scratch migration off `self.__next_f.push` hydration scripts —
+  neither is a quick follow-up. Don't re-open the nonce/hash investigation
+  without reading `security-policy.ts`'s own comment first; it's already
+  been done once.
+
 - 2026-08-19 — **Task X — exhausted-queue improvement: rate limiting on the
   public API routes, and the trust-proxy bug that made the one existing
   limiter useless.** Done.
