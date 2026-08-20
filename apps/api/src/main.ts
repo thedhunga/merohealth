@@ -4,10 +4,12 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
 import { DatabaseUnavailableFilter } from './prisma/database-unavailable.filter.js';
+import { configureSecurityHeaders } from './security-headers.js';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
   app.setGlobalPrefix('v1');
+  configureSecurityHeaders(app);
   // Express's body-parser defaults to a 100kb JSON limit when left unset. JSON
   // has no binary type, so `records.controller.ts`'s document capture and
   // `language-corpus.controller.ts`'s voice-clip submission both send a real

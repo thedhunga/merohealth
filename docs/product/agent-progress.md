@@ -811,6 +811,31 @@ absent, this section is the source of truth), `frontend-design` skill.
       the field actually holds today: a name, a reason, a clinical note, a
       JWT — never a payload. **Done 2026-08-20 — see the log entry below.**
 
+## LL. `apps/api` had zero response security headers — the category task KK's own log entry named but didn't use
+
+> Task KK's "for the next run" note listed the categories a fresh sweep
+> should pick from once the access-control, rate-limiting and input-
+> validation threads all ran dry: dead code, skipped tests, `apps/mobile`
+> crash paths, security headers. Checked security headers first — `apps/api`
+> (behind its own Apache reverse proxy per `main.ts`'s `trust proxy`
+> comment, `docs/deployment/dedicated-server.md`) turned out to set none at
+> all, unlike `apps/web`, which already gets `X-Content-Type-Options`,
+> `Referrer-Policy` and `X-Frame-Options` from `vercel.json`
+> (`docs/deployment/hosting-migration-inventory.md` §4).
+
+- [x] Added `helmet` and a `configureSecurityHeaders(app)` helper
+      (`apps/api/src/security-headers.ts`), called from `main.ts`'s
+      `bootstrap()`. Sets `X-Content-Type-Options: nosniff`,
+      `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-
+      origin` (matching `apps/web`'s own value so the two surfaces agree),
+      `Strict-Transport-Security` and the rest of helmet's defaults on every
+      route. `Content-Security-Policy` is explicitly left off: this is a
+      JSON API, and the one HTML surface it serves — Swagger UI at `/docs`
+      — bootstraps itself with an inline script helmet's default CSP would
+      block; a CSP scoped to just `/docs` was more machinery than a
+      developer-only page justifies. **Done 2026-08-20 — see the log entry
+      below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2560,6 +2585,98 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task LL — exhausted-queue improvement: add response
+  security headers (`helmet`) to `apps/api`, the "security headers" category
+  task KK's own log entry named but didn't use.** Done.
+
+  **Housekeeping first.** Local `main` was a stale clone from before a
+  force-push consolidation — the same shape KK's and JJ's own entries hit —
+  with no shared ancestor against `origin/main`
+  (`559143b`). `backup/pre-force-push-main-9bdf548` on the remote held the
+  stale local tip exactly; `git status` was clean, so `git reset --hard
+  origin/main` was safe and lost nothing.
+
+  **Queue check.** Read every unchecked box, not just counted: the standing
+  "every future task adds a journey" rule (no discrete deliverable, task U),
+  `InstallPrompt`/`SignInSuggestion` (task V — a UX priority call for the
+  owner, not something a "add security headers"-shaped run should also
+  decide), `NEXT_PUBLIC_PREMIUM_LAUNCH=live`, the duplex-voice go/no-go, the
+  corpus licence decision, the payment-provider choice, Sign in with Google
+  (blocked on the owner's OAuth client id), the two missing testimonial
+  portraits (blocked on Higgsfield credits), and every item in
+  "Owner-gated" — all still genuinely owner-gated or blocked on an external
+  asset, same conclusion every recent run has reached. Task KK's own log
+  entry closed the last lead from either the access-control/rate-limiting
+  thread or the input-validation thread and named four fresh categories for
+  the next run to pick from: dead code, skipped tests, `apps/mobile` crash
+  paths, security headers.
+
+  **What the sweep found.** Read `apps/api/src/main.ts`'s full `bootstrap()`
+  end to end: body parser limit, trust-proxy, the database-unavailable
+  filter, CORS — no `helmet`, no manual header-setting, nothing. Checked
+  `docs/deployment/dedicated-server.md` (the Apache config that fronts this
+  API in the one documented deployment) for header-setting on the proxy
+  side — none. Checked `docs/deployment/hosting-migration-inventory.md` §4,
+  which documents that `apps/web` already carries `X-Content-Type-Options`,
+  `Referrer-Policy` and `X-Frame-Options` from `vercel.json`, with HSTS and
+  CSP flagged there as "missing today, add on the new host" — but that
+  doc's own §7 is explicit that `apps/api` is a separate migration with its
+  own host, not covered by that checklist. Net: `apps/web` has a documented
+  (if incomplete) header story; `apps/api` — the surface actually carrying a
+  person's health data in every JSON response — had none at all. Confirmed
+  `helmet` was not already a dependency anywhere in the monorepo before
+  adding it.
+
+  **What shipped.** `apps/api/src/security-headers.ts` exports
+  `configureSecurityHeaders(app)`, called once from `main.ts`'s
+  `bootstrap()` right after `setGlobalPrefix`. Uses `helmet` (added as a
+  direct dependency of `@swasthya/api`, pinned `8.3.0`) with
+  `contentSecurityPolicy: false` — documented inline: this is a JSON API,
+  and its one HTML surface, Swagger UI at `/docs`, bootstraps with an
+  inline script a default CSP blocks; the framework's own docs make the
+  same call for helmet + Swagger. `frameguard` is set explicitly to `deny`
+  and `referrerPolicy` to `strict-origin-when-cross-origin` so this matches
+  the value `apps/web` already ships rather than picking helmet's own
+  default (`no-referrer`) and having the two surfaces disagree.
+  `Permissions-Policy` was left out on purpose: it governs a *page's*
+  access to browser features (camera, mic, geolocation), which is
+  `apps/web`'s concern for its own HTML — `apps/api` never serves a page
+  that captures any of those itself, so the header would be decoration
+  here, not a fix.
+
+  **Tests.** `apps/api/src/security-headers.test.ts` — new, colocated. Boots
+  a real Nest HTTP server (`Test.createTestingModule` + `createNestApplication`
+  + `app.init()` + `server.listen(0)`, not just `.compile()`, since helmet is
+  Express middleware wired in `main.ts`, outside the module graph
+  `app.module.test.ts` already covers) against the dependency-free
+  `HealthController`, then does a real `fetch` to `GET /health` and asserts
+  `x-content-type-options: nosniff`, `x-frame-options: DENY`,
+  `referrer-policy: strict-origin-when-cross-origin`, and that
+  `content-security-policy` is absent. This is a genuine behaviour change
+  (new headers on every response), unlike JJ's/KK's bootstrap-config
+  changes, so unlike those entries this one adds a test rather than relying
+  on the gate alone. `pnpm test` went from 933 to 934 API-suite tests (one
+  new test file); every other suite unchanged.
+
+  **Gate.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75/75, 934 tests) / `pnpm build`
+  (40/40) all green from the repo root. No journey update under task U's
+  standing rule and no 375px measurement: server-side response headers
+  only, no change to any rendered page or user-facing product surface.
+
+  **For the next run.** Security headers for `apps/api` are done; the three
+  other categories task KK named — dead code, skipped tests, `apps/mobile`
+  crash paths — are still open and untouched by this run. `grep -rn
+  "\.skip(\|xit(\|xdescribe("` across `apps` and `packages` currently
+  surfaces only two intentional, already-explained `test.skip` calls in
+  `apps/web/e2e` (device- and env-gated, not disabled tests) — that
+  category may already be clean, but wasn't investigated deeply enough this
+  run to close it out; a future run should verify rather than assume.
+  `apps/mobile` crash paths and dead code remain fully open. Expect the same
+  "everything checked is owner-gated" queue-check result to keep recurring
+  until the owner clears one of the decisions listed above — read the queue
+  fresh each time regardless, since a new one could land at any point.
 
 - 2026-08-20 — **Task KK — exhausted-queue improvement: bound every
   unbounded free-text `z.string()` field across `apps/api`'s 22 controllers,
