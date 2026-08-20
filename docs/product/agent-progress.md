@@ -697,6 +697,45 @@ absent, this section is the source of truth), `frontend-design` skill.
       `providers`.
       **Done 2026-08-20 — see the log entry below.**
 
+## II. Rate limit `GET .../voice-contribution/clips/:clipId/audio` — the read side of task HH's own "for the next run" lead
+
+> Task HH's log entry left one lead genuinely open: whether any `GET` route
+> across the 27 `apps/api` controllers fans out to a per-call external
+> service (not just a local DB read) with no rate limit. A full audit (every
+> `.service.ts` file that calls `fetch`/`axios`/an external client) found
+> exactly two: `gemini-extraction.service.ts` and
+> `perplexity-health.service.ts` — both wired only to already-limited `POST`
+> routes (tasks GG and Y). The one real hit was one level down: MinIO
+> object-storage calls, the same category `VoiceClipSubmissionRateLimiter`
+> already treats as worth bounding on the *write* side
+> (`HealthDocumentStore.put()`, its own "exhausted-queue improvement" log
+> entry — not itself a lettered queue task, per HH's own log entry noting
+> the bookkeeping gap). Its read counterpart —
+> `LanguageCorpusService.clipAudio`'s `HealthDocumentStore.get()`, reached
+> through `GET voice-contribution/clips/:clipId/audio` — had no limiter at
+> all, `SessionAuthGuard` only. `RecordsController`'s own `GET` routes were
+> checked too and confirmed clean: every one of them reads document
+> metadata, never bytes, so this clip-audio route is the only GET-triggered
+> storage fetch anywhere in `apps/api` today.
+
+- [x] `VoiceClipAudioRateLimiter`
+      (`apps/api/src/language-corpus/voice-clip-audio-rate-limiter.ts`): an
+      `@Injectable()` subclass of `SlidingWindowRateLimiter`, 40 calls per 10
+      minutes — double `VoiceClipSubmissionRateLimiter`'s ceiling, since a
+      validator legitimately listens to more clips than they record in one
+      sitting, while still bounding a scripted download loop. Keyed by
+      `subjectId`: `clipAudio` sits behind `SessionAuthGuard`, so a stable
+      per-caller identity already exists, the same reasoning
+      `VoiceClipSubmissionRateLimiter` documents. `LanguageCorpusController`
+      gained the limiter as a third constructor parameter
+      (explicit-annotation-plus-default-value, matching the existing
+      `submissionLimiter`); `clipAudio` checks it first and throws
+      `HttpException({code: 'RATE_LIMITED', ...}, 429)` on refusal — the
+      method was already `async` for its own `await`, so the throw already
+      rejects rather than escaping synchronously. Registered on
+      `LanguageCorpusModule`'s `providers`.
+      **Done 2026-08-20 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2446,6 +2485,95 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task II — exhausted-queue improvement: rate limit `GET
+  .../voice-contribution/clips/:clipId/audio`, the read side of task HH's
+  own "for the next run" lead.** Done.
+
+  **Housekeeping first.** Same shape every recent run has hit: local `main`
+  was stale (last synced before the 2026-08-15 history consolidation),
+  `origin/main` had moved on via the documented force-push pattern, and a
+  `backup/pre-force-push-main-*` branch on the remote held the stale tip
+  exactly. `git status` was clean, so `git checkout -B main origin/main`
+  was safe and lost nothing local — this run's own copy of the same
+  now-routine check dozens of prior entries already ran.
+
+  **Queue check.** Read every unchecked box, not just the count: the
+  standing "every future task adds a journey" rule (no discrete
+  deliverable), `InstallPrompt`/`SignInSuggestion`, `NEXT_PUBLIC_PREMIUM_
+  LAUNCH=live`, the duplex-voice findings section, the corpus licence
+  decision, and the payment-provider choice — all still genuinely
+  owner-gated, same conclusion every recent run reached. Task HH's own log
+  entry left one lead unstarted: whether any `GET` route across the 27
+  `apps/api` controllers fans out to a per-call external service, not just
+  a local DB read, with no rate limit.
+
+  **What the audit found.** Grepped every `*.service.ts` under `apps/api/
+  src` for `fetch(`/`axios`/`HttpService`/a generated-client import: exactly
+  two hits, `gemini-extraction.service.ts` and `perplexity-health.service
+  .ts`. Both are wired only to `POST` routes already rate-limited (task GG's
+  retry-extraction, task Y's companion/research) — no `GET` route reaches
+  either. Widened the search past third-party-billed APIs to any real
+  network fan-out, since `VoiceClipSubmissionRateLimiter`'s own doc comment
+  already establishes this codebase treats a MinIO object-storage call as
+  worth bounding, not just a Gemini/Perplexity/SMS spend. `packages/
+  storage-adapters` is used from exactly two places in `apps/api`:
+  `records.service.ts` and `language-corpus.service.ts`. Checked every `GET`
+  route in `RecordsController` line by line — `documents`, `observations`,
+  `documents/:documentId/observations`, `timeline` — all read Prisma
+  metadata only; none fetch document bytes, so `RecordsController` has no
+  storage-reading `GET` route at all. `LanguageCorpusController` does: `GET
+  voice-contribution/clips/:clipId/audio` calls `LanguageCorpusService
+  .clipAudio`, which ends in `this.audioStore.get(clip.ref)` — a real
+  `HealthDocumentStore.get()`, `MinioDocumentStore` in production — then
+  base64-encodes the full clip into the response. `SessionAuthGuard` only,
+  no rate limiter, unlike its own write-side sibling (`submitVoiceClip`,
+  already bounded by `VoiceClipSubmissionRateLimiter`). This is the one real
+  hit lead (2) was asking about.
+
+  **What shipped.** `apps/api/src/language-corpus/voice-clip-audio-rate-
+  limiter.ts`: new `VoiceClipAudioRateLimiter`, `@Injectable()` extending
+  `SlidingWindowRateLimiter` (40 per 10 minutes — double
+  `VoiceClipSubmissionRateLimiter`'s ceiling, since a validator legitimately
+  listens to more clips than they record in one sitting, while still
+  bounding a scripted download loop). Keyed by `subjectId`: `clipAudio` sits
+  behind `SessionAuthGuard`, the same stable-identity reasoning
+  `VoiceClipSubmissionRateLimiter` already documents.
+  `language-corpus.controller.ts`: constructor gained the limiter as a third
+  parameter (explicit-annotation-plus-default-value, matching
+  `submissionLimiter`); `clipAudio` checks it first and throws
+  `HttpException({code: 'RATE_LIMITED', ...}, 429)` on refusal — the method
+  was already `async` for its own `await`, so the throw already rejects a
+  promise rather than escaping synchronously, no shape change needed there.
+  `language-corpus.module.ts`: `VoiceClipAudioRateLimiter` added to
+  `providers`. The `ForbiddenException` a contributor gets for their own
+  clip is untouched — the limiter check runs first, but a contributor
+  fetching their own clip still fails the ownership check exactly as before,
+  independent of their remaining allowance.
+
+  **Tests.** `language-corpus.controller.test.ts`, in the existing "voice
+  contribution validation" describe block: one case drives 40 `clipAudio`
+  calls for one caller to the ceiling and confirms the 41st is refused with
+  `{status: 429, response: {code: 'RATE_LIMITED'}}`; a second confirms the
+  limit is tracked per caller, not globally, by exhausting `owner2`'s
+  allowance and then confirming an unrelated caller (`reviewer`, not the
+  clip's contributor) can still fetch the same clip's audio.
+
+  **Gate.** `pnpm --filter "./packages/*" build` first, then `pnpm install
+  --frozen-lockfile` / `pnpm lint` (40/40) / `pnpm typecheck` (40/40) /
+  `pnpm test` (75/75, 931 API-suite tests, up from 929 — the two new cases)
+  / `pnpm build` (40/40) all green from the repo root. No journey update
+  under task U's standing rule and no 375px measurement — API-only change,
+  behind `SessionAuthGuard`, no new product surface, and `apps/web`/
+  `apps/mobile` were confirmed by grep to call neither this route nor any
+  other `voice-contribution` endpoint today (the Voice Contribution flow is
+  still an API-only capability, not yet wired to a frontend screen).
+
+  **For the next run.** Lead (2) is now closed: every `GET` route across
+  `apps/api` has been checked and only one fanned out to a real network
+  store, and it is fixed. No further "for the next run" lead is open from
+  this line of investigation — the next run should read the queue fresh
+  rather than continue this thread.
 
 - 2026-08-20 — **Task HH — exhausted-queue improvement: rate limit
   `engagement`'s message-send routes, the concrete lead task GG's own "for

@@ -302,6 +302,35 @@ describe('LanguageCorpusController voice contribution validation', () => {
     await expect(controller.clipAudio(owner1, clip.id)).rejects.toThrow(ForbiddenException);
   });
 
+  it('rate-limits a caller fetching clip audio in a loop', async () => {
+    const { controller, clip } = await buildControllerWithOneClip();
+
+    // The limiter's ceiling is 40 per window, keyed by subjectId — the same
+    // clip can be re-fetched since the limiter guards the read, not the id.
+    for (let i = 0; i < 40; i++) {
+      await expect(controller.clipAudio(owner2, clip.id)).resolves.toBeDefined();
+    }
+
+    await expect(controller.clipAudio(owner2, clip.id)).rejects.toMatchObject({
+      status: 429,
+      response: { code: 'RATE_LIMITED' },
+    });
+  });
+
+  it('tracks clip-audio fetch limits per caller, not globally', async () => {
+    const { controller, clip } = await buildControllerWithOneClip();
+
+    for (let i = 0; i < 40; i++) {
+      await controller.clipAudio(owner2, clip.id);
+    }
+    await expect(controller.clipAudio(owner2, clip.id)).rejects.toMatchObject({ status: 429 });
+
+    // A different caller's own allowance is unaffected by owner2's spend.
+    // reviewer never submitted the clip and isn't its contributor, so this
+    // exercises the limiter rather than the ForbiddenException path.
+    await expect(controller.clipAudio(reviewer, clip.id)).resolves.toBeDefined();
+  });
+
   it('records a validation from a different caller', async () => {
     const { controller, clip } = await buildControllerWithOneClip();
     const { validation, status } = await controller.validateClip(owner2, clip.id, { verdict: 'RIGHT' });

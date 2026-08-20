@@ -6,6 +6,7 @@ import { CurrentUser } from '../auth/current-user.decorator.js';
 import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { CorpusReviewerGuard } from './corpus-reviewer.guard.js';
 import { LanguageCorpusService } from './language-corpus.service.js';
+import { VoiceClipAudioRateLimiter } from './voice-clip-audio-rate-limiter.js';
 import { VoiceClipSubmissionRateLimiter } from './voice-clip-submission-rate-limiter.js';
 
 const utteranceKindSchema = z.enum(['USER_MESSAGE', 'CORRECTION', 'VOICE_TRANSCRIPT']);
@@ -84,6 +85,7 @@ export class LanguageCorpusController {
   constructor(
     private readonly corpus: LanguageCorpusService,
     private readonly submissionLimiter: VoiceClipSubmissionRateLimiter = new VoiceClipSubmissionRateLimiter(),
+    private readonly audioLimiter: VoiceClipAudioRateLimiter = new VoiceClipAudioRateLimiter(),
   ) {}
 
   @Post('utterances')
@@ -290,12 +292,23 @@ export class LanguageCorpusController {
    * demand" split `RecordsController`'s document endpoints already use.
    * `bytesBase64` mirrors `submitVoiceClip`'s own request shape, mirrored
    * back for the response.
+   *
+   * `async` so the rate-limit throw below rejects the returned promise
+   * instead of escaping synchronously, the same fix `submitVoiceClip`'s own
+   * comment explains — this method was already `async` for its `await`, so
+   * nothing else changes shape here.
    */
   @Get('voice-contribution/clips/:clipId/audio')
   @UseGuards(SessionAuthGuard)
   @ApiParam({ name: 'clipId' })
   @ApiOperation({ summary: 'The clip audio, base64-encoded, for a validator to listen to before judging' })
   async clipAudio(@CurrentUser() user: CurrentUserResult, @Param('clipId') clipId: string) {
+    if (!this.audioLimiter.allow(user.subjectId)) {
+      throw new HttpException(
+        { code: 'RATE_LIMITED', message: 'Too many clips fetched — wait a few minutes and try again.' },
+        429,
+      );
+    }
     const blob = await this.corpus.clipAudio(clipId, user.subjectId);
     return { contentType: blob.contentType, bytesBase64: Buffer.from(blob.bytes).toString('base64') };
   }
