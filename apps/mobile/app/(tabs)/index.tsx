@@ -40,6 +40,7 @@ export default function HomeScreen() {
           </View>
         </View>
         <Pressable
+          accessibilityRole="button"
           accessibilityLabel={
             language === 'en' ? 'Open updates and learning' : 'अपडेट र सिकाइ खोल्नुहोस्'
           }
@@ -69,11 +70,11 @@ export default function HomeScreen() {
               : 'आवाज वा शब्दमा भन्नुहोस्। साथीले जोखिम पहिले हेर्छ र तपाईंलाई उपयोगी अर्को कदम रोज्न मद्दत गर्छ।'}
           </Text>
           <View style={styles.heroActions}>
-            <Pressable onPress={() => router.push('/(tabs)/companion')} style={styles.ask}>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/companion')} style={styles.ask}>
               <MessageCircle color={colors.primaryDark} size={18} />
               <Text style={styles.askText}>{t(language, 'ask')}</Text>
             </Pressable>
-            <Pressable onPress={() => router.push('/consultation')} style={styles.video}>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/consultation')} style={styles.video}>
               <Camera color="white" size={18} />
               <Text style={styles.videoText}>
                 {language === 'en' ? 'Video consult' : 'भिडियो परामर्श'}
@@ -239,7 +240,7 @@ export default function HomeScreen() {
               : 'कुनै रहस्यमय अंक छैन। निश्चितताको नक्कल गर्ने भविष्यवाणी छैन। तपाईं छोड्न, सच्याउन र भविष्यको साझेदारी नियन्त्रण गर्न सक्नुहुन्छ।'}
           </Text>
         </View>
-        <Pressable onPress={() => router.push('/(tabs)/twin')} style={styles.storyButton}>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/twin')} style={styles.storyButton}>
           <Sparkles color={colors.primaryDark} size={17} />
           <Text style={styles.storyButtonText}>
             {language === 'en' ? 'Build my picture' : 'मेरो चित्र बनाउनुहोस्'}

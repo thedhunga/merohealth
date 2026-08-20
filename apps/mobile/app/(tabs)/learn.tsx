@@ -137,6 +137,7 @@ export default function LearnScreen() {
 
         <View style={styles.playerControls}>
           <Pressable
+            accessibilityRole="button"
             accessibilityLabel={
               playing
                 ? language === 'en'
@@ -165,6 +166,7 @@ export default function LearnScreen() {
             </Text>
           </Pressable>
           <Pressable
+            accessibilityRole="button"
             accessibilityLabel={language === 'en' ? 'Listen to this step' : 'यो चरण सुन्नुहोस्'}
             onPress={speakCurrentStep}
             style={styles.roundControl}
@@ -172,6 +174,7 @@ export default function LearnScreen() {
             <Volume2 color="white" size={19} />
           </Pressable>
           <Pressable
+            accessibilityRole="button"
             accessibilityLabel={language === 'en' ? 'Restart walkthrough' : 'वाकथ्रु फेरि सुरु गर्नुहोस्'}
             onPress={restart}
             style={styles.roundControl}
@@ -232,6 +235,7 @@ export default function LearnScreen() {
           return (
             <View key={lesson.id} style={styles.lesson}>
               <Pressable
+                accessibilityRole="button"
                 accessibilityState={{ expanded: open }}
                 onPress={() => setExpanded(open ? null : lesson.id)}
                 style={styles.lessonTop}
@@ -269,6 +273,7 @@ export default function LearnScreen() {
                       {language === 'en' ? 'READABLE TRANSCRIPT' : 'पढ्न मिल्ने ट्रान्सक्रिप्ट'}
                     </Text>
                     <Pressable
+                      accessibilityRole="button"
                       accessibilityLabel={
                         language === 'en' ? 'Listen to this lesson' : 'यो पाठ सुन्नुहोस्'
                       }

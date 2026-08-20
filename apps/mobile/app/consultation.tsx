@@ -73,6 +73,7 @@ export default function ConsultationPreviewScreen() {
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <View style={styles.topbar}>
           <Pressable
+            accessibilityRole="button"
             accessibilityLabel={language === 'en' ? 'Go back' : 'पछाडि जानुहोस्'}
             onPress={() => router.back()}
             style={styles.back}
@@ -186,6 +187,7 @@ export default function ConsultationPreviewScreen() {
 
         <View style={styles.controls}>
           <Pressable
+            accessibilityRole="button"
             accessibilityLabel={
               microphoneOn
                 ? language === 'en'
@@ -202,6 +204,7 @@ export default function ConsultationPreviewScreen() {
           </Pressable>
 
           <Pressable
+            accessibilityRole="button"
             accessibilityLabel={
               cameraOn
                 ? language === 'en'
@@ -220,6 +223,7 @@ export default function ConsultationPreviewScreen() {
           </Pressable>
 
           <Pressable
+            accessibilityRole="button"
             accessibilityLabel={
               captionsOn
                 ? language === 'en'
@@ -236,14 +240,14 @@ export default function ConsultationPreviewScreen() {
           </Pressable>
 
           {!started ? (
-            <Pressable onPress={() => setStarted(true)} style={styles.startButton}>
+            <Pressable accessibilityRole="button" onPress={() => setStarted(true)} style={styles.startButton}>
               <Camera color={colors.primaryDark} size={20} />
               <Text style={styles.startText}>
                 {language === 'en' ? 'Start private preview' : 'निजी पूर्वावलोकन सुरु गर्नुहोस्'}
               </Text>
             </Pressable>
           ) : (
-            <Pressable onPress={endPreview} style={styles.endButton}>
+            <Pressable accessibilityRole="button" onPress={endPreview} style={styles.endButton}>
               <PhoneOff color="white" size={21} />
               <Text style={styles.endText}>{language === 'en' ? 'End' : 'अन्त्य'}</Text>
             </Pressable>

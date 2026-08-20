@@ -186,7 +186,7 @@ export default function WebWelcomeScreen() {
             ? 'New: Evidence-backed health research is now available in Mero Health'
             : 'नयाँ: मेरो स्वास्थ्यमा अब प्रमाणमा आधारित स्वास्थ्य खोज उपलब्ध छ'}
         </Text>
-        <Pressable onPress={() => router.push('/(tabs)/companion')} style={styles.announcementLink}>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/companion')} style={styles.announcementLink}>
           <Text style={styles.announcementLinkText}>{en ? 'Try it now' : 'अहिले प्रयोग गर्नुहोस्'}</Text>
           <ArrowRight color={colors.primaryDark} size={15} />
         </Pressable>
@@ -194,6 +194,7 @@ export default function WebWelcomeScreen() {
 
       <View style={styles.nav}>
         <Pressable
+          accessibilityRole="button"
           accessibilityLabel={en ? 'Mero Health home' : 'मेरो स्वास्थ्य गृहपृष्ठ'}
           onPress={() => router.replace('/')}
           style={styles.brandLockup}
@@ -209,13 +210,14 @@ export default function WebWelcomeScreen() {
 
         {wide ? (
           <View style={styles.navLinks}>
-            <Pressable onPress={() => router.push('/(tabs)/learn')} style={styles.navLinkTap}>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/learn')} style={styles.navLinkTap}>
               <Text style={styles.navLink}>{en ? 'How it works' : 'कसरी चलाउने'}</Text>
             </Pressable>
-            <Pressable onPress={() => router.push('/(tabs)/care')} style={styles.navLinkTap}>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/care')} style={styles.navLinkTap}>
               <Text style={styles.navLink}>{en ? 'Care' : 'स्वास्थ्य सेवा'}</Text>
             </Pressable>
             <Pressable
+              accessibilityRole="button"
               onPress={() =>
                 router.push({ pathname: '/(tabs)/companion', params: { demo: 'emergency' } })
               }
@@ -226,7 +228,7 @@ export default function WebWelcomeScreen() {
           </View>
         ) : null}
 
-        <Pressable onPress={() => router.push('/(tabs)')} style={styles.navButton}>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)')} style={styles.navButton}>
           <Text style={styles.navButtonText}>
             {en
               ? compact
@@ -272,14 +274,14 @@ export default function WebWelcomeScreen() {
           </Text>
 
           <View style={[styles.heroActions, compact && styles.heroActionsCompact]}>
-            <Pressable onPress={() => router.push('/(tabs)/companion')} style={styles.primaryCta}>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/companion')} style={styles.primaryCta}>
               <Sparkles color={colors.primaryDark} size={18} />
               <Text style={styles.primaryCtaText}>
                 {en ? 'Talk to your health companion' : 'स्वास्थ्य साथीसँग कुरा गर्नुहोस्'}
               </Text>
               <ArrowRight color={colors.primaryDark} size={17} />
             </Pressable>
-            <Pressable onPress={() => router.push('/consultation')} style={styles.secondaryCta}>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/consultation')} style={styles.secondaryCta}>
               <Camera color={colors.primaryDark} size={18} />
               <Text style={styles.secondaryCtaText}>
                 {en ? 'See the video room' : 'भिडियो कक्ष हेर्नुहोस्'}
@@ -327,6 +329,7 @@ export default function WebWelcomeScreen() {
 
             <View style={styles.voiceCard}>
               <Pressable
+                accessibilityRole="button"
                 accessibilityLabel={
                   recorderState.isRecording
                     ? en
@@ -431,6 +434,7 @@ export default function WebWelcomeScreen() {
             const Icon = service.icon;
             return (
               <Pressable
+                accessibilityRole="button"
                 key={service.id}
                 onPress={() =>
                   router.push(
@@ -567,7 +571,7 @@ export default function WebWelcomeScreen() {
               ? 'The normal flow stops when a serious sign appears. Treatment decisions stay with a qualified care provider. Sources and uncertainty are always shown clearly.'
               : 'गम्भीर संकेत देखिए सामान्य प्रक्रिया रोकिन्छ। उपचारसम्बन्धी निर्णय योग्य स्वास्थ्यकर्मीमै रहन्छ। स्रोत र अनिश्चितता सधैँ स्पष्ट देखाइन्छ।'}
           </Text>
-          <Pressable onPress={speakIntroduction} style={styles.listenButton}>
+          <Pressable accessibilityRole="button" onPress={speakIntroduction} style={styles.listenButton}>
             <Volume2 color={colors.primaryDark} size={18} />
             <Text style={styles.listenButtonText}>
               {en ? "Listen to the companion's introduction" : 'साथीको परिचय सुन्नुहोस्'}
@@ -630,7 +634,7 @@ export default function WebWelcomeScreen() {
               ? 'Mero Health screens urgent warning signs first. For safe questions, Perplexity Sonar finds current sources and returns an answer with citations. Records, wearables, and personal health trends hand off to Perplexity Health.'
               : 'मेरो स्वास्थ्यले पहिले आपतकालीन चेतावनी संकेत जाँच्छ। सुरक्षित प्रश्नका लागि, Perplexity Sonar ले हालका स्रोत खोजेर उद्धरणसहित जवाफ दिन्छ। रेकर्ड, वियरेबल र व्यक्तिगत स्वास्थ्य प्रवृत्ति Perplexity Health मा जोडिन्छ।'}
           </Text>
-          <Pressable onPress={() => router.push('/(tabs)/companion')} style={styles.perplexityCta}>
+          <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/companion')} style={styles.perplexityCta}>
             <Sparkles color={colors.primaryDark} size={18} />
             <Text style={styles.perplexityCtaText}>
               {en ? 'Ask with cited research' : 'उद्धृत अनुसन्धानसहित सोध्नुहोस्'}
@@ -689,7 +693,7 @@ export default function WebWelcomeScreen() {
               : 'नमुना जानकारी मात्र प्रयोग गरेर कार्यरत प्रदर्शन हेर्नुहोस्।'}
           </Text>
         </View>
-        <Pressable onPress={() => router.push('/(tabs)')} style={styles.finalButton}>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)')} style={styles.finalButton}>
           <Play color={colors.primaryDark} fill={colors.primaryDark} size={16} />
           <Text style={styles.finalButtonText}>
             {en ? 'Enter Mero Health' : 'मेरो स्वास्थ्यमा प्रवेश गर्नुहोस्'}

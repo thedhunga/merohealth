@@ -58,6 +58,7 @@ export default function ConsentScreen() {
     <Screen>
       <View style={styles.header}>
         <Pressable
+          accessibilityRole="button"
           accessibilityLabel={isEnglish ? 'Go back' : 'पछाडि जानुहोस्'}
           onPress={() => router.back()}
           style={styles.back}

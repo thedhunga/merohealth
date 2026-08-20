@@ -229,6 +229,33 @@ absent, this section is the source of truth), `frontend-design` skill.
       reaction card" test to match — it currently locks in today's
       behaviour on purpose.
 
+## V′. Owner decision needed — the emergency screen's "find a hospital" button is a dead end, and the only fix available would make it worse
+
+> Found 2026-08-20 while auditing `apps/mobile` Pressables for missing
+> `accessibilityRole` (task UU). Not fixed here — the mechanical accessibility
+> fix does not apply to this control, and the obvious wiring is unsafe.
+
+- [ ] `companion.tsx`'s emergency-interception screen (`assessment?.interruptConversation`
+      branch) renders `<Pressable style={styles.emergencyButton}>Find the nearest
+      suitable hospital</Pressable>` with **no `onPress` at all** — tapping it,
+      by voice-over or by finger, does nothing. The screen's own next line
+      already admits part of why: "The app shows no number until a local
+      service number is verified." The obvious fix — wire it to the existing
+      `(tabs)/care` directory filtered to `HOSPITAL` — was investigated and
+      rejected: every single entry `packages/care-directory/src/index.ts`
+      returns, including the one HOSPITAL listing, carries
+      `isFictionalDemo: true` ("Sajilo Community Hospital — Demo"). Routing
+      someone mid-emergency to a fictional hospital would violate "invent no
+      facts" in the one context where it matters most, and is worse than the
+      current silent no-op. Owner needs to pick one: (a) hide/remove the
+      button entirely until a real, verified hospital directory or a real
+      emergency-number source exists, since the honest disclaimer text below
+      it already covers the gap without a fake call-to-action above it, or
+      (b) provide a real destination (a verified subset of the directory, a
+      tel: link to a confirmed number, a maps deep link) for the agent to
+      wire up next. Not a mechanical fix an agent should pick unilaterally —
+      the wrong choice actively misleads a person in crisis.
+
 ## O. The home screen — `/` for someone who has been here before
 
 - [x] `HomeScreen` client component rendered at `/` **when the device has
@@ -1040,6 +1067,40 @@ absent, this section is the source of truth), `frontend-design` skill.
       `getByRole('button', …)` — noted in the spec's own comment so the next
       run does not waste time on `getByRole` returning nothing. **Done
       2026-08-20 — see the log entry below.**
+
+## UU. `apps/mobile` Pressables had no ARIA role on web — task TT's own "for the next run" lead 2
+
+> The queue is exhausted for the agent (task U's third bullet, task V/V′, and
+> the owner-gated set are all that remain unchecked), so this is a step-4
+> improvement. Task TT's own log entry found this while writing `/app`'s
+> first e2e journeys: `react-native-web` renders `Pressable` as a bare
+> `<div tabindex="0">`, so with no explicit `accessibilityRole` every
+> interactive control on `apps/mobile` — the actual product surface per
+> `platform-vision.md` §5, on both native and its web export — was invisible
+> to a screen reader, not just to `getByRole` in a test.
+
+- [x] Audited every `Pressable` under `apps/mobile/app/**` and
+      `apps/mobile/src/**` (66 total; `ui.tsx`, `companion.tsx`, `learn.tsx`
+      and `ProfileSwitcher.tsx` already had some correctly-roled from earlier
+      work) and added `accessibilityRole` to the 58 that had none: 55
+      `"button"` (matching the codebase's existing convention — every prior
+      correctly-roled Pressable in the repo already uses `"button"`, even for
+      toggle-style icon controls like the mic/camera/captions buttons in
+      `consultation.tsx`), and 2 `"link"` on `companion.tsx`'s citation and
+      "more sources" Pressables, which open external URLs via `openLink` —
+      matching `apps/web`'s own `GetCareFlow.tsx`, where the equivalent
+      control is a real `<a>`. One Pressable was deliberately left unroled:
+      `ProfileSwitcher.tsx`'s modal-backdrop wrapper (`onPress={() =>
+      setOpen(false)}` around the whole sheet) — it wraps other interactive
+      children, so `role="button"` on it would be invalid nested-interactive
+      ARIA and would make a screen reader announce the entire sheet as one
+      button; backdrop-tap-to-dismiss is a pointer-only convenience and the
+      real dismiss/back-navigation path is unaffected. **Done 2026-08-20 —
+      see the log entry below.**
+- [ ] While auditing, found `companion.tsx`'s emergency "find a hospital"
+      button has no `onPress` handler at all — a real dead control, not an
+      accessibility gap. Not fixed here; see new task V′ above for why the
+      obvious fix is unsafe and needs an owner call.
 
 ## Owner-gated (not for the agent)
 
@@ -2804,6 +2865,117 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task UU — exhausted-queue improvement: `apps/mobile`
+  Pressables had no ARIA role on web.** Done.
+
+  **Housekeeping.** `git checkout main && git pull` hit the same shape as
+  every recent entry: local `main` was stuck at the stale commit `9bdf548`
+  with no common ancestor with `origin/main` (now tipped at `4dd6f6c`).
+  `git status` was clean, so `git reset --hard origin/main` — production's
+  history, and `origin/backup/pre-force-push-main-9bdf548` still preserves
+  the old tip if it's ever needed.
+
+  **Standing red-CI check.** Latest `ci` run on `main` is `4dd6f6c`
+  (**success**, task TT's own commit). The red-CI-stops-the-line rule did
+  not divert this run.
+
+  **Queue check.** Every unchecked box read: task U's third bullet (standing
+  rule, no deliverable), task V (`InstallPrompt`/`SignInSuggestion` priority
+  — an owner UX call), and the owner-gated set (`NEXT_PUBLIC_PREMIUM_LAUNCH`,
+  duplex-voice go/no-go, corpus licence, payment provider, Sign in with
+  Google, the missing testimonial portraits, the four id-space architecture
+  questions). Queue exhausted for the agent → a step-4 improvement.
+
+  **Why this.** Task TT's own "for the next run" list ranked this lead 2:
+  `react-native-web` renders every `Pressable` as a bare `<div tabindex="0">`
+  with no ARIA role unless one is set explicitly, which TT's new `/app` e2e
+  spec had to route around with `getByText` instead of `getByRole('button',
+  …)`. That is not just a test-authoring inconvenience — the identical DOM a
+  screen reader sees was, until this run, giving zero indication that any of
+  these controls are interactive, on `apps/mobile`'s web export and (via the
+  same `accessibilityRole` prop, RN's real cross-platform a11y API) on native
+  too. `apps/mobile` is the actual product surface per `platform-vision.md`
+  §5, not `apps/web`, so this reaches further than the `/app` marketing
+  export TT touched.
+
+  **The audit.** Grepped every `<Pressable` under `apps/mobile/app/**` and
+  `apps/mobile/src/**` (66 total) and, for each, walked its JSX opening tag
+  to check for an existing `accessibilityRole` prop (a regex that tracks
+  brace depth so it doesn't stop at a `>` inside a JSX expression). 8 already
+  had one from earlier work (`ui.tsx`'s two shared button components,
+  `ProfileSwitcher.tsx`'s pill and option row, three in `companion.tsx`, one
+  in `learn.tsx`'s low-data-mode toggle). 58 had none, across 11 files.
+
+  **What shipped.** `accessibilityRole="button"` on 55 of the 58 — matching
+  the codebase's own established convention, which already uses `"button"`
+  uniformly, including for toggle-style icon controls (`consultation.tsx`'s
+  mic/camera/captions buttons) rather than reaching for `"switch"` outside
+  the one place (`learn.tsx`'s low-data-mode row) that already renders a
+  literal switch-track graphic. `accessibilityRole="link"` on the 2
+  `companion.tsx` Pressables that open external URLs via `openLink`
+  (a citation and the "more sources" card) — matching `apps/web`'s own
+  `GetCareFlow.tsx`, where the equivalent control is a real `<a>`, not a
+  `<button>`. One Pressable was deliberately left unroled, not missed:
+  `ProfileSwitcher.tsx`'s modal-backdrop wrapper
+  (`onPress={() => setOpen(false)}` around the entire sheet, used to dismiss
+  on an outside tap). It wraps other interactive children (the sheet's own
+  title and option rows), so giving the wrapper `role="button"` would be
+  invalid nested-interactive ARIA and would make a screen reader announce the
+  whole sheet as a single button, swallowing its children — worse than no
+  role at all. Backdrop-tap-to-dismiss is a sighted pointer convenience; the
+  platform back gesture still closes the modal for everyone else.
+
+  **A dead control found, not fixed.** While auditing `companion.tsx`, found
+  its emergency-interception screen's "Find the nearest suitable hospital"
+  Pressable has no `onPress` handler at all — tapping it, by any input
+  method, has always done nothing. Investigated the obvious fix (wire it to
+  the existing `(tabs)/care` directory filtered to `HOSPITAL`) and rejected
+  it: `packages/care-directory/src/index.ts`'s every entry, including the
+  sole HOSPITAL listing, carries `isFictionalDemo: true`. Routing someone
+  mid-emergency to a fabricated hospital would be a fabricated-fact violation
+  in the one context where it does the most harm — worse than the current
+  silent no-op, not better. Filed as new task **V′** with both real options
+  (hide the button until a verified destination exists, or provide one) for
+  the owner to choose; not a mechanical fix an agent should make unilaterally.
+
+  **Verification.** No RN component-render harness exists in this repo (no
+  `@testing-library/react-native`; `apps/mobile`'s existing tests are all
+  pure `lib`/`state` logic, per task W's own precedent for the same
+  limitation) — so, as task W did, verified by reading the resolved JSX post-edit
+  against the same audit script that found the gaps pre-edit (re-ran it after
+  editing: 0 remaining except the one intentionally-skipped backdrop).
+  Additionally upgraded `apps/web/e2e/app-surface.journeys.spec.ts` (task
+  TT's own spec) from `getByText` to `getByRole('button', { name: … })` for
+  both its locators — this is real, not cosmetic, regression coverage for
+  this fix: ran it against the rebuilt `/app` export and both tests passed,
+  proving `getByRole` now actually finds the primary CTAs it could not find
+  before this run. `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75/75 tasks, api 125 files/934
+  tests, mobile 10 files/44 tests unchanged — pure prop addition, nothing new
+  to test) / `pnpm build` (40/40) all green from a clean tree. Also ran the
+  full Playwright `phone` project (24 tests) for regressions: 21 passed, 2
+  skipped (`@live`), 1 failed — the same pre-existing PWA "manifest, icons
+  and theme colour" flake documented by tasks PP/RR/SS/TT (`next/og`'s
+  `ImageResponse` 500s under Turbopack `next dev`); re-ran alone and it
+  passed, confirming it predates and is unrelated to this change.
+
+  No screen has a visible layout change (props-only edit, nothing rendered
+  differently to a sighted user), so the 375px-measurement standing
+  instruction doesn't apply here the way it does for a UI task — flagging
+  that explicitly rather than skipping it silently.
+
+  **For the next run.** In the order I'd take them:
+  1. Task **V′** (new, above): the emergency screen's dead "find a hospital"
+     button needs an owner decision — hide it or give it a real destination.
+  2. `ProfileSwitcher.tsx`'s modal has no visible close button — dismissal is
+     backdrop-tap or the platform back gesture only. Not fixed here (out of
+     scope for an accessibility-role sweep), but worth a task: a real close
+     control would also give keyboard/switch-access users, not just backdrop
+     tappers, a way to leave the sheet.
+  3. The extensionless-metadata middleware trap (RR/SS/TT's own recurring
+     note) is still just that — a note. Add `app/opengraph-image.tsx`'s
+     matcher entry in the same commit that first adds such a file.
 
 - 2026-08-20 — **Task TT — exhausted-queue improvement: `/app` had zero e2e
   journey coverage.** Done.

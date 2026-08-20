@@ -145,12 +145,12 @@ export default function CaptureScreen() {
         </View>
         <Text style={styles.doneTitle}>{language === 'en' ? 'Document added' : 'कागजात थपियो'}</Text>
         <Text style={styles.doneBody}>{savedTitle}</Text>
-        <Pressable onPress={() => router.replace('/records')} style={uiStyles.primaryButton}>
+        <Pressable accessibilityRole="button" onPress={() => router.replace('/records')} style={uiStyles.primaryButton}>
           <Text style={uiStyles.primaryButtonText}>
             {language === 'en' ? 'View my documents' : 'मेरा कागजातहरू हेर्नुहोस्'}
           </Text>
         </Pressable>
-        <Pressable onPress={startOver} style={styles.secondaryButton}>
+        <Pressable accessibilityRole="button" onPress={startOver} style={styles.secondaryButton}>
           <Text style={styles.secondaryButtonText}>
             {language === 'en' ? 'Add another' : 'अर्को थप्नुहोस्'}
           </Text>
@@ -165,6 +165,7 @@ export default function CaptureScreen() {
       <ScrollView contentContainerStyle={styles.reviewPage}>
         <View style={styles.header}>
           <Pressable
+            accessibilityRole="button"
             accessibilityLabel={language === 'en' ? 'Retake' : 'फेरि खिच्नुहोस्'}
             onPress={retake}
             style={styles.back}
@@ -185,7 +186,7 @@ export default function CaptureScreen() {
 
         <Image resizeMode="cover" source={{ uri: photo.uri }} style={styles.preview} />
 
-        <Pressable onPress={retake} style={styles.retake}>
+        <Pressable accessibilityRole="button" onPress={retake} style={styles.retake}>
           <RotateCcw color={colors.primaryDark} size={16} />
           <Text style={styles.retakeText}>{language === 'en' ? 'Retake photo' : 'फेरि खिच्नुहोस्'}</Text>
         </Pressable>
@@ -220,6 +221,7 @@ export default function CaptureScreen() {
         ) : null}
 
         <Pressable
+          accessibilityRole="button"
           disabled={disableUpload}
           onPress={() => void upload()}
           style={[uiStyles.primaryButton, disableUpload && styles.disabled]}
@@ -249,6 +251,7 @@ export default function CaptureScreen() {
     <View style={styles.cameraPage}>
       <View style={styles.header}>
         <Pressable
+          accessibilityRole="button"
           accessibilityLabel={language === 'en' ? 'Go back' : 'पछाडि जानुहोस्'}
           onPress={() => router.back()}
           style={styles.back}
@@ -273,7 +276,7 @@ export default function CaptureScreen() {
               ? 'Mero Health only uses the camera to photograph the document you choose.'
               : 'साथीले तपाईंले रोज्नुभएको कागजात मात्र खिच्न क्यामेरा प्रयोग गर्छ।'}
           </Text>
-          <Pressable onPress={() => void allowCamera()} style={uiStyles.primaryButton}>
+          <Pressable accessibilityRole="button" onPress={() => void allowCamera()} style={uiStyles.primaryButton}>
             <Text style={uiStyles.primaryButtonText}>
               {language === 'en' ? 'Allow camera' : 'क्यामेरा अनुमति दिनुहोस्'}
             </Text>
@@ -291,6 +294,7 @@ export default function CaptureScreen() {
       {permission?.granted ? (
         <View style={styles.shutterRow}>
           <Pressable
+            accessibilityRole="button"
             accessibilityLabel={language === 'en' ? 'Take photo' : 'फोटो खिच्नुहोस्'}
             disabled={isCapturing}
             onPress={() => void takePhoto()}

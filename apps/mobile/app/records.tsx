@@ -109,6 +109,7 @@ export default function RecordsScreen() {
     <Screen>
       <View style={styles.header}>
         <Pressable
+          accessibilityRole="button"
           accessibilityLabel={language === 'en' ? 'Go back' : 'पछाडि जानुहोस्'}
           onPress={() => router.back()}
           style={styles.back}
@@ -118,7 +119,7 @@ export default function RecordsScreen() {
         <Text style={styles.headerTitle}>
           {language === 'en' ? 'My documents' : 'मेरा कागजातहरू'}
         </Text>
-        <Pressable onPress={() => router.push('/capture')} style={styles.addButton}>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/capture')} style={styles.addButton}>
           <Plus color="white" size={18} />
         </Pressable>
       </View>
@@ -194,6 +195,7 @@ export default function RecordsScreen() {
                       value={draftUnit}
                     />
                     <Pressable
+                      accessibilityRole="button"
                       disabled={!draftValue.trim() || busyId === observation.id}
                       onPress={() => submitCorrection(observation)}
                       style={styles.correctionSubmit}
@@ -204,6 +206,7 @@ export default function RecordsScreen() {
                 ) : (
                   <View style={styles.actionRow}>
                     <Pressable
+                      accessibilityRole="button"
                       disabled={busyId === observation.id}
                       onPress={() =>
                         void runAction(observation.id, () => confirmObservation(observation.id))
@@ -216,6 +219,7 @@ export default function RecordsScreen() {
                       </Text>
                     </Pressable>
                     <Pressable
+                      accessibilityRole="button"
                       disabled={busyId === observation.id}
                       onPress={() => startCorrection(observation)}
                       style={[styles.actionButton, styles.correctButton]}
@@ -226,6 +230,7 @@ export default function RecordsScreen() {
                       </Text>
                     </Pressable>
                     <Pressable
+                      accessibilityRole="button"
                       disabled={busyId === observation.id}
                       onPress={() =>
                         void runAction(observation.id, () => rejectObservation(observation.id))
@@ -302,7 +307,7 @@ function TimelineRow({
               ? "We couldn't read this photo just now. The photo is still saved — you can try reading it again."
               : 'हामी अहिले यो फोटो पढ्न सकेनौं। फोटो अझै सुरक्षित छ — तपाईं फेरि पढ्ने प्रयास गर्न सक्नुहुन्छ।'}
           </Text>
-          <Pressable disabled={busy} onPress={onRetry} style={styles.retryButton}>
+          <Pressable accessibilityRole="button" disabled={busy} onPress={onRetry} style={styles.retryButton}>
             {busy ? (
               <ActivityIndicator color={colors.primaryDark} size="small" />
             ) : (

@@ -218,6 +218,7 @@ export default function CompanionScreen() {
     <Screen keyboardShouldPersistTaps="handled">
       <View style={styles.header}>
         <Pressable
+          accessibilityRole="button"
           accessibilityLabel={language === 'en' ? 'Go back' : 'पछाडि जानुहोस्'}
           onPress={() => router.back()}
           style={styles.back}
@@ -258,6 +259,7 @@ export default function CompanionScreen() {
               </Text>
             </View>
             <Pressable
+              accessibilityRole="button"
               accessibilityLabel={language === 'en' ? 'Listen to guidance' : 'मार्गदर्शन सुन्नुहोस्'}
               onPress={speakGuidance}
               style={styles.listen}
@@ -298,6 +300,7 @@ export default function CompanionScreen() {
 
             <View style={styles.voiceRow}>
               <Pressable
+                accessibilityRole="button"
                 accessibilityLabel={
                   recorderState.isRecording
                     ? language === 'en'
@@ -347,6 +350,7 @@ export default function CompanionScreen() {
             {voiceStatus ? <Text style={styles.voiceStatus}>{voiceStatus}</Text> : null}
 
             <Pressable
+              accessibilityRole="button"
               disabled={message.trim().length < 3}
               onPress={() => void submitQuestion()}
               style={[styles.send, message.trim().length < 3 && styles.disabled]}
@@ -381,7 +385,7 @@ export default function CompanionScreen() {
             {language === 'en' ? 'Seek immediate help' : 'तुरुन्त सहायता लिनुहोस्'}
           </Text>
           <Text style={styles.emergencyBody}>{template}</Text>
-          <Pressable style={styles.emergencyButton}>
+          <Pressable accessibilityRole="button" style={styles.emergencyButton}>
             <Text style={styles.emergencyButtonText}>
               {language === 'en' ? 'Find the nearest suitable hospital' : 'नजिकको उपयुक्त अस्पताल खोज्नुहोस्'}
             </Text>
@@ -404,6 +408,7 @@ export default function CompanionScreen() {
                 </Text>
               </View>
               <Pressable
+                accessibilityRole="button"
                 accessibilityLabel={
                   language === 'en' ? 'Listen to this information' : 'यो जानकारी सुन्नुहोस्'
                 }
@@ -441,6 +446,7 @@ export default function CompanionScreen() {
                     </Text>
                     {research.citations.map((citation, index) => (
                       <Pressable
+                        accessibilityRole="link"
                         key={citation.url}
                         onPress={() => void openLink(citation.url)}
                         style={styles.citation}
@@ -455,6 +461,7 @@ export default function CompanionScreen() {
                   </View>
                 ) : (
                   <Pressable
+                    accessibilityRole="link"
                     onPress={() =>
                       void openLink(
                         research?.externalHealthHubUrl ?? 'https://www.perplexity.ai/health',
@@ -537,6 +544,7 @@ export default function CompanionScreen() {
           ) : null}
 
           <Pressable
+            accessibilityRole="button"
             onPress={() => {
               setLastAssistantText(research?.answer ?? defaultAnswerText(language));
               setIsRephrasing(true);
@@ -555,6 +563,7 @@ export default function CompanionScreen() {
           </Pressable>
 
           <Pressable
+            accessibilityRole="button"
             onPress={() => {
               setSubmitted(false);
               setMessage('');
