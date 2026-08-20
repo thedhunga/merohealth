@@ -906,6 +906,33 @@ absent, this section is the source of truth), `frontend-design` skill.
       denied-not-failed, a rejected request, and a synchronous native throw.
       **Done 2026-08-20 — see the log entry below.**
 
+## PP. The browser-tab favicon 404'd site-wide — the i18n middleware was locale-routing `/icon` — an `apps/web` bug found by measuring the real front door at 375px
+
+> The scheduled prompt's standing direction is that the web is the product and
+> almost every visitor is on a phone, yet the last three runs (MM/NN/OO) were
+> all `apps/mobile` crash-path hardening. This run went back to the web front
+> door and measured all three `/` surfaces at 375px in a real headless phone.
+> They are clean — NE first-visit 2.0 screens, NE returning 1.52, EN marketing
+> 5.83, and the only sub-44px tappable anywhere is the keyboard-only skip link
+> — so prior passes did their job on layout. What the layout pass could not
+> catch was a broken *metadata route*: the homepage `<head>` links
+> `<link rel="icon" href="/icon?…">`, and that URL 404'd on every page.
+
+- [x] `apps/web/src/proxy.ts` — the next-intl middleware matcher
+      `'/((?!api|_next|_expo|app|.*\\..*).*)'` excludes anything with a dot, but
+      Next serves its file-based metadata routes (`app/icon.tsx`,
+      `app/apple-icon.tsx`) *extensionless* at `/icon` and `/apple-icon`. So the
+      middleware ran on `/icon`, tried to locale-route a favicon with no locale
+      variant, and 404'd the browser-tab icon site-wide (`manifest`/`sitemap`/
+      `robots` escaped only because they carry an extension). Added `icon` and
+      `apple-icon` to the matcher's negative lookahead. `/apple-icon` was not
+      actually broken — it coincidentally prefix-matches the `/app` (Expo build)
+      exclusion — but is listed explicitly so that coincidence can't silently
+      break the Add-to-Home-Screen icon later. New colocated `proxy.test.ts`
+      asserts the matcher skips `/icon` and `/apple-icon` while still running on
+      the localized content paths — the regression guard that would have caught
+      this. **Done 2026-08-20 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2655,6 +2682,101 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task PP — exhausted-queue improvement: the browser-tab
+  favicon 404'd site-wide because the i18n middleware was locale-routing
+  Next's extensionless `/icon` metadata route.** Done.
+
+  **Housekeeping first.** Same force-push shape every recent entry hit. Local
+  `main` was at the stale 2026-08-15 human commit `9bdf548`; `git pull` refused
+  the divergent merge and `git merge-base main origin/main` returned empty. The
+  remote `main` is a rewritten 50-commit history tipped at `d6b33e0`, and
+  `origin/backup/pre-force-push-main-9bdf548` still holds `9bdf548` tip-for-tip,
+  so nothing was lost. This clone was **not** shallow (contra NN's entry, which
+  claimed `git fetch --unshallow` proves a clean fast-forward — it did not
+  reproduce, matching OO's correction), so `git reset --hard origin/main` was
+  the right move: it is what production deploys.
+
+  **Queue check.** Every unchecked box read. Unchanged since FF: task U's third
+  bullet (a standing rule, no deliverable), task V (`InstallPrompt`/
+  `SignInSuggestion` — a UX priority call explicitly reserved for the owner,
+  left untouched), and the owner-gated set. Queue exhausted for the agent, so
+  this is a step-4 improvement.
+
+  **Why this.** The scheduled prompt is emphatic that the web is the product
+  and almost every visitor is on a phone — yet MM/NN/OO were all `apps/mobile`
+  crash hardening. So this run measured the real web front door at 375px in a
+  headless phone (Playwright, 375×812). All three `/` variants are already
+  clean: **NE first-visit 2.0 screens / EN marketing 5.83 / NE returning 1.52**,
+  and the only sub-44px tappable on any of them is the keyboard-only
+  skip-to-content link (32px wide, focus-only — not a touch target). The
+  "empty gaps" the owner once flagged are gone; what looked like a big void in a
+  scaled-down screenshot measured as ordinary 112–140px section padding. Layout
+  is done. But a `console`/network sweep of the same surfaces surfaced a real
+  defect layout metrics can't see: `GET /icon` → **404** on `/` (and `/apple-
+  icon` → 500 in dev only). The homepage `<head>` links
+  `<link rel="icon" href="/icon?…">`, so the browser-tab icon was broken
+  site-wide.
+
+  **Root cause.** `apps/web/src/proxy.ts`'s next-intl middleware matcher
+  `'/((?!api|_next|_expo|app|.*\\..*).*)'` excludes only dotted paths. Next
+  serves its file-based metadata routes (`app/icon.tsx`, `app/apple-icon.tsx`)
+  *extensionless* at `/icon` and `/apple-icon`, so the middleware ran on `/icon`
+  and locale-routed a favicon it has no locale variant of → 404.
+  `manifest.webmanifest`/`sitemap.xml`/`robots.txt` escaped only because they
+  carry an extension. Verified with the raw regex: `/icon` matches (intercepted)
+  before, skips after; content paths (`/`, `/en`, `/get-care`, `/individuals`)
+  still match both.
+
+  **What shipped.** Added `icon` and `apple-icon` to the matcher's negative
+  lookahead. `/apple-icon` was not actually broken — it coincidentally
+  prefix-matches the `/app` (Expo build) exclusion — but is now listed
+  explicitly so that coincidence can't silently break the Add-to-Home-Screen
+  icon if `/app` is ever tightened. New colocated `proxy.test.ts` (3 tests)
+  asserts the matcher skips `/icon`/`/apple-icon` and still runs on the
+  localized content paths; it `vi.mock`s `next-intl/middleware` because
+  importing `proxy.ts` for real pulls in `next/server`, which vitest cannot
+  resolve. The matcher **must** stay an inline string literal — Next statically
+  analyses the `config.matcher` field at build and rejects a non-literal (an
+  extracted-constant refactor built green in dev/lint/test but failed
+  `next build` with "matcher[0] need to be static strings"; reverted).
+
+  **Before/after (production `next start`, not dev — see note).** `/icon`
+  404 → **200 image/png 64×64**; `/apple-icon` (already 200 in prod) stays 200,
+  180×180. `<head>`'s `<link rel="icon" href="/icon?f558ba637009b333">` now
+  resolves. **Dev-server caveat for the next run:** under Turbopack `next dev`,
+  both `/icon` and `/apple-icon` return **500 "Input buffer contains
+  unsupported image format"** from `next/og`'s `ImageResponse` — this is a
+  dev-only Turbopack quirk. In `next build` both routes prerender as static
+  `○` PNGs and serve 200. Do NOT chase that 500 as a bug; verify icon routes
+  against `next build && next start`, never `next dev`.
+
+  **375px measurement.** The fix changes no rendered layout — it is a routing
+  matcher — so tap-target counts and screen heights are unchanged from the
+  clean baseline recorded above. The user-visible change is that the browser
+  tab and Add-to-Home-Screen now show the real indigo/marigold health-cross
+  mark (`lib/app-icon.tsx`) instead of a broken-image fallback.
+
+  **Tests.** `apps/web` 52 files/519 tests → **53 files/522 tests**.
+
+  **Gate.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75/75) / `pnpm build` (40/40) all
+  green from the repo root.
+
+  **For the next run.** In the order I would take them:
+  1. **`/app` has zero e2e journey coverage** — still MM's lead 1 and the
+     highest-value open item. Needs the web e2e harness to serve
+     `apps/mobile/dist` alongside the Next app. Infra work, meaningful chance of
+     a blocked run.
+  2. **The `void Speech.stop()` / `void Haptics.selectionAsync()` calls in
+     `apps/mobile`** — OO's lead 2 tail. Genuinely safe to drop but currently
+     indistinguishable from the crash-paths that weren't; a `void`-with-a-reason
+     helper or an eslint rule would make the distinction explicit.
+  3. **The other extensionless metadata gotcha, pre-emptively.** If a future
+     run adds `app/opengraph-image.tsx` or `app/twitter-image.tsx`, they are
+     also extensionless and will hit this exact middleware trap — add them to
+     the matcher in the same commit. `proxy.test.ts` is the place to lock it.
+  4. **Dead code and skipped tests** — MM's lead 3, still open.
 
 - 2026-08-20 — **Task OO — exhausted-queue improvement: the consultation
   camera toggle could die silently. This is the direct continuation of task
