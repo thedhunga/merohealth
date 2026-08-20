@@ -1,6 +1,9 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
+import type { CurrentUserResult } from '../auth/auth.service.js';
+import { CurrentUser } from '../auth/current-user.decorator.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { ImmunizationService } from './immunization.service.js';
 
 const doseNumberSchema = z.number().int().min(1);
@@ -9,8 +12,12 @@ const doseNumberSchema = z.number().int().min(1);
 // YYYY-MM-DD, and the ApiBody schemas below already document it as `format: 'date'`.
 const administeredOnSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'administeredOn must be YYYY-MM-DD');
 
+// No `patientId` field: a client-supplied value here let any caller plant a
+// fake immunization under someone else's id and, through `listRecords`/
+// `getRecord` below, read back any patient's own — the same gap
+// `clinical-summary.controller.ts`'s `recordPatientReportedSchema` comment
+// describes, and the same fix: the subject is always the session identity.
 const recordPatientReportedSchema = z.object({
-  patientId: z.string().trim().min(1),
   vaccineName: z.string().trim().min(1),
   doseNumber: doseNumberSchema,
   administeredOn: administeredOnSchema,
@@ -37,7 +44,19 @@ function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
   return parsed.data;
 }
 
-/** Row 18 of clinical-suite.md's capability map: immunization records. */
+/**
+ * Row 18 of clinical-suite.md's capability map: immunization records.
+ * `recordPatientReported`/`listRecords`/`getRecord` are the patient-facing
+ * routes — gated behind `SessionAuthGuard`, the subject always the caller's
+ * own session id, same shape `clinical-summary.controller.ts` and
+ * `diagnostics-orders.controller.ts` established. `recordClinicianAdministered`/
+ * `voidRecord` stay ungated on purpose: they are clinician-workflow actions
+ * (`clinicianId`/void `reason` are free text, no patient identity in the
+ * picture at all for `voidRecord`) and this app has no clinician-side
+ * session to check them against yet — the same documented exception
+ * `clinical-charting.controller.ts` and `diagnostics-orders.controller.ts`'s
+ * `recordResult`/`release`/`cancel` carry.
+ */
 @ApiTags('immunization')
 @Controller('immunization')
 export class ImmunizationController {
@@ -50,21 +69,22 @@ export class ImmunizationController {
   }
 
   @Post('records')
-  @ApiOperation({ summary: 'Record a patient-reported immunization' })
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: 'Record an immunization the signed-in caller reports about themselves' })
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['patientId', 'vaccineName', 'doseNumber', 'administeredOn'],
+      required: ['vaccineName', 'doseNumber', 'administeredOn'],
       properties: {
-        patientId: { type: 'string' },
         vaccineName: { type: 'string', example: 'Tetanus toxoid' },
         doseNumber: { type: 'integer', minimum: 1 },
         administeredOn: { type: 'string', format: 'date' },
       },
     },
   })
-  recordPatientReported(@Body() body: unknown) {
-    return this.immunization.recordPatientReported(parseOrThrow(recordPatientReportedSchema, body));
+  recordPatientReported(@CurrentUser() user: CurrentUserResult, @Body() body: unknown) {
+    const input = parseOrThrow(recordPatientReportedSchema, body);
+    return this.immunization.recordPatientReported({ ...input, patientId: user.subjectId });
   }
 
   @Post('encounters/:encounterId/records')
@@ -93,18 +113,19 @@ export class ImmunizationController {
   }
 
   @Get('records')
-  @ApiOperation({ summary: 'List immunization records, optionally filtered by patientId' })
-  @ApiQuery({ name: 'patientId', required: false })
-  listRecords(@Query('patientId') patientId?: string) {
-    const records = this.immunization.listRecords(patientId);
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: "List the signed-in caller's own immunization records" })
+  listRecords(@CurrentUser() user: CurrentUserResult) {
+    const records = this.immunization.listRecords(user.subjectId);
     return { records, total: records.length };
   }
 
   @Get('records/:recordId')
+  @UseGuards(SessionAuthGuard)
   @ApiParam({ name: 'recordId' })
-  @ApiOperation({ summary: 'Read one immunization record by opaque id' })
-  getRecord(@Param('recordId') recordId: string) {
-    return this.immunization.getRecord(recordId);
+  @ApiOperation({ summary: "Read one of the signed-in caller's own immunization records by opaque id" })
+  getRecord(@CurrentUser() user: CurrentUserResult, @Param('recordId') recordId: string) {
+    return this.immunization.getOwnRecord(recordId, user.subjectId);
   }
 
   @Post('records/:recordId/void')

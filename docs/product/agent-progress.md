@@ -492,10 +492,63 @@ absent, this section is the source of truth), `frontend-design` skill.
       boundary, not this controller's. **Done 2026-08-20 — see the log entry
       below.**
 
+## CC. Access control on `immunization`'s patient-facing routes — task AA's #2-ranked gap, `patient-registry` re-scoped instead (see the log)
+
+> Every unchecked queue box was still owner/asset-gated. Picked as this
+> run's highest-value improvement to work already done: task BB's own log
+> entry ranked `patient-registry.controller.ts` next. Investigation (see the
+> log entry) found that controller is not actually this pattern — it is
+> clinic-staff intake (`clinical-suite.md` row 1, "Foundation. Owns
+> identity"), not patient self-service, and gating it with a patient
+> `SessionAuthGuard` would have been the exact "unusable, not correct"
+> mistake the other clinical-suite controllers' own doc comments warn
+> against. `immunization.controller.ts` — task AA's #3-ranked gap — turned
+> out to be the real next instance of the fixed shape: `POST
+> /immunization/records` took a client-supplied `patientId` in the body, and
+> `GET /immunization/records?patientId=` / `GET
+> /immunization/records/:recordId` took the subject id from the client (or no
+> id check at all) with zero guard — any caller could plant a fake
+> immunization under someone else's id or read back any patient's
+> immunization history by guessing a `recordId`.
+
+- [x] `SessionAuthGuard` + `@CurrentUser()` on `POST /immunization/records`,
+      `GET /immunization/records` and `GET /immunization/records/:recordId`;
+      `patientId` dropped from the record-creation body entirely (always the
+      caller's own session id) and the `patientId` query param dropped from
+      `listRecords`; a new `ImmunizationService.getOwnRecord(id, ownerId)`
+      404s (not just filters) a record that belongs to a different patient,
+      same shape `diagnostics-orders.service.ts`'s `getOwnOrder` uses.
+      `recordClinicianAdministered`/`voidRecord` stay unguarded on purpose —
+      the same documented no-clinician-session exception
+      `clinical-charting`/`diagnostics-orders`'s clinician-write routes
+      already carry. **Done 2026-08-20 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
   the API server, so the first store version can sign in.
+- `patient-registry.controller.ts`'s `POST /patients` (register),
+  `GET /patients/:patientId` and `POST /patients/:patientId/demographics`:
+  a genuine architecture question, not a mechanical guard-adding fix. Full
+  reasoning in task CC's log entry — short version: `register()` mints its
+  own `randomUUID()` for the patient record's id, completely independent of
+  the auth `subjectId`, and nothing in the repo links the two; every other
+  clinical-suite controller already fixed (`clinical-summary`,
+  `medication-safety`, `diagnostics-orders`, now `immunization`) instead
+  treats `patientId === user.subjectId` directly, the same pattern
+  `packages/family`'s own doc comment names as the platform convention. This
+  module also is not called by any frontend today (confirmed by a full
+  grep of `apps/web`/`apps/mobile`) and is consulted internally by four
+  other services via DI as a clinic-wide identity lookup — its own doc
+  comment and `clinical-suite.md` row 1 both describe it as clinic-staff
+  intake, not patient self-service. Applying the patient-session pattern
+  here needs an owner call first: either (a) make `register()` accept and
+  persist under the caller's `subjectId` and gate all three routes as
+  patient self-service, discarding the "any clinician can register any
+  patient" intake model, or (b) leave it as clinic-staff intake and wait for
+  the `tenancy` module (row 20, "design early, build late") to gate it with
+  a real clinician session instead of a patient one. Neither is a
+  correctness fix an agent should pick unilaterally.
 
 # Round six — freemium on purpose, duplex voice, and a spoken-Nepali corpus
 
@@ -2176,6 +2229,119 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task CC — exhausted-queue improvement: access control on
+  `immunization`'s patient-facing routes; `patient-registry` (task BB's
+  named next pick) investigated and re-scoped to owner-gated instead.** Done.
+
+  **Housekeeping first.** Same shape every recent entry has hit: `git
+  checkout main` landed on a history not connected to any branch (local 76
+  commits, `origin/main` 50, no common ancestor — `git pull` refused with
+  divergent branches, and a `backup/pre-force-push-main-9bdf548` branch
+  already existed from a prior run's own force-push recovery). `git status`
+  was clean, so `git reset --hard origin/main` lost nothing.
+
+  **Why not `patient-registry`, as task BB's log entry named next.** Read
+  `patient-registry.controller.ts`/`.service.ts` before writing anything, and
+  sent a research agent to trace whether `patientId` and the auth
+  `subjectId` are the same id space here the way they are in every other
+  already-fixed clinical-suite controller. They are not:
+  `PatientRegistryService.register()` mints its own `randomUUID()` for the
+  record id, independent of any caller identity, and nothing anywhere in
+  `apps/api`/`apps/web`/`apps/mobile` links the two. `clinical-suite.md` row
+  1 and the controller's own doc comment both describe this module as
+  clinic-staff intake ("Foundation. Owns identity; others reference by id
+  only") — the same actor-is-a-clinician shape `clinical-charting`'s
+  `openEncounter`/`recordNote` and `diagnostics-orders`'s `order`/
+  `recordResult` are deliberately left unguarded for, not the
+  patient-self-service shape `listItems`/`getOrder` were fixed for. Four
+  other services (`scheduling`, `engagement`, `analytics`,
+  `clinical-suite`) already call `PatientRegistryService.get()` directly via
+  DI as a clinic-wide lookup, reinforcing that reading. Locking `GET
+  /patients/:patientId` to `patientId === user.subjectId` today would not
+  have been a security fix — every legitimately-registered patient's id is a
+  random UUID that has never equalled anyone's `subjectId`, so the route
+  would have started 404ing for everyone, a self-inflicted lockout dressed
+  up as a fix. Full reasoning moved to the ledger's "Owner-gated" section
+  under task CC rather than left buried in this log entry, since the next
+  run needs it before this box, not after.
+
+  **Why `immunization` instead.** Task AA's own ranked list put
+  `immunization` third, right after `patient-registry`. Confirmed by reading
+  `immunization.controller.ts` before starting: it is the exact fixed shape.
+  `POST /immunization/records` took `patientId` as a client-supplied body
+  field (`recordPatientReportedSchema`); `GET
+  /immunization/records?patientId=` took it as an optional, unchecked query
+  param; `GET /immunization/records/:recordId` took no ownerId at all — any
+  caller could plant a fake immunization record under someone else's id, or
+  read back any patient's immunization history by guessing or iterating a
+  `recordId`, the same shape task AA/BB already fixed for
+  `clinical-summary`/`diagnostics-orders`.
+
+  **Scoped correctly, not over-fixed.** `recordClinicianAdministered` (nested
+  under `encounters/:encounterId/records`) was left unguarded on purpose: it
+  already resolves `patientId` from the `clinical-charting` encounter via
+  `ClinicalChartingService`, never a client-supplied field, the same
+  documented no-clinician-session exception every sibling controller
+  carries. `voidRecord` was also left unguarded: it corrects a mis-entered
+  record with a free-text `reason` and no patient identity in its body at
+  all — the same shape `diagnostics-orders`'s `release`/`cancel` are, not a
+  patient-facing read or write.
+
+  **What shipped.** `immunization.controller.ts`: `SessionAuthGuard` +
+  `@CurrentUser()` on `recordPatientReported`, `listRecords`, `getRecord`;
+  `patientId` dropped from `recordPatientReportedSchema` and from
+  `listRecords`'s query params, the subject always `user.subjectId`.
+  `immunization.service.ts`: added `getOwnRecord(id, ownerId)` — calls the
+  existing `getRecord(id)` then 404s if `record.patientId !== ownerId`, the
+  same "belongs to someone else reads like it doesn't exist" rule
+  `diagnostics-orders.service.ts`'s `getOwnOrder` uses; `getRecord` itself
+  stays ownerId-free, since `voidRecord` calls it internally with no owner
+  context available. `listRecords`'s `patientId` parameter stays optional at
+  the service layer, unchanged, so `analytics.service.ts`'s existing
+  unscoped `listRecords()` call (building a cross-patient immunization
+  summary) keeps working. `immunization.module.ts` imports `AuthModule`
+  directly (not transitively) for `SessionAuthGuard` — the same fix every
+  prior task in this chain needed.
+
+  **Tests.** `immunization.controller.test.ts`: a `guardsFor` block (same
+  technique the last four tasks' controller tests use) proving
+  `recordPatientReported`/`listRecords`/`getRecord` carry `SessionAuthGuard`
+  and `health`/`recordClinicianAdministered`/`voidRecord` stay ungated; a new
+  cross-caller test proving a second session's `getRecord`/`listRecords`
+  never see the first session's record; existing tests updated to pass a
+  `CurrentUserResult` and to drop `patientId` from request bodies, plus one
+  new case proving a client-supplied `patientId` in the body is ignored in
+  favour of the session id. `immunization.service.test.ts`: three new
+  `getOwnRecord` cases (own record reads back, wrong owner 404s instead of
+  returning it, unknown id 404s). `immunization.fault-isolation.test.ts`:
+  its three existing tests call the controller directly and needed the same
+  `CurrentUserResult`-first-argument update to keep compiling; no behavioural
+  change to what they assert. No changes needed in
+  `immunization.repository.test.ts` or `immunization.module-descriptor.test.ts`
+  — neither calls the two changed controller routes.
+
+  **Gate.** `pnpm --filter "./packages/*" build` first (still required).
+  `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) / `pnpm typecheck`
+  (40/40) / `pnpm test` (75/75, 908 API tests, up from 902) / `pnpm build`
+  (40/40) all green from the repo root. No journey update under task U's
+  standing rule — API access-control boundary only; confirmed by grep before
+  starting that no route under `apps/web/src` or `apps/mobile/app`/`src`
+  calls `immunization` at all yet, so no UI, message file, or user-facing
+  behaviour changed.
+
+  **For the next run.** Task AA's ranked list, adjusted: `patient-registry`
+  is now owner-gated (see the ledger section above, not a queue box the
+  agent should pick again without an owner decision), `immunization` is
+  done. Three of the original six remain, same order: `referrals` and
+  `scheduling` next (unverified this run whether either is patient
+  self-service like `immunization` or clinic-staff-facing like
+  `patient-registry` — check before assuming the pattern applies), then
+  `engagement.controller.ts` (message bodies plus an unauthenticated `POST`
+  that can queue a message to any patientId). `population-health.controller.ts`'s
+  registry-wide leak still needs a clinician-session system (or route
+  removal) rather than a patient-session-guard sweep, per task AA's own
+  note — check its actor shape the same way before picking it, too.
 
 - 2026-08-20 — **Task BB — exhausted-queue improvement: access control on
   `diagnostics-orders`'s patient-facing read routes, the #1-ranked gap task

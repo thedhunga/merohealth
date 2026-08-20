@@ -74,6 +74,27 @@ describe('ImmunizationService reads', () => {
   });
 });
 
+describe('ImmunizationService.getOwnRecord', () => {
+  it("reads back the owner's own record", () => {
+    const { immunization } = buildImmunization();
+    const record = immunization.recordPatientReported(patientReportedInput);
+
+    expect(immunization.getOwnRecord(record.id, 'patient-1')).toEqual(record);
+  });
+
+  it("404s instead of returning a record that belongs to someone else", () => {
+    const { immunization } = buildImmunization();
+    const record = immunization.recordPatientReported(patientReportedInput);
+
+    expect(() => immunization.getOwnRecord(record.id, 'patient-2')).toThrow(NotFoundException);
+  });
+
+  it('404s for an unknown record id', () => {
+    const { immunization } = buildImmunization();
+    expect(() => immunization.getOwnRecord('missing', 'patient-1')).toThrow(NotFoundException);
+  });
+});
+
 describe('ImmunizationService.voidRecord', () => {
   it('voids a record with a reason', () => {
     const { immunization } = buildImmunization();

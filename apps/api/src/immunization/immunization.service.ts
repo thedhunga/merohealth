@@ -79,6 +79,28 @@ export class ImmunizationService {
     return record;
   }
 
+  /**
+   * The patient-facing read: `ownerId` is the only access-control here, the
+   * same "belongs to someone else 404s like it doesn't exist" rule
+   * `diagnostics-orders.service.ts`'s `getOwnOrder` uses — a recordId leaked
+   * or guessed by a caller who isn't its patient must not be readable by
+   * them. `getRecord` above stays ownerId-free on purpose: `voidRecord` calls
+   * it as part of the clinician-workflow correction, which has no patient
+   * session identity to check against.
+   */
+  getOwnRecord(id: string, ownerId: string): ImmunizationRecord {
+    const record = this.getRecord(id);
+    if (record.patientId !== ownerId) throw new NotFoundException(`No immunization record ${id}`);
+    return record;
+  }
+
+  /**
+   * `patientId` stays optional here because a future cross-patient reader
+   * (the same shape `analytics.service.ts` already uses against
+   * `diagnostics-orders`/`clinical-summary`) would call this directly
+   * through DI. The HTTP controller below never passes anything but the
+   * caller's own session id.
+   */
   listRecords(patientId?: string): ImmunizationRecord[] {
     return this.repository.list(patientId);
   }

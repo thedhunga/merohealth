@@ -1,6 +1,8 @@
 import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
+import type { CurrentUserResult } from '../auth/auth.service.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
 import { RecordsRepository } from '../records/records.repository.js';
@@ -16,28 +18,64 @@ function buildController() {
   return { controller, charting };
 }
 
-const validPatientReportedBody = { patientId: 'patient-1', vaccineName: 'Tetanus toxoid', doseNumber: 1, administeredOn: '2020-01-15' };
+// Same pattern `diagnostics-orders.controller.test.ts` uses: Nest's own
+// `@UseGuards` metadata key, since a plain method call (every other test in
+// this file) bypasses Nest's guard pipeline entirely.
+const GUARDS_METADATA = '__guards__';
+const controllerProto = ImmunizationController.prototype as unknown as Record<string, () => unknown>;
+function guardsFor(method: string): unknown {
+  return Reflect.getMetadata(GUARDS_METADATA, controllerProto[method]!);
+}
+
+const currentUser: CurrentUserResult = {
+  subjectId: 'patient-1',
+  user: { id: 'patient-1', phone: '9812345678', role: 'PATIENT', locale: 'ne', assuranceLevel: 'REGISTERED' },
+  patientProfileId: null,
+  assuranceLevel: 'REGISTERED',
+};
+const otherUser: CurrentUserResult = { ...currentUser, subjectId: 'patient-2' };
+
+const validPatientReportedBody = { vaccineName: 'Tetanus toxoid', doseNumber: 1, administeredOn: '2020-01-15' };
 const validClinicianBody = { clinicianId: 'clinician-1', vaccineName: 'Hepatitis B', doseNumber: 2, administeredOn: '2026-08-11' };
 
+describe('ImmunizationController auth wiring', () => {
+  it('gates the patient-facing routes behind SessionAuthGuard', () => {
+    expect(guardsFor('recordPatientReported')).toEqual([SessionAuthGuard]);
+    expect(guardsFor('listRecords')).toEqual([SessionAuthGuard]);
+    expect(guardsFor('getRecord')).toEqual([SessionAuthGuard]);
+  });
+
+  it('leaves health and the clinician-workflow routes ungated', () => {
+    // health: no auth concept at all. recordClinicianAdministered/voidRecord:
+    // no clinician-side session exists yet — same documented exception
+    // `clinical-charting.controller.ts` and `diagnostics-orders.controller.ts`'s
+    // `recordResult`/`release`/`cancel` carry.
+    expect(guardsFor('health')).toBeUndefined();
+    expect(guardsFor('recordClinicianAdministered')).toBeUndefined();
+    expect(guardsFor('voidRecord')).toBeUndefined();
+  });
+});
+
 describe('ImmunizationController.recordPatientReported', () => {
-  it('records a record from a valid body', () => {
+  it('records a record under the signed-in caller, ignoring any client-supplied patientId', () => {
     const { controller } = buildController();
-    const record = controller.recordPatientReported(validPatientReportedBody);
+    const record = controller.recordPatientReported(currentUser, { ...validPatientReportedBody, patientId: 'someone-else' });
 
     expect(record.status).toBe('ACTIVE');
     expect(record.provenance).toBe('PATIENT_REPORTED');
+    expect(record.patientId).toBe(currentUser.subjectId);
   });
 
   it('rejects a request missing a required field', () => {
     const { controller } = buildController();
-    expect(() => controller.recordPatientReported({ ...validPatientReportedBody, vaccineName: undefined })).toThrow(
-      BadRequestException,
-    );
+    expect(() =>
+      controller.recordPatientReported(currentUser, { ...validPatientReportedBody, vaccineName: undefined }),
+    ).toThrow(BadRequestException);
   });
 
   it('rejects a non-positive dose number', () => {
     const { controller } = buildController();
-    expect(() => controller.recordPatientReported({ ...validPatientReportedBody, doseNumber: 0 })).toThrow(
+    expect(() => controller.recordPatientReported(currentUser, { ...validPatientReportedBody, doseNumber: 0 })).toThrow(
       BadRequestException,
     );
   });
@@ -45,7 +83,7 @@ describe('ImmunizationController.recordPatientReported', () => {
   it('rejects an administeredOn that is not YYYY-MM-DD', () => {
     const { controller } = buildController();
     expect(() =>
-      controller.recordPatientReported({ ...validPatientReportedBody, administeredOn: '15-01-2020' }),
+      controller.recordPatientReported(currentUser, { ...validPatientReportedBody, administeredOn: '15-01-2020' }),
     ).toThrow(BadRequestException);
   });
 });
@@ -80,21 +118,29 @@ describe('ImmunizationController.recordClinicianAdministered', () => {
 describe('ImmunizationController reads and void', () => {
   it('reads back a recorded record, lists it, and voids it', () => {
     const { controller } = buildController();
-    const record = controller.recordPatientReported(validPatientReportedBody);
+    const record = controller.recordPatientReported(currentUser, validPatientReportedBody);
 
-    expect(controller.getRecord(record.id).id).toBe(record.id);
-    expect(controller.listRecords('patient-1').total).toBe(1);
+    expect(controller.getRecord(currentUser, record.id).id).toBe(record.id);
+    expect(controller.listRecords(currentUser).total).toBe(1);
     expect(controller.voidRecord(record.id, { reason: 'Wrong patient' }).status).toBe('VOIDED');
   });
 
   it('404s a read for an unknown record', () => {
     const { controller } = buildController();
-    expect(() => controller.getRecord('missing')).toThrow(NotFoundException);
+    expect(() => controller.getRecord(currentUser, 'missing')).toThrow(NotFoundException);
+  });
+
+  it("404s a read for another caller's record instead of returning it", () => {
+    const { controller } = buildController();
+    const record = controller.recordPatientReported(currentUser, validPatientReportedBody);
+
+    expect(() => controller.getRecord(otherUser, record.id)).toThrow(NotFoundException);
+    expect(controller.listRecords(otherUser).total).toBe(0);
   });
 
   it('rejects a void request missing a reason', () => {
     const { controller } = buildController();
-    const record = controller.recordPatientReported(validPatientReportedBody);
+    const record = controller.recordPatientReported(currentUser, validPatientReportedBody);
     expect(() => controller.voidRecord(record.id, {})).toThrow(BadRequestException);
   });
 });
@@ -116,8 +162,8 @@ describe('ImmunizationController degraded mode', () => {
       ServiceUnavailableException,
     );
 
-    const record = controller.recordPatientReported(validPatientReportedBody);
+    const record = controller.recordPatientReported(currentUser, validPatientReportedBody);
     expect(record.status).toBe('ACTIVE');
-    expect(controller.listRecords('patient-1').total).toBe(1);
+    expect(controller.listRecords(currentUser).total).toBe(1);
   });
 });

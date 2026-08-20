@@ -1,6 +1,7 @@
 import { buildModuleRegistry, collectHealthStates, resolveAvailability } from '@swasthya/module-registry';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
+import type { CurrentUserResult } from '../auth/auth.service.js';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
 import { createClinicalChartingModuleDescriptor } from '../clinical-charting/clinical-charting.module-descriptor.js';
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
@@ -12,7 +13,14 @@ import { createImmunizationModuleDescriptor } from './immunization.module-descri
 import { ImmunizationRepository } from './immunization.repository.js';
 import { ImmunizationService } from './immunization.service.js';
 
-const patientReportedBody = { patientId: 'patient-1', vaccineName: 'Tetanus toxoid', doseNumber: 1, administeredOn: '2020-01-15' };
+const currentUser: CurrentUserResult = {
+  subjectId: 'patient-1',
+  user: { id: 'patient-1', phone: '9812345678', role: 'PATIENT', locale: 'ne', assuranceLevel: 'REGISTERED' },
+  patientProfileId: null,
+  assuranceLevel: 'REGISTERED',
+};
+
+const patientReportedBody = { vaccineName: 'Tetanus toxoid', doseNumber: 1, administeredOn: '2020-01-15' };
 const clinicianBody = { clinicianId: 'clinician-1', vaccineName: 'Hepatitis B', doseNumber: 2, administeredOn: '2026-08-11' };
 
 function buildCharting(): { charting: ClinicalChartingService; documents: RecordsService } {
@@ -44,7 +52,9 @@ describe('immunization fault isolation', () => {
     const brokenImmunization = new ImmunizationController(
       new ImmunizationService(new BrokenImmunizationRepository(), charting),
     );
-    expect(() => brokenImmunization.recordPatientReported(patientReportedBody)).toThrow('simulated store outage');
+    expect(() => brokenImmunization.recordPatientReported(currentUser, patientReportedBody)).toThrow(
+      'simulated store outage',
+    );
 
     expect(charting.getEncounter(encounter.id).id).toBe(encounter.id);
   });
@@ -86,9 +96,9 @@ describe('immunization fault isolation', () => {
 
     await expect(controller.recordClinicianAdministered(encounter.id, clinicianBody)).rejects.toThrow();
 
-    const record = controller.recordPatientReported(patientReportedBody);
+    const record = controller.recordPatientReported(currentUser, patientReportedBody);
     expect(record.status).toBe('ACTIVE');
-    expect(controller.listRecords('patient-1').total).toBe(1);
+    expect(controller.listRecords(currentUser).total).toBe(1);
     expect(controller.voidRecord(record.id, { reason: 'Test correction' }).status).toBe('VOIDED');
   });
 });
