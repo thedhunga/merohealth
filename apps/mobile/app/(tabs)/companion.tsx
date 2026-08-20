@@ -34,6 +34,7 @@ import { Screen, SathiOrb, uiStyles } from '@/components/ui';
 import { ProfileSwitcher } from '@/components/ProfileSwitcher';
 import { useAppState } from '@/state/app-state';
 import { classifyCompanionCapture, type CompanionCapture } from '@/lib/companion-capture';
+import { fireAndForget } from '@/lib/fire-and-forget';
 import { openExternalUrl } from '@/lib/open-external-url';
 
 function defaultAnswerText(language: LanguageCode): string {
@@ -194,7 +195,7 @@ export default function CompanionScreen() {
   };
 
   const speakGuidance = () => {
-    void Speech.stop();
+    fireAndForget(() => Speech.stop());
     Speech.speak(
       language === 'en'
         ? 'Tell me the main thing happening today. I will help you find a safe next step.'
@@ -204,7 +205,7 @@ export default function CompanionScreen() {
   };
 
   const speakAnswer = () => {
-    void Speech.stop();
+    fireAndForget(() => Speech.stop());
     Speech.speak(
       language === 'en'
         ? 'Symptoms can have many causes. This information does not make a diagnosis. Seek urgent help for trouble breathing, fainting, or severe chest pain.'

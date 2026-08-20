@@ -16,6 +16,7 @@ import {
 import { trainingLessons } from '@swasthya/training-content';
 import { colors, radii, spacing } from '@swasthya/configuration';
 import { Screen, SectionTitle } from '@/components/ui';
+import { fireAndForget } from '@/lib/fire-and-forget';
 import { useAppState } from '@/state/app-state';
 
 const walkthroughSteps = [
@@ -69,7 +70,7 @@ export default function LearnScreen() {
   const progress = ((walkthroughIndex + 1) / walkthroughSteps.length) * 100;
 
   const speakCurrentStep = () => {
-    void Speech.stop();
+    fireAndForget(() => Speech.stop());
     const title = language === 'en' ? currentStep.titleEn : currentStep.titleNe;
     const body = language === 'en' ? currentStep.bodyEn : currentStep.bodyNe;
     const separator = language === 'en' ? '. ' : '। ';
@@ -80,7 +81,7 @@ export default function LearnScreen() {
   };
 
   const restart = () => {
-    void Speech.stop();
+    fireAndForget(() => Speech.stop());
     setWalkthroughIndex(0);
     setPlaying(true);
   };

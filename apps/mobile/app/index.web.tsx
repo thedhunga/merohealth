@@ -32,6 +32,7 @@ import {
 } from 'expo-audio';
 import * as Speech from 'expo-speech';
 import { colors } from '@swasthya/configuration';
+import { fireAndForget } from '@/lib/fire-and-forget';
 import { useAppState } from '@/state/app-state';
 
 // Three journey steps, three brand tiers — forest, jade, marigold — instead
@@ -161,7 +162,7 @@ export default function WebWelcomeScreen() {
   };
 
   const speakIntroduction = () => {
-    void Speech.stop();
+    fireAndForget(() => Speech.stop());
     Speech.speak(
       en
         ? "Hello. I'm Sathi, your health companion. I understand what you say and help you find a safe next step."

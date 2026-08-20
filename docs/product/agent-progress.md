@@ -946,6 +946,32 @@ absent, this section is the source of truth), `frontend-design` skill.
       the localized content paths — the regression guard that would have caught
       this. **Done 2026-08-20 — see the log entry below.**
 
+## QQ. The fire-and-forget `void Speech.stop()` / `void Haptics` calls in `apps/mobile` gave false crash-safety — task PP's own "for the next run" lead 2
+
+> `void promise` discards the *value* but not a *rejection*: a `void
+> Speech.stop()` whose promise rejects (native module missing on a stripped
+> build, or no equivalent on the web export) still becomes an unhandled
+> rejection, which on Hermes and on the web crashes the screen or floods the
+> console. That is the exact silent-failure class tasks MM/NN/OO hardened for
+> awaited calls; the six fire-and-forget library calls were one platform quirk
+> away from it, and bare `void` read as "handled" when it was not. Task PP's log
+> named this as lead 2. Distinct from the `void handler()` sites (`toggleVoice`,
+> `submitQuestion`, `openLink`, `enableCamera`, …), which are genuinely safe —
+> each awaited call inside them already `try`/`catch`es, so no rejection escapes.
+
+- [x] `src/lib/fire-and-forget.ts` — `fireAndForget(run)` takes a thunk, runs
+      the side effect, and attaches a no-op rejection handler so a rejected
+      promise cannot escape as an unhandled rejection; a synchronous throw (an
+      entirely-absent native module) is caught too. Thunk-shaped like the sibling
+      `request-camera-access.ts` / `open-external-url.ts` helpers so the native
+      call is injectable in tests. Routed all five `Speech.stop()` calls
+      (`learn.tsx` ×2, `companion.tsx` ×2, `index.web.tsx`) and the one
+      `Haptics.selectionAsync()` (`index.tsx`) through it. Colocated
+      `fire-and-forget.test.ts` proves it runs the effect, does not leak an
+      unhandled rejection (asserted via a `process.on('unhandledRejection')`
+      spy), swallows a synchronous throw, and tolerates a `void` side effect.
+      **Done 2026-08-20 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2695,6 +2721,84 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task QQ — exhausted-queue improvement: the fire-and-forget
+  `void Speech.stop()` / `void Haptics.selectionAsync()` calls in `apps/mobile`
+  gave false crash-safety. This is task PP's own "for the next run" lead 2.**
+  Done.
+
+  **Housekeeping first.** Same force-push shape every recent entry hit. Local
+  `main` was the stale 2026-08-15 human commit `9bdf548`; `git pull` refused the
+  divergent merge (`git merge-base` empty — the remote `main` is a rewritten
+  50-commit history tipped at `ac0b35e`). `origin/backup/pre-force-push-main-
+  9bdf548` still holds `9bdf548` tip-for-tip, so nothing was lost, and this clone
+  is not shallow (matching PP/OO, contra NN). `git reset --hard origin/main` was
+  correct — it is what production deploys.
+
+  **Queue check.** Every unchecked box read. Unchanged since FF: task U's third
+  bullet (a standing rule, no deliverable), task V (`InstallPrompt`/
+  `SignInSuggestion` — a UX priority call reserved for the owner), and the
+  owner-gated set. Note the `marigold-800`/`marigold-900` "missing token" bug
+  task T″'s log flagged is now **resolved** — both are defined in
+  `globals.css:59-60`. Queue exhausted for the agent, so this is a step-4
+  improvement. Latest `ci` on `main` (`ac0b35e`) is the page-weight-budget fix,
+  i.e. green, so the standing red-CI rule did not divert this run.
+
+  **Why this.** PP's log ordered four leads. Lead 1 (`/app` has zero e2e
+  coverage) is genuinely highest-value but needs the Playwright harness to serve
+  `apps/mobile/dist` alongside the Next app — real infra with a meaningful chance
+  of a blocked run, not one clean task. Lead 2 is a real, bounded hardening of
+  the exact silent-crash class MM/NN/OO closed, so I took it.
+
+  **The actual defect (not cosmetic).** `void promise` discards the resolved
+  *value* but does **not** catch a *rejection* — a rejected promise prefixed with
+  `void` is still an unhandled rejection, which on Hermes and on the web export
+  crashes the screen or floods the console. `expo-speech`'s `stop()` and
+  `expo-haptics`' `selectionAsync()` reject when the native module is missing on
+  a stripped build or the web platform has no equivalent, so the six
+  fire-and-forget calls (`void Speech.stop()` ×5, `void Haptics.selectionAsync()`
+  ×1) were one platform quirk from the same dead-end MM/NN/OO each closed for an
+  *awaited* call — and bare `void` read as "handled" when it was not. Verified
+  the distinction: the other `void handler()` sites (`toggleVoice`,
+  `submitQuestion`, `openLink`, `enableCamera`) are genuinely safe — each awaited
+  call inside them already sits in a `try`/`catch`, so no rejection escapes;
+  those were left as bare `void`, correctly.
+
+  **What shipped.** `apps/mobile/src/lib/fire-and-forget.ts` —
+  `fireAndForget(run)` takes a thunk (so a synchronous throw from an
+  entirely-absent native module is caught too, and the native call is injectable
+  in tests like the sibling `request-camera-access.ts`/`open-external-url.ts`
+  helpers), runs the effect, and attaches a no-op rejection handler so nothing
+  leaks. All five `Speech.stop()` sites and the one `Haptics.selectionAsync()`
+  now route through it. Colocated `fire-and-forget.test.ts` (4 tests): runs the
+  effect, does not leak an unhandled rejection (asserted with a
+  `process.on('unhandledRejection')` spy — the test would fail if a rejection
+  escaped), swallows a synchronous throw, tolerates a `void` side effect.
+
+  **375px measurement.** No rendered layout changes — this is behavioural
+  hardening of button/side-effect handlers, not a visual edit — so tap-target
+  counts and screen heights are unchanged from PP's clean baseline (NE
+  first-visit 2.0 screens / EN marketing 5.83 / NE returning 1.52; the only
+  sub-44px tappable is the focus-only skip link). The user-visible change is that
+  a phone where speech or haptics is unavailable no longer risks a silent crash
+  when someone taps "listen", restart, or Get started.
+
+  **Tests.** `apps/mobile` 9 files/40 tests → **10 files/44 tests**; repo-wide
+  `pnpm test` 934→ same +4 on mobile.
+
+  **Gate.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75/75 tasks green) / `pnpm build`
+  (40/40) all green from the repo root.
+
+  **For the next run.** In the order I would take them:
+  1. **`/app` has zero e2e journey coverage** — still PP's lead 1 and the
+     highest-value open item. Needs the web e2e harness to serve
+     `apps/mobile/dist`. Infra work, meaningful chance of a blocked run.
+  2. **The extensionless-metadata middleware trap, pre-emptively** — PP's lead 3.
+     If a future run adds `app/opengraph-image.tsx` or `app/twitter-image.tsx`
+     they hit the exact `proxy.ts` matcher bug PP fixed for `/icon`; add them to
+     the negative lookahead in the same commit and lock it in `proxy.test.ts`.
+  3. **Dead code and skipped tests** — MM's lead 3, still open.
 
 - 2026-08-20 — **Task PP — exhausted-queue improvement: the browser-tab
   favicon 404'd site-wide because the i18n middleware was locale-routing

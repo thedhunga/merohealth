@@ -5,6 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { colors, radii, spacing } from '@swasthya/configuration';
 import type { LanguageCode } from '@swasthya/shared-types';
 import { Pill, Screen, SathiOrb, uiStyles } from '@/components/ui';
+import { fireAndForget } from '@/lib/fire-and-forget';
 import { useAppState } from '@/state/app-state';
 const choices: { code: LanguageCode; label: string; detail: string }[] = [
   { code: 'ne', label: 'नेपाली', detail: 'देवनागरी' }, { code: 'ne-Latn', label: 'Nepali', detail: 'Romanized' }, { code: 'en', label: 'English', detail: 'English' },
@@ -12,7 +13,7 @@ const choices: { code: LanguageCode; label: string; detail: string }[] = [
 export default function WelcomeScreen() {
   const { language, setLanguage } = useAppState();
   const [step, setStep] = useState(0);
-  const start = () => { void Haptics.selectionAsync(); if (step === 0) setStep(1); else router.replace('/(tabs)'); };
+  const start = () => { fireAndForget(() => Haptics.selectionAsync()); if (step === 0) setStep(1); else router.replace('/(tabs)'); };
   return <Screen>
     <View style={styles.top}><View style={styles.mark}><Text style={styles.glyph}>स</Text></View><Text style={styles.brand}>स्वास्थ्य साथी</Text><Text style={styles.demo}>DEMO</Text></View>
     <View style={styles.hero}><SathiOrb language={language} size={96} /><Text style={uiStyles.h1}>{step === 0 ? (language === 'en' ? 'Healthcare, now one easy step at a time.' : 'स्वास्थ्य सेवा, अब एक–एक सजिलो कदममा।') : (language === 'en' ? 'Which language is easiest for you?' : 'कुन भाषामा सहज हुन्छ?')}</Text><Text style={uiStyles.body}>{step === 0 ? (language === 'en' ? 'Your companion that understands your questions, shows the safe next step, and connects you to the right care.' : 'प्रश्न बुझ्ने, सुरक्षित अर्को कदम देखाउने र सही स्वास्थ्य सेवासँग जोड्ने तपाईंको साथी।') : (language === 'en' ? 'You can change the language anytime later.' : 'पछि जुनसुकै बेला भाषा परिवर्तन गर्न सक्नुहुन्छ।')}</Text></View>
