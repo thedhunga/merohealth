@@ -411,6 +411,26 @@ absent, this section is the source of truth), `frontend-design` skill.
       `rate-limiter.ts`'s own comment; a shared store (Vercel KV or
       equivalent) is the upgrade if abuse is ever observed in practice.
 
+## Z. Access control on `POST /medication-safety/check` — the gap task Y's own log entry named and deferred
+
+> Every unchecked queue box was still owner/asset-gated. Picked as this
+> run's highest-value improvement to work already done, per the prior run's
+> own "For the next run" note: the endpoint took a client-supplied
+> `patientId` with no session guard at all, so any caller could read back
+> any patient's active allergies and medications (via `findings`) just by
+> guessing or iterating ids — a real health-data access-control leak, not a
+> theoretical one.
+
+- [x] `SessionAuthGuard` + `@CurrentUser()` on `POST /medication-safety/check`,
+      `patientId` dropped from the request body entirely and the subject
+      derived from the caller's verified session — the same
+      client-supplied-owner fix `records.controller.ts`'s `captureSchema`
+      already applies. `PrescribingService.signPrescription`'s own
+      cross-patient call to `MedicationSafetyService.checkMedication` is
+      unaffected: it calls the service directly via DI, never through this
+      HTTP controller, so the clinician sign-time check keeps working
+      exactly as before. **Done 2026-08-20 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2095,6 +2115,95 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task Z — exhausted-queue improvement: access control on
+  `POST /medication-safety/check`, the local-DB-read gap task Y's own log
+  entry named as a runner-up and left undone.** Done.
+
+  **Housekeeping first.** `git checkout main` again landed on a history not
+  connected to any branch (`git pull` refused with divergent branches: local
+  76 commits, `origin/main` 50, no common ancestor from the local ref's
+  side). Same shape every recent entry has hit — confirmed
+  `origin/backup/pre-force-push-main-9bdf548` holds the exact pre-force tip,
+  `git status` was clean, and `9bdf548` (local HEAD) matched that backup
+  exactly, so `git reset --hard origin/main` lost nothing.
+
+  **Why this task.** All eight unchecked queue boxes remain genuinely
+  owner/asset-gated (`GOOGLE_CLIENT_ID`, testimonial portraits pending
+  Higgsfield credits, payment-provider/licence/duplex-findings owner calls,
+  task V's priority call, task U's own standing rule, and the explicit
+  "never flip `NEXT_PUBLIC_PREMIUM_LAUNCH=live`" line). Rather than
+  re-sweep ground already covered, took task Y's own "For the next run"
+  pointer at face value: `POST /medication-safety/check`
+  (`apps/api/src/medication-safety/medication-safety.controller.ts`) took a
+  client-supplied `patientId` in the body with **no auth guard of any
+  kind** — confirmed by reading the controller, not assumed. Any caller
+  could pass an arbitrary id and get that patient's active allergies and
+  medications back in the response's `findings`, a real health-data
+  exposure, not a hardening nicety.
+
+  **Scoped correctly, not over-fixed.** A research agent surveyed how this
+  app already solves the identical shape elsewhere before anything was
+  written. Two patterns coexist deliberately: (1) routes that expose *one
+  specific patient's own data* by session identity — `records.controller.ts`
+  (`SessionAuthGuard` + `@CurrentUser()`, `patientId` never accepted from
+  the body, subject always the verified `subjectId`) — and (2) clinician
+  free-text-`patientId` routes across `clinical-charting`, `prescribing`
+  etc., left deliberately unguarded per `clinical-charting.controller.ts`'s
+  own doc comment: "this app has no clinician-side session to check them
+  against yet — gating them behind a *patient* SessionAuthGuard would not
+  make them correct, only unusable." `POST /medication-safety/check` is
+  shape (1), not (2): it is a direct patient/consumer query ("can I take
+  X"), and `PrescribingService.signPrescription`'s own clinician-side
+  cross-patient check calls `MedicationSafetyService.checkMedication`
+  straight through DI, never through this HTTP controller — confirmed by
+  reading `prescribing.service.ts` — so gating the controller changes
+  nothing for that path.
+
+  **What shipped.** `medication-safety.controller.ts`: `@UseGuards
+  (SessionAuthGuard)` on `check`, `@CurrentUser() user: CurrentUserResult`
+  added, `patientId` removed from `checkSchema` entirely (not just
+  ignored — the body has nothing left to say about whose data this is,
+  matching `records.controller.ts`'s own `captureSchema` comment), and the
+  service is now called with `user.subjectId`. `medication-safety.module.ts`
+  imports `AuthModule` directly (not transitively), the same fix
+  `clinical-charting.module.ts` already documents needing — a transitive
+  import leaves `SessionAuthGuard` unresolvable even when a sibling
+  controller works fine off it.
+
+  **Tests.** `medication-safety.controller.test.ts`: a `guardsFor` check
+  (Nest's own `__guards__` metadata, same technique
+  `records.controller.test.ts` uses) proving `check` carries
+  `SessionAuthGuard` and `health` stays ungated; every existing case updated
+  to call `controller.check(currentUser, body)`; one new case that passes a
+  now-nonexistent `patientId: 'someone-else'` in the body alongside a real
+  session for a different subject and asserts the response reflects the
+  *session's* record (zero findings), not the smuggled id — proving the
+  fix holds even against a client trying the old shape.
+  `medication-safety.fault-isolation.test.ts`'s three direct-construction
+  `controller.check(...)` calls updated to the new signature; no behavioural
+  change to what they test (repository/DOWN-dependency degradation), so no
+  new fault-isolation case was needed. No changes needed in
+  `medication-safety.module-descriptor.test.ts` or `.repository.test.ts` —
+  neither calls the controller.
+
+  **Gate.** `pnpm --filter "./packages/*" build` first (still required —
+  `next dev`/build 500s without it). `pnpm install --frozen-lockfile` /
+  `pnpm lint` (40/40) / `pnpm typecheck` (40/40) / `pnpm test` (75/75, 890
+  API tests including the four new/updated medication-safety cases) /
+  `pnpm build` (40/40) all green from the repo root. No journey update
+  under task U's standing rule — this changes an API access-control
+  boundary, not anything a person sees; no UI, message file, or user-facing
+  behaviour changed.
+
+  **For the next run.** The queue is exhausted again on the same eight
+  boxes (Z above is now checked). The other runner-up the same research
+  agent's sweep hadn't reached: it only compared `medication-safety` against
+  `records`/`clinical-charting` — a wider pass across `apps/api/src/*` for
+  any other controller still taking a client-supplied patient/owner id with
+  no guard (the `clinical-charting`/`prescribing` family is a *documented*
+  exception, not necessarily the only undocumented one) would be a
+  reasonable next exhausted-queue pick if nothing else has moved by then.
 
 - 2026-08-19 — **Task Y — exhausted-queue improvement: rate limiting on
   `apps/web`'s own `/api/companion/research`, the actual unauthenticated

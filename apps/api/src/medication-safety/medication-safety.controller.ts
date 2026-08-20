@@ -1,10 +1,17 @@
-import { BadRequestException, Body, Controller, Get, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
+import type { CurrentUserResult } from '../auth/auth.service.js';
+import { CurrentUser } from '../auth/current-user.decorator.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { MedicationSafetyService } from './medication-safety.service.js';
 
+// No `patientId` field: the earlier body-supplied value let any caller read
+// any patient's active allergies and medications back out through
+// `findings` — the same client-supplied-owner gap `records.controller.ts`'s
+// `captureSchema` comment describes, and the same fix (§3 there): the
+// subject is always the session identity, never a client-supplied value.
 const checkSchema = z.object({
-  patientId: z.string().trim().min(1),
   proposedLabel: z.string().trim().min(1),
 });
 
@@ -33,22 +40,22 @@ export class MedicationSafetyController {
   }
 
   @Post('check')
+  @UseGuards(SessionAuthGuard)
   @ApiOperation({
     summary:
-      "Check a proposed medication against a patient's active allergies, active medications, and the interaction ruleset. Returns checked:false, not an error, while clinical-summary is unavailable.",
+      "Check a proposed medication against the caller's own active allergies, active medications, and the interaction ruleset. Returns checked:false, not an error, while clinical-summary is unavailable.",
   })
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['patientId', 'proposedLabel'],
+      required: ['proposedLabel'],
       properties: {
-        patientId: { type: 'string' },
         proposedLabel: { type: 'string' },
       },
     },
   })
-  check(@Body() body: unknown) {
-    const { patientId, proposedLabel } = parseOrThrow(checkSchema, body);
-    return this.medicationSafety.checkMedication(patientId, proposedLabel);
+  check(@CurrentUser() user: CurrentUserResult, @Body() body: unknown) {
+    const { proposedLabel } = parseOrThrow(checkSchema, body);
+    return this.medicationSafety.checkMedication(user.subjectId, proposedLabel);
   }
 }

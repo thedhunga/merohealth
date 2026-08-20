@@ -1,6 +1,7 @@
 import { buildModuleRegistry, collectHealthStates, resolveAvailability } from '@swasthya/module-registry';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
+import type { CurrentUserResult } from '../auth/auth.service.js';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
 import { createClinicalChartingModuleDescriptor } from '../clinical-charting/clinical-charting.module-descriptor.js';
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
@@ -22,6 +23,13 @@ function buildStack(): { documents: RecordsService; charting: ClinicalChartingSe
   return { documents, charting, summary };
 }
 
+const currentUser: CurrentUserResult = {
+  subjectId: 'patient-1',
+  user: { id: 'patient-1', phone: '9812345678', role: 'PATIENT', locale: 'ne', assuranceLevel: 'REGISTERED' },
+  patientProfileId: null,
+  assuranceLevel: 'REGISTERED',
+};
+
 /**
  * §2 rule 5, "the shell renders around holes," demonstrated against a real
  * thrown error, same shape `clinical-summary`'s own
@@ -42,7 +50,7 @@ describe('medication-safety fault isolation', () => {
       new MedicationSafetyService(new BrokenMedicationSafetyRepository(), summary),
     );
     await expect(
-      brokenController.check({ patientId: 'patient-1', proposedLabel: 'Penicillin' }),
+      brokenController.check(currentUser, { proposedLabel: 'Penicillin' }),
     ).rejects.toThrow('simulated store outage');
 
     expect(summary.listItems('patient-1')).toHaveLength(1);
@@ -96,7 +104,7 @@ describe('medication-safety fault isolation', () => {
     });
 
     summary.health = () => Promise.resolve({ status: 'DOWN', detail: 'simulated outage' });
-    const duringOutage = await controller.check({ patientId: 'patient-1', proposedLabel: 'Penicillin' });
+    const duringOutage = await controller.check(currentUser, { proposedLabel: 'Penicillin' });
     expect(duringOutage).toEqual({
       proposedLabel: 'Penicillin',
       findings: [],
@@ -105,7 +113,7 @@ describe('medication-safety fault isolation', () => {
     });
 
     summary.health = () => Promise.resolve({ status: 'UP' });
-    const afterRecovery = await controller.check({ patientId: 'patient-1', proposedLabel: 'Penicillin' });
+    const afterRecovery = await controller.check(currentUser, { proposedLabel: 'Penicillin' });
     expect(afterRecovery.checked).toBe(true);
     expect(afterRecovery.findings).toEqual([
       {
