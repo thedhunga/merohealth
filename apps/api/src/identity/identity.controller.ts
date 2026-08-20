@@ -11,11 +11,11 @@ const documentTypeSchema = z.enum(['NATIONAL_ID', 'CITIZENSHIP', 'PASSPORT', 'DR
 
 const submitSchema = z.object({
   documentType: documentTypeSchema,
-  evidenceImageRef: z.string().trim().min(1),
+  evidenceImageRef: z.string().trim().min(1).max(500),
 });
 
 const rejectSchema = z.object({
-  reason: z.string().trim().min(1),
+  reason: z.string().trim().min(1).max(2000),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {

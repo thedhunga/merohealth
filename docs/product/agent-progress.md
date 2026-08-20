@@ -785,6 +785,32 @@ absent, this section is the source of truth), `frontend-design` skill.
       or a user-visible behaviour change on the success path. **Done
       2026-08-20 — see the log entry below.**
 
+## KK. Bound every unbounded free-text `z.string()` field across `apps/api` controllers — the secondary finding task JJ's own log entry deferred
+
+> Task JJ fixed the live-breaking body-size bug and flagged a lower-priority
+> sibling: most `z.string()` fields across `apps/api`'s 22 controllers had no
+> `.max()`, unlike the handful (`records.controller.ts`'s `filename`/`title`,
+> `history.controller.ts`'s `question`/`answer`, `companion.controller.ts`'s
+> `message`) that already did. JJ deferred it rather than widen a one-line
+> fix into a multi-controller sweep. With the access-control, rate-limiting
+> and body-size threads all independently declared exhausted by several
+> recent runs, this is that sweep.
+
+- [x] Every `z.string()` in every `*.controller.ts` under `apps/api/src` now
+      carries a `.max()`, sized by field role and matching the bounds already
+      established in `records.controller.ts`/`history.controller.ts`/
+      `auth.controller.ts`: opaque ids (`patientId`, `clinicianId`,
+      `challengeId`, path-param ids, …) 200 chars; phone numbers and OTP
+      codes 20; image/document refs 500; short labels/names/reasons 200–2000
+      depending on how free-form the field is; SOAP note sections (the
+      example JJ's own log entry named) 10,000; the Google `idToken` JWT
+      8,192 (routinely 1–2kb, far past the 200-char id ceiling). Regex- or
+      enum-validated fields (ISO instants, `YYYY-MM-DD` dates, enums) were
+      left alone — their format already bounds their length. No behaviour
+      change for any real caller: every bound is generous relative to what
+      the field actually holds today: a name, a reason, a clinical note, a
+      JWT — never a payload. **Done 2026-08-20 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2534,6 +2560,90 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task KK — exhausted-queue improvement: bound every
+  unbounded free-text `z.string()` field across `apps/api`'s 22 controllers,
+  the secondary finding task JJ's own log entry deferred.** Done.
+
+  **Housekeeping first.** Same shape every recent run has hit, one more
+  time: local `main` (a stale clone from before the 2026-08-15 history
+  consolidation, still at `9bdf548`) had no shared ancestor with
+  `origin/main` (`a7ad140`, force-pushed the same day this run started). A
+  `backup/pre-force-push-main-9bdf548` branch on the remote held the stale
+  tip exactly, `git status` was clean, so `git reset --hard origin/main` was
+  safe and lost nothing local.
+
+  **Queue check.** Every unchecked box was read, not just counted: the
+  standing "every future task adds a journey" rule (no discrete
+  deliverable), `InstallPrompt`/`SignInSuggestion`, `NEXT_PUBLIC_PREMIUM_
+  LAUNCH=live`, the duplex-voice go/no-go, the corpus licence decision, the
+  payment-provider choice, Sign in with Google (blocked on the owner's OAuth
+  client id), the two missing testimonial portraits (blocked on Higgsfield
+  credits), and every item in "Owner-gated" — all still genuinely
+  owner-gated or blocked on an external asset, same conclusion every recent
+  run reached. Task JJ's own log entry named an open, differently-scoped
+  lead instead: "inconsistent `.max()` bounds on other free-text zod fields
+  across `apps/api` controllers (e.g. `clinical-charting.controller.ts`'s
+  SOAP-note fields have none) — left for a future run since it isn't
+  currently causing user-facing breakage."
+
+  **What the sweep found.** `grep`'d every `*.controller.ts` under
+  `apps/api/src` for `z.string()` without `.max()`: 87 hits across all 22
+  controllers that define a zod schema. Nearly every opaque id
+  (`patientId`, `clinicianId`, `challengeId`, …), free-text field (SOAP
+  note sections, prescription `dosageInstructions`, billing `description`,
+  rejection/void `reason`s) and even two `@Param()` path values parsed with
+  an inline `z.string().trim().min(1).safeParse(...)`
+  (`language-corpus.controller.ts`'s `ownerId`/`contributorId`) had no
+  upper bound at all — the same shape of gap task JJ's body-size fix closed
+  for the two `bytesBase64` fields, just not yet applied anywhere else. Not
+  a live break the way JJ's body-parser gap was (no confirmed 5xx or memory
+  incident), but the same class of unbounded-input risk JJ's own reasoning
+  flagged: nothing stopped a client from sending a multi-megabyte string
+  into any of these fields — a `reason`, a `label`, a `patientId` — before
+  it reached a service, a repository, or a database write.
+
+  **What shipped.** Added `.max()` to every one of the 87 fields, sized by
+  role and matching the bounds already established in three files that had
+  them before this run (`records.controller.ts`'s `filename`/`title`,
+  `history.controller.ts`'s `question`/`answer`/`ageBand`,
+  `auth.controller.ts`'s `displayName`): opaque ids and path params 200
+  chars; phone numbers and OTP codes 20; image/document refs 500; short
+  labels 200; medium free text (`reason`, `description`, `attestation`,
+  prompts) 2,000; SOAP note sections — the example JJ's own log entry named
+  — 10,000; the Google `idToken` 8,192, since a real Google JWT routinely
+  runs 1–2kb, well past the 200-char id ceiling every opaque id field uses
+  (documented inline so the next reader doesn't "fix" it back down).
+  Regex-validated fields (every `isoInstant`, `YYYY-MM-DD` date) and
+  enum-validated fields were left alone — their format already bounds their
+  length; adding `.max()` there would be decoration, not a fix. Every bound
+  was chosen generous relative to real, already-shipped input (checked
+  against each field's actual caller, not guessed) — this is a ceiling
+  against abuse, not a new constraint on legitimate use.
+
+  **Tests.** No new tests: this is a pure widening of validation range on
+  fields that already validated (every real caller's input, checked file by
+  file, sits comfortably under its new ceiling), not new logic to cover —
+  the same "ceiling fix, not a behaviour change" call JJ's own entry made
+  for its two fields, now applied to the other 85. `pnpm test` stayed at
+  933 API-suite tests, unchanged from JJ's run.
+
+  **Gate.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75/75, 933 tests) / `pnpm build`
+  (40/40) all green from the repo root. No journey update under task U's
+  standing rule and no 375px measurement: server-side validation only,
+  behind routes every client already calls exactly as before on the success
+  path — no new product surface, no change to what a person sees.
+
+  **For the next run.** This closes the last lead either the
+  rate-limiting/access-control thread (tasks Z–II) or the input-validation
+  thread (task JJ) left open. No new lead is on record from either line of
+  investigation — read the queue fresh, and expect the same "everything
+  left is owner-gated" housekeeping result several runs in a row have now
+  hit; a fresh differently-scoped sweep (e.g. dead code, skipped tests,
+  `apps/mobile` crash paths, security headers — categories JJ's own
+  delegated investigation was steered toward but didn't need to use) is
+  likely the shape of the next few runs too, same as this one.
 
 - 2026-08-20 — **Task JJ — exhausted-queue improvement: raise `apps/api`'s
   JSON body limit, the live-breaking bug a fresh input-validation sweep found

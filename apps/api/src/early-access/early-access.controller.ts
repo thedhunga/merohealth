@@ -13,7 +13,7 @@ import { EarlyAccessService } from './early-access.service.js';
 const registerSchema = z.object({
   contact: z.string().trim().max(254).optional(),
   source: z.enum(EARLY_ACCESS_SOURCES),
-  registeredAt: z.string().trim().min(1),
+  registeredAt: z.string().trim().min(1).max(200),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {

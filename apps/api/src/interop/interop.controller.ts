@@ -10,7 +10,7 @@ import { RequireModule, RequireQuota } from '../entitlements/require-entitlement
 import { InteropService } from './interop.service.js';
 
 const issueShareLinkSchema = z.object({
-  documentIds: z.array(z.string().trim().min(1)).min(1),
+  documentIds: z.array(z.string().trim().min(1).max(200)).min(1),
   // Mirrors packages/interop's own ceiling so an over-long request 400s here
   // rather than round-tripping to the domain layer to be told the same thing.
   ttlSeconds: z.number().int().positive().max(MAX_SHARE_LINK_TTL_SECONDS),

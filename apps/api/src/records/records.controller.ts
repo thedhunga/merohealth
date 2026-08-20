@@ -43,7 +43,7 @@ const captureSchema = z.object({
   documentDate: z.string().regex(isoInstant, 'documentDate must be an ISO 8601 UTC instant').nullable().default(null),
   sensitivity: z.enum(['STANDARD', 'SENSITIVE', 'RESTRICTED']).default('STANDARD'),
   clientEncrypted: z.boolean().default(false),
-  contentType: z.string().trim().min(1).nullable().default(null),
+  contentType: z.string().trim().min(1).max(100).nullable().default(null),
   // JSON has no binary type; the mobile/web capture flow base64-encodes the
   // file before this reaches the API. The ceiling matches `main.ts`'s own
   // body-parser limit (20mb) so an oversized photo gets this route's
@@ -55,9 +55,9 @@ const captureSchema = z.object({
 // No `ownerId` field, same reason `captureSchema` above has none: the owner
 // is always the session identity, never a client-supplied value.
 const correctSchema = z.object({
-  value: z.string().trim().min(1),
+  value: z.string().trim().min(1).max(500),
   // Omitted keeps the observation's existing unit; explicit null clears it.
-  unit: z.string().trim().min(1).nullable().optional(),
+  unit: z.string().trim().min(1).max(50).nullable().optional(),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {

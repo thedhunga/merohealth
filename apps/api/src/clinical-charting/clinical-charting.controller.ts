@@ -7,30 +7,30 @@ import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { ClinicalChartingService } from './clinical-charting.service.js';
 
 const openEncounterSchema = z.object({
-  patientId: z.string().trim().min(1),
-  clinicianId: z.string().trim().min(1),
+  patientId: z.string().trim().min(1).max(200),
+  clinicianId: z.string().trim().min(1).max(200),
 });
 
 const soapSectionsSchema = {
-  subjective: z.string().trim().min(1),
-  objective: z.string().trim().min(1),
-  assessment: z.string().trim().min(1),
-  plan: z.string().trim().min(1),
+  subjective: z.string().trim().min(1).max(10000),
+  objective: z.string().trim().min(1).max(10000),
+  assessment: z.string().trim().min(1).max(10000),
+  plan: z.string().trim().min(1).max(10000),
 };
 
 const recordNoteSchema = z.object({
-  authorId: z.string().trim().min(1),
+  authorId: z.string().trim().min(1).max(200),
   ...soapSectionsSchema,
 });
 
 const reviseNoteSchema = z.object(soapSectionsSchema);
 
 const createTemplateSchema = z.object({
-  name: z.string().trim().min(1),
-  subjectivePrompt: z.string().trim().min(1),
-  objectivePrompt: z.string().trim().min(1),
-  assessmentPrompt: z.string().trim().min(1),
-  planPrompt: z.string().trim().min(1),
+  name: z.string().trim().min(1).max(200),
+  subjectivePrompt: z.string().trim().min(1).max(2000),
+  objectivePrompt: z.string().trim().min(1).max(2000),
+  assessmentPrompt: z.string().trim().min(1).max(2000),
+  planPrompt: z.string().trim().min(1).max(2000),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {

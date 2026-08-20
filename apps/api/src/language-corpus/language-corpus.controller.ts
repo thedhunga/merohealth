@@ -32,12 +32,12 @@ const isoInstant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 // `captureSchema` comment describes, applied here now that `ingest` carries
 // a `SessionAuthGuard` too.
 const ingestSchema = z.object({
-  id: z.string().trim().min(1),
+  id: z.string().trim().min(1).max(200),
   kind: utteranceKindSchema,
-  text: z.string().trim().min(1),
+  text: z.string().trim().min(1).max(4000),
   locale: localeSchema,
   capturedAt: z.string().regex(isoInstant, 'capturedAt must be an ISO 8601 UTC instant'),
-  precedingAssistantText: z.string().trim().min(1).nullable().default(null),
+  precedingAssistantText: z.string().trim().min(1).max(4000).nullable().default(null),
   redactionCount: z.number().int().min(0),
   awaitingHumanReview: z.boolean(),
 });
@@ -48,8 +48,8 @@ const ingestSchema = z.object({
 // type, so the browser base64-encodes the recorded clip before this reaches
 // the API.
 const voiceClipSchema = z.object({
-  id: z.string().trim().min(1),
-  taskId: z.string().trim().min(1),
+  id: z.string().trim().min(1).max(200),
+  taskId: z.string().trim().min(1).max(200),
   taskKind: voiceContributionTaskKindSchema,
   selfReport: z.object({
     district: z.string().trim().min(1).max(100),
@@ -59,7 +59,7 @@ const voiceClipSchema = z.object({
   }),
   device: z.string().trim().min(1).max(500),
   durationMs: z.number().int().positive(),
-  contentType: z.string().trim().min(1),
+  contentType: z.string().trim().min(1).max(100),
   // Ceiling matches `main.ts`'s own body-parser limit (20mb), same reasoning
   // `records.controller.ts`'s `captureSchema.bytesBase64` documents.
   bytesBase64: z.string().trim().min(1).max(20 * 1024 * 1024),
@@ -154,7 +154,7 @@ export class LanguageCorpusController {
       "A right-to-erasure request: removes every utterance belonging to the signed-in caller's own record from the corpus and the review queue",
   })
   erase(@CurrentUser() user: CurrentUserResult, @Param('ownerId') ownerId: string) {
-    const parsed = z.string().trim().min(1).safeParse(ownerId);
+    const parsed = z.string().trim().min(1).max(200).safeParse(ownerId);
     if (!parsed.success) {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'ownerId is required' });
     }
@@ -339,7 +339,7 @@ export class LanguageCorpusController {
       "A right-to-erasure request: removes every Voice Contribution clip belonging to the signed-in caller's own record from storage and from any future release",
   })
   async eraseVoiceClips(@CurrentUser() user: CurrentUserResult, @Param('contributorId') contributorId: string) {
-    const parsed = z.string().trim().min(1).safeParse(contributorId);
+    const parsed = z.string().trim().min(1).max(200).safeParse(contributorId);
     if (!parsed.success) {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'contributorId is required' });
     }

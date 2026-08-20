@@ -13,7 +13,7 @@ import { HistoryService } from './history.service.js';
 // "strip unknown keys" behaviour: it is the client's own local-storage key,
 // meaningless once the exchange has a `userId` to live under instead.
 const exchangeSchema = z.object({
-  askedAt: z.string().trim().min(1),
+  askedAt: z.string().trim().min(1).max(200),
   question: z.string().trim().min(1).max(4000),
   answer: z.string().trim().max(20000).nullable(),
   language: z.string().trim().min(1).max(20),
@@ -42,7 +42,7 @@ const profileSchema = z.object({
 const earlyAccessSchema = z.object({
   contact: z.string().trim().max(254).nullable(),
   source: z.enum(EARLY_ACCESS_SOURCES),
-  registeredAt: z.string().trim().min(1),
+  registeredAt: z.string().trim().min(1).max(200),
 });
 
 // The literal shape `snapshotForMigration()` returns — `apps/web` posts it

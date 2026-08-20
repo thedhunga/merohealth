@@ -12,7 +12,7 @@ import { MedicationSafetyService } from './medication-safety.service.js';
 // `captureSchema` comment describes, and the same fix (§3 there): the
 // subject is always the session identity, never a client-supplied value.
 const checkSchema = z.object({
-  proposedLabel: z.string().trim().min(1),
+  proposedLabel: z.string().trim().min(1).max(500),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {

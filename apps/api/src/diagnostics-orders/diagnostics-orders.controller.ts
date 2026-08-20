@@ -7,23 +7,23 @@ import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { DiagnosticsOrdersService } from './diagnostics-orders.service.js';
 
 const orderSchema = z.object({
-  clinicianId: z.string().trim().min(1),
+  clinicianId: z.string().trim().min(1).max(200),
   kind: z.enum(['LAB', 'IMAGING']),
-  testName: z.string().trim().min(1),
+  testName: z.string().trim().min(1).max(300),
 });
 
 const resultSchema = z.object({
   resultSource: z.enum(['HL7', 'MANUAL']),
-  value: z.string().trim().min(1),
-  recordedBy: z.string().trim().min(1),
+  value: z.string().trim().min(1).max(1000),
+  recordedBy: z.string().trim().min(1).max(200),
 });
 
 const releaseSchema = z.object({
-  releasedBy: z.string().trim().min(1),
+  releasedBy: z.string().trim().min(1).max(200),
 });
 
 const cancelSchema = z.object({
-  reason: z.string().trim().min(1),
+  reason: z.string().trim().min(1).max(2000),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {

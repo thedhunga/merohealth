@@ -18,7 +18,7 @@ const isoInstant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 // controller boundary is where an out-of-range value from the client
 // becomes a 400 rather than reaching `grantDelegation` at all.
 const createDelegationSchema = z.object({
-  delegatePhone: z.string().trim().min(1),
+  delegatePhone: z.string().trim().min(1).max(20),
   scopes: z.array(z.enum(['VIEW_RECORD', 'ASK_ASSISTANT', 'MANAGE_APPOINTMENTS', 'UPLOAD_DOCUMENTS'])).min(1),
   expiresAt: z.string().regex(isoInstant, 'expiresAt must be an ISO 8601 UTC instant'),
 });

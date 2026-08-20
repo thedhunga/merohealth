@@ -9,19 +9,21 @@ import { AuthService, type CurrentUserResult } from './auth.service.js';
 import { CurrentUser } from './current-user.decorator.js';
 import { SessionAuthGuard, type AuthenticatedRequest } from './session-auth.guard.js';
 
-const requestOtpSchema = z.object({ phone: z.string().trim().min(1) });
+const requestOtpSchema = z.object({ phone: z.string().trim().min(1).max(20) });
 
 const verifyOtpSchema = z.object({
-  challengeId: z.string().trim().min(1),
-  code: z.string().trim().min(1),
-  phone: z.string().trim().min(1),
+  challengeId: z.string().trim().min(1).max(200),
+  code: z.string().trim().min(1).max(20),
+  phone: z.string().trim().min(1).max(20),
   intent: z.enum(['SIGN_IN', 'REGISTER']),
   displayName: z.string().trim().min(1).max(120).optional(),
   locale: z.enum(['ne', 'en']).optional(),
 });
 
+// Google's own ID tokens are signed JWTs, routinely 1-2kb — well past the
+// 200-char ceiling every opaque id field elsewhere in this file uses.
 const verifyGoogleSchema = z.object({
-  idToken: z.string().trim().min(1),
+  idToken: z.string().trim().min(1).max(8192),
   intent: z.enum(['SIGN_IN', 'REGISTER']),
   displayName: z.string().trim().min(1).max(120).optional(),
   locale: z.enum(['ne', 'en']).optional(),

@@ -11,13 +11,13 @@ const councilKeySchema = z.enum(['NMC', 'NNC', 'NHPC', 'PHARMACY_COUNCIL', 'AYUR
 
 const submitSchema = z.object({
   council: councilKeySchema,
-  registrationNumber: z.string().trim().min(1),
-  certificateImageRef: z.string().trim().min(1),
-  identityImageRef: z.string().trim().min(1),
+  registrationNumber: z.string().trim().min(1).max(200),
+  certificateImageRef: z.string().trim().min(1).max(500),
+  identityImageRef: z.string().trim().min(1).max(500),
 });
 
 const rejectSchema = z.object({
-  reason: z.string().trim().min(1),
+  reason: z.string().trim().min(1).max(2000),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {

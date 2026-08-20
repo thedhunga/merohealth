@@ -9,7 +9,7 @@ import { RequireModule } from '../entitlements/require-entitlement.decorator.js'
 import { TeleconsultationService } from './teleconsultation.service.js';
 
 const cancelSchema = z.object({
-  reason: z.string().trim().min(1),
+  reason: z.string().trim().min(1).max(2000),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {

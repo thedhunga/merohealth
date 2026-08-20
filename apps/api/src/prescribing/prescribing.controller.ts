@@ -7,22 +7,22 @@ import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { PrescribingService } from './prescribing.service.js';
 
 const openPrescriptionSchema = z.object({
-  clinicianId: z.string().trim().min(1),
+  clinicianId: z.string().trim().min(1).max(200),
 });
 
 const addLineSchema = z.object({
-  label: z.string().trim().min(1),
-  dosageInstructions: z.string().trim().min(1),
-  quantity: z.string().trim().min(1),
+  label: z.string().trim().min(1).max(500),
+  dosageInstructions: z.string().trim().min(1).max(1000),
+  quantity: z.string().trim().min(1).max(200),
   isControlledSubstance: z.boolean(),
 });
 
 const signSchema = z.object({
-  attestation: z.string().trim().min(1),
+  attestation: z.string().trim().min(1).max(2000),
 });
 
 const voidSchema = z.object({
-  reason: z.string().trim().min(1),
+  reason: z.string().trim().min(1).max(2000),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {

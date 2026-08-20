@@ -8,7 +8,7 @@ import { EngagementService } from './engagement.service.js';
 const queueMessageSchema = z.object({
   channel: z.enum(['SMS', 'WHATSAPP']),
   kind: z.enum(['REMINDER', 'GENERAL']),
-  body: z.string().trim().min(1),
+  body: z.string().trim().min(1).max(4000),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {

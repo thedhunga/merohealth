@@ -15,15 +15,15 @@ const summaryKindSchema = z.enum(['CONDITION', 'ALLERGY', 'MEDICATION']);
 // the same fix: the subject is always the session identity.
 const recordPatientReportedSchema = z.object({
   kind: summaryKindSchema,
-  label: z.string().trim().min(1),
-  value: z.string().trim().min(1),
+  label: z.string().trim().min(1).max(200),
+  value: z.string().trim().min(1).max(1000),
 });
 
 const recordClinicianAuthoredSchema = z.object({
-  clinicianId: z.string().trim().min(1),
+  clinicianId: z.string().trim().min(1).max(200),
   kind: summaryKindSchema,
-  label: z.string().trim().min(1),
-  value: z.string().trim().min(1),
+  label: z.string().trim().min(1).max(200),
+  value: z.string().trim().min(1).max(1000),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {

@@ -7,13 +7,13 @@ import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { ReferralsService } from './referrals.service.js';
 
 const requestReferralSchema = z.object({
-  clinicianId: z.string().trim().min(1),
-  referredToEntityId: z.string().trim().min(1),
-  reason: z.string().trim().min(1),
+  clinicianId: z.string().trim().min(1).max(200),
+  referredToEntityId: z.string().trim().min(1).max(200),
+  reason: z.string().trim().min(1).max(2000),
 });
 
 const reasonSchema = z.object({
-  reason: z.string().trim().min(1),
+  reason: z.string().trim().min(1).max(2000),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {

@@ -7,22 +7,22 @@ import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { BillingService } from './billing.service.js';
 
 const openInvoiceSchema = z.object({
-  clinicianId: z.string().trim().min(1),
+  clinicianId: z.string().trim().min(1).max(200),
 });
 
 const lineItemSchema = z.object({
-  description: z.string().trim().min(1),
+  description: z.string().trim().min(1).max(2000),
   amountPaisa: z.number().int().positive(),
   payerType: z.enum(['CASH', 'INSURANCE', 'NHIF']),
 });
 
 const paymentSchema = z.object({
-  reference: z.string().trim().min(1),
-  recordedBy: z.string().trim().min(1),
+  reference: z.string().trim().min(1).max(200),
+  recordedBy: z.string().trim().min(1).max(200),
 });
 
 const voidSchema = z.object({
-  reason: z.string().trim().min(1),
+  reason: z.string().trim().min(1).max(2000),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {

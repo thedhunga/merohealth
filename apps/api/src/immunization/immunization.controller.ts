@@ -18,19 +18,19 @@ const administeredOnSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'administer
 // `clinical-summary.controller.ts`'s `recordPatientReportedSchema` comment
 // describes, and the same fix: the subject is always the session identity.
 const recordPatientReportedSchema = z.object({
-  vaccineName: z.string().trim().min(1),
+  vaccineName: z.string().trim().min(1).max(300),
   doseNumber: doseNumberSchema,
   administeredOn: administeredOnSchema,
 });
 
 const recordClinicianAdministeredSchema = z.object({
-  clinicianId: z.string().trim().min(1),
-  vaccineName: z.string().trim().min(1),
+  clinicianId: z.string().trim().min(1).max(200),
+  vaccineName: z.string().trim().min(1).max(300),
   doseNumber: doseNumberSchema,
   administeredOn: administeredOnSchema,
 });
 
-const voidRecordSchema = z.object({ reason: z.string().trim().min(1) });
+const voidRecordSchema = z.object({ reason: z.string().trim().min(1).max(2000) });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
   const parsed = schema.safeParse(body);

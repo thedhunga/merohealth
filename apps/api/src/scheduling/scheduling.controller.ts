@@ -10,8 +10,8 @@ import { SchedulingService } from './scheduling.service.js';
 const isoInstant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 
 const scheduleSchema = z.object({
-  patientId: z.string().trim().min(1),
-  clinicianId: z.string().trim().min(1),
+  patientId: z.string().trim().min(1).max(200),
+  clinicianId: z.string().trim().min(1).max(200),
   scheduledStart: z.string().regex(isoInstant, 'scheduledStart must be an ISO 8601 UTC instant'),
   scheduledEnd: z.string().regex(isoInstant, 'scheduledEnd must be an ISO 8601 UTC instant'),
 });

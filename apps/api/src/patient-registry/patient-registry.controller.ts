@@ -4,16 +4,16 @@ import { z } from 'zod';
 import { PatientRegistryService } from './patient-registry.service.js';
 
 const addressSchema = z.object({
-  district: z.string().trim().min(1),
-  municipality: z.string().trim().min(1),
-  ward: z.string().trim().min(1).optional(),
+  district: z.string().trim().min(1).max(100),
+  municipality: z.string().trim().min(1).max(100),
+  ward: z.string().trim().min(1).max(50).optional(),
 });
 
 const demographicsSchema = z.object({
   displayName: z.string().trim().min(1).max(200),
   dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'dateOfBirth must be YYYY-MM-DD'),
   sex: z.enum(['FEMALE', 'MALE', 'OTHER', 'UNDISCLOSED']),
-  phone: z.string().trim().min(1),
+  phone: z.string().trim().min(1).max(20),
   preferredLocale: z.enum(['ne', 'en', 'ne-Latn']),
   address: addressSchema.optional(),
 });

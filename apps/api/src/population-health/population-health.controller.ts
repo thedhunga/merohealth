@@ -13,7 +13,7 @@ const isoInstant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 
 const registryQuerySchema = z.object({
   kind: summaryKindSchema,
-  label: z.string().trim().min(1),
+  label: z.string().trim().min(1).max(200),
 });
 
 const recallQuerySchema = registryQuerySchema.extend({
