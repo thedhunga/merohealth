@@ -2744,11 +2744,101 @@ re-read the table itself rather than trust this paragraph.
       namespace resolves in both `en.json` and `ne.json` — 151 checks,
       confirmed it fails without the fix and passes with it. See the log
       entry below.
+- [x] Put `/get-care`'s symptom entry above the fold on a phone. The page's
+      whole point is the question box, but on one column the dark full-bleed
+      `bg-indigo-900` pitch (eyebrow, 4xl title, body, three steps) stacked
+      *above* it, pushing the textarea to ~692px — off the first screen on an
+      iPhone 14. Gave the two grid children explicit order (`order-1` form
+      card, `order-2` pitch on mobile; `lg:order-1/2` restores the
+      pitch-left/form-right desktop split unchanged) so the entry card now
+      leads and the pitch follows beneath it. Measured 375px (`next dev`,
+      iPhone 14): first action 692px → **188px**, submit button now on the
+      first screen; page height and no-horizontal-overflow unchanged, desktop
+      byte-identical. New phone journey in `phone.journeys.spec.ts` locks the
+      field, submit and h1 ordering in. See the log entry below. This is the
+      "utility above atmosphere, the symptom entry first" the scheduled brief
+      calls for, without adding or re-theming a panel.
 
 ## Log
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task SS — exhausted-queue improvement: `/get-care`'s
+  symptom entry was below the fold on a phone.** Done.
+
+  **Housekeeping.** Same force-push shape as every recent entry. Local `main`
+  was the stale human commit `9bdf548`; `git pull` refused the divergent merge
+  (remote `main` is a rewritten history, tipped at `1d3637c`).
+  `origin/backup/pre-force-push-main-9bdf548` still holds `9bdf548`, so nothing
+  was lost; `git reset --hard origin/main` is what production deploys.
+
+  **Standing red-CI check.** Latest `ci` on `main` is `1d3637c` (**success**);
+  the previous two commits (`ecc2a65`, `ac0b35e`) are green too. The red-CI-
+  stops-the-line rule did not divert this run.
+
+  **Queue check.** Every unchecked box read; unchanged and all owner-gated or
+  standing-rule-only (task U's third bullet, task V's install-prompt priority
+  call, `NEXT_PUBLIC_PREMIUM_LAUNCH`, the corpus/payments owner decisions).
+  Queue exhausted for the agent → a step-4 improvement.
+
+  **Why this.** The brief is emphatic: the web is the product, almost every
+  visitor is on a phone, "utility above atmosphere, the symptom entry first,"
+  and measure at 375px rather than assume. Prior phone passes (PP, RR) swept
+  tap-target sizes but never measured *where the primary action sits*. A fresh
+  375px sweep (iPhone 14, `next dev`) of `/`, `/get-care`, `/pricing`,
+  `/individuals/how-it-works`, `/individuals/faqs`, `/health-library`,
+  `/about`, `/help`, `/contact` measured page-height, first-action offset, and
+  sub-44px targets. `/` was clean (first action 268px — the mic). **`/get-care`
+  was the outlier: first real action at 692px, entirely below the fold.**
+
+  **The defect.** `GetCareFlow.tsx`'s hero is a `grid` with two children —
+  child 1 the dark `bg-indigo-900` pitch (eyebrow chip + 4xl `h1` + body +
+  three numbered steps), child 2 the paper form card holding the textarea.
+  At `lg` they're two columns (pitch left, form right); on one column they
+  stack in source order, so the entire dark pitch renders *before* the box the
+  page exists for. That is exactly the "dark full-bleed panel above the
+  utility" the brief says to stop doing.
+
+  **The fix.** Two-line change: `order-1 lg:order-2` on the form card and
+  `order-2 lg:order-1` on the pitch. Mobile now leads with the entry card;
+  the pitch/steps follow beneath it as supporting context. Desktop is
+  byte-identical (the grid columns define placement; `lg:order-*` restores the
+  original left/right split). No colour re-theme, no new panel, no copy change
+  — so nothing in `ne.json`/`en.json` moved.
+
+  **Measured, 375px iPhone 14, `next dev`:** symptom textarea top **692px →
+  188px**; submit button now at 345px (both on the first screen); page height
+  unchanged (1856px, ~2.8 screens); no horizontal overflow; only sub-44px
+  target is the `sr-only` skip link (the established visually-hidden
+  exception). Desktop 1280px screenshot confirms pitch-left/form-right intact.
+
+  **Journey (standing rule U).** Added "/get-care leads with the symptom
+  entry, above the fold" to `apps/web/e2e/phone.journeys.spec.ts`: asserts the
+  field top and submit top are both `< innerHeight` and the `h1` now sits
+  *below* the field. Passes on the phone project; confirmed it would fail
+  against the old stacked order (h1 above the field).
+
+  **A note on this environment's e2e run.** Running the whole
+  `phone.journeys.spec.ts` in parallel, the unrelated PWA "manifest, icons and
+  theme colour" test flaked once (it fetches every icon over the network);
+  re-run alone it passes, as do all three get-care/home tests. Not caused by
+  this change — it touches only the get-care layout and the new journey.
+
+  **Gate.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75/75 tasks, web 54 files / 526) /
+  `pnpm build` (40/40) all green from the repo root.
+
+  **For the next run.** In the order I'd take them:
+  1. **`/app` still has zero e2e journey coverage** — PP/RR's lead 1, the
+     highest-value open item; needs the web e2e harness to serve
+     `apps/mobile/dist`. Infra work, meaningful chance of a blocked run.
+  2. **The 375px first-action sweep is worth finishing on the deeper routes.**
+     `/health-library`, `/about`, `/help`, `/contact` all put their first real
+     action 800–2000px down behind a hero (measured this run). None is *the*
+     symptom entry, so lower value than `/get-care` was — but the same
+     order-first pattern applies if a page earns it.
+  3. **The extensionless-metadata middleware trap** — RR's lead 2, still open.
 
 - 2026-08-20 — **Task RR — exhausted-queue improvement: the shared FAQ
   disclosure `<summary>` was a 32px tap target site-wide.** Done.

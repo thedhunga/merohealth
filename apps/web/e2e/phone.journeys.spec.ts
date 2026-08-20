@@ -46,6 +46,27 @@ test.describe('phone-first home', () => {
       await expectTapTargets(page);
     }
   });
+
+  test('/get-care leads with the symptom entry, above the fold', async ({ page }) => {
+    // The point of this page is the question box. On one column the dark
+    // pitch used to push it far below the fold; the mobile order now puts
+    // the entry card first (the pitch/steps follow beneath it).
+    await page.goto('/get-care');
+    const box = page.locator('#health-question');
+    await expect(box).toBeVisible();
+    const placement = await page.evaluate(() => {
+      const vh = window.innerHeight;
+      const field = document.querySelector('#health-question')!.getBoundingClientRect();
+      const submit = document.querySelector('button[type="submit"]')!.getBoundingClientRect();
+      const heading = document.querySelector('h1')!.getBoundingClientRect();
+      return { fieldTop: field.top, submitTop: submit.top, headingTop: heading.top, vh };
+    });
+    // Both the field and the submit control sit within the first screen…
+    expect(placement.fieldTop, 'symptom field top < viewport height').toBeLessThan(placement.vh);
+    expect(placement.submitTop, 'submit button top < viewport height').toBeLessThan(placement.vh);
+    // …and the marketing pitch (the h1) now sits below the entry card.
+    expect(placement.headingTop, 'pitch heading below the entry field').toBeGreaterThan(placement.fieldTop);
+  });
 });
 
 test.describe('installable app (PWA)', () => {

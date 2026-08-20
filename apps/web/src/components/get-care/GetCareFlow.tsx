@@ -287,7 +287,14 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
             className="absolute -top-28 right-[-8rem] size-80 rounded-full bg-indigo-600/35 blur-3xl"
           />
           <div className="container-site relative grid gap-8 lg:grid-cols-[0.78fr_1.22fr] lg:items-start lg:gap-14">
-            <div className="lg:sticky lg:top-28">
+            {/*
+              Mobile leads with the symptom-entry card (order-1) and keeps the
+              pitch/steps below it (order-2): on one column the dark hero copy
+              was pushing the textarea — the whole point of this page — to
+              ~692px, well below the fold. The two-column desktop order (pitch
+              left, form right) is restored at `lg`.
+            */}
+            <div className="order-2 lg:order-1 lg:sticky lg:top-28">
               <div className="inline-flex items-center gap-2 rounded-pill bg-white/10 px-4 py-2 text-sm font-semibold text-indigo-100 ring-1 ring-white/15">
                 <ShieldCheck aria-hidden className="size-4" />
                 {t('eyebrow')}
@@ -307,7 +314,7 @@ export function GetCareFlow({ locale }: { locale: ResearchLanguage }) {
               </ol>
             </div>
 
-            <div className="rounded-[1.75rem] bg-paper p-5 text-ink shadow-lift sm:p-8">
+            <div className="order-1 lg:order-2 rounded-[1.75rem] bg-paper p-5 text-ink shadow-lift sm:p-8">
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
