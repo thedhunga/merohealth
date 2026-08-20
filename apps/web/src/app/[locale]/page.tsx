@@ -1,5 +1,6 @@
 import { setRequestLocale } from 'next-intl/server';
 
+import { ssrHomeVariant } from '@/lib/home-screen';
 import { SymptomEntry } from '@/components/home/SymptomEntry';
 import { Hero } from '@/components/home/Hero';
 import { ServiceCards } from '@/components/home/ServiceCards';
@@ -26,17 +27,24 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const { locale } = await params;
   setRequestLocale(locale);
 
+  // The marketing subtree is passed only where the SSR variant will actually
+  // render it. For `ne` it used to be server-rendered and then thrown away on
+  // mount — every first Nepali visit downloaded three ~35 KB images and six
+  // sections of DOM for nothing, which is what broke the CI page-weight
+  // budget (see `ssrHomeVariant` in `lib/home-screen.ts`).
   return (
     <HomeGate
       marketing={
-        <>
-          <SymptomEntry />
-          <Hero />
-          <ServiceCards />
-          <OrganizationTabs />
-          <Testimonials />
-          <FinalCta />
-        </>
+        ssrHomeVariant(locale) === 'marketing' ? (
+          <>
+            <SymptomEntry />
+            <Hero />
+            <ServiceCards />
+            <OrganizationTabs />
+            <Testimonials />
+            <FinalCta />
+          </>
+        ) : undefined
       }
     />
   );

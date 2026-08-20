@@ -122,6 +122,7 @@ its Playwright journey**, or it is not done.
 - **Palette:** indigo `#221C4B` + marigold `#F4A62A` on warm paper. Never the
   old green. Never a health-tech blue.
 - **Mobile is the product.** Measure at 375px; 44px tap targets.
+- **A red CI on main stops the line.** Fixing it is the next task; gates are never weakened to get green.
 - **Every user-facing change ships with its Playwright journey** in `apps/web/e2e/` (see above).
 
 ## How to resume

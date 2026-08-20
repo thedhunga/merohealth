@@ -4,24 +4,25 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useLocale } from 'next-intl';
 
 import { history } from '@/lib/anonymous-history';
-import { homeVariant } from '@/lib/home-screen';
+import { homeVariant, ssrHomeVariant } from '@/lib/home-screen';
 import { HomeScreen } from '@/components/home/HomeScreen';
 import { FirstVisitScreen } from '@/components/home/FirstVisitScreen';
 
 /**
  * Round seven, task O: `/` renders differently depending on whether the
- * device has asked before, and — for a first visit — which locale. `marketing`
- * is what the server already rendered for `page.tsx`'s current JSX: real
- * HTML in the initial response, so search crawlers and a first-time
- * visitor's first paint are unaffected. Only once mounted can this
- * component read `localStorage` at all, so it starts by showing exactly
- * what the server sent, then `homeVariant` decides what it swaps to — the
- * same after-mount reveal `shouldSuggestSignIn` and the upsell card already
- * use elsewhere in this codebase for a signal that only exists on the
- * client. `marketing` variant is a no-op swap (the server already rendered
- * it), so `/en` never flashes.
+ * device has asked before, and — for a first visit — which locale. Only once
+ * mounted can this component read `localStorage`, so before that it renders
+ * `ssrHomeVariant`'s pick: the lean first-visit screen for `ne`, marketing
+ * for `/en`. It used to render marketing pre-mount for every locale, which
+ * meant `page.tsx`'s whole marketing subtree — three ~35 KB images included
+ * — was server-rendered, downloaded, and then discarded on every first
+ * Nepali visit; that alone broke the CI page-weight budget. `page.tsx` now
+ * passes `marketing` only for locales whose SSR variant is marketing, so the
+ * Nepali payload doesn't even contain it. A returning `ne` device briefly
+ * sees the same-shaped, mic-first first-visit screen before `HomeScreen`
+ * takes over — a milder flash than the marketing page it used to show.
  */
-export function HomeGate({ marketing }: { marketing: ReactNode }) {
+export function HomeGate({ marketing }: { marketing?: ReactNode }) {
   const locale = useLocale();
   const [returning, setReturning] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -31,7 +32,7 @@ export function HomeGate({ marketing }: { marketing: ReactNode }) {
     setMounted(true);
   }, []);
 
-  const variant = mounted ? homeVariant(locale, returning) : 'marketing';
+  const variant = mounted ? homeVariant(locale, returning) : ssrHomeVariant(locale);
   if (variant === 'returning') return <HomeScreen />;
   if (variant === 'firstVisitLean') return <FirstVisitScreen />;
   return <>{marketing}</>;

@@ -116,6 +116,19 @@ read that before the first task.
 
 ## Task queue
 
+## Standing rule — a red CI on main stops the line (2026-08-20)
+
+> The page-weight gate (Round seven S) failed on the very commit that
+> introduced it and CI then stayed red for ~44 consecutive runs while new
+> tasks kept landing on top — and `deploy-api` silently skipped the whole
+> time, because it only runs after a green `ci`. That must never repeat:
+> **if the latest `ci` run on `main` is red, fixing it IS the next task.**
+> Check `gh run list` (or the Actions tab) before taking any ledger item;
+> do not take new work, and do not weaken a gate to get green — find the
+> bytes (`apps/web/scripts/weight-breakdown.mjs` names them for the budget
+> gate), fix the cause, and only then continue. Never raise a budget number
+> without the owner saying so in this file.
+
 # Round seven — a phone-first home people come back to every day
 
 > Owner, 2026-08-18, looking at a full-page phone screenshot of `/`:

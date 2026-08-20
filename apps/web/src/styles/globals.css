@@ -107,29 +107,18 @@
    * Type. Martel and Mukta are both Devanagari-native, so Nepali leads the
    * type system instead of being bolted onto a Latin face as an afterthought.
    *
-   * Martel ships as two font-loader calls, not one: `--font-martel` (700/800,
-   * preloaded) covers every heading actually painted above the fold anywhere
-   * in the app; `--font-martel-black` (900, not preloaded) exists only for
-   * the handful of true-black uses below the fold (the script-mark signature,
-   * a pricing figure, the early-access heading). Splitting by weight — rather
-   * than preloading all of 400/700/800/900 the way one `Martel({ weight: [...] })`
-   * call would — is what keeps `/`'s first-load font weight down to the two
-   * weights it actually renders. Font-family fallback only kicks in on
-   * missing glyphs, not missing weights, so `--font-display-black` must be
-   * reached for explicitly (see `font-display-black` below) rather than
-   * appended to `--font-display`'s stack — a `font-weight: 900` on the
-   * 700/800 family would just synthesize a fake black instead.
-   *
-   * Mukta gets the same split for the same reason: `--font-mukta` (400/600/
-   * 700, preloaded) is every body weight actually painted above the fold;
-   * `--font-mukta-medium` (500, not preloaded) exists only for `font-sans-medium`
-   * below — secondary labels (pill filters, table headers, the logo's
-   * Devanagari tagline), never a page's first paint.
+   * Exactly four faces ship: Martel 800 for display, Mukta 400/600/700 for
+   * body. Preload flags do not stop downloads — any text that *renders* a
+   * declared weight fetches its ~65 KB Devanagari subset — and seven
+   * declared weights put fonts at 408 KB of a 770 KB first load, failing the
+   * Round-seven budget gate on every CI run. Weight 700 on the display face
+   * and 500/900 anywhere resolve to the nearest shipped weight by standard
+   * font matching; the `font-display-black` / `font-sans-medium` utilities
+   * below keep their names but map onto shipped weights, so no call site and
+   * no future class can quietly re-add a fifth face.
    */
   --font-display: var(--font-martel), Georgia, serif;
-  --font-display-black: var(--font-martel-black), Georgia, serif;
   --font-sans: var(--font-mukta), ui-sans-serif, system-ui, sans-serif;
-  --font-sans-medium: var(--font-mukta-medium), ui-sans-serif, system-ui, sans-serif;
 
   --radius-card: 1.25rem;
   --radius-pill: 999px;
@@ -364,27 +353,22 @@
 }
 
 /*
- * The true-black cut of the display face — the not-preloaded
- * `--font-martel-black` family, not a `font-weight: 900` on `--font-display`.
- * Use this instead of `font-black` wherever the heavy Martel figure/mark is
- * actually wanted; `font-black` alone only fakes it on the 700/800 family.
+ * CI page-weight budget (Round seven S): every named weight that any text on
+ * `/` renders downloads its ~65 KB Devanagari subset regardless of preload
+ * flags, and fonts alone were 408 KB of a 770 KB first load. The app now
+ * ships exactly four faces — Martel 800, Mukta 400/600/700 — and these
+ * utilities keep their names but resolve to the nearest shipped weight, so
+ * the ~15 call sites didn't have to change and no new weight can sneak back
+ * in through them.
  */
 @utility font-display-black {
-  font-family: var(--font-display-black);
-  font-weight: 900;
+  font-family: var(--font-display);
+  font-weight: 800;
 }
 
-/*
- * The medium cut of the body face — the not-preloaded `--font-mukta-medium`
- * family, not a bare `font-weight: 500` on `--font-sans`. Use this instead of
- * `font-medium` wherever true medium-weight body text is wanted; `font-medium`
- * alone has no matching face in `--font-mukta` (400/600/700 only) and would
- * silently render at 600 instead — a heavier weight than the design calls for,
- * not a crash, which is exactly why it's easy to miss without this utility.
- */
 @utility font-sans-medium {
-  font-family: var(--font-sans-medium);
-  font-weight: 500;
+  font-family: var(--font-sans);
+  font-weight: 600;
 }
 
 /*
@@ -393,8 +377,8 @@
  * assistive technology, because it is a graphic — not a duplicate heading.
  */
 @utility script-mark {
-  font-family: var(--font-display-black);
-  font-weight: 900;
+  font-family: var(--font-display);
+  font-weight: 800;
   line-height: 0.82;
   letter-spacing: -0.02em;
   user-select: none;

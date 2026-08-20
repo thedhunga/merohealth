@@ -17,53 +17,25 @@ import '@/styles/globals.css';
 // Both faces carry Devanagari and Latin, so Nepali and English share one type
 // system rather than switching families mid-page.
 //
-// Split into two calls rather than one `weight: [...]` array: `next/font`
-// preloads every weight file a call declares, on every route that shares
-// this layout, with no way to preload a subset of one call's weights. 700
-// and 800 are the only Martel weights anything above the fold renders
-// anywhere in the app (h1/h2/h3 default to 800, several override to
-// font-bold/700) — 400 is unused entirely — so only those two are preloaded.
+// Exactly four faces, chosen against the CI page-weight budget: preload
+// flags don't stop downloads — any text that renders a declared weight
+// fetches its ~65 KB Devanagari subset — so the only real lever is declaring
+// fewer weights. Display is Martel 800 alone (a `font-bold` on the display
+// family resolves to 800 by standard font matching; the difference is
+// invisible at heading sizes). Body is Mukta 400/600/700; 500 and 900 are
+// gone, and `globals.css` maps their old utilities onto shipped weights.
 const martel = Martel({
   subsets: ['devanagari', 'latin'],
-  weight: ['700', '800'],
+  weight: ['800'],
   variable: '--font-martel',
   display: 'swap',
 });
 
-// 900 (true black) is real but only ever used below the fold — the
-// script-mark signature, a pricing figure, the early-access heading — so it
-// is never a candidate for `/`'s first-load budget. `preload: false` keeps
-// it out of every route's preload list; `globals.css`'s `font-display-black`
-// utility and `script-mark` reach for it explicitly (see the comment there
-// on why it can't just live in `--font-display`'s fallback stack).
-const martelBlack = Martel({
-  subsets: ['devanagari', 'latin'],
-  weight: ['900'],
-  variable: '--font-martel-black',
-  display: 'swap',
-  preload: false,
-});
-
-// Same reasoning as the Martel split above, applied to the body face: this
-// call preloads only 400/600/700, the weights `font-normal`/`font-semibold`/
-// `font-bold` actually render site-wide (confirmed by grep — nothing in
-// `apps/web/src` uses `font-light`, and it was previously preloaded anyway).
-// 500 exists too (`font-sans-medium` below) but every one of its ~11 call
-// sites is a secondary label, never the first thing painted, so it doesn't
-// need preload priority.
 const mukta = Mukta({
   subsets: ['devanagari', 'latin'],
   weight: ['400', '600', '700'],
   variable: '--font-mukta',
   display: 'swap',
-});
-
-const muktaMedium = Mukta({
-  subsets: ['devanagari', 'latin'],
-  weight: ['500'],
-  variable: '--font-mukta-medium',
-  display: 'swap',
-  preload: false,
 });
 
 export function generateStaticParams() {
@@ -162,7 +134,7 @@ export default async function LocaleLayout({
 
   return (
     <html
-      className={`${martel.variable} ${martelBlack.variable} ${mukta.variable} ${muktaMedium.variable}`}
+      className={`${martel.variable} ${mukta.variable}`}
       lang={locale}
       suppressHydrationWarning
     >

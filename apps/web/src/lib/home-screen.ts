@@ -44,6 +44,20 @@ export function homeVariant(locale: string, isReturning: boolean): HomeVariant {
 }
 
 /**
+ * What the server renders before the client knows whether the device is
+ * returning. This must match the *most likely* post-mount variant, because
+ * whatever it renders is downloaded in full and then possibly thrown away:
+ * rendering marketing here made every first Nepali visit pay for the whole
+ * six-section marketing page — its three ~35 KB hero images included — just
+ * to replace it on mount, which is what pushed `/` past the CI page-weight
+ * budget. A returning `ne` device briefly sees the (same-shaped, mic-first)
+ * first-visit screen instead; `/en` keeps marketing server-rendered.
+ */
+export function ssrHomeVariant(locale: string): HomeVariant {
+  return locale === 'ne' ? 'firstVisitLean' : 'marketing';
+}
+
+/**
  * Round seven, task O: the returning-visitor home screen's greeting. Keyed
  * off the local hour rather than a lookup table so it needs no data and
  * never drifts out of sync with the device's own clock.
