@@ -881,6 +881,31 @@ absent, this section is the source of truth), `frontend-design` skill.
       synchronous native-module throw. **Done 2026-08-20 — see the log entry
       below.**
 
+## OO. The consultation camera toggle could die silently — `consultation.tsx`'s unguarded `enableCamera`, the direct continuation of task NN's own "for the next run" lead 2
+
+> `consultation.tsx`'s `enableCamera` awaited `requestPermission()` with no
+> `try`, fired from `onPress` as `void enableCamera()`. `requestPermission`
+> **rejects** when the permission request itself breaks — the web export's
+> `getUserMedia` is unavailable or policy-blocked, or the native module is
+> missing on a stripped build — so the camera toggle did nothing at all with no
+> message, indistinguishable from a slow one. This is the exact crash-path
+> shape tasks MM (camera shutter) and NN (`Linking.openURL`) hardened, on the
+> same live `/app` surface, and task NN's log named it as the next item — with
+> the note that the screen "has no error surface yet — it needs one first."
+
+- [x] `src/lib/request-camera-access.ts` — `requestCameraAccess(request)`
+      collapses a thrown/rejected request into `{ status: 'failed' }`, keeps a
+      resolved-but-refused response as its own `{ status: 'denied' }` (an
+      ordinary answer, not a crash), and `{ status: 'granted' }` otherwise —
+      the same pure-helper-with-injected-callback shape `capture-photo.ts` and
+      `open-external-url.ts` set so the native module never has to be mocked.
+      `consultation.tsx` routes `enableCamera` through it and shows one calm
+      `cameraError` line ("Camera could not start. You can continue without
+      video.") only on `failed`, in Nepali and English inline like every string
+      in that file. Colocated `request-camera-access.test.ts` covers granted,
+      denied-not-failed, a rejected request, and a synchronous native throw.
+      **Done 2026-08-20 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2630,6 +2655,93 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task OO — exhausted-queue improvement: the consultation
+  camera toggle could die silently. This is the direct continuation of task
+  NN's own "for the next run" lead 2 — `consultation.tsx`'s unguarded
+  `enableCamera`, the last camera-path crash in `apps/mobile`.** Done.
+
+  **Housekeeping first.** Same force-push shape the recent entries hit. Local
+  `main` pointed at the stale 2026-08-15 human commit `9bdf548` and `git pull`
+  refused a divergent merge. `git merge-base main origin/main` returned empty
+  and `git log origin/main` showed a rewritten 50-commit history whose tip was
+  `8d53ab3` — but `origin/backup/pre-force-push-main-9bdf548` holds `9bdf548`
+  tip-for-tip, so the old line is preserved on the remote and nothing local was
+  unpushed (`git status` clean). `git reset --hard origin/main` was safe and
+  lost nothing. **Note for the next run:** NN's entry claims a
+  `git fetch --unshallow` proves the histories are a clean fast-forward; that
+  did *not* reproduce here — this clone was not shallow and the two tips share
+  no merge-base. Whether the pre-2026-08-18 work on the backup branch still
+  needs to come forward remains an owner call, exactly as MM's entry framed it.
+  Either way, resetting to `origin/main` is correct: it is what production
+  deploys.
+
+  **Queue check.** Every unchecked box read, not counted. Unchanged since FF:
+  task U's third bullet (a standing rule, no deliverable), task V
+  (`InstallPrompt`/`SignInSuggestion` — a UX priority call reserved for the
+  owner), and the owner-gated set (`NEXT_PUBLIC_PREMIUM_LAUNCH`, duplex-voice
+  go/no-go, corpus licence, payment provider, Sign in with Google, the missing
+  testimonial portraits). Queue exhausted for the agent, so this is a step-4
+  improvement to work already done.
+
+  **Why this.** Task NN's log named three leads. Lead 1 (`/app` has zero e2e
+  journey coverage) is highest-value but needs the web e2e harness to serve
+  `apps/mobile/dist` — real infra work with a meaningful chance of a blocked
+  run, not a clean single task. Lead 2's most user-facing remaining item is
+  `consultation.tsx`'s `enableCamera`: the same fire-and-forget async crash MM
+  and NN each closed one instance of, on the same live `/app` surface, on the
+  video-consultation screen. NN flagged that this one needed an error surface
+  built first; this task builds it.
+
+  **What shipped.** `apps/mobile/src/lib/request-camera-access.ts` —
+  `requestCameraAccess(request)` returns `granted` / `denied` / `failed`,
+  keeping a user refusal (`denied`) distinct from a broken request (`failed`)
+  so only the genuine crash surfaces a message. `consultation.tsx` routes
+  `enableCamera` through it and renders one calm `cameraError` line on `failed`
+  only (Nepali + English inline — `apps/mobile` has no next-intl), cleared on
+  the next successful grant or refusal. Colocated
+  `request-camera-access.test.ts`: granted, denied-not-failed (guards against
+  treating a refusal as an error), a rejected request (the real dead-end), and
+  a synchronous native throw.
+
+  **Tests.** `apps/mobile` went from 8 test files / 36 tests to 9 / 40;
+  repo-wide `pnpm test` from 936 to 940 individual tests across the same 75
+  tasks.
+
+  **375px measurement.** The change is additive and conditional. No tappable
+  element was added, moved, or resized — the camera control is unchanged at
+  52px (already above the 44px floor), and the only new node is the
+  `cameraError` `Text` line, which renders solely when `requestPermission`
+  *throws*. That failure cannot be reproduced in headless Chromium against the
+  `expo export` output — the same limitation MM and NN each recorded for their
+  failure banners — so the golden-path layout is provably unchanged (nothing
+  new renders unless the request breaks) and the error line's height is
+  inferred from its 12px/18px danger text, not measured. Recorded as
+  inference, not measurement, deliberately.
+
+  **No journey update.** Task U's standing rule applies but cannot be honoured,
+  for the reason NN's entry gave: `apps/web/e2e/` runs against the Next dev
+  server, which does not serve `/app` (the Expo export is copied into
+  `public/app` only during the Vercel build), and the failure state is
+  unreachable headlessly. A journey would be a false pass. NN's lead 1 remains
+  the standing fix for this whole gap.
+
+  **Gate.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75/75, 940 tests) / `pnpm build`
+  (40/40) all green from the repo root.
+
+  **For the next run.** In the order I would take them:
+  1. **`/app` has zero journey coverage** — still MM's lead 1 and still the
+     highest-value item. Needs the e2e harness to serve `apps/mobile/dist`
+     alongside the Next app. Infra work, not a single hardening task.
+  2. **The tail of MM's lead 2 is now down to the harmless calls.** The camera
+     crash paths (`capture.tsx`, `companion.tsx`'s `openURL`, and now
+     `consultation.tsx`'s `enableCamera`) are all closed. What remains is the
+     several `void Speech.stop()` / `void Haptics.selectionAsync()` calls —
+     genuinely safe to drop, but currently indistinguishable from the ones that
+     were not; a `void`-with-a-reason helper or an eslint rule would make the
+     distinction explicit rather than fixing a live bug.
+  3. **Dead code and skipped tests** — MM's lead 3, still open.
 
 - 2026-08-20 — **Task NN — exhausted-queue improvement: a tapped source
   citation in `apps/mobile`'s companion could silently open nothing. This is

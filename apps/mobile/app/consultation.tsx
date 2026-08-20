@@ -18,6 +18,7 @@ import {
 } from 'lucide-react-native';
 import { colors, radii, spacing } from '@swasthya/configuration';
 import { useAppState } from '@/state/app-state';
+import { requestCameraAccess } from '@/lib/request-camera-access';
 
 export default function ConsultationPreviewScreen() {
   const { language } = useAppState();
@@ -29,6 +30,7 @@ export default function ConsultationPreviewScreen() {
   const [captionsOn, setCaptionsOn] = useState(false);
   const [started, setStarted] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [cameraError, setCameraError] = useState(false);
 
   useEffect(() => {
     if (!started) return;
@@ -49,8 +51,12 @@ export default function ConsultationPreviewScreen() {
       setCameraOn((current) => !current);
       return;
     }
-    const result = await requestPermission();
-    if (result.granted) setCameraOn(true);
+    const outcome = await requestCameraAccess(requestPermission);
+    // A refusal is the person's choice, not a breakage: leave the camera off
+    // quietly. Only a thrown request — the case that used to vanish as an
+    // unhandled rejection — surfaces the calm error line.
+    setCameraError(outcome.status === 'failed');
+    if (outcome.status === 'granted') setCameraOn(true);
   };
 
   const endPreview = () => {
@@ -243,6 +249,14 @@ export default function ConsultationPreviewScreen() {
             </Pressable>
           )}
         </View>
+
+        {cameraError ? (
+          <Text accessibilityLiveRegion="polite" style={styles.cameraError}>
+            {language === 'en'
+              ? 'Camera could not start. You can continue without video.'
+              : 'क्यामेरा सुरु हुन सकेन। तपाईं भिडियो बिना जारी राख्न सक्नुहुन्छ।'}
+          </Text>
+        ) : null}
 
         <Text style={styles.disclaimer}>
           {language === 'en'
@@ -465,5 +479,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 19,
   },
   endText: { color: 'white', fontSize: 12, fontWeight: '900' },
+  cameraError: {
+    color: colors.danger,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 18,
+    marginTop: spacing.md,
+    textAlign: 'center',
+  },
   disclaimer: { color: colors.mint, fontSize: 9, marginTop: spacing.md, textAlign: 'center' },
 });
