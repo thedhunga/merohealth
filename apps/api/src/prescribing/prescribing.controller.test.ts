@@ -1,6 +1,8 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
+import type { CurrentUserResult } from '../auth/auth.service.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
 import { ClinicalSummaryRepository } from '../clinical-summary/clinical-summary.repository.js';
@@ -22,6 +24,41 @@ function buildController() {
   const controller = new PrescribingController(prescribing);
   return { controller, charting };
 }
+
+// Same pattern `referrals.controller.test.ts` uses: Nest's own `@UseGuards`
+// metadata key, since a plain method call (every other test in this file)
+// bypasses Nest's guard pipeline entirely.
+const GUARDS_METADATA = '__guards__';
+const controllerProto = PrescribingController.prototype as unknown as Record<string, () => unknown>;
+function guardsFor(method: string): unknown {
+  return Reflect.getMetadata(GUARDS_METADATA, controllerProto[method]!);
+}
+
+const currentUser: CurrentUserResult = {
+  subjectId: 'patient-1',
+  user: { id: 'patient-1', phone: '9812345678', role: 'PATIENT', locale: 'ne', assuranceLevel: 'REGISTERED' },
+  patientProfileId: null,
+  assuranceLevel: 'REGISTERED',
+};
+const otherUser: CurrentUserResult = { ...currentUser, subjectId: 'patient-2' };
+
+describe('PrescribingController auth wiring', () => {
+  it('gates the patient-facing routes behind SessionAuthGuard', () => {
+    expect(guardsFor('listPrescriptions')).toEqual([SessionAuthGuard]);
+    expect(guardsFor('getPrescription')).toEqual([SessionAuthGuard]);
+  });
+
+  it('leaves health and the clinician-workflow routes ungated', () => {
+    // health: no auth concept at all. openPrescription/addLine/sign/void: no
+    // clinician-side session exists yet — same documented exception
+    // `referrals.controller.ts`/`immunization.controller.ts` carry.
+    expect(guardsFor('health')).toBeUndefined();
+    expect(guardsFor('openPrescription')).toBeUndefined();
+    expect(guardsFor('addLine')).toBeUndefined();
+    expect(guardsFor('sign')).toBeUndefined();
+    expect(guardsFor('void')).toBeUndefined();
+  });
+});
 
 const lineInput = {
   label: 'Amoxicillin 500mg capsule',
@@ -82,14 +119,23 @@ describe('PrescribingController line, sign and void endpoints', () => {
 });
 
 describe('PrescribingController.listPrescriptions and getPrescription', () => {
-  it('lists prescriptions filtered by patientId and reads one by id', async () => {
+  it("lists the signed-in caller's own prescriptions and reads one by id", async () => {
     const { controller, charting } = buildController();
     const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
     const prescription = await controller.openPrescription(encounter.id, { clinicianId: 'clinician-1' });
 
-    const listed = controller.listPrescriptions('patient-1');
+    const listed = controller.listPrescriptions(currentUser);
     expect(listed).toEqual({ prescriptions: [prescription], total: 1 });
-    expect(controller.getPrescription(prescription.id)).toEqual(prescription);
+    expect(controller.getPrescription(currentUser, prescription.id)).toEqual(prescription);
+  });
+
+  it("404s a read for another caller's prescription instead of returning it", async () => {
+    const { controller, charting } = buildController();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const prescription = await controller.openPrescription(encounter.id, { clinicianId: 'clinician-1' });
+
+    expect(() => controller.getPrescription(otherUser, prescription.id)).toThrow(NotFoundException);
+    expect(controller.listPrescriptions(otherUser).total).toBe(0);
   });
 });
 

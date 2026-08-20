@@ -74,6 +74,21 @@ export class PrescribingService {
     return prescription;
   }
 
+  /**
+   * The patient-facing read: `ownerId` is the only access-control here, the
+   * same "belongs to someone else 404s like it doesn't exist" rule
+   * `referrals.service.ts`'s `getOwnReferral` uses — a prescriptionId leaked
+   * or guessed by a caller who isn't its patient must not be readable by
+   * them (drug names, dosages and controlled-substance flags). `getPrescription`
+   * above stays ownerId-free: `addLine`/`signPrescription`/`voidPrescription`
+   * all call it with no patient session identity to check against.
+   */
+  getOwnPrescription(id: string, ownerId: string): Prescription {
+    const prescription = this.getPrescription(id);
+    if (prescription.patientId !== ownerId) throw new NotFoundException(`No prescription ${id}`);
+    return prescription;
+  }
+
   listPrescriptions(patientId?: string): Prescription[] {
     return this.repository.list(patientId);
   }

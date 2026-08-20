@@ -1,4 +1,4 @@
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
@@ -211,6 +211,29 @@ describe('PrescribingService.voidPrescription', () => {
       expect(error).toBeInstanceOf(BadRequestException);
       expect((error as BadRequestException).getResponse()).toMatchObject({ code: 'PrescriptionAlreadyVoidedError' });
     }
+  });
+});
+
+describe('PrescribingService.getOwnPrescription', () => {
+  it('reads back a prescription for its own patient', async () => {
+    const { charting, prescribing } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const prescription = await prescribing.openPrescription(encounter.id, { clinicianId: 'clinician-1' });
+
+    expect(prescribing.getOwnPrescription(prescription.id, 'patient-1')).toEqual(prescription);
+  });
+
+  it("404s for another patient's prescription instead of returning it", async () => {
+    const { charting, prescribing } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const prescription = await prescribing.openPrescription(encounter.id, { clinicianId: 'clinician-1' });
+
+    expect(() => prescribing.getOwnPrescription(prescription.id, 'patient-2')).toThrow(NotFoundException);
+  });
+
+  it('404s for an unknown prescription id', () => {
+    const { prescribing } = buildStack();
+    expect(() => prescribing.getOwnPrescription('missing', 'patient-1')).toThrow(NotFoundException);
   });
 });
 

@@ -1,6 +1,9 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
+import type { CurrentUserResult } from '../auth/auth.service.js';
+import { CurrentUser } from '../auth/current-user.decorator.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { PrescribingService } from './prescribing.service.js';
 
 const openPrescriptionSchema = z.object({
@@ -34,7 +37,19 @@ function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
   return parsed.data;
 }
 
-/** Row 6 of clinical-suite.md's capability map: ePrescribing, Nepali formulary. */
+/**
+ * Row 6 of clinical-suite.md's capability map: ePrescribing, Nepali formulary.
+ * `listPrescriptions`/`getPrescription` are the patient-facing reads — gated
+ * behind `SessionAuthGuard`, the subject always the caller's own session id,
+ * same shape `referrals.controller.ts`/`immunization.controller.ts`
+ * established. `openPrescription`/`addLine`/`sign`/`void` stay ungated on
+ * purpose: `openPrescription` resolves `patientId` from the encounter via
+ * clinical-charting, never a client-supplied field, and the other three take
+ * only an opaque `prescriptionId` plus clinician-authored content — no patient
+ * identity in the body at all, and this app has no clinician-side session to
+ * check them against yet, the same documented exception every sibling
+ * clinical-suite controller carries.
+ */
 @ApiTags('prescribing')
 @Controller('prescribing')
 export class PrescribingController {
@@ -59,18 +74,19 @@ export class PrescribingController {
   }
 
   @Get('prescriptions')
-  @ApiOperation({ summary: 'List prescriptions, optionally filtered by patientId' })
-  @ApiQuery({ name: 'patientId', required: false })
-  listPrescriptions(@Query('patientId') patientId?: string) {
-    const prescriptions = this.prescribing.listPrescriptions(patientId);
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: "List the signed-in caller's own prescriptions" })
+  listPrescriptions(@CurrentUser() user: CurrentUserResult) {
+    const prescriptions = this.prescribing.listPrescriptions(user.subjectId);
     return { prescriptions, total: prescriptions.length };
   }
 
   @Get('prescriptions/:prescriptionId')
+  @UseGuards(SessionAuthGuard)
   @ApiParam({ name: 'prescriptionId' })
-  @ApiOperation({ summary: 'Read one prescription by opaque id' })
-  getPrescription(@Param('prescriptionId') prescriptionId: string) {
-    return this.prescribing.getPrescription(prescriptionId);
+  @ApiOperation({ summary: "Read one of the signed-in caller's own prescriptions by opaque id" })
+  getPrescription(@CurrentUser() user: CurrentUserResult, @Param('prescriptionId') prescriptionId: string) {
+    return this.prescribing.getOwnPrescription(prescriptionId, user.subjectId);
   }
 
   @Post('prescriptions/:prescriptionId/lines')

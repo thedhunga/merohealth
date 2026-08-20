@@ -554,6 +554,46 @@ absent, this section is the source of truth), `frontend-design` skill.
       exception every sibling controller's transition routes already carry.
       **Done 2026-08-20 — see the log entry below.**
 
+## EE. Access control on `prescribing`'s patient-facing routes — the sibling gap the billing/clinical-charting/teleconsultation fix never reached; `engagement` and `population-health` investigated and re-scoped to owner-gated instead
+
+> Every unchecked queue box was still owner/asset-gated (see the 2026-08-19
+> log entries above). Task DD's own "for the next run" note left two
+> candidates from task AA's original ranked list: `engagement` and
+> `population-health`. Investigation (see the log entry) found neither is
+> this run's fixable shape — `engagement.service.ts`'s `queueMessage` resolves
+> `patientId` through `PatientRegistryService.get()`, the same clinic-minted
+> `randomUUID()` id space task DD already ruled out for `scheduling`, and
+> `population-health` is inherently a cross-patient registry with no single
+> `patientId` in its request shape at all, so a patient `SessionAuthGuard`
+> cannot scope it — both moved to "Owner-gated" below. A full sweep of the
+> remaining 19 controllers (everything not already fixed or ruled out) found
+> the real next instance instead: `prescribing.controller.ts` had **no guard
+> of any kind** — not even the ownership-check pattern its own sibling
+> `billing`/`clinical-charting`/`teleconsultation` controllers carry — on its
+> patient-facing reads. `GET /prescribing/prescriptions` with no `patientId`
+> query param returned **every prescription in the system**, unauthenticated:
+> drug names, dosages and controlled-substance flags for every patient. `GET
+> /prescribing/prescriptions/:prescriptionId` had zero ownership check at
+> all. More severe than every gap fixed so far in this chain, since it needed
+> no session and no guessed id at all in the no-param case.
+
+- [x] `SessionAuthGuard` + `@CurrentUser()` on `GET /prescribing/prescriptions`
+      and `GET /prescribing/prescriptions/:prescriptionId`; the `patientId`
+      query param dropped from `listPrescriptions` entirely (always the
+      caller's own session id), and a new
+      `PrescribingService.getOwnPrescription(id, ownerId)` 404s (not just
+      filters) a prescription that belongs to a different patient, same shape
+      `referrals.service.ts`'s `getOwnReferral` uses. `openPrescription`/
+      `addLine`/`sign`/`void` stay unguarded on purpose: `openPrescription`
+      resolves `patientId` from the encounter via clinical-charting, never a
+      client-supplied field, and the other three take only an opaque
+      `prescriptionId` plus clinician-authored content, the same documented
+      no-clinician-session exception every sibling controller's transition
+      routes already carry. `prescribing.module.ts` imports `AuthModule`
+      directly (not transitively) for `SessionAuthGuard`, the same fix every
+      prior task in this chain needed. **Done 2026-08-20 — see the log entry
+      below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -598,6 +638,31 @@ absent, this section is the source of truth), `frontend-design` skill.
   instead. Not a fix an agent should pick unilaterally, and not separable
   from the `patient-registry` decision above — whichever way that one goes,
   this module goes with it.
+- `engagement.controller.ts`'s `POST engagement/patients/:patientId/messages`,
+  `GET engagement/messages` and `GET engagement/messages/:messageId`: the
+  same `patient-registry`/`scheduling` architecture question, not a new one.
+  `EngagementService.queueMessage` calls `this.patients.get(patientId)` —
+  `PatientRegistryService`'s own clinic-minted `randomUUID()` lookup, the
+  exact id space task DD's log entry found independent of the auth
+  `subjectId`. Gating `queueMessage`/`listMessages`/`getMessage` to
+  `patientId === user.subjectId` would 404 every legitimately queued message,
+  the same self-inflicted lockout ruled out for `patient-registry` and
+  `scheduling`. Tied to the same owner decision as those two.
+- `population-health.controller.ts`'s `GET population-health/registry` and
+  `GET population-health/recall`: a different shape from every other item in
+  this section — not an id-space question at all. Both routes are inherently
+  **cross-patient by design**: `PopulationHealthService.buildRegistry` calls
+  `this.clinicalSummary.listItems(undefined, kind)` — the deliberately
+  unscoped internal call `clinical-summary.service.ts` documents for exactly
+  this consumer — and returns every patient with a matching condition,
+  allergy or medication label. There is no single `patientId` anywhere in the
+  request to compare against a caller's `subjectId`; a patient `SessionAuthGuard`
+  would only prove *some* session is logged in, not that the caller is
+  clinical staff entitled to see a population-wide registry, so it would not
+  close the leak. Task AA's own note called this correctly: it needs a real
+  clinician/role session system (the `tenancy` module, row 20) or the routes
+  removed until one exists — not a mechanical guard-adding fix, and not a
+  decision an agent should make unilaterally.
 
 # Round six — freemium on purpose, duplex voice, and a spoken-Nepali corpus
 
@@ -2278,6 +2343,128 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task EE — exhausted-queue improvement: access control on
+  `prescribing`'s patient-facing routes; `engagement` and `population-health`
+  (task DD's own named next candidates) investigated and re-scoped to
+  owner-gated instead.** Done.
+
+  **Housekeeping first.** Same shape every recent entry has hit: `git
+  checkout main` landed on a history disconnected from any local branch
+  (local main stale at `9bdf548`, 76 commits behind a force-pushed
+  `origin/main` at `e892791`, 50 commits ahead) and `git pull` refused with
+  divergent branches. A `backup/pre-force-push-main-9bdf548` branch already
+  existed on the remote, preserving the pre-rewrite history — confirmed this
+  was the documented, deliberate history consolidation the ledger's own
+  operating note describes, not an unexplained rewrite. `git status` was
+  clean, so `git reset --hard origin/main` lost nothing.
+
+  **Why not `engagement` or `population-health`, as task DD named next.**
+  Read both before writing anything. `engagement.service.ts`'s
+  `queueMessage(patientId, input)` calls `this.patients.get(patientId)` —
+  `PatientRegistryService`'s own port, the exact clinic-minted `randomUUID()`
+  lookup task DD's log entry already found independent of the auth
+  `subjectId` for `scheduling`. Gating `engagement`'s three patient-facing
+  routes to `patientId === user.subjectId` would 404 every legitimately
+  queued message, the identical self-inflicted-lockout mistake already ruled
+  out twice. `population-health.controller.ts` turned out to be a different
+  shape entirely, not an id-space question: `buildRegistry`/`buildRecall`
+  take a `kind`/`label` pair and return **every patient** with a matching
+  condition, allergy or medication — there is no single `patientId` in the
+  request at all to compare against a session. A patient `SessionAuthGuard`
+  would only prove someone is logged in, not that they are clinical staff
+  entitled to a population-wide registry, so it would not actually close the
+  leak — task AA's original note ("needs a clinician-session system or route
+  removal, not a patient-session-guard sweep") checked out on inspection.
+  Both moved to the ledger's "Owner-gated" section with full reasoning, tied
+  to the same `patient-registry`/`tenancy` decisions already recorded there.
+
+  **Finding the real gap.** With task AA's original ranked list now fully
+  exhausted (five fixed, four owner-gated), sent a research agent to read
+  every one of the remaining 19 API controllers not already resolved, for the
+  same client-supplied-patient-id shape. It found `prescribing.controller.ts`
+  had **no guard of any kind** on its patient-facing reads — not
+  `SessionAuthGuard`, not even the ownership-check pattern its own sibling
+  controllers (`billing`, `clinical-charting`, `teleconsultation`, all in the
+  same clinical-suite family) already carry. Verified directly by reading the
+  controller, service and repository before writing anything:
+  `PrescribingRepository.list(patientId?)` filters on `patientId === undefined
+  || …` — true for every row — so `GET /prescribing/prescriptions` with no
+  query param returned **every prescription in the system**, unauthenticated:
+  drug names, dosages and controlled-substance flags for every patient with a
+  prescription. With a `patientId` supplied, any caller could read a specific
+  patient's prescriptions by guessing their (leaked or enumerable) subject id.
+  `GET /prescriptions/:prescriptionId` had zero ownership check at all — any
+  guessed or leaked id was readable by anyone. Confirmed the id space is
+  right for this fix, not the clinic-minted kind: `PrescribingService.
+  openPrescription` derives `patientId` from `ClinicalChartingService.
+  getEncounter(encounterId).patientId`, and `getEncounterForOwner`'s own
+  `encounter.patientId !== ownerId` check (comparing against
+  `user.subjectId`) proves that id space *is* the auth subject space
+  throughout this module family — the same convention `referrals`/
+  `immunization`/`diagnostics-orders`/`clinical-summary` already share. This
+  is the most severe gap fixed in this whole chain: it required no session
+  and, in the no-param case, no guessed id at all.
+
+  **What shipped.** `prescribing.controller.ts`: `SessionAuthGuard` +
+  `@CurrentUser()` on `listPrescriptions`/`getPrescription`; the `patientId`
+  query param dropped in favour of `user.subjectId`.
+  `prescribing.service.ts`: added `getOwnPrescription(id, ownerId)` — calls
+  the existing `getPrescription(id)` then 404s if `prescription.patientId !==
+  ownerId`, the same "belongs to someone else reads like it doesn't exist"
+  rule `referrals.service.ts`'s `getOwnReferral` uses; `getPrescription`
+  itself stays ownerId-free since `addLine`/`signPrescription`/
+  `voidPrescription` all call it internally with no patient session context.
+  `openPrescription`/`addLine`/`sign`/`void` untouched — same documented
+  no-clinician-session exception every sibling controller's transition
+  routes carry. `prescribing.module.ts` imports `AuthModule` directly (not
+  transitively), the same fix every prior task in this chain needed. No
+  internal caller of `listPrescriptions`/`getPrescription` exists anywhere in
+  `apps/api` (confirmed by grep) so nothing else needed updating.
+
+  **Tests.** `prescribing.controller.test.ts`: a `guardsFor` block proving
+  `listPrescriptions`/`getPrescription` carry `SessionAuthGuard` and the four
+  clinician-workflow routes stay ungated; existing list/read test updated to
+  pass a `CurrentUserResult`; a new cross-caller test proving a second
+  session's `getPrescription`/`listPrescriptions` never see the first
+  session's prescription. `prescribing.service.test.ts`: three new
+  `getOwnPrescription` cases (own prescription reads back, wrong owner 404s
+  instead of returning it, unknown id 404s). No changes needed in
+  `prescribing.repository.test.ts` — it never calls the controller.
+
+  **Gate.** `pnpm --filter "./packages/*" build` first, then `pnpm install
+  --frozen-lockfile` / `pnpm lint` (40/40) / `pnpm typecheck` (40/40) /
+  `pnpm test` (75/75, 920 API-suite tests total, up from 914) / `pnpm build`
+  (40/40) all green from the repo root. No journey update under task U's
+  standing rule — API access-control boundary only; confirmed by grep before
+  starting that no route under `apps/web/src` or `apps/mobile/app`/`src`
+  calls `prescribing` at all yet, so no UI surface changed and the 375px
+  measurement in the standing instructions does not apply to this run.
+
+  **For the next run.** Task AA's original ranked list of seven gaps is now
+  fully resolved: five fixed (`clinical-summary`, `diagnostics-orders`,
+  `immunization`, `referrals`, and now this run's `prescribing`, found by the
+  follow-up controller sweep rather than the original list) and two
+  owner-gated (`patient-registry`/`scheduling`, `engagement`) plus one
+  differently-shaped owner-gated item (`population-health`). The full
+  19-controller sweep this run ran found exactly one new gap
+  (`prescribing`, now fixed) and confirmed every other controller already
+  either carries `SessionAuthGuard` correctly or is a clinician-action route
+  with no patient-facing id to guard (same documented exception throughout).
+  The **access-control sweep this chain has run since task Z is genuinely
+  exhausted now** — the next run should not re-run the same 19-controller
+  grep-for-patientId search from scratch; if picking a security task again,
+  start instead from the secondary finding this run's sweep surfaced but did
+  not fix (kept in scope to stay to one task): `companion.controller.ts`'s
+  `POST /companion/research` has **no rate limiting or auth of any kind**
+  and forwards up to 4000 characters to Perplexity's `sonar-pro` model with
+  `search_context_size: 'high'` (the priciest search tier) on every call —
+  confirmed no `ThrottlerModule`/`APP_GUARD` wiring anywhere in
+  `app.module.ts`, only the bespoke OTP/early-access limiters exist. This is
+  a cost/availability risk, not a data-confidentiality one (matches task Y's
+  already-fixed `/api/companion/research` on the `apps/web` side, but this is
+  the separate NestJS API route, still open), and the codebase already has a
+  reusable `sliding-window-rate-limiter.ts` from that fix to apply here.
 
 - 2026-08-20 — **Task DD — exhausted-queue improvement: access control on
   `referrals`'s patient-facing routes; `scheduling` (task CC's own named next
