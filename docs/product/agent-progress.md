@@ -972,6 +972,34 @@ absent, this section is the source of truth), `frontend-design` skill.
       spy), swallows a synchronous throw, and tolerates a `void` side effect.
       **Done 2026-08-20 — see the log entry below.**
 
+## RR. The shared FAQ disclosure `<summary>` was a 32px tap target site-wide — the 44px rule the ledger measures on `/` had never reached `apps/web`'s one shared accordion
+
+> The queue is exhausted for the agent, so this run measured what the prior
+> passes' "`/` is clean" verdict never covered: the *rest* of `apps/web` at
+> 375px. A route sweep (`/get-care`, `/pricing`, `/health-library`, `/contact`,
+> `/help`, `/individuals/faqs`, the auth pages) surfaced one genuine,
+> non-exception sub-44px control repeated across the site — the FAQ disclosure.
+> The other flagged elements were false positives verified as fine: the
+> full-card links use an `after:absolute after:inset-0` overlay (the `<a>`'s own
+> box understates the real hit area, which is the whole card), and the inline
+> auth-switch links ("already registered? sign in") sit inside a sentence, the
+> explicit inline-text exception to the 44px rule.
+
+- [x] `apps/web/src/components/ui/FaqList.tsx` — the shared `<details>`/
+      `<summary>` accordion (used by `/individuals/faqs` and `/accessibility`)
+      put its `p-6` on the `<details>`, leaving the `<summary>` — the *only*
+      element a native disclosure toggles on — at 32px tall for a one-line
+      question, below the 44px minimum. Moved the padding onto the summary
+      (`px-6 py-4`) and the answer (`px-6 pb-6`) and added `min-h-11`, so the
+      whole visible question row is now the hit area: **375px measured 285×32 →
+      333×64** (`iPhone 14`, `next dev`), with zero summaries under 44px left on
+      the page. This is the exact pattern `Footer`'s disclosures already used —
+      `FaqList` was the one that missed it. Colocated `FaqList.test.tsx` renders
+      the component and asserts the summary carries `min-h-11`/`px-6`/`py-4`, the
+      `<details>` wrapper no longer carries `p-6`, and the FAQPage JSON-LD still
+      emits one entry per item — the regression guard that pins the tap-target
+      floor. **Done 2026-08-20 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2721,6 +2749,90 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task RR — exhausted-queue improvement: the shared FAQ
+  disclosure `<summary>` was a 32px tap target site-wide.** Done.
+
+  **Housekeeping first.** Same force-push shape every recent entry hit. Local
+  `main` was the stale 2026-08-15 human commit `9bdf548`; `git pull` refused the
+  divergent merge (`git merge-base` empty — remote `main` is a rewritten history,
+  now 50 commits tipped at `ecc2a65`). `origin/backup/pre-force-push-main-
+  9bdf548` still holds `9bdf548` tip-for-tip, so nothing was lost; `git reset
+  --hard origin/main` was correct — it is what production deploys.
+
+  **Standing red-CI check.** The latest `ci` run on `main` is `ecc2a65`
+  (**success**); the ~44-run page-weight red spell ended two commits back at
+  `ac0b35e`. So the red-CI-stops-the-line rule did not divert this run.
+
+  **Queue check.** Every unchecked box read. Unchanged since FF: task U's third
+  bullet (a standing rule, no deliverable), task V (`InstallPrompt`/
+  `SignInSuggestion` — a UX priority call reserved for the owner), and the
+  owner-gated set. Queue exhausted for the agent, so this is a step-4
+  improvement.
+
+  **Why this.** The scheduled prompt is emphatic that the web is the product and
+  almost every visitor is on a phone, and that tap targets are measured, not
+  assumed. Prior passes (PP) measured `/` and its variants and declared the
+  layout clean — true, but they never swept the *rest* of `apps/web`. This run
+  did: a 375px `iPhone 14` sweep of `/get-care`, `/pricing`, `/health-library`,
+  `/individuals/faqs`, `/contact`, `/help`, and the auth pages. It surfaced one
+  genuine, repeated, non-exception sub-44px control — the FAQ disclosure — and
+  two categories of false positive I verified and did **not** touch:
+  - **Full-card links** (`/help`, `/contact`, `/health-library`,
+    `ServiceCards`, `FeatureGrid`, `LegalIndexView`) use `after:absolute
+    after:inset-0` — the `<a>`'s own box measures ~30px but the real hit area is
+    the whole `h-full` card the pseudo-element covers. Fine as-is.
+  - **Inline auth-switch links** ("already registered? sign in",
+    `PhoneOtpFlow.tsx`) are 60×23 but sit *inside a sentence* — the explicit
+    inline-text exception to the 44px rule. Forcing them larger would break the
+    paragraph. Left alone.
+
+  **The defect.** `apps/web/src/components/ui/FaqList.tsx` — the shared
+  `<details>`/`<summary>` accordion — put its `p-6` on the `<details>`. A native
+  `<summary>` only toggles when the tap lands on the summary *itself*; padding on
+  the parent is dead space that does not toggle. So the reliable tap target was
+  the bare summary box: **285×32** for a one-line question, below 44px. Used by
+  `/individuals/faqs` and `/accessibility`. (`/pricing`, `/legal/privacy`,
+  `/health-library` render their own longer, wrapping questions that happen to
+  clear 44px, so the sweep only flagged the short-question page — but the
+  component was wrong everywhere.)
+
+  **The fix.** Moved the padding onto the summary (`px-6 py-4`) and the answer
+  (`px-6 pb-6`) and added `min-h-11` — the exact pattern `Footer`'s own
+  disclosures (`Footer.tsx:61,129`) already used; `FaqList` was the one that
+  missed it. **375px measured 285×32 → 333×64** (`iPhone 14`, `next dev`), zero
+  summaries under 44px left on `/individuals/faqs`. No layout regressions:
+  page-height unchanged in intent (the card is a few px taller, still 2–3 phone
+  screens), no horizontal overflow.
+
+  **Tests.** New colocated `apps/web/src/components/ui/FaqList.test.tsx` (4
+  tests) renders via `renderToStaticMarkup` and asserts: the summary carries
+  `min-h-11`, `px-6`, and `py-4`; the `<details>` wrapper no longer carries
+  `p-6` (guards against restoring the bug); and the FAQPage JSON-LD still emits
+  one entry per item. `apps/web` 522 → **526 tests / 54 files**.
+
+  **A note on measuring `next start` in this environment.** After a rebuild,
+  `pnpm exec next start` served `/_next/static/*.css` with content-type
+  `text/plain`, so Chromium refused the stylesheet and *every* element collapsed
+  to its unstyled ~17px height — which looks like a catastrophic tap-target
+  regression but is a serving artifact, not a real one. `next dev` serves CSS as
+  `text/css` correctly and is what the e2e harness uses locally; measure the fix
+  against `next dev` (or a remote `E2E_BASE_URL`), not a freshly-restarted
+  `next start`, or the numbers are meaningless.
+
+  **Gate.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75/75 tasks, web 54 files/526) /
+  `pnpm build` (40/40) all green from the repo root.
+
+  **For the next run.** In the order I would take them:
+  1. **`/app` has zero e2e journey coverage** — still PP's lead 1 and the
+     highest-value open item. Needs the web e2e harness to serve
+     `apps/mobile/dist`. Infra work, meaningful chance of a blocked run.
+  2. **The extensionless-metadata middleware trap, pre-emptively** — PP's lead 3.
+     If a future run adds `app/opengraph-image.tsx` or `app/twitter-image.tsx`
+     they hit the exact `proxy.ts` matcher bug PP fixed for `/icon`; add them to
+     the negative lookahead in the same commit and lock it in `proxy.test.ts`.
+  3. **Dead code and skipped tests** — MM's lead 3, still open.
 
 - 2026-08-20 — **Task QQ — exhausted-queue improvement: the fire-and-forget
   `void Speech.stop()` / `void Haptics.selectionAsync()` calls in `apps/mobile`

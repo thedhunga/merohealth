@@ -24,10 +24,18 @@ export function FaqList({ items, className }: FaqListProps) {
       <div className={cn('flex flex-col gap-4', className)}>
         {items.map((item) => (
           <details
-            className="group rounded-card border border-line bg-surface p-6 open:border-indigo-200"
+            className="group rounded-card border border-line bg-surface open:border-indigo-200"
             key={item.key}
           >
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-lg font-bold text-ink [&::-webkit-details-marker]:hidden">
+            {/*
+              Padding lives on the summary and answer, not the `<details>`, so
+              the whole visible question row is the toggle's hit area. `min-h-11`
+              floors it at 44px even for a one-line question — a native
+              `<summary>` only toggles on itself, so padding on the parent would
+              leave a sub-44px tap target on a phone. Mirrors `Footer`'s
+              disclosures.
+            */}
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 px-6 py-4 text-lg font-bold text-ink [&::-webkit-details-marker]:hidden">
               {item.question}
               <span
                 aria-hidden
@@ -36,7 +44,7 @@ export function FaqList({ items, className }: FaqListProps) {
                 +
               </span>
             </summary>
-            <p className="mt-4 leading-relaxed text-ink-soft">{item.answer}</p>
+            <p className="px-6 pb-6 leading-relaxed text-ink-soft">{item.answer}</p>
           </details>
         ))}
       </div>
