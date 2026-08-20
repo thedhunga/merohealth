@@ -1,6 +1,8 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpException, HttpStatus, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
+import { requestIp, type IpRequest } from '../common/request-ip.js';
+import { EngagementMessageRateLimiter } from './engagement-message-rate-limiter.js';
 import { EngagementService } from './engagement.service.js';
 
 const queueMessageSchema = z.object({
@@ -25,7 +27,22 @@ function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
 @ApiTags('engagement')
 @Controller('engagement')
 export class EngagementController {
-  constructor(private readonly engagement: EngagementService) {}
+  // Explicit type annotation on the limiter is required, not just the default
+  // value: Nest's DI reflects `design:paramtypes` from the annotation to
+  // resolve the provider at runtime, the same shape `CompanionController`
+  // already establishes for its own rate limiter.
+  constructor(
+    private readonly engagement: EngagementService,
+    private readonly rateLimiter: EngagementMessageRateLimiter = new EngagementMessageRateLimiter(),
+  ) {}
+
+  private checkRateLimit(request: IpRequest): void {
+    if (this.rateLimiter.allow(requestIp(request))) return;
+    throw new HttpException(
+      { code: 'RATE_LIMITED', message: 'Too many messages from this connection — wait a few minutes and try again.' },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
+  }
 
   @Get('health')
   @ApiOperation({ summary: "clinical-suite.md §2's ModuleDescriptor.health(), exposed over HTTP" })
@@ -52,7 +69,8 @@ export class EngagementController {
       },
     },
   })
-  queueMessage(@Param('patientId') patientId: string, @Body() body: unknown) {
+  async queueMessage(@Param('patientId') patientId: string, @Body() body: unknown, @Req() request: IpRequest) {
+    this.checkRateLimit(request);
     return this.engagement.queueMessage(patientId, parseOrThrow(queueMessageSchema, body));
   }
 
@@ -78,7 +96,8 @@ export class EngagementController {
       'Retry a FAILED message. Requeues it and attempts delivery again to the phone number captured at ' +
       'queue time — stays available even if patient-registry is down.',
   })
-  retryMessage(@Param('messageId') messageId: string) {
+  async retryMessage(@Param('messageId') messageId: string, @Req() request: IpRequest) {
+    this.checkRateLimit(request);
     return this.engagement.retryMessage(messageId);
   }
 }

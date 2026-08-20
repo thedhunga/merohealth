@@ -656,6 +656,47 @@ absent, this section is the source of truth), `frontend-design` skill.
       `RecordsModule`'s `providers`. **Done 2026-08-20 — see the log entry
       below.**
 
+## HH. Rate limit `engagement`'s message-send routes — the lead task GG's own sweep ("For the next run," item 1) named but did not run
+
+> Every unchecked queue box was still owner/asset-gated. Task GG's own log
+> entry left two unstarted leads; this run picked the concrete one over the
+> "unverified, not ruled out" GET-route sweep. `EngagementController`'s
+> `POST engagement/patients/:patientId/messages` and `POST
+> engagement/messages/:messageId/retry` both reach
+> `EngagementService.attemptDelivery`, a real send through
+> `EngagementDeliveryProvider` — and carry **no guard of any kind, and no
+> rate limit**. Task EE's own log entry already ruled out adding a
+> `SessionAuthGuard` here (`engagement` resolves `patientId` through
+> `PatientRegistryService`'s clinic-minted id space, the same
+> `patient-registry`/`scheduling` architecture question left in
+> "Owner-gated" below) — that reasoning still stands and is untouched by
+> this task. What it does not rule out is bounding the one thing this route
+> does that costs real money: `MockEngagementDeliveryProvider` is the only
+> adapter wired up today (`ENGAGEMENT_PROVIDER=mock`), but its own doc
+> comment says a real SMS/WhatsApp gateway drops in behind the same
+> interface later, unmetered, the identical shape task X/Y/FF/GG already
+> closed for OTP, companion-research and retry-extraction.
+
+- [x] `EngagementMessageRateLimiter`
+      (`apps/api/src/engagement/engagement-message-rate-limiter.ts`): an
+      `@Injectable()` subclass of `SlidingWindowRateLimiter`, 30 calls per 10
+      minutes matching `CompanionResearchRateLimiter`'s ceiling — generous
+      enough for a clinic sending a real batch of reminders from one shared
+      office connection. Keyed by caller IP via the existing `requestIp`
+      helper, not `subjectId`: unlike `retry-extraction`, there is no
+      session guard on this controller to derive a stable identity from, the
+      same reasoning `OtpRequestRateLimiter` documents. `EngagementController`
+      gained a shared `checkRateLimit` helper (two call sites, not one) used
+      by both `queueMessage` and `retryMessage` — a single limiter instance
+      covers both, since the resource being protected is "delivery attempts,"
+      not either route individually; a caller who exhausts the allowance via
+      `queueMessage` cannot route around it through `retryMessage`. Both
+      controller methods are now `async` so the rate-limit throw wraps into a
+      rejected promise instead of escaping synchronously, same fix task
+      GG's own entry explains. Registered on `EngagementModule`'s
+      `providers`.
+      **Done 2026-08-20 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2405,6 +2446,125 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task HH — exhausted-queue improvement: rate limit
+  `engagement`'s message-send routes, the concrete lead task GG's own "for
+  the next run" note named but did not run.** Done.
+
+  **Housekeeping first.** Same now-routine shape as every recent run:
+  `git checkout main` landed on a history disconnected from any local
+  branch (local `main` stale at `9bdf548`, `origin/main` force-pushed ahead
+  to `519a3ef`, 76 vs. 50 commits, no shared ancestor). The
+  `backup/pre-force-push-main-9bdf548` branch on the remote matched local
+  `main`'s tip exactly, `git status` was clean, and every package under
+  `packages/` (including `clinical-safety`) is present in `origin/main`'s
+  tree — re-confirmed this is the documented 2026-08-15 history
+  consolidation dozens of prior entries already established, not new data
+  loss. `git reset --hard origin/main` was safe and lost nothing local.
+
+  **Queue check.** Read every unchecked box in the ledger, not just grepped
+  the count: the standing "every future task adds a journey" rule (no
+  discrete deliverable), the `InstallPrompt`/`SignInSuggestion` priority
+  call, `NEXT_PUBLIC_PREMIUM_LAUNCH=live`, the duplex-voice go/no-go
+  measured on the owner's phone, the corpus licence/stream-B decision, and
+  the payment-provider choice — all genuinely owner-gated, same conclusion
+  every recent run reached. The most recent log entry (voice-contribution
+  clips rate limit) named two unstarted leads for "the next run": (1)
+  `EngagementController`'s SMS/WhatsApp routes carry no guard at all — worth
+  auditing whether that's still the intended clinic-staff-caller shape or a
+  real gap; (2) read-heavy `GET` routes weren't checked for the same
+  "expensive per-call, no limiter" shape, left explicitly "unverified, not
+  ruled out." Picked lead (1): concrete and already partly scoped, versus
+  (2)'s open-ended re-sweep.
+
+  **What the audit found.** `engagement.controller.ts` confirmed: zero
+  `@UseGuards`, zero rate limiter, on every route. Task EE's own log entry
+  (Round seven) already investigated `EngagementService.queueMessage` and
+  found it resolves `patientId` through `PatientRegistryService.get()` — the
+  clinic-minted `randomUUID()` id space independent of the auth `subjectId`,
+  the same shape ruled owner-gated for `patient-registry`/`scheduling`. That
+  conclusion still holds and this task does not revisit it: adding a patient
+  `SessionAuthGuard` here would 404 every legitimately staff-queued message,
+  the exact self-inflicted lockout task CC ruled out. What EE's entry did
+  not evaluate is orthogonal to that id-space question: `queueMessage` and
+  `retryMessage` both end in `EngagementService.attemptDelivery`, a real call
+  to `EngagementDeliveryProvider.send`. `MockEngagementDeliveryProvider` is
+  the only adapter wired up today — `createEngagementDeliveryProvider` throws
+  on boot for any `ENGAGEMENT_PROVIDER` value other than `mock` — but its own
+  doc comment (mirroring `auth/sms-provider.ts`'s identical pattern) makes
+  clear a real SMS/WhatsApp gateway drops in behind the same interface later.
+  At that point every accepted call here starts spending real money, with
+  nothing bounding how often any caller — no session required — can trigger
+  it. Same shape as `OtpRequestRateLimiter`/`CompanionResearchRateLimiter`
+  guard for elsewhere in this API, just not yet load-bearing since the
+  provider is still mock. Bounding it now means the limiter is already in
+  place the day a real provider is wired in, rather than one more thing to
+  remember at that time.
+
+  **What shipped.**
+  `apps/api/src/engagement/engagement-message-rate-limiter.ts`: new
+  `EngagementMessageRateLimiter`, `@Injectable()` extending
+  `SlidingWindowRateLimiter` (30 per 10 minutes, matching
+  `CompanionResearchRateLimiter`'s ceiling — generous enough for a clinic
+  sending a real reminder batch from one shared office connection, since
+  several staff sharing one public IP is the same collision risk
+  `OtpRequestRateLimiter`'s carrier-NAT reasoning already documents).
+  `engagement.controller.ts`: constructor gained the limiter as a second
+  parameter (explicit-annotation-plus-default-value shape, matching
+  `CompanionController`); a new private `checkRateLimit(request)` throws
+  `HttpException({code: 'RATE_LIMITED', ...}, 429)` on refusal, and both
+  `queueMessage` and `retryMessage` call it first, before any other work,
+  keyed by `requestIp(request)` via a new `@Req()` parameter on each. One
+  limiter instance is shared across both routes rather than one each — the
+  resource being protected is "delivery attempts" regardless of which route
+  triggers one, so a caller cannot double their real allowance by
+  alternating `queueMessage` and `retryMessage` calls. Both methods are now
+  `async`, the same fix task GG's own entry explains, so the pre-work throw
+  wraps into a rejected promise instead of escaping synchronously.
+  `engagement.module.ts`: `EngagementMessageRateLimiter` added to
+  `providers`. The `patientId`-ownership question `queueMessage` and
+  `retryMessage` still don't answer is untouched on purpose — still tied to
+  the same `patient-registry`/`scheduling` owner decision, unaffected by
+  this fix.
+
+  **Tests.** `engagement.controller.test.ts`: every existing `queueMessage`/
+  `retryMessage` call site gained the `CALLER` fixture (`{ip: '1.2.3.4'}`,
+  same shape `companion.controller.test.ts` already establishes) since both
+  methods now require a request object; the two `BadRequestException`
+  assertions moved from synchronous `expect(() => ...).toThrow` to `await
+  expect(...).rejects.toThrow`, mirroring task GG's own test-shape fix, since
+  a throw before an `async` method's first `await` now surfaces as a
+  rejection. Three new cases: the 31st `queueMessage` call in ten minutes
+  from one connection is refused with `{status: 429, response: {code:
+  'RATE_LIMITED'}}`; a different caller IP keeps its own full allowance; a
+  dedicated case proves `retryMessage` shares the same budget as
+  `queueMessage` (one `queueMessage` call plus 29 `retryMessage` calls
+  exhausts it, using a delivery provider that always rejects so the message
+  stays `FAILED` and stays retryable across all 29 attempts); the existing
+  list/get/retry integration test gained the `CALLER` argument it was
+  missing.
+
+  **Gate.** `pnpm --filter "./packages/*" build` first, then `pnpm install
+  --frozen-lockfile` / `pnpm lint` (40/40) / `pnpm typecheck` (40/40) /
+  `pnpm test` (75/75, 929 API-suite tests, up from 926 — the three new cases)
+  / `pnpm build` (40/40) all green from the repo root. No journey update
+  under task U's standing rule and no 375px measurement — API-only change,
+  no UI surface; confirmed no code under `apps/web/src` or `apps/mobile`
+  calls `engagement/patients/:patientId/messages` or
+  `engagement/messages/:messageId/retry` today, so no product surface is
+  affected by the new 429 path.
+
+  **For the next run.** Lead (2) from the previous entry is still open and
+  still genuinely unverified: whether any `GET` route across the 27
+  `apps/api` controllers fans out to a per-call external service (not just a
+  local DB read) with no rate limit. Separately, this run's own audit
+  surfaced but did not act on one more instance of the exact "no guard at
+  all" shape noted in task GG's log but not this run's scope: this ledger's
+  own top-of-log entry (the `voice-contribution/clips` rate limiter, dated
+  2026-08-20, immediately below) was never given a queue heading — it exists
+  only in the log, not as a checked box above. Not fixed here, since
+  correcting another run's bookkeeping wasn't this run's one task, but worth
+  a future run's attention if the queue and log ever need to be reconciled.
 
 - 2026-08-20 — **Exhausted-queue improvement: rate limit `POST
   /language-corpus/voice-contribution/clips`, the broader
