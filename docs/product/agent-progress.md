@@ -836,6 +836,28 @@ absent, this section is the source of truth), `frontend-design` skill.
       developer-only page justifies. **Done 2026-08-20 — see the log entry
       below.**
 
+## MM. The camera shutter in `apps/mobile` could die silently and permanently — `apps/mobile` crash paths, the second of task KK's four named categories
+
+> `capture.tsx`'s `takePhoto` awaited `takePictureAsync` with no `try`, from a
+> fire-and-forget `onPress`. Every ordinary camera failure — a capture still
+> in flight from an impatient double-tap, the camera still warming up, the web
+> export's `getUserMedia` track revoked mid-session, a full disk — escaped as
+> an unhandled rejection: the shutter did nothing, said nothing, and stayed
+> that way. This is the app's core "photograph your lab report" path, and it
+> is live: `scripts/vercel-build.sh` exports `apps/mobile` and copies it into
+> `apps/web/public/app`, so it ships to phones today at `/app`.
+
+- [x] `src/lib/capture-photo.ts` — `capturePhoto(take)` turns a thrown error,
+      an unmounted camera ref, and a picture that resolves without `base64`
+      into one `{ status: 'failed' }` outcome the screen can speak to.
+      Colocated `capture-photo.test.ts` covers all five paths. `capture.tsx`
+      surfaces the outcome in the same danger banner the review step already
+      uses, guards against concurrent captures with an `isCapturing` flag
+      (the shutter shows a spinner and refuses a second tap), and wraps the
+      "Allow camera" permission request that was equally unguarded. Both
+      strings in Nepali and English, inline like every other string in that
+      file. **Done 2026-08-20 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2585,6 +2607,124 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task MM — exhausted-queue improvement: `apps/mobile`'s
+  camera shutter could die silently and permanently. This is the second of
+  the four categories task KK named; LL took the first.** Done.
+
+  **Housekeeping first.** The same force-push shape the last three entries
+  each hit, with one new wrinkle worth recording. Local `main` was a stale
+  clone at `9bdf548` (the 2026-08-15 human commit) with **no shared ancestor
+  at all** against `origin/main` (`3c8a343`) — `git merge-base` returned
+  empty, and `origin/main`'s own oldest commit is `d5c575b`, dated
+  2026-08-18. So `origin/main` is a disjoint history that does not contain
+  the pre-2026-08-18 work; `backup/pre-force-push-main-9bdf548` on the remote
+  holds that older line intact, tip-for-tip. `git status` was clean, so `git
+  reset --hard origin/main` was safe and lost nothing local. **Next run:
+  expect this again and do not try to reconcile the two histories on your
+  own — it is an owner call whether the backup branch still holds anything
+  that needs to come forward.**
+
+  **Queue check.** Every unchecked box read, not counted. Two remain outside
+  "Owner-gated": task U's third bullet (a standing rule, no deliverable) and
+  task V (`InstallPrompt`/`SignInSuggestion` — a UX priority call explicitly
+  reserved for the owner). Everything else — `NEXT_PUBLIC_PREMIUM_LAUNCH`,
+  the duplex-voice go/no-go, the corpus licence, the payment provider, Sign
+  in with Google (blocked on the owner's OAuth client id), the two missing
+  testimonial portraits (blocked on Higgsfield credits) — is still genuinely
+  owner-gated. Same conclusion as every run since FF.
+
+  **Why this, and why it is live.** Task KK named four fresh categories; LL
+  took security headers. Of the three left, `apps/mobile` crash paths is the
+  only one touching a surface a person actually uses. First thing checked was
+  whether `apps/mobile` even ships:
+  `docs/deployment/staging-and-domain.md` §17 is explicit that
+  `scripts/vercel-build.sh` runs `expo export` and copies `apps/mobile/dist`
+  into `apps/web/public/app` before building the Next site. It is live at
+  `/app` on the production domain today, so a dead control there is a dead
+  control for real people, not a future concern.
+
+  **What the sweep found.** Read every `async` and every `void fn()`
+  fire-and-forget across `app/**` and `src/**`. Most are already correct:
+  `records.tsx`'s `load`/`runAction`/`retryDocument`, `capture.tsx`'s
+  `upload`, and both audio toggles (`companion.tsx`'s `toggleVoice`,
+  `index.web.tsx`'s `toggleRecording`) each wrap everything in `try`/`catch`
+  and set a visible message. Exactly one core path did not: `capture.tsx`'s
+  `takePhoto` awaited `cameraRef.current?.takePictureAsync(...)` bare, then
+  `if (!result?.base64) return`. Three distinct dead-ends in five lines — a
+  rejection (unhandled, since `onPress` is `void takePhoto()`), a null ref,
+  and a resolve without the optional `base64` — all of which leave the
+  shutter doing nothing with no message and no way for the person to tell
+  whether the app or their hand was at fault. `takePictureAsync` rejecting is
+  not exotic: Android rejects a capture issued while another is in flight,
+  which an impatient double-tap on a slow phone produces on its own.
+
+  **What shipped.** `apps/mobile/src/lib/capture-photo.ts` —
+  `capturePhoto(take)` collapses all three dead-ends into
+  `{ status: 'failed' }`, matching the pure-helper-in-`src/lib`-with-a-
+  colocated-test convention `companion-capture.ts` and `document-kinds.ts`
+  already set (`capture.tsx` itself cannot be unit-tested without mocking
+  `expo-camera`, `expo-router` and `lucide-react-native`). `capture.tsx` now
+  renders the failure in the same `dangerSoft` banner the review step
+  already uses, guards concurrent captures behind an `isCapturing` flag (the
+  shutter shows an `ActivityIndicator` and refuses the second tap — this
+  removes the most likely *cause*, not just the symptom), and wraps the
+  `requestPermission()` call behind "Allow camera", which was unguarded in
+  the same way. Both new strings are Nepali and English inline, matching
+  every other string in that file — `apps/mobile` does not use next-intl, and
+  `@swasthya/localization`'s `t()` is a fixed 13-key set for chrome, not
+  screen copy.
+
+  **Tests.** `src/lib/capture-photo.test.ts`, new and colocated: the happy
+  path, an async rejection, a synchronous throw, an unmounted ref, and three
+  shapes of missing bytes. `apps/mobile` went from 6 test files / 28 tests to
+  7 / 33; repo-wide `pnpm test` from 934 to 939.
+
+  **375px measurement.** Served the real `expo export` output and measured
+  `/capture` in Chromium at 375×667. Before and after are identical on the
+  reachable route — 1.0 screens (667px scrollHeight), 2 tappable elements, 0
+  under 44px, no horizontal overflow — which is the intended result: the
+  permission card is untouched and the new banner is conditional. The
+  **failure state itself could not be measured**, and this is worth knowing:
+  headless Chromium never grants `expo-camera`'s web permission even with
+  `--use-fake-ui-for-media-stream` and `context.grantPermissions(['camera'])`,
+  so the shutter never mounts and the banner never renders there. The banner
+  reuses the review step's exact padding, gap and 13px/19px text, so its
+  height is that banner's height; that is inference, not a measurement, and
+  is recorded as such.
+
+  **No journey update.** Task U's standing rule applies — this does change
+  what a person sees — but it cannot be honoured here and the reason should
+  not be lost: `apps/web/e2e/` runs against the Next dev server, which does
+  not serve `/app` at all (the Expo export is copied into `public/app` only
+  during the Vercel build), and the failure state is unreachable headlessly
+  as just described. A journey would have been a false pass. See the lead
+  below.
+
+  **Gate.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75/75, 939 tests) / `pnpm build`
+  (40/40) all green from the repo root.
+
+  **For the next run.** Three leads, in the order I would take them:
+  1. **`/app` has zero journey coverage.** The live Expo web export is
+     mounted at `/app` in production and no test in `apps/web/e2e/` ever
+     loads it. Closing that would need the e2e harness to serve
+     `apps/mobile/dist` (built by `pnpm build`) alongside the Next app.
+     This is the highest-value item I found and did not do.
+  2. **Remaining unguarded fire-and-forget async in `apps/mobile`**, all
+     lower severity than the shutter but all real: `consultation.tsx`'s
+     `enableCamera` (`await requestPermission()` with no `try`, and that
+     screen has no error surface to put a message on — it needs one first);
+     `companion.tsx:431` and `:445`, two `void Linking.openURL(...)` calls —
+     `openURL` rejects when nothing on the device can handle the URL, so a
+     tapped citation can do nothing at all; and the several `void
+     Speech.stop()` / `void Haptics.selectionAsync()` calls, which are
+     genuinely harmless to drop but currently indistinguishable from the
+     ones that are not.
+  3. **Dead code and skipped tests**, the two categories from KK's list
+     still untouched. LL's entry already found the skipped-test category
+     looks clean (only two intentional env-gated `test.skip`s in
+     `apps/web/e2e`) but did not verify it closed; dead code is fully open.
 
 - 2026-08-20 — **Task LL — exhausted-queue improvement: add response
   security headers (`helmet`) to `apps/api`, the "security headers" category

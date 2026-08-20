@@ -25,6 +25,7 @@ import { Pill, uiStyles } from '@/components/ui';
 import { ProfileSwitcher } from '@/components/ProfileSwitcher';
 import { useAppState } from '@/state/app-state';
 import { documentKindOptions } from '@/lib/document-kinds';
+import { capturePhoto } from '@/lib/capture-photo';
 import { RecordsApiError, captureDocument } from '@/lib/records-api';
 
 type Step = 'camera' | 'review' | 'done';
@@ -45,17 +46,49 @@ export default function CaptureScreen() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [savedTitle, setSavedTitle] = useState<string | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   const takePhoto = async () => {
-    const result = await cameraRef.current?.takePictureAsync({ base64: true, quality: 0.5 });
-    if (!result?.base64) return;
-    setPhoto({ uri: result.uri, base64: result.base64 });
+    // Android rejects a `takePictureAsync` issued while another is still in
+    // flight, so an impatient double-tap was itself one of the ways the
+    // shutter used to die.
+    if (isCapturing) return;
+    setIsCapturing(true);
+    setCameraError(null);
+    const outcome = await capturePhoto(() =>
+      cameraRef.current?.takePictureAsync({ base64: true, quality: 0.5 }),
+    );
+    setIsCapturing(false);
+    if (outcome.status === 'failed') {
+      setCameraError(
+        language === 'en'
+          ? 'Could not take the photo. Try again.'
+          : 'फोटो खिच्न सकिएन। फेरि प्रयास गर्नुहोस्।',
+      );
+      return;
+    }
+    setPhoto({ uri: outcome.uri, base64: outcome.base64 });
     setStep('review');
+  };
+
+  const allowCamera = async () => {
+    setCameraError(null);
+    try {
+      await requestPermission();
+    } catch {
+      setCameraError(
+        language === 'en'
+          ? 'Could not open the camera. Check this device’s camera permission and try again.'
+          : 'क्यामेरा खोल्न सकिएन। उपकरणको क्यामेरा अनुमति जाँच गरेर फेरि प्रयास गर्नुहोस्।',
+      );
+    }
   };
 
   const retake = () => {
     setPhoto(null);
     setUploadError(null);
+    setCameraError(null);
     setStep('camera');
   };
 
@@ -99,6 +132,7 @@ export default function CaptureScreen() {
     setTitle('');
     setKind('LAB_REPORT');
     setUploadError(null);
+    setCameraError(null);
     setSavedTitle(null);
     setStep('camera');
   };
@@ -239,7 +273,7 @@ export default function CaptureScreen() {
               ? 'Mero Health only uses the camera to photograph the document you choose.'
               : 'साथीले तपाईंले रोज्नुभएको कागजात मात्र खिच्न क्यामेरा प्रयोग गर्छ।'}
           </Text>
-          <Pressable onPress={() => void requestPermission()} style={uiStyles.primaryButton}>
+          <Pressable onPress={() => void allowCamera()} style={uiStyles.primaryButton}>
             <Text style={uiStyles.primaryButtonText}>
               {language === 'en' ? 'Allow camera' : 'क्यामेरा अनुमति दिनुहोस्'}
             </Text>
@@ -247,14 +281,22 @@ export default function CaptureScreen() {
         </View>
       )}
 
+      {cameraError ? (
+        <View style={styles.cameraErrorBanner}>
+          <AlertTriangle color={colors.danger} size={18} />
+          <Text style={styles.errorText}>{cameraError}</Text>
+        </View>
+      ) : null}
+
       {permission?.granted ? (
         <View style={styles.shutterRow}>
           <Pressable
             accessibilityLabel={language === 'en' ? 'Take photo' : 'फोटो खिच्नुहोस्'}
+            disabled={isCapturing}
             onPress={() => void takePhoto()}
-            style={styles.shutter}
+            style={[styles.shutter, isCapturing && styles.disabled]}
           >
-            <View style={styles.shutterInner} />
+            {isCapturing ? <ActivityIndicator color="white" /> : <View style={styles.shutterInner} />}
           </Pressable>
         </View>
       ) : null}
@@ -339,6 +381,18 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   errorText: { color: colors.danger, flex: 1, fontSize: 13, lineHeight: 19 },
+  // Same banner as the review step's, inset to clear the full-bleed camera
+  // ground it sits on rather than the padded scroll page.
+  cameraErrorBanner: {
+    alignItems: 'center',
+    backgroundColor: colors.dangerSoft,
+    borderRadius: radii.md,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    padding: spacing.md,
+  },
   disabled: { opacity: 0.38 },
   privacy: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
   privacyText: { color: colors.muted, flex: 1, fontSize: 11, lineHeight: 16 },
