@@ -67,7 +67,7 @@ describe('MedicationSafetyService.checkMedication', () => {
       label: 'Penicillin',
       value: 'Rash',
     });
-    summary.resolveItem(allergy.id);
+    summary.resolveItem(allergy.id, 'patient-1');
 
     const result = await medicationSafety.checkMedication('patient-1', 'Penicillin');
 

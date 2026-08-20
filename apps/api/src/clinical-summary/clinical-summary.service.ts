@@ -66,18 +66,34 @@ export class ClinicalSummaryService {
     }
   }
 
-  getItem(id: string): ClinicalSummaryItem {
+  /**
+   * `ownerId` is not just a filter here — it is the only access-control this
+   * method has, the same "belongs to someone else 404s like it doesn't
+   * exist" rule `records.service.ts`'s `#requireObservation` uses: an
+   * itemId leaked or guessed by a caller who isn't its patient must not be
+   * readable or resolvable by them, regardless of whether the item was
+   * patient-reported or clinician-authored.
+   */
+  getItem(id: string, ownerId: string): ClinicalSummaryItem {
     const item = this.repository.find(id);
-    if (!item) throw new NotFoundException(`No clinical summary item ${id}`);
+    if (!item || item.patientId !== ownerId) throw new NotFoundException(`No clinical summary item ${id}`);
     return item;
   }
 
+  /**
+   * `patientId` stays optional here (unlike `getItem`/`resolveItem` above)
+   * because `population-health.service.ts` calls this directly through DI
+   * with no patientId at all, to build its cross-patient condition
+   * registry — a separate, already-flagged exposure at that module's own
+   * boundary, out of scope for this controller's fix. The HTTP controller
+   * below never passes anything but the caller's own session id.
+   */
   listItems(patientId?: string, kind?: ClinicalSummaryKind): ClinicalSummaryItem[] {
     return this.repository.list(patientId, kind);
   }
 
-  resolveItem(id: string): ClinicalSummaryItem {
-    return this.repository.save(resolveItem(this.getItem(id), new Date().toISOString()));
+  resolveItem(id: string, ownerId: string): ClinicalSummaryItem {
+    return this.repository.save(resolveItem(this.getItem(id, ownerId), new Date().toISOString()));
   }
 
   /**

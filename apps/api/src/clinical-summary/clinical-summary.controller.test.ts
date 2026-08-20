@@ -1,6 +1,8 @@
 import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
+import type { CurrentUserResult } from '../auth/auth.service.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
 import { RecordsRepository } from '../records/records.repository.js';
@@ -16,30 +18,75 @@ function buildController() {
   return { controller, charting };
 }
 
-const validPatientReportedBody = { patientId: 'patient-1', kind: 'ALLERGY', label: 'Penicillin', value: 'Rash' };
+// Same pattern `medication-safety.controller.test.ts` uses: Nest's own
+// `@UseGuards` metadata key, since a plain method call (every other test in
+// this file) bypasses Nest's guard pipeline entirely.
+const GUARDS_METADATA = '__guards__';
+const controllerProto = ClinicalSummaryController.prototype as unknown as Record<string, () => unknown>;
+function guardsFor(method: string): unknown {
+  return Reflect.getMetadata(GUARDS_METADATA, controllerProto[method]!);
+}
+
+describe('ClinicalSummaryController auth wiring', () => {
+  it('gates the patient-facing item routes behind SessionAuthGuard', () => {
+    expect(guardsFor('recordPatientReported')).toEqual([SessionAuthGuard]);
+    expect(guardsFor('listItems')).toEqual([SessionAuthGuard]);
+    expect(guardsFor('getItem')).toEqual([SessionAuthGuard]);
+    expect(guardsFor('resolveItem')).toEqual([SessionAuthGuard]);
+  });
+
+  it('leaves health and the clinician-authored route ungated', () => {
+    // health: no auth concept at all. recordClinicianAuthored: no
+    // clinician-side session exists yet — same documented exception
+    // `clinical-charting.controller.ts` and `prescribing.controller.ts`
+    // carry, and it derives patientId from the encounter, never a
+    // client-supplied field, so there is no patient-impersonation gap here
+    // to gate against.
+    expect(guardsFor('health')).toBeUndefined();
+    expect(guardsFor('recordClinicianAuthored')).toBeUndefined();
+  });
+});
+
+const currentUser: CurrentUserResult = {
+  subjectId: 'patient-1',
+  user: { id: 'patient-1', phone: '9812345678', role: 'PATIENT', locale: 'ne', assuranceLevel: 'REGISTERED' },
+  patientProfileId: null,
+  assuranceLevel: 'REGISTERED',
+};
+const otherUser: CurrentUserResult = { ...currentUser, subjectId: 'patient-2' };
+
+const validPatientReportedBody = { kind: 'ALLERGY', label: 'Penicillin', value: 'Rash' };
 const validClinicianBody = { clinicianId: 'clinician-1', kind: 'CONDITION', label: 'Type 2 diabetes', value: 'Diagnosed 2026' };
 
 describe('ClinicalSummaryController.recordPatientReported', () => {
-  it('records an item from a valid body', () => {
+  it("records an item under the signed-in caller's own id from a valid body", () => {
     const { controller } = buildController();
-    const item = controller.recordPatientReported(validPatientReportedBody);
+    const item = controller.recordPatientReported(currentUser, validPatientReportedBody);
 
     expect(item.status).toBe('ACTIVE');
     expect(item.provenance).toBe('PATIENT_REPORTED');
+    expect(item.patientId).toBe('patient-1');
+  });
+
+  it("ignores a smuggled patientId in the body and uses the session's instead", () => {
+    const { controller } = buildController();
+    const item = controller.recordPatientReported(currentUser, { ...validPatientReportedBody, patientId: 'someone-else' });
+
+    expect(item.patientId).toBe('patient-1');
   });
 
   it('rejects a request missing a required field', () => {
     const { controller } = buildController();
-    expect(() => controller.recordPatientReported({ ...validPatientReportedBody, kind: undefined })).toThrow(
-      BadRequestException,
-    );
+    expect(() =>
+      controller.recordPatientReported(currentUser, { ...validPatientReportedBody, kind: undefined }),
+    ).toThrow(BadRequestException);
   });
 
   it('rejects an unknown kind', () => {
     const { controller } = buildController();
-    expect(() => controller.recordPatientReported({ ...validPatientReportedBody, kind: 'BLOOD_GROUP' })).toThrow(
-      BadRequestException,
-    );
+    expect(() =>
+      controller.recordPatientReported(currentUser, { ...validPatientReportedBody, kind: 'BLOOD_GROUP' }),
+    ).toThrow(BadRequestException);
   });
 });
 
@@ -61,21 +108,30 @@ describe('ClinicalSummaryController.recordClinicianAuthored', () => {
 describe('ClinicalSummaryController reads and resolve', () => {
   it('reads back a recorded item, lists it, and resolves it', () => {
     const { controller } = buildController();
-    const item = controller.recordPatientReported(validPatientReportedBody);
+    const item = controller.recordPatientReported(currentUser, validPatientReportedBody);
 
-    expect(controller.getItem(item.id).id).toBe(item.id);
-    expect(controller.listItems('patient-1').total).toBe(1);
-    expect(controller.resolveItem(item.id).status).toBe('RESOLVED');
+    expect(controller.getItem(currentUser, item.id).id).toBe(item.id);
+    expect(controller.listItems(currentUser).total).toBe(1);
+    expect(controller.resolveItem(currentUser, item.id).status).toBe('RESOLVED');
   });
 
   it('404s a read for an unknown item', () => {
     const { controller } = buildController();
-    expect(() => controller.getItem('missing')).toThrow(NotFoundException);
+    expect(() => controller.getItem(currentUser, 'missing')).toThrow(NotFoundException);
+  });
+
+  it("404s a read for another caller's item instead of returning it", () => {
+    const { controller } = buildController();
+    const item = controller.recordPatientReported(currentUser, validPatientReportedBody);
+
+    expect(() => controller.getItem(otherUser, item.id)).toThrow(NotFoundException);
+    expect(controller.listItems(otherUser).total).toBe(0);
+    expect(() => controller.resolveItem(otherUser, item.id)).toThrow(NotFoundException);
   });
 
   it('rejects an unknown kind filter', () => {
     const { controller } = buildController();
-    expect(() => controller.listItems(undefined, 'NOT_A_KIND')).toThrow(BadRequestException);
+    expect(() => controller.listItems(currentUser, 'NOT_A_KIND')).toThrow(BadRequestException);
   });
 });
 
@@ -96,8 +152,8 @@ describe('ClinicalSummaryController degraded mode', () => {
       ServiceUnavailableException,
     );
 
-    const item = controller.recordPatientReported(validPatientReportedBody);
+    const item = controller.recordPatientReported(currentUser, validPatientReportedBody);
     expect(item.status).toBe('ACTIVE');
-    expect(controller.listItems('patient-1').total).toBe(1);
+    expect(controller.listItems(currentUser).total).toBe(1);
   });
 });

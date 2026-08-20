@@ -431,6 +431,39 @@ absent, this section is the source of truth), `frontend-design` skill.
       HTTP controller, so the clinician sign-time check keeps working
       exactly as before. **Done 2026-08-20 — see the log entry below.**
 
+## AA. Access control on `clinical-summary`'s own item routes — the store `medication-safety` reads from, still open through a different door
+
+> Every unchecked queue box was still owner/asset-gated. Picked as this
+> run's highest-value improvement to work already done: task Z's own log
+> entry pointed at a wider sweep of `apps/api/src/*` for the same
+> client-supplied-patient-id gap. A research agent read all 28 controllers
+> and found `clinical-summary.controller.ts`'s patient-facing item routes —
+> the underlying problem/allergy/medication store `medication-safety.check`
+> reads from — were still wide open: `GET /clinical-summary/items?patientId=`,
+> `GET /clinical-summary/items/:itemId`, and `POST /clinical-summary/items`
+> all took the whose-data-is-this id from the client with zero guard, the
+> exact shape task Z had just fixed one layer up. Six further gaps of the
+> same shape were found in the same sweep
+> (`diagnostics-orders`/`patient-registry`/`immunization`/`referrals`/
+> `scheduling`/`engagement`, plus a differently-shaped population-wide leak
+> in `population-health`) — left undone this run to keep to one task; see
+> the log entry for the full ranked list.
+
+- [x] `SessionAuthGuard` + `@CurrentUser()` on `POST /clinical-summary/items`,
+      `GET /clinical-summary/items`, `GET /clinical-summary/items/:itemId`
+      and `POST /clinical-summary/items/:itemId/resolve`; `patientId` dropped
+      from the record/list request shapes entirely, and `getItem`/
+      `resolveItem` now 404 (not just filter) on an item that belongs to a
+      different patient, closing the itemId-guessing path a query-only fix
+      would have left open. `recordClinicianAuthored` stays unguarded on
+      purpose — same documented no-clinician-session exception
+      `clinical-charting`/`prescribing` already carry, and it derives
+      `patientId` from the encounter, never a client-supplied field.
+      `population-health.service.ts`'s own direct, unscoped
+      `clinicalSummary.listItems(undefined, kind)` call is untouched — a
+      separate, already-flagged exposure at that module's boundary, not this
+      controller's. **Done 2026-08-20 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2115,6 +2148,130 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task AA — exhausted-queue improvement: access control on
+  `clinical-summary`'s patient-facing item routes, the store
+  `medication-safety.check` reads from and task Z's own "for the next run"
+  pointer.** Done.
+
+  **Housekeeping first.** Same shape every recent entry has hit:
+  `git checkout main` landed on a history not connected to any branch
+  (local 76 commits, `origin/main` 50, no common ancestor). Confirmed
+  `origin/backup/pre-force-push-main-9bdf548` holds the exact pre-force tip
+  and matches local HEAD exactly, `git status` was clean, so
+  `git reset --hard origin/main` lost nothing.
+
+  **Why this task.** All eight queue boxes remain owner/asset-gated,
+  unchanged. Task Z's own log entry named the next lead directly: "a wider
+  pass across `apps/api/src/*` for any other controller still taking a
+  client-supplied patient/owner id with no guard." Sent a research agent to
+  read all 28 `*.controller.ts` files against the now-established reference
+  pattern (`records.controller.ts`: `SessionAuthGuard` + `@CurrentUser()`,
+  no client-supplied id) and the documented clinician-workflow exception
+  (`clinical-charting`/`prescribing`: no clinician session exists yet, so
+  those specific writes stay unguarded on purpose, by their own comments).
+  It found the gap was not hypothetical: **`clinical-summary.controller.ts`
+  — the exact store `medication-safety.service.ts` reads a patient's active
+  allergies and medications from — had never been fixed itself.**
+  `POST /clinical-summary/items`, `GET /clinical-summary/items?patientId=`
+  and `GET /clinical-summary/items/:itemId` all took the subject id from the
+  client with no guard at all: task Z closed the door at
+  `medication-safety.check`, but the underlying problem/allergy/medication
+  list was still readable and writable by id-guessing through this
+  neighbouring controller the whole time. The same sweep surfaced six more
+  gaps of the same shape (`diagnostics-orders` — lab/imaging results,
+  arguably the single most sensitive class of data in the app;
+  `patient-registry` — demographics read *and* write;
+  `immunization`/`referrals`/`scheduling`/`engagement`) plus a differently
+  -shaped population-wide leak in `population-health` (a diagnosis label
+  alone, no id needed, returns every patient with that condition). All left
+  undone this run — one task per run — but ranked in order in this entry's
+  "for the next run."
+
+  **Scoped correctly, not over-fixed.** `recordClinicianAuthored` (the
+  `POST /clinical-summary/encounters/:encounterId/items` route) was left
+  unguarded on purpose: it already derives `patientId` from the
+  `clinical-charting` encounter, never a client-supplied field (its own
+  existing comment says so), and gating it behind a *patient*
+  `SessionAuthGuard` would make it unusable rather than correct — the same
+  documented exception `clinical-charting.controller.ts` itself carries.
+  `population-health.service.ts`'s own direct DI call to
+  `clinicalSummary.listItems(undefined, kind)` was deliberately left as-is:
+  that is a separate exposure at `population-health`'s own boundary (see
+  above), and widening `listItems`'s service signature to force a patientId
+  would have broken that already-existing, differently-scoped call for no
+  reason connected to this fix.
+
+  **What shipped.** `clinical-summary.controller.ts`: `SessionAuthGuard` +
+  `@CurrentUser()` on `recordPatientReported`, `listItems`, `getItem` and
+  `resolveItem`; `recordPatientReportedSchema` no longer accepts `patientId`
+  (subject is always `user.subjectId`); `listItems`'s `patientId` query
+  param removed (always the caller's own). `clinical-summary.service.ts`:
+  `getItem`/`resolveItem` now take a required `ownerId` and 404 — the same
+  "belongs to someone else reads like it doesn't exist" rule
+  `records.service.ts`'s `#requireObservation` already uses — if the item's
+  `patientId` doesn't match, closing the itemId-guessing path a
+  query-parameter-only fix would have left open (an attacker who once saw or
+  guessed an itemId could otherwise still `GET`/resolve it directly).
+  `listItems`'s own `patientId` parameter stays optional at the service
+  layer, unchanged, specifically so `population-health.service.ts`'s
+  existing unscoped call keeps working. `clinical-summary.module.ts` imports
+  `AuthModule` directly (not transitively) for `SessionAuthGuard` — the same
+  fix `medication-safety.module.ts` and `clinical-charting.module.ts`
+  already needed and documented.
+
+  **Tests.** `clinical-summary.controller.test.ts`: a `guardsFor` block
+  (same technique `medication-safety.controller.test.ts` uses) proving the
+  four patient routes carry `SessionAuthGuard` and `health`/
+  `recordClinicianAuthored` stay ungated; a test proving a smuggled
+  `patientId` in the record body is ignored in favour of the session's; a
+  cross-caller test proving `getItem`/`listItems`/`resolveItem` from a
+  second session never see or touch the first session's item. Matching
+  additions to `clinical-summary.service.test.ts` (`getItem`/`resolveItem`
+  404 for the wrong owner, same as an unknown id) and small signature
+  updates across `clinical-summary.fault-isolation.test.ts` and
+  `medication-safety.service.test.ts` (the latter's one direct
+  `summary.resolveItem(allergy.id)` call needed the owner id `resolveItem`
+  now requires — no behavioural change, it already only ever resolved its
+  own allergy).
+
+  **Gate.** `pnpm --filter "./packages/*" build` first (still required).
+  `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) / `pnpm typecheck`
+  (40/40) / `pnpm test` (75/75, 896 API tests, up from 890) / `pnpm build`
+  (40/40) all green from the repo root. No journey update under task U's
+  standing rule — API access-control boundary only, no UI, message file, or
+  user-facing behaviour changed (this controller has no current caller in
+  `apps/web`/`apps/mobile` yet, confirmed by grep before starting).
+
+  **For the next run, ranked most severe first (all confirmed by the same
+  research agent, none fixed here):**
+  1. `diagnostics-orders.controller.ts` — lab/imaging orders *and results*
+     (e.g. an HIV, pregnancy or hepatitis test value) by client `patientId`,
+     no guard. Likely the single worst exposure of the seven if in scope.
+  2. `patient-registry.controller.ts` — `GET /patients/:patientId` (full
+     demographics: name, DOB, sex, phone, address) and
+     `POST /patients/:patientId/demographics` (overwrite), no guard on
+     either — a read *and* a tamper vector.
+  3. `immunization.controller.ts` — vaccination history by client
+     `patientId`, no guard.
+  4. `referrals.controller.ts` — referrals including a free-text `reason`
+     that can carry a working diagnosis, no guard.
+  5. `scheduling.controller.ts` — `GET /appointments/:appointmentId` reveals
+     patientId/clinicianId/time for any id, no guard.
+  6. `engagement.controller.ts` — message bodies to a patient, readable by
+     id, plus an unauthenticated `POST` that can queue a message to any
+     patientId, no guard.
+  7. `population-health.controller.ts` / `GET /population-health/registry` —
+     differently shaped (no id needed at all, just a diagnosis label) but
+     arguably the worst in the app: returns every patient with a given
+     active condition/allergy/medication system-wide, no guard, no id
+     required. Root cause is the same (no clinician-session system exists
+     yet to gate a clinician-facing registry query behind), but it doesn't
+     fit "guard this HTTP route with a patient SessionAuthGuard" the way the
+     other six do — a *patient* can't legitimately call this at all, so
+     fixing it needs either a clinician-session system that doesn't exist
+     yet, or pulling the route until one does. Worth a dedicated task rather
+     than folding into the next id-guard sweep.
 
 - 2026-08-20 — **Task Z — exhausted-queue improvement: access control on
   `POST /medication-safety/check`, the local-DB-read gap task Y's own log

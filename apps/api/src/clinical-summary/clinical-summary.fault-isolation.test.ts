@@ -1,6 +1,7 @@
 import { buildModuleRegistry, collectHealthStates, resolveAvailability } from '@swasthya/module-registry';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
+import type { CurrentUserResult } from '../auth/auth.service.js';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
 import { createClinicalChartingModuleDescriptor } from '../clinical-charting/clinical-charting.module-descriptor.js';
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
@@ -12,7 +13,13 @@ import { createClinicalSummaryModuleDescriptor } from './clinical-summary.module
 import { ClinicalSummaryRepository } from './clinical-summary.repository.js';
 import { ClinicalSummaryService } from './clinical-summary.service.js';
 
-const patientReportedBody = { patientId: 'patient-1', kind: 'ALLERGY', label: 'Penicillin', value: 'Rash' };
+const currentUser: CurrentUserResult = {
+  subjectId: 'patient-1',
+  user: { id: 'patient-1', phone: '9812345678', role: 'PATIENT', locale: 'ne', assuranceLevel: 'REGISTERED' },
+  patientProfileId: null,
+  assuranceLevel: 'REGISTERED',
+};
+const patientReportedBody = { kind: 'ALLERGY', label: 'Penicillin', value: 'Rash' };
 const clinicianBody = { clinicianId: 'clinician-1', kind: 'CONDITION', label: 'Type 2 diabetes', value: 'Diagnosed 2026' };
 
 function buildCharting(): { charting: ClinicalChartingService; documents: RecordsService } {
@@ -48,7 +55,7 @@ describe('clinical-summary fault isolation', () => {
     const brokenSummary = new ClinicalSummaryController(
       new ClinicalSummaryService(new BrokenClinicalSummaryRepository(), charting),
     );
-    expect(() => brokenSummary.recordPatientReported(patientReportedBody)).toThrow('simulated store outage');
+    expect(() => brokenSummary.recordPatientReported(currentUser, patientReportedBody)).toThrow('simulated store outage');
 
     expect(charting.getEncounter(encounter.id).id).toBe(encounter.id);
   });
@@ -91,9 +98,9 @@ describe('clinical-summary fault isolation', () => {
 
     await expect(controller.recordClinicianAuthored(encounter.id, clinicianBody)).rejects.toThrow();
 
-    const item = controller.recordPatientReported(patientReportedBody);
+    const item = controller.recordPatientReported(currentUser, patientReportedBody);
     expect(item.status).toBe('ACTIVE');
-    expect(controller.listItems('patient-1').total).toBe(1);
-    expect(controller.resolveItem(item.id).status).toBe('RESOLVED');
+    expect(controller.listItems(currentUser).total).toBe(1);
+    expect(controller.resolveItem(currentUser, item.id).status).toBe('RESOLVED');
   });
 });

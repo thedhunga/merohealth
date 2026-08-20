@@ -1,12 +1,19 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
+import type { CurrentUserResult } from '../auth/auth.service.js';
+import { CurrentUser } from '../auth/current-user.decorator.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { ClinicalSummaryService } from './clinical-summary.service.js';
 
 const summaryKindSchema = z.enum(['CONDITION', 'ALLERGY', 'MEDICATION']);
 
+// No `patientId` field: a client-supplied value here let any caller plant a
+// fake condition/allergy/medication under someone else's id and, through
+// `listItems`/`getItem` below, read back any patient's own — the same gap
+// `medication-safety.controller.ts`'s `checkSchema` comment describes, and
+// the same fix: the subject is always the session identity.
 const recordPatientReportedSchema = z.object({
-  patientId: z.string().trim().min(1),
   kind: summaryKindSchema,
   label: z.string().trim().min(1),
   value: z.string().trim().min(1),
@@ -44,21 +51,22 @@ export class ClinicalSummaryController {
   }
 
   @Post('items')
-  @ApiOperation({ summary: 'Record a patient-reported condition, allergy or medication' })
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: "Record a condition, allergy or medication the signed-in caller reports about themselves" })
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['patientId', 'kind', 'label', 'value'],
+      required: ['kind', 'label', 'value'],
       properties: {
-        patientId: { type: 'string' },
         kind: { enum: ['CONDITION', 'ALLERGY', 'MEDICATION'] },
         label: { type: 'string' },
         value: { type: 'string' },
       },
     },
   })
-  recordPatientReported(@Body() body: unknown) {
-    return this.summary.recordPatientReported(parseOrThrow(recordPatientReportedSchema, body));
+  recordPatientReported(@CurrentUser() user: CurrentUserResult, @Body() body: unknown) {
+    const input = parseOrThrow(recordPatientReportedSchema, body);
+    return this.summary.recordPatientReported({ ...input, patientId: user.subjectId });
   }
 
   @Post('encounters/:encounterId/items')
@@ -84,25 +92,27 @@ export class ClinicalSummaryController {
   }
 
   @Get('items')
-  @ApiOperation({ summary: 'List summary items, optionally filtered by patientId and/or kind' })
-  @ApiQuery({ name: 'patientId', required: false })
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: "List the signed-in caller's own summary items, optionally filtered by kind" })
   @ApiQuery({ name: 'kind', required: false, enum: ['CONDITION', 'ALLERGY', 'MEDICATION'] })
-  listItems(@Query('patientId') patientId?: string, @Query('kind') kind?: string) {
-    const items = this.summary.listItems(patientId, kind === undefined ? undefined : parseOrThrow(summaryKindSchema, kind));
+  listItems(@CurrentUser() user: CurrentUserResult, @Query('kind') kind?: string) {
+    const items = this.summary.listItems(user.subjectId, kind === undefined ? undefined : parseOrThrow(summaryKindSchema, kind));
     return { items, total: items.length };
   }
 
   @Get('items/:itemId')
+  @UseGuards(SessionAuthGuard)
   @ApiParam({ name: 'itemId' })
-  @ApiOperation({ summary: 'Read one summary item by opaque id' })
-  getItem(@Param('itemId') itemId: string) {
-    return this.summary.getItem(itemId);
+  @ApiOperation({ summary: "Read one of the signed-in caller's own summary items by opaque id" })
+  getItem(@CurrentUser() user: CurrentUserResult, @Param('itemId') itemId: string) {
+    return this.summary.getItem(itemId, user.subjectId);
   }
 
   @Post('items/:itemId/resolve')
+  @UseGuards(SessionAuthGuard)
   @ApiParam({ name: 'itemId' })
-  @ApiOperation({ summary: 'Mark a summary item resolved. Rejected if already resolved.' })
-  resolveItem(@Param('itemId') itemId: string) {
-    return this.summary.resolveItem(itemId);
+  @ApiOperation({ summary: "Mark one of the signed-in caller's own summary items resolved. Rejected if already resolved." })
+  resolveItem(@CurrentUser() user: CurrentUserResult, @Param('itemId') itemId: string) {
+    return this.summary.resolveItem(itemId, user.subjectId);
   }
 }

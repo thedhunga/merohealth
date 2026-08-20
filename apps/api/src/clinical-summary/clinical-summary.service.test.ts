@@ -62,7 +62,14 @@ describe('ClinicalSummaryService.recordClinicianAuthored', () => {
 describe('ClinicalSummaryService reads', () => {
   it('404s reading an unknown item', () => {
     const { summary } = buildSummary();
-    expect(() => summary.getItem('missing')).toThrow(NotFoundException);
+    expect(() => summary.getItem('missing', 'patient-1')).toThrow(NotFoundException);
+  });
+
+  it("404s reading another patient's item, the same as an unknown id", () => {
+    const { summary } = buildSummary();
+    const item = summary.recordPatientReported(patientReportedInput);
+
+    expect(() => summary.getItem(item.id, 'patient-2')).toThrow(NotFoundException);
   });
 
   it('lists items filtered by patientId and kind', () => {
@@ -81,15 +88,22 @@ describe('ClinicalSummaryService.resolveItem', () => {
     const { summary } = buildSummary();
     const item = summary.recordPatientReported(patientReportedInput);
 
-    expect(summary.resolveItem(item.id).status).toBe('RESOLVED');
+    expect(summary.resolveItem(item.id, 'patient-1').status).toBe('RESOLVED');
   });
 
   it('rejects resolving an already-resolved item', () => {
     const { summary } = buildSummary();
     const item = summary.recordPatientReported(patientReportedInput);
-    summary.resolveItem(item.id);
+    summary.resolveItem(item.id, 'patient-1');
 
-    expect(() => summary.resolveItem(item.id)).toThrow(ClinicalSummaryItemAlreadyResolvedError);
+    expect(() => summary.resolveItem(item.id, 'patient-1')).toThrow(ClinicalSummaryItemAlreadyResolvedError);
+  });
+
+  it("404s resolving another patient's item instead of resolving it", () => {
+    const { summary } = buildSummary();
+    const item = summary.recordPatientReported(patientReportedInput);
+
+    expect(() => summary.resolveItem(item.id, 'patient-2')).toThrow(NotFoundException);
   });
 });
 
