@@ -38,8 +38,14 @@ export default defineConfig({
   webServer: isRemote
     ? undefined
     : {
-        // CI has already built the app; locally, dev is what you want.
-        command: process.env.CI ? 'pnpm exec next start --port 3100' : 'pnpm exec next dev --port 3100',
+        // CI has already built the app (including publishing the Expo web
+        // export to public/app — see ci.yml) so it only needs `next start`.
+        // Locally, dev is what you want, but public/app isn't there yet —
+        // build-mobile-web.sh publishes it before `next dev` starts, so the
+        // /app journeys below mean the same thing in both places.
+        command: process.env.CI
+          ? 'pnpm exec next start --port 3100'
+          : '../../scripts/build-mobile-web.sh && pnpm exec next dev --port 3100',
         url: 'http://localhost:3100',
         reuseExistingServer: true,
         timeout: 180_000,

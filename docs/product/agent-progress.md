@@ -1000,6 +1000,47 @@ absent, this section is the source of truth), `frontend-design` skill.
       emits one entry per item — the regression guard that pins the tap-target
       floor. **Done 2026-08-20 — see the log entry below.**
 
+## TT. `/app` had zero e2e journey coverage — MM/NN/OO/PP/QQ/RR/SS's own recurring "for the next run" lead 1, finally addressed
+
+> The queue is exhausted for the agent (task U's third bullet, task V, and the
+> owner-gated set are all that remain unchecked), so this is a step-4
+> improvement. Seven consecutive prior log entries named this the
+> highest-value open item and deferred it as "infra work, meaningful chance
+> of a blocked run." It turned out to be a clean, contained fix once traced:
+> nothing copied `apps/mobile`'s Expo web export into `apps/web/public/app`
+> before the e2e suite ran, so `/app` — the real product surface the
+> footer's "App Store"/"Google Play" links point at — 404'd under every local
+> and CI Playwright run, and the gap was invisible because nothing asserted
+> against it.
+
+- [x] Extracted the "build the Expo web export, publish it to
+      `apps/web/public/app`" logic `scripts/vercel-build.sh` already had into
+      `scripts/build-mobile-web.sh`, a shared script with no hardcoded env
+      (callers set `EXPO_PUBLIC_API_URL`; Vercel already does in production).
+      `vercel-build.sh` now calls it — production behaviour is unchanged, same
+      "log and fall through" resilience if the Expo build breaks.
+      `apps/web/playwright.config.ts`'s local (non-CI) `webServer.command` now
+      runs it before `next dev` starts, and `.github/workflows/ci.yml` gained
+      one `cp` step publishing the export CI already built (line 28) before the
+      web build/e2e steps — CI's `pnpm test` already builds every workspace
+      package's `dist` as a side effect of `turbo test`'s `dependsOn: ["^build"]`,
+      which is *why* the pre-existing bare `expo export` step there ever
+      succeeded; that dependency was undocumented until this run traced it.
+      New `apps/web/e2e/app-surface.journeys.spec.ts`: `/app` returns 200 (not
+      404) with the primary voice CTA visible, and tapping it reaches
+      `/app/companion` and renders the intake prompt — the golden path, not
+      the failure states MM/NN/OO's own camera-crash journeys already found
+      unreachable headlessly for the same `apps/mobile`-on-web surface.
+      **Confirmed regression coverage, not just a passing test:** re-ran the
+      new spec against `/app` with `public/app` removed first — 404, test
+      fails — then with the publish step run — 200, test passes.
+      `apps/mobile` renders `Pressable` as a bare `<div tabindex="0">` with no
+      ARIA role under `react-native-web` (unlike `apps/web`'s real
+      `<button>`s), so the spec locates controls by `getByText`, not
+      `getByRole('button', …)` — noted in the spec's own comment so the next
+      run does not waste time on `getByRole` returning nothing. **Done
+      2026-08-20 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2763,6 +2804,122 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task TT — exhausted-queue improvement: `/app` had zero e2e
+  journey coverage.** Done.
+
+  **Housekeeping.** Same force-push shape as every recent entry. Local `main`
+  was the stale human commit `9bdf548`; `git checkout main && git pull`
+  refused the divergent merge (remote `main` is a rewritten history, tipped
+  at `064fbf1`). `origin/backup/pre-force-push-main-9bdf548` still holds
+  `9bdf548`, so nothing was lost; `git reset --hard origin/main` is what
+  production deploys.
+
+  **Standing red-CI check.** Latest `ci` run on `main` is `064fbf1`
+  (**success**); the three commits before it are green too. The red-CI-
+  stops-the-line rule did not divert this run.
+
+  **Queue check.** Every unchecked box read; unchanged: task U's third bullet
+  (standing rule, no deliverable), task V (`InstallPrompt`/`SignInSuggestion`
+  priority — an owner UX call), and the owner-gated set
+  (`NEXT_PUBLIC_PREMIUM_LAUNCH`, duplex-voice go/no-go, corpus licence,
+  payment provider, Sign in with Google, the missing testimonial portraits).
+  Queue exhausted for the agent → a step-4 improvement.
+
+  **Why this.** Task SS's "for the next run" list named three leads. Lead 2
+  (finish the 375px first-action sweep on `/health-library`, `/about`,
+  `/help`, `/contact`) was checked first — a fresh sweep confirmed the
+  800–2000px first-action offsets, but tracing each page found the offset is
+  a real hero section on a legitimate informational page, not a marketing
+  slab stacked above a utility the way `/get-care`'s was; the sub-44px
+  targets it also flagged (`/health-library`, `/help`, `/contact`,
+  `/account`, `/register`, `/signin`, `/clinicians/register`, `/contribute`)
+  all matched patterns tasks RR and SS already verified as false positives
+  (full-card `after:absolute after:inset-0` links, inline auth-switch text) —
+  a full 55-route sweep of every `[locale]` page found no new tap-target or
+  layout defect. Lead 3 (the extensionless-metadata trap) has no live bug to
+  fix — `opengraph-image.tsx`/`twitter-image.tsx` still don't exist. That left
+  lead 1: `/app` e2e coverage, named highest-value by seven straight prior
+  entries (MM through SS) and deferred every time as "infra work, meaningful
+  chance of a blocked run." Traced end to end this run instead of deferred
+  again.
+
+  **The defect.** Nothing copies `apps/mobile`'s Expo web export into
+  `apps/web/public/app` before the e2e suite runs — not locally
+  (`playwright.config.ts`'s webServer just ran `next dev`/`next start`), and
+  not in CI (`ci.yml` ran `expo export --platform web` but never published the
+  result). So `/app` — the real product surface the footer's "App
+  Store"/"Google Play" links point at, per `vercel-build.sh`'s own comment —
+  404'd under every Playwright run there has ever been, deterministically
+  invisible because nothing asserted against it. Confirmed empirically: with
+  `public/app` absent, `curl localhost:.../app` → 404 under `next dev`.
+
+  **The fix.** Extracted the build-and-publish logic `vercel-build.sh` already
+  had (build `apps/mobile` and its deps via `turbo build
+  --filter=@swasthya/mobile...`, copy `apps/mobile/dist` into
+  `apps/web/public/app`) into `scripts/build-mobile-web.sh`, a shared script
+  with `cd "$(dirname "${BASH_SOURCE[0]}")/.."` so it works the same
+  regardless of caller cwd. `vercel-build.sh` now calls it —
+  production behaviour is unchanged, same "log and fall through so a broken
+  Expo build never takes the marketing site down" resilience.
+  `playwright.config.ts`'s local (non-CI) `webServer.command` runs it before
+  `next dev` starts. `ci.yml` gained one `cp` step, right after the existing
+  `expo export` step and before the web build, publishing the export CI
+  already produces. **Why CI's bare `expo export` step ever worked without a
+  prior explicit package build:** `pnpm test` (`turbo test`) runs earlier in
+  the job, and `test`'s `turbo.json` task declares `dependsOn: ["^build"]` —
+  so every workspace package's `dist` (including the ones `expo export
+  --platform web` needs, like `@swasthya/localization`, which resolves via
+  its web `default` condition to `dist/index.js` rather than the
+  `react-native` condition's `src/index.ts`) is already built as a side
+  effect by the time the export step runs. That dependency was undocumented
+  before this run traced a local `expo export` failure back to it.
+
+  **New coverage.** `apps/web/e2e/app-surface.journeys.spec.ts` (2 tests):
+  `/app` returns 200 with the primary voice CTA visible; tapping it reaches
+  `/app/companion` and renders the intake prompt. Both are the golden path
+  only — deliberately, matching the same limitation MM/NN/OO's own
+  camera-crash journeys recorded for this exact `apps/mobile`-on-web surface:
+  failure states aren't reproducible headlessly against a static export.
+  **Confirmed this is a real regression guard, not a test that just always
+  passes:** ran it with `public/app` removed first (404, test fails), then
+  with the publish step run (200, test passes). One implementation note for
+  the next run: `apps/mobile` renders `Pressable` as a bare
+  `<div tabindex="0">` with no ARIA role under `react-native-web` — unlike
+  `apps/web`'s real `<button>`s — so `getByRole('button', …)` finds nothing
+  on `/app`; the spec uses `getByText` instead, and says so in its own
+  comment.
+
+  **Full e2e suite, not just the new spec.** Ran the whole `phone` project
+  (24 tests) to check for regressions: 21 passed, 2 skipped (`@live`, gated on
+  `E2E_LIVE`), 1 failed — the pre-existing PWA "manifest, icons and theme
+  colour" test, which 500s under Turbopack `next dev` fetching `/icon`
+  (`next/og`'s `ImageResponse` quirk, documented by task PP's log entry and
+  re-flaked by task SS's). Re-ran alone: passes. Not caused by this change —
+  confirmed by running it in isolation before touching anything, and again
+  after.
+
+  **Gate.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75/75 tasks, api 125 files/934
+  tests) / `pnpm build` (40/40) all green from the repo root. Also ran
+  `pnpm --filter @swasthya/web check:budget` (535.9 KB / 600 KB, LCP 1292 ms /
+  2500 ms — pass) since this touches `playwright.config.ts` and `ci.yml`
+  near it.
+
+  **For the next run.** In the order I'd take them:
+  1. The 21 golden-path `/app` journeys still leave every failure/error-state
+     screen in `apps/mobile` untested from the web side — same headless
+     limitation MM/NN/OO hit. Not clearly worth chasing further; noting it so
+     nobody re-discovers the limitation from scratch.
+  2. `Pressable` having no ARIA role on web (this run's own finding) means
+     every interactive control on `/app` is invisible to `getByRole` and,
+     more importantly, to a screen reader — a real accessibility gap in
+     `apps/mobile`'s web export, separate from anything `apps/web` does.
+     Worth a task of its own: set `accessibilityRole="button"` (or the RN-Web
+     equivalent) on the Pressables `index.web.tsx` and friends use.
+  3. The extensionless-metadata middleware trap (RR/SS's lead 3) is still
+     just a pre-emptive note — add `app/opengraph-image.tsx`'s matcher entry
+     in the same commit that first adds such a file, not before.
 
 - 2026-08-20 — **Task SS — exhausted-queue improvement: `/get-care`'s
   symptom entry was below the fold on a phone.** Done.

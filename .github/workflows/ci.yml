@@ -27,6 +27,11 @@ jobs:
       - run: pnpm test
       - run: pnpm --filter @swasthya/mobile exec expo export --platform web
         env: { EXPO_PUBLIC_API_URL: "http://localhost:4000" }
+      # Publishes the export to apps/web/public/app so the deterministic e2e
+      # journeys below can actually reach /app instead of it 404ing — see
+      # scripts/build-mobile-web.sh (same publish step, factored out so
+      # production and CI never drift on how /app gets built).
+      - run: rm -rf apps/web/public/app && mkdir -p apps/web/public/app && cp -r apps/mobile/dist/. apps/web/public/app/
       - run: pnpm turbo build --filter=@swasthya/web...
       - run: pnpm --filter @swasthya/web exec playwright install --with-deps chromium
       - run: pnpm --filter @swasthya/web check:budget
