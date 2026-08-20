@@ -65,6 +65,30 @@ export class DiagnosticsOrdersService {
     return order;
   }
 
+  /**
+   * The patient-facing read: `ownerId` is the only access-control here, the
+   * same "belongs to someone else 404s like it doesn't exist" rule
+   * `clinical-summary.service.ts`'s `getItem` uses — an orderId leaked or
+   * guessed by a caller who isn't its patient must not be readable by them.
+   * `getOrder` above stays ownerId-free on purpose: `recordResult`/
+   * `releaseResult`/`cancelOrder` call it as part of the clinician workflow,
+   * which has no patient-session identity to check against.
+   */
+  getOwnOrder(id: string, ownerId: string): DiagnosticOrder {
+    const order = this.getOrder(id);
+    if (order.patientId !== ownerId) throw new NotFoundException(`No diagnostic order ${id}`);
+    return order;
+  }
+
+  /**
+   * `patientId` stays optional here because `analytics.service.ts` calls
+   * this directly through DI with no patientId at all, to build its
+   * cross-patient orders summary — a separate, already-flagged-shape
+   * exposure at that module's own boundary (same as
+   * `population-health.service.ts`'s unscoped `clinical-summary.listItems`
+   * call), out of scope for this controller's fix. The HTTP controller below
+   * never passes anything but the caller's own session id.
+   */
   listOrders(patientId?: string): DiagnosticOrder[] {
     return this.repository.list(patientId);
   }

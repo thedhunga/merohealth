@@ -1,4 +1,4 @@
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
@@ -159,6 +159,29 @@ describe('DiagnosticsOrdersService.listOrders', () => {
 
     expect(diagnosticsOrders.listOrders('patient-1')).toEqual([order]);
     expect(diagnosticsOrders.listOrders('patient-2')).toEqual([]);
+  });
+});
+
+describe('DiagnosticsOrdersService.getOwnOrder', () => {
+  it("reads back the owner's own order", async () => {
+    const { charting, diagnosticsOrders } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const order = await diagnosticsOrders.orderDiagnostic(encounter.id, orderInput);
+
+    expect(diagnosticsOrders.getOwnOrder(order.id, 'patient-1')).toEqual(order);
+  });
+
+  it("404s for a caller who isn't the order's patient, instead of returning it", async () => {
+    const { charting, diagnosticsOrders } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const order = await diagnosticsOrders.orderDiagnostic(encounter.id, orderInput);
+
+    expect(() => diagnosticsOrders.getOwnOrder(order.id, 'patient-2')).toThrow(NotFoundException);
+  });
+
+  it('404s for an unknown id', () => {
+    const { diagnosticsOrders } = buildStack();
+    expect(() => diagnosticsOrders.getOwnOrder('missing', 'patient-1')).toThrow(NotFoundException);
   });
 });
 

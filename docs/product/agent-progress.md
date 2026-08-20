@@ -464,6 +464,34 @@ absent, this section is the source of truth), `frontend-design` skill.
       separate, already-flagged exposure at that module's boundary, not this
       controller's. **Done 2026-08-20 — see the log entry below.**
 
+## BB. Access control on `diagnostics-orders`'s patient-facing read routes — the ranked #1 gap task AA's own log entry left for the next run
+
+> Every unchecked queue box was still owner/asset-gated. Picked as this
+> run's highest-value improvement to work already done: task AA's own log
+> entry ranked `diagnostics-orders.controller.ts` first among the six
+> remaining client-supplied-patient-id gaps, calling it "likely the single
+> worst exposure of the seven if in scope" — lab and imaging results (an
+> HIV, pregnancy or hepatitis test value) readable by anyone who could guess
+> or iterate a `patientId` or `orderId`.
+
+- [x] `SessionAuthGuard` + `@CurrentUser()` on `GET /diagnostics-orders/orders`
+      and `GET /diagnostics-orders/orders/:orderId`; the `patientId` query
+      param dropped from `listOrders` entirely (always the caller's own), and
+      a new `DiagnosticsOrdersService.getOwnOrder(id, ownerId)` 404s (not
+      just filters) an order that belongs to a different patient, closing the
+      orderId-guessing path a query-only fix would have left open — same
+      shape task AA's `clinical-summary` fix used. `order`/`recordResult`/
+      `release`/`cancel` stay unguarded on purpose: they are clinician
+      writes (`clinicianId`/`recordedBy`/`releasedBy` are free text, and
+      `recordResult`/`release`/`cancel` already call the ownerId-free
+      `getOrder` internally as part of that same workflow), the same
+      documented no-clinician-session exception `clinical-charting`/
+      `clinical-summary.recordClinicianAuthored` already carry.
+      `analytics.service.ts`'s own direct, unscoped `listOrders()` call is
+      untouched — a separate, already-flagged exposure at that module's
+      boundary, not this controller's. **Done 2026-08-20 — see the log entry
+      below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2148,6 +2176,106 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task BB — exhausted-queue improvement: access control on
+  `diagnostics-orders`'s patient-facing read routes, the #1-ranked gap task
+  AA's own log entry left for the next run.** Done.
+
+  **Housekeeping first.** Same shape every recent entry has hit: `git
+  checkout main` landed on a history not connected to any branch (local 76
+  commits, `origin/main` 50, no common ancestor from the local ref's side —
+  `git pull` refused with divergent branches). Confirmed `origin/main`'s new
+  tip (`f1bb58f`) was exactly the commit the initial detached-HEAD checkout
+  had already landed on before `checkout main` moved off it — i.e. the "50
+  commits left behind" and the new `origin/main` were the same history — and
+  `git status` was clean, so `git reset --hard origin/main` lost nothing.
+
+  **Why this task.** All eight queue boxes remain owner/asset-gated,
+  unchanged (task V's priority call, task U's own standing rule, the
+  install-prompt/premium/payment/licence/Google-sign-in/testimonial-portrait
+  owner decisions). Task AA's own log entry ranked the six remaining
+  client-supplied-patient-id gaps its research agent found, and put
+  `diagnostics-orders.controller.ts` first: "lab/imaging orders *and
+  results* (e.g. an HIV, pregnancy or hepatitis test value) by client
+  `patientId`, no guard. Likely the single worst exposure of the seven if in
+  scope." Confirmed by reading the controller before writing anything: `GET
+  /diagnostics-orders/orders?patientId=` and `GET
+  /diagnostics-orders/orders/:orderId` both took the whose-data-is-this id
+  from the client (query param or bare opaque id) with zero guard — a caller
+  who could guess or iterate either could read back any patient's lab and
+  imaging results, a real health-data exposure, not a theoretical one.
+
+  **Scoped correctly, not over-fixed.** `diagnostics-orders` doesn't split
+  as cleanly as `clinical-summary` did (patient-reported vs
+  clinician-authored) — every write here (`order`, `recordResult`,
+  `release`, `cancel`) is a clinician action: `order` takes a `clinicianId`
+  and resolves `patientId` from the encounter, the same shape
+  `recordClinicianAuthored` already established as the documented
+  no-clinician-session exception; `recordResult`/`release`/`cancel` take
+  free-text `recordedBy`/`releasedBy`/`reason` fields and operate purely by
+  `orderId`, with no patient identity in the picture at all — they are lab
+  results and cancellations being entered, not a patient's own data being
+  read. Gating any of the four behind a *patient* `SessionAuthGuard` would
+  make them unusable, not correct, so only the two reads were touched. A
+  wrinkle `clinical-summary` didn't have: `recordResult`/`release`/`cancel`
+  already call `getOrder(id)` internally as part of that same clinician
+  workflow, with no ownerId available to check against — so `getOrder`
+  itself was left ownerId-free, and a new `getOwnOrder(id, ownerId)` was
+  added for the patient-facing read instead of retrofitting `getOrder`
+  itself (which would have broken the three clinician callers).
+  `analytics.service.ts`'s own direct, unscoped `diagnosticsOrders.
+  listOrders()` call (building a cross-patient orders summary) was
+  deliberately left as-is — the same already-flagged, differently-scoped
+  exposure shape `population-health.service.ts`'s unscoped
+  `clinical-summary.listItems` call is, not this controller's to fix.
+
+  **What shipped.** `diagnostics-orders.controller.ts`: `SessionAuthGuard` +
+  `@CurrentUser()` on `listOrders` and `getOrder`; `listOrders`'s `patientId`
+  query param removed (always the caller's own); `getOrder` now calls the
+  new `getOwnOrder`. `diagnostics-orders.service.ts`: added
+  `getOwnOrder(id, ownerId)` — calls the existing `getOrder(id)` then 404s if
+  `order.patientId !== ownerId`, the same "belongs to someone else reads
+  like it doesn't exist" rule `clinical-summary.service.ts`'s `getItem`
+  uses; `listOrders`'s `patientId` parameter stays optional at the service
+  layer, unchanged, specifically so `analytics.service.ts`'s existing
+  unscoped call keeps working. `diagnostics-orders.module.ts` imports
+  `AuthModule` directly (not transitively) for `SessionAuthGuard` — the same
+  fix `clinical-summary.module.ts`/`medication-safety.module.ts` already
+  needed and documented.
+
+  **Tests.** `diagnostics-orders.controller.test.ts`: a `guardsFor` block
+  (same technique the last three tasks' controller tests use) proving
+  `listOrders`/`getOrder` carry `SessionAuthGuard` and `health`/`order`/
+  `recordResult`/`release`/`cancel` stay ungated; existing `listOrders`/
+  `getOrder` call sites updated to pass a session user; a new cross-caller
+  test proving a second session's `listOrders`/`getOrder` never see the
+  first session's order. `diagnostics-orders.service.test.ts`: three new
+  `getOwnOrder` cases (own order reads back, wrong owner 404s instead of
+  returning it, unknown id 404s). No changes needed in
+  `diagnostics-orders.repository.test.ts`,
+  `diagnostics-orders.module-descriptor.test.ts` or
+  `diagnostics-orders.fault-isolation.test.ts` — none call the two changed
+  controller routes.
+
+  **Gate.** `pnpm --filter "./packages/*" build` first (still required).
+  `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) / `pnpm typecheck`
+  (40/40) / `pnpm test` (75/75, 902 API tests, up from 896) / `pnpm build`
+  (40/40) all green from the repo root. No journey update under task U's
+  standing rule — API access-control boundary only; confirmed by grep before
+  starting that no route under `apps/web/src` or `apps/mobile/app`/`src`
+  calls `diagnostics-orders` at all yet, so no UI, message file, or
+  user-facing behaviour changed.
+
+  **For the next run.** Five of task AA's six ranked gaps remain, in the
+  same order that entry gave them (`diagnostics-orders` above is now
+  checked): `patient-registry.controller.ts` (full demographics, read *and*
+  write, no guard) is the next-ranked pick; `immunization`, `referrals`, and
+  `scheduling` follow the same client-supplied-`patientId`-or-id shape;
+  `engagement.controller.ts` (message bodies plus an unauthenticated `POST`
+  that can queue a message to any patientId) after that; and
+  `population-health.controller.ts`'s registry-wide leak stays flagged as
+  needing a clinician-session system (or route removal) rather than a
+  patient-session-guard sweep, per task AA's own note.
 
 - 2026-08-20 — **Task AA — exhausted-queue improvement: access control on
   `clinical-summary`'s patient-facing item routes, the store

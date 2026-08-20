@@ -1,6 +1,8 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it } from 'vitest';
+import type { CurrentUserResult } from '../auth/auth.service.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
 import { ClinicalChartingService } from '../clinical-charting/clinical-charting.service.js';
 import { RecordsRepository } from '../records/records.repository.js';
@@ -16,6 +18,42 @@ function buildController() {
   const controller = new DiagnosticsOrdersController(diagnosticsOrders);
   return { controller, charting };
 }
+
+// Same pattern `clinical-summary.controller.test.ts` uses: Nest's own
+// `@UseGuards` metadata key, since a plain method call (every other test in
+// this file) bypasses Nest's guard pipeline entirely.
+const GUARDS_METADATA = '__guards__';
+const controllerProto = DiagnosticsOrdersController.prototype as unknown as Record<string, () => unknown>;
+function guardsFor(method: string): unknown {
+  return Reflect.getMetadata(GUARDS_METADATA, controllerProto[method]!);
+}
+
+const currentUser: CurrentUserResult = {
+  subjectId: 'patient-1',
+  user: { id: 'patient-1', phone: '9812345678', role: 'PATIENT', locale: 'ne', assuranceLevel: 'REGISTERED' },
+  patientProfileId: null,
+  assuranceLevel: 'REGISTERED',
+};
+const otherUser: CurrentUserResult = { ...currentUser, subjectId: 'patient-2' };
+
+describe('DiagnosticsOrdersController auth wiring', () => {
+  it('gates the patient-facing read routes behind SessionAuthGuard', () => {
+    expect(guardsFor('listOrders')).toEqual([SessionAuthGuard]);
+    expect(guardsFor('getOrder')).toEqual([SessionAuthGuard]);
+  });
+
+  it('leaves health and the clinician-workflow routes ungated', () => {
+    // health: no auth concept at all. order/recordResult/release/cancel: no
+    // clinician-side session exists yet — same documented exception
+    // `clinical-charting.controller.ts` and `clinical-summary.controller.ts`'s
+    // `recordClinicianAuthored` carry.
+    expect(guardsFor('health')).toBeUndefined();
+    expect(guardsFor('order')).toBeUndefined();
+    expect(guardsFor('recordResult')).toBeUndefined();
+    expect(guardsFor('release')).toBeUndefined();
+    expect(guardsFor('cancel')).toBeUndefined();
+  });
+});
 
 describe('DiagnosticsOrdersController.order', () => {
   it('places an order against an encounter', async () => {
@@ -50,7 +88,7 @@ describe('DiagnosticsOrdersController result, release and cancel endpoints', () 
 
     const released = controller.release(order.id, { releasedBy: 'clinician-2' });
     expect(released.result?.releaseStatus).toBe('RELEASED');
-    expect(controller.getOrder(order.id).result?.releaseStatus).toBe('RELEASED');
+    expect(controller.getOrder(currentUser, order.id).result?.releaseStatus).toBe('RELEASED');
   });
 
   it('rejects a result body missing recordedBy', async () => {
@@ -75,14 +113,23 @@ describe('DiagnosticsOrdersController result, release and cancel endpoints', () 
 });
 
 describe('DiagnosticsOrdersController.listOrders and getOrder', () => {
-  it('lists orders filtered by patientId and reads one by id', async () => {
+  it("lists the signed-in caller's own orders and reads one by id", async () => {
     const { controller, charting } = buildController();
     const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
     const order = await controller.order(encounter.id, { clinicianId: 'clinician-1', kind: 'LAB', testName: 'CBC' });
 
-    const listed = controller.listOrders('patient-1');
+    const listed = controller.listOrders(currentUser);
     expect(listed).toEqual({ orders: [order], total: 1 });
-    expect(controller.getOrder(order.id)).toEqual(order);
+    expect(controller.getOrder(currentUser, order.id)).toEqual(order);
+  });
+
+  it("404s a read for another caller's order instead of returning it", async () => {
+    const { controller, charting } = buildController();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const order = await controller.order(encounter.id, { clinicianId: 'clinician-1', kind: 'LAB', testName: 'CBC' });
+
+    expect(() => controller.getOrder(otherUser, order.id)).toThrow(NotFoundException);
+    expect(controller.listOrders(otherUser).total).toBe(0);
   });
 });
 

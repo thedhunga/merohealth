@@ -1,6 +1,9 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
+import type { CurrentUserResult } from '../auth/auth.service.js';
+import { CurrentUser } from '../auth/current-user.decorator.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { DiagnosticsOrdersService } from './diagnostics-orders.service.js';
 
 const orderSchema = z.object({
@@ -35,7 +38,18 @@ function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
   return parsed.data;
 }
 
-/** Row 7 of clinical-suite.md's capability map: lab and imaging orders + results. */
+/**
+ * Row 7 of clinical-suite.md's capability map: lab and imaging orders +
+ * results. `listOrders`/`getOrder` are the patient-facing reads — gated
+ * behind `SessionAuthGuard`, the subject always the caller's own session id,
+ * same shape `clinical-summary.controller.ts` established. `order`/
+ * `recordResult`/`release`/`cancel` stay ungated on purpose: they are
+ * clinician-workflow writes (`clinicianId`/`recordedBy`/`releasedBy` are
+ * free text) and this app has no clinician-side session to check them
+ * against yet — the same documented exception `clinical-charting.
+ * controller.ts` and `clinical-summary.controller.ts`'s
+ * `recordClinicianAuthored` carry.
+ */
 @ApiTags('diagnostics-orders')
 @Controller('diagnostics-orders')
 export class DiagnosticsOrdersController {
@@ -68,18 +82,19 @@ export class DiagnosticsOrdersController {
   }
 
   @Get('orders')
-  @ApiOperation({ summary: 'List diagnostic orders, optionally filtered by patientId' })
-  @ApiQuery({ name: 'patientId', required: false })
-  listOrders(@Query('patientId') patientId?: string) {
-    const orders = this.diagnosticsOrders.listOrders(patientId);
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: "List the signed-in caller's own diagnostic orders" })
+  listOrders(@CurrentUser() user: CurrentUserResult) {
+    const orders = this.diagnosticsOrders.listOrders(user.subjectId);
     return { orders, total: orders.length };
   }
 
   @Get('orders/:orderId')
+  @UseGuards(SessionAuthGuard)
   @ApiParam({ name: 'orderId' })
-  @ApiOperation({ summary: 'Read one diagnostic order by opaque id' })
-  getOrder(@Param('orderId') orderId: string) {
-    return this.diagnosticsOrders.getOrder(orderId);
+  @ApiOperation({ summary: "Read one of the signed-in caller's own diagnostic orders by opaque id" })
+  getOrder(@CurrentUser() user: CurrentUserResult, @Param('orderId') orderId: string) {
+    return this.diagnosticsOrders.getOwnOrder(orderId, user.subjectId);
   }
 
   @Post('orders/:orderId/result')
