@@ -523,6 +523,37 @@ absent, this section is the source of truth), `frontend-design` skill.
       `clinical-charting`/`diagnostics-orders`'s clinician-write routes
       already carry. **Done 2026-08-20 — see the log entry below.**
 
+## DD. Access control on `referrals`'s patient-facing routes — task CC's own named next pick, `scheduling` investigated and re-scoped to owner-gated instead
+
+> Every unchecked queue box was still owner/asset-gated. Picked as this run's
+> highest-value improvement to work already done: task CC's own log entry
+> named `referrals` and `scheduling` next, unverified whether either was
+> patient self-service or clinic-staff-facing. Investigation (see the log)
+> found `scheduling.controller.ts`'s `patientId` is not this pattern either —
+> `SchedulingService.schedule()` resolves it through `PatientRegistryService`,
+> the same clinic-minted, subjectId-independent id space task CC already
+> found for `patient-registry` itself, now moved to the "Owner-gated" section
+> below with its own reasoning. `referrals.controller.ts` turned out to be
+> the real next instance of the fixed shape: `GET /referrals/referrals` took
+> an unchecked `patientId` query filter and `GET
+> /referrals/referrals/:referralId` took no owner check at all — any caller
+> could list any patient's referral history (a `reason` field that can name a
+> specialty like oncology or psychiatry) or read one back by guessing an id.
+
+- [x] `SessionAuthGuard` + `@CurrentUser()` on `GET /referrals/referrals` and
+      `GET /referrals/referrals/:referralId`; the `patientId` query param
+      dropped from `listReferrals` in favour of the caller's own session id;
+      a new `ReferralsService.getOwnReferral(id, ownerId)` 404s (not just
+      filters) a referral that belongs to a different patient, same shape
+      `immunization.service.ts`'s `getOwnRecord` uses.
+      `requestReferral`/`acceptReferral`/`declineReferral`/`completeReferral`/
+      `cancelReferral` stay unguarded on purpose — `requestReferral` resolves
+      `patientId` from the encounter via clinical-charting, never a
+      client-supplied field, and the other four take only an opaque
+      `referralId` plus free text, the same documented no-clinician-session
+      exception every sibling controller's transition routes already carry.
+      **Done 2026-08-20 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -549,6 +580,24 @@ absent, this section is the source of truth), `frontend-design` skill.
   the `tenancy` module (row 20, "design early, build late") to gate it with
   a real clinician session instead of a patient one. Neither is a
   correctness fix an agent should pick unilaterally.
+- `scheduling.controller.ts`'s `POST /appointments` (schedule),
+  `GET /appointments/:appointmentId` and `POST
+  /appointments/:appointmentId/cancel`: the exact same architecture question
+  as `patient-registry` above, not a new one. Full reasoning in task DD's log
+  entry — short version: `SchedulingService.schedule()` takes a
+  client-supplied `patientId` and resolves it through
+  `PatientRegistryService.get()` — the clinic-minted `randomUUID()` id space
+  task CC found is independent of the auth `subjectId`, not the
+  patient-session id space `clinical-summary`/`diagnostics-orders`/
+  `immunization`/`referrals` already fixed for. Comparing `patientId ===
+  user.subjectId` here would 404 every legitimately scheduled appointment,
+  the same self-inflicted lockout task CC ruled out for `patient-registry`.
+  Same two owner options apply: (a) make `patientId` mean the caller's own
+  `subjectId` throughout scheduling and patient-registry together, or (b)
+  wait for the `tenancy` module to gate this as clinic-staff scheduling
+  instead. Not a fix an agent should pick unilaterally, and not separable
+  from the `patient-registry` decision above — whichever way that one goes,
+  this module goes with it.
 
 # Round six — freemium on purpose, duplex voice, and a spoken-Nepali corpus
 
@@ -2229,6 +2278,94 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task DD — exhausted-queue improvement: access control on
+  `referrals`'s patient-facing routes; `scheduling` (task CC's own named next
+  pick, alongside `referrals`) investigated and re-scoped to owner-gated
+  instead.** Done.
+
+  **Housekeeping first.** Same shape every recent entry has hit: `git
+  checkout main` landed on a history disconnected from any local branch (a
+  shallow clone's stale local `main` at `9bdf548`, 50 commits behind) and
+  `git pull` refused with divergent branches. `git fetch` showed
+  `origin/main`'s new tip was `2c9945c` — task CC's own immunization-gate
+  commit — and a `backup/pre-force-push-main-9bdf548` branch already existed
+  from a prior run's force-push recovery, preserving the old history.
+  `git status` was clean, so `git reset --hard origin/main` lost nothing.
+
+  **Why `referrals`, not `scheduling`.** Task CC's log entry named both
+  `referrals` and `scheduling` next, "unverified this run whether either is
+  patient self-service ... or clinic-staff-facing ... check before assuming
+  the pattern applies." Read both controllers and services before writing
+  anything. `referrals.controller.ts`: `requestReferral` derives `patientId`
+  from `ClinicalChartingService.getEncounter(encounterId).patientId` — never
+  a client-supplied field — and `clinical-charting.controller.ts`'s own doc
+  comment (and its already-guarded `getEncounterForOwner`, which compares
+  `encounter.patientId` to `user.subjectId`) confirms that id space *is* the
+  auth `subjectId` space, not the patient-registry space. So `referrals` is
+  the genuine fixed shape: `GET /referrals/referrals?patientId=` took an
+  unchecked query filter and `GET /referrals/referrals/:referralId` took no
+  owner check at all — any caller could list any patient's referral history
+  (the `reason` field can name a specialty, e.g. oncology or psychiatry, on
+  its own) or read one back by guessing a `referralId`.
+  `scheduling.controller.ts` looked like the same shape at first read — `POST
+  /appointments` takes `patientId` directly in the body — but
+  `scheduling.service.ts`'s `schedule()` resolves it through
+  `PatientRegistryService.get(input.patientId)`, the exact clinic-minted
+  `randomUUID()` id space task CC's log entry already found is independent
+  of `subjectId`. Comparing `patientId === user.subjectId` here would not
+  have been a fix, only a 404 for every legitimately scheduled appointment —
+  the identical self-inflicted-lockout mistake task CC ruled out for
+  `patient-registry` itself. Moved to the ledger's "Owner-gated" section
+  under task DD, tied explicitly to the `patient-registry` decision since
+  they share one id-space question.
+
+  **What shipped.** `referrals.controller.ts`: `SessionAuthGuard` +
+  `@CurrentUser()` on `listReferrals`/`getReferral`; the `patientId` query
+  param dropped in favour of `user.subjectId`. `referrals.service.ts`: added
+  `getOwnReferral(id, ownerId)` — calls the existing `getReferral(id)` then
+  404s if `referral.patientId !== ownerId`, the same "belongs to someone else
+  reads like it doesn't exist" rule `immunization.service.ts`'s
+  `getOwnRecord` uses; `getReferral` itself stays ownerId-free since
+  accept/decline/complete/cancel all call it internally with no patient
+  session context. `listReferrals`'s `patientId` parameter stays optional at
+  the service layer, unchanged, so `analytics.service.ts`'s existing
+  unscoped `listReferrals()` call (building `referralsSummary`) keeps
+  working. `referrals.module.ts` imports `AuthModule` directly (not
+  transitively) for `SessionAuthGuard` — the same fix every prior task in
+  this chain needed.
+
+  **Tests.** `referrals.controller.test.ts`: a `guardsFor` block proving
+  `listReferrals`/`getReferral` carry `SessionAuthGuard` and the five
+  clinician-workflow routes stay ungated; existing tests updated to pass a
+  `CurrentUserResult`; a new cross-caller test proving a second session's
+  `getReferral`/`listReferrals` never see the first session's referral.
+  `referrals.service.test.ts`: three new `getOwnReferral` cases (own referral
+  reads back, wrong owner 404s instead of returning it, unknown id 404s). No
+  changes needed in `referrals.repository.test.ts`,
+  `referrals.fault-isolation.test.ts` or `referrals.module-descriptor.test.ts`
+  — none call the two changed controller routes or the controller at all.
+
+  **Gate.** `pnpm --filter "./packages/*" build` first. `pnpm install
+  --frozen-lockfile` / `pnpm lint` (40/40) / `pnpm typecheck` (40/40) /
+  `pnpm test` (75/75, 914 API tests, up from 908) / `pnpm build` (40/40) all
+  green from the repo root. No journey update under task U's standing rule —
+  API access-control boundary only; confirmed by grep before starting that no
+  route under `apps/web/src` or `apps/mobile/app`/`src` calls `referrals` at
+  all yet.
+
+  **For the next run.** Task AA's original ranked list is now down to two:
+  `engagement.controller.ts` (message bodies plus an unauthenticated `POST`
+  that can queue a message to any patientId — check its id space against
+  `subjectId` first, the same way this run had to for `scheduling`, since a
+  wrong guess here would be the same lockout mistake) and
+  `population-health.controller.ts` (its registry-wide leak needs a
+  clinician-session system or route removal, not a patient-session-guard
+  sweep, per task AA's own note — confirm its actor shape before picking it
+  too). `patient-registry` and now `scheduling` are both owner-gated on the
+  same underlying id-space decision; do not pick either again without an
+  owner call, and note that resolving the `patient-registry` question likely
+  resolves `scheduling` for free.
 
 - 2026-08-20 — **Task CC — exhausted-queue improvement: access control on
   `immunization`'s patient-facing routes; `patient-registry` (task BB's

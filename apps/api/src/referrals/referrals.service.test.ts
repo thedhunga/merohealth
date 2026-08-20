@@ -179,6 +179,29 @@ describe('ReferralsService.listReferrals', () => {
   });
 });
 
+describe('ReferralsService.getOwnReferral', () => {
+  it('reads back a referral for its own patient', async () => {
+    const { charting, referrals } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const referral = await referrals.requestReferral(encounter.id, requestInput);
+
+    expect(referrals.getOwnReferral(referral.id, 'patient-1')).toEqual(referral);
+  });
+
+  it("404s for another patient's referral instead of returning it", async () => {
+    const { charting, referrals } = buildStack();
+    const encounter = charting.openEncounter({ patientId: 'patient-1', clinicianId: 'clinician-1' });
+    const referral = await referrals.requestReferral(encounter.id, requestInput);
+
+    expect(() => referrals.getOwnReferral(referral.id, 'patient-2')).toThrow(NotFoundException);
+  });
+
+  it('404s for an unknown referral id', () => {
+    const { referrals } = buildStack();
+    expect(() => referrals.getOwnReferral('missing', 'patient-1')).toThrow(NotFoundException);
+  });
+});
+
 describe('ReferralsService.health', () => {
   it('reports UP with no failure mode of its own', async () => {
     const { referrals } = buildStack();

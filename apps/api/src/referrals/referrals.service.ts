@@ -73,6 +73,29 @@ export class ReferralsService {
     return referral;
   }
 
+  /**
+   * The patient-facing read: `ownerId` is the only access-control here, the
+   * same "belongs to someone else 404s like it doesn't exist" rule
+   * `immunization.service.ts`'s `getOwnRecord` uses — a referralId leaked or
+   * guessed by a caller who isn't its patient (and its `reason` field can
+   * name a specialty, e.g. oncology or psychiatry) must not be readable by
+   * them. `getReferral` above stays ownerId-free on purpose: the
+   * accept/decline/complete/cancel clinician-workflow transitions call it
+   * with no patient session identity to check against.
+   */
+  getOwnReferral(id: string, ownerId: string): Referral {
+    const referral = this.getReferral(id);
+    if (referral.patientId !== ownerId) throw new NotFoundException(`No referral ${id}`);
+    return referral;
+  }
+
+  /**
+   * `patientId` stays optional here because `analytics.service.ts`'s
+   * `referralsSummary` already calls this directly through DI, unscoped, for
+   * a cross-patient count — the same shape `immunization.service.ts`'s
+   * `listRecords` keeps for the same reason. The HTTP controller below never
+   * passes anything but the caller's own session id.
+   */
   listReferrals(patientId?: string): Referral[] {
     return this.repository.list(patientId);
   }

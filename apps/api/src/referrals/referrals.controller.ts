@@ -1,6 +1,9 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
+import type { CurrentUserResult } from '../auth/auth.service.js';
+import { CurrentUser } from '../auth/current-user.decorator.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { ReferralsService } from './referrals.service.js';
 
 const requestReferralSchema = z.object({
@@ -25,7 +28,21 @@ function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
   return parsed.data;
 }
 
-/** Row 12 of clinical-suite.md's capability map: referral management, pairing with care-directory. */
+/**
+ * Row 12 of clinical-suite.md's capability map: referral management, pairing
+ * with care-directory. `listReferrals`/`getReferral` are the patient-facing
+ * reads — gated behind `SessionAuthGuard`, the subject always the caller's
+ * own session id, same shape `clinical-summary.controller.ts`/
+ * `diagnostics-orders.controller.ts`/`immunization.controller.ts`
+ * established. `requestReferral`/`acceptReferral`/`declineReferral`/
+ * `completeReferral`/`cancelReferral` stay ungated on purpose:
+ * `requestReferral` resolves `patientId` from the encounter via
+ * clinical-charting, never a client-supplied field (the same
+ * `recordClinicianAdministered` exception every sibling controller carries),
+ * and the four transition routes that follow take only an opaque
+ * `referralId` plus free text — no patient identity in the body at all, and
+ * this app has no clinician-side session to check them against yet.
+ */
 @ApiTags('referrals')
 @Controller('referrals')
 export class ReferralsController {
@@ -60,18 +77,19 @@ export class ReferralsController {
   }
 
   @Get('referrals')
-  @ApiOperation({ summary: 'List referrals, optionally filtered by patientId' })
-  @ApiQuery({ name: 'patientId', required: false })
-  listReferrals(@Query('patientId') patientId?: string) {
-    const referrals = this.referrals.listReferrals(patientId);
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: "List the signed-in caller's own referrals" })
+  listReferrals(@CurrentUser() user: CurrentUserResult) {
+    const referrals = this.referrals.listReferrals(user.subjectId);
     return { referrals, total: referrals.length };
   }
 
   @Get('referrals/:referralId')
+  @UseGuards(SessionAuthGuard)
   @ApiParam({ name: 'referralId' })
-  @ApiOperation({ summary: 'Read one referral by opaque id' })
-  getReferral(@Param('referralId') referralId: string) {
-    return this.referrals.getReferral(referralId);
+  @ApiOperation({ summary: "Read one of the signed-in caller's own referrals by opaque id" })
+  getReferral(@CurrentUser() user: CurrentUserResult, @Param('referralId') referralId: string) {
+    return this.referrals.getOwnReferral(referralId, user.subjectId);
   }
 
   @Post('referrals/:referralId/accept')
