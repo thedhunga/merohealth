@@ -858,6 +858,29 @@ absent, this section is the source of truth), `frontend-design` skill.
       strings in Nepali and English, inline like every other string in that
       file. **Done 2026-08-20 — see the log entry below.**
 
+## NN. A tapped source citation in `apps/mobile`'s companion could silently open nothing — the `Linking.openURL` half of task MM's own "for the next run" lead 2
+
+> Both `void Linking.openURL(...)` calls in `app/(tabs)/companion.tsx` — every
+> evidence source citation under an answer, and the "Open Perplexity Health"
+> fallback when there are none — fired the promise from `onPress` with no
+> `catch`. `openURL` **rejects** when the device has no app for the URL's
+> scheme (or the URL is malformed); the rejection escaped unheld, so the tap
+> did nothing at all, with no message, on the same live `/app` surface task MM
+> hardened. This is the exact case MM's log named as lead 2's most
+> user-facing item: a dead control the person cannot tell apart from a slow
+> one.
+
+- [x] `src/lib/open-external-url.ts` — `openExternalUrl(open, url)` collapses a
+      rejection and a synchronous throw into a `{ ok: false }` outcome the
+      screen can speak to, matching the pure-helper-in-`src/lib`-with-a-
+      colocated-test convention `capture-photo.ts` set. `companion.tsx` routes
+      both link taps through an `openLink` handler that shows one calm
+      `linkError` line under the answer on failure, in Nepali and English
+      inline like every other string in that file. Colocated
+      `open-external-url.test.ts` covers success, a no-handler rejection, and a
+      synchronous native-module throw. **Done 2026-08-20 — see the log entry
+      below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2607,6 +2630,98 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task NN — exhausted-queue improvement: a tapped source
+  citation in `apps/mobile`'s companion could silently open nothing. This is
+  the `Linking.openURL` piece of task MM's own "for the next run" lead 2, the
+  most user-facing of the remaining unguarded fire-and-forget async in
+  `apps/mobile`.** Done.
+
+  **Housekeeping first.** Same force-push shape the last several entries each
+  hit, with the twist that this time it was benign. Local `main` was a stale
+  shallow clone at `9bdf548` (the 2026-08-15 human commit); `git pull` warned
+  of a "forced update" and "76 commits behind", and `git merge-base` on the
+  shallow clone returned empty — the alarming signature MM's entry read as a
+  disjoint history. **It is not disjoint.** `git fetch --unshallow` and a
+  re-check proved `origin/main` (`ff349e3`) contains `9bdf548` as a true
+  ancestor (`git merge-base --is-ancestor` succeeds; 265 commits ahead, 0
+  behind): a clean fast-forward, nothing lost. The empty merge-base was purely
+  a shallow-clone artifact. **Next run: before concluding the histories are
+  disjoint, run `git fetch --unshallow` first — the shallow clone lies about
+  ancestry.** `backup/pre-force-push-main-9bdf548` still holds the old tip
+  either way. `git status` was clean; fast-forward was safe and lost nothing.
+
+  **Queue check.** Every unchecked box read, not counted. Same as every run
+  since FF: task U's third bullet (a standing rule, no deliverable), task V
+  (`InstallPrompt`/`SignInSuggestion` — a UX priority call reserved for the
+  owner), and the owner-gated set (`NEXT_PUBLIC_PREMIUM_LAUNCH`, duplex-voice
+  go/no-go, corpus licence, payment provider, Sign in with Google on the
+  owner's OAuth id, the missing testimonial portraits). Queue exhausted for
+  the agent, so this is a step-4 improvement to work already done.
+
+  **Why this.** Task MM's log named three leads. Lead 1 (`/app` has zero e2e
+  journey coverage) is the highest-value item but needs the web e2e harness to
+  serve `apps/mobile/dist` alongside the Next app — real infra work with a
+  meaningful chance of a blocked run, not a clean single task. Lead 2 (the
+  remaining unguarded fire-and-forget async in `apps/mobile`) is the direct
+  continuation of MM's crash-path category, and its most user-facing item is
+  the two `void Linking.openURL(...)` calls in the companion tab: a tapped
+  evidence citation, or the "Open Perplexity Health" fallback, does nothing at
+  all when `openURL` rejects (no app for the scheme, or a malformed URL). That
+  is a dead control on the same live `/app` surface MM hardened, on the core
+  assistant screen.
+
+  **What shipped.** `apps/mobile/src/lib/open-external-url.ts` —
+  `openExternalUrl(open, url)` collapses a rejection and a synchronous throw
+  into `{ ok: false }`, the same pure-helper-with-injected-callback shape
+  `capture-photo.ts` set so the native module never has to be mocked.
+  `companion.tsx` now routes both link taps through an `openLink` handler that
+  sets one calm `linkError` line under the answer on failure (Nepali and
+  English inline, like every string in that file — `apps/mobile` has no
+  next-intl), and clears it on the next success. Colocated
+  `open-external-url.test.ts`: success, a no-handler rejection (the real
+  dead-end), and a synchronous native-module throw.
+
+  **Tests.** `apps/mobile` went from 7 test files / 33 tests to 8 / 36;
+  repo-wide `pnpm test` from 934 to 936 individual tests across the same 75
+  tasks.
+
+  **375px measurement.** The change is additive and conditional: the citation
+  list and fallback button were already in the answer panel, and the new
+  `linkError` line renders only when `openURL` actually rejects. That failure
+  cannot be reproduced in headless Chromium against the `expo export` output —
+  the same limitation MM recorded for the camera-failure banner — so the
+  golden-path layout is provably unchanged (nothing new renders unless a link
+  fails) and the failure line's height is inferred from its 12px/18px danger
+  text, not measured. Recorded as inference, not measurement, deliberately.
+
+  **No journey update.** Task U's standing rule applies but cannot be honoured
+  here, for exactly the reason MM's entry gave: `apps/web/e2e/` runs against
+  the Next dev server, which does not serve `/app` at all (the Expo export is
+  copied into `public/app` only during the Vercel build), and the failure
+  state is unreachable headlessly. A journey would be a false pass. Lead 1
+  below is the standing fix for this whole gap.
+
+  **Gate.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75/75, 936 tests) / `pnpm build`
+  (40/40) all green from the repo root.
+
+  **For the next run.** In the order I would take them:
+  1. **`/app` has zero journey coverage** — still MM's lead 1 and still the
+     highest-value item. The live Expo web export is mounted at `/app` in
+     production and no `apps/web/e2e/` test loads it; closing it needs the e2e
+     harness to serve `apps/mobile/dist` alongside the Next app. Not done here
+     because it is infra work, not a single hardening task.
+  2. **The rest of MM's lead 2, now smaller.** Still open:
+     `consultation.tsx`'s `enableCamera` (`await requestPermission()` with no
+     `try`, and that screen has no error surface yet — it needs one first);
+     and the several `void Speech.stop()` / `void Haptics.selectionAsync()`
+     calls, genuinely harmless to drop but currently indistinguishable from
+     the ones that were not. The `companion.tsx` `openURL` calls this run took
+     are now off the list.
+  3. **Dead code and skipped tests** — MM's lead 3, the two categories from
+     KK's list still untouched (skipped tests looked clean per LL but were
+     never verified closed; dead code is fully open).
 
 - 2026-08-20 — **Task MM — exhausted-queue improvement: `apps/mobile`'s
   camera shutter could die silently and permanently. This is the second of

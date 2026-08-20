@@ -34,6 +34,7 @@ import { Screen, SathiOrb, uiStyles } from '@/components/ui';
 import { ProfileSwitcher } from '@/components/ProfileSwitcher';
 import { useAppState } from '@/state/app-state';
 import { classifyCompanionCapture, type CompanionCapture } from '@/lib/companion-capture';
+import { openExternalUrl } from '@/lib/open-external-url';
 
 function defaultAnswerText(language: LanguageCode): string {
   return language === 'en'
@@ -69,6 +70,7 @@ export default function CompanionScreen() {
   const [research, setResearch] = useState<ResearchResult | null>(null);
   const [isResearching, setIsResearching] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<string | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
   // Set when "this didn't help" is tapped on an answer, so the *next*
   // submission is classified as a CORRECTION rather than a fresh question —
   // see `classifyCompanionCapture`.
@@ -85,6 +87,17 @@ export default function CompanionScreen() {
   const template = assessment?.templateId
     ? getSafetyTemplate(assessment.templateId, language)
     : null;
+
+  const openLink = async (url: string) => {
+    const outcome = await openExternalUrl((target) => Linking.openURL(target), url);
+    setLinkError(
+      outcome.ok
+        ? null
+        : language === 'en'
+          ? "Couldn't open the link—no app on this device can open this address."
+          : 'लिङ्क खोल्न सकिएन—यो ठेगाना खोल्ने कुनै एप यस यन्त्रमा छैन।',
+    );
+  };
 
   const toggleVoice = async () => {
     try {
@@ -428,7 +441,7 @@ export default function CompanionScreen() {
                     {research.citations.map((citation, index) => (
                       <Pressable
                         key={citation.url}
-                        onPress={() => void Linking.openURL(citation.url)}
+                        onPress={() => void openLink(citation.url)}
                         style={styles.citation}
                       >
                         <BookOpen color={colors.info} size={17} />
@@ -442,7 +455,7 @@ export default function CompanionScreen() {
                 ) : (
                   <Pressable
                     onPress={() =>
-                      void Linking.openURL(
+                      void openLink(
                         research?.externalHealthHubUrl ?? 'https://www.perplexity.ai/health',
                       )
                     }
@@ -455,6 +468,11 @@ export default function CompanionScreen() {
                     <ExternalLink color="white" size={16} />
                   </Pressable>
                 )}
+                {linkError ? (
+                  <Text accessibilityLiveRegion="polite" style={styles.linkError}>
+                    {linkError}
+                  </Text>
+                ) : null}
                 <View style={styles.warning}>
                   <AlertTriangle color={colors.saffronDeep} size={18} />
                   <Text style={styles.warningText}>
@@ -621,6 +639,7 @@ const styles = StyleSheet.create({
   miniWave: { alignItems: 'center', flexDirection: 'row', gap: 3, height: 32 },
   miniWaveBar: { backgroundColor: colors.primary, borderRadius: 3, width: 3 },
   voiceStatus: { color: colors.primaryDark, fontSize: 11, lineHeight: 17 },
+  linkError: { color: colors.danger, fontSize: 12, lineHeight: 18 },
   send: {
     alignItems: 'center',
     backgroundColor: colors.primary,
