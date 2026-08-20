@@ -8,6 +8,18 @@ import { DatabaseUnavailableFilter } from './prisma/database-unavailable.filter.
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
   app.setGlobalPrefix('v1');
+  // Express's body-parser defaults to a 100kb JSON limit when left unset. JSON
+  // has no binary type, so `records.controller.ts`'s document capture and
+  // `language-corpus.controller.ts`'s voice-clip submission both send a real
+  // photo/audio file as a base64 string inside the JSON body (see each
+  // route's `bytesBase64` field) — any real phone photo or recorded clip is
+  // already well past 100kb, so every such upload was silently rejected with
+  // a 413 before it ever reached a controller or a rate limiter. 20mb covers
+  // a realistic phone photo or short voice clip with base64's ~33% overhead
+  // included; `bytesBase64`'s own `.max()` on each schema stays under this so
+  // an oversized upload gets a structured `VALIDATION_ERROR` from the route
+  // instead of a bare body-parser 413 wherever there's room to say so first.
+  app.useBodyParser('json', { limit: '20mb' });
   // Exactly one reverse proxy sits in front of this API in every documented
   // deployment — Apache terminating TLS for `api.<domain>` and forwarding to
   // a loopback-bound container (`docs/deployment/dedicated-server.md`). Left

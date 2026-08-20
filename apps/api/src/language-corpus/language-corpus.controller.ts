@@ -60,7 +60,9 @@ const voiceClipSchema = z.object({
   device: z.string().trim().min(1).max(500),
   durationMs: z.number().int().positive(),
   contentType: z.string().trim().min(1),
-  bytesBase64: z.string().trim().min(1),
+  // Ceiling matches `main.ts`'s own body-parser limit (20mb), same reasoning
+  // `records.controller.ts`'s `captureSchema.bytesBase64` documents.
+  bytesBase64: z.string().trim().min(1).max(20 * 1024 * 1024),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {

@@ -736,6 +736,55 @@ absent, this section is the source of truth), `frontend-design` skill.
       `LanguageCorpusModule`'s `providers`.
       **Done 2026-08-20 — see the log entry below.**
 
+## JJ. Raise `apps/api`'s JSON body limit — Express's 100kb default was silently 413-ing every real photo/audio upload
+
+> Task II's own log entry closed the rate-limiting sweep and said "the next
+> run should read the queue fresh." A fresh sweep of a different category
+> (input validation / resource bounds, not access-control or rate-limiting)
+> found a live-breaking bug, not a theoretical one: `apps/api/src/main.ts`
+> never configured a body-parser limit, so Express's own default of 100kb
+> applied to every route. `RecordsController.capture` (`POST
+> /records/documents`) and `LanguageCorpusController.submitVoiceClip` (`POST
+> /language-corpus/voice-contribution/clips`) both accept a captured
+> file/clip as an unbounded base64 string inside the JSON body — JSON has no
+> binary type, so this is the only way either route can receive bytes.
+> Confirmed both are wired to real, already-shipped callers, not stubs:
+> `apps/web`'s `BloodPressureRecord.tsx` → `records-api.ts`'s
+> `captureBloodPressurePhoto` uploads a full-resolution camera photo with no
+> client-side compression (`EvidenceCapture.tsx`'s `capture="environment"`
+> input), and `apps/web`'s `voice-contribution-api.ts` uploads a recorded
+> audio blob the same way; `apps/mobile`'s `capture.tsx` does compress
+> (`takePictureAsync({ quality: 0.5 })`) but still produces JPEGs well past
+> 100kb from any real phone camera. Every one of these requests was rejected
+> with a bare Express 413 before it ever reached a controller, a rate
+> limiter, or `parseOrThrow`'s structured `VALIDATION_ERROR` — the client
+> code (`records-api.ts`, `voice-contribution-api.ts`) swallows a
+> non-`ok` response as a silent `null`, so the feature simply never worked
+> for any real input, with no diagnostic anywhere. A companion agent-run
+> investigation also flagged a second, lower-priority gap — inconsistent
+> `.max()` bounds on other free-text zod fields across `apps/api` controllers
+> (e.g. `clinical-charting.controller.ts`'s SOAP-note fields have none) — left
+> for a future run since it isn't currently causing user-facing breakage the
+> way this one was, and bundling it here would widen a one-line-root-cause
+> fix into a multi-controller sweep.
+
+- [x] `app.useBodyParser('json', { limit: '20mb' })` in `main.ts` — generous
+      enough for a realistic phone photo or short voice clip once base64's
+      ~33% overhead is included, while still bounded (not `Infinity`).
+      Matching `.max(20 * 1024 * 1024)` added to both `bytesBase64` schemas
+      (`records.controller.ts`'s `captureSchema`,
+      `language-corpus.controller.ts`'s `voiceClipSchema`) so an upload that
+      slips under the body-parser ceiling but is still absurdly large gets
+      the route's own structured `VALIDATION_ERROR` rather than always
+      relying on the parser's bare 413. Two new tests (one per controller)
+      drive a `bytesBase64` one byte over the schema ceiling and confirm a
+      `BadRequestException`, matching each file's existing
+      "rejects a request missing/invalid X" pattern. No frontend, message-file
+      or journey change: this is a server-side ceiling fix behind routes both
+      web clients already call exactly as before, not a new product surface
+      or a user-visible behaviour change on the success path. **Done
+      2026-08-20 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2485,6 +2534,83 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task JJ — exhausted-queue improvement: raise `apps/api`'s
+  JSON body limit, the live-breaking bug a fresh input-validation sweep found
+  once the access-control and rate-limiting threads (tasks Z–II) were both
+  declared exhausted.** Done.
+
+  **Housekeeping first.** Same now-routine shape as every recent run: local
+  `main` was stale (76 vs. 50 commits, no shared ancestor with
+  `origin/main`), a `backup/pre-force-push-main-*` branch on the remote held
+  the stale tip exactly, `git status` was clean. `git reset --hard
+  origin/main` was safe and lost nothing local — this run's own copy of the
+  same now-routine check dozens of prior entries already ran.
+
+  **Queue check.** Read every unchecked box: the standing "every future task
+  adds a journey" rule (no discrete deliverable), `InstallPrompt`/
+  `SignInSuggestion`, `NEXT_PUBLIC_PREMIUM_LAUNCH=live`, the duplex-voice
+  go/no-go, the corpus licence decision, the payment-provider choice, and
+  every item in "Owner-gated" — all still genuinely owner-gated, same
+  conclusion every recent run reached. Task II's own log entry closed the
+  last open lead from the rate-limiting thread and said the next run should
+  "read the queue fresh" rather than continue it. Delegated a fresh,
+  differently-scoped investigation (input validation, security headers,
+  error-message leakage, apps/mobile crash risk, dead TODOs, skipped tests —
+  explicitly steering away from the two now-exhausted categories) to a
+  research agent rather than re-running either prior sweep.
+
+  **What the investigation found.** `apps/api/src/main.ts` never configured
+  a body-parser limit of any kind, so Express's own default of 100kb JSON
+  limit applied globally. `RecordsController.capture` and
+  `LanguageCorpusController.submitVoiceClip` both take a captured file/clip
+  as an unbounded base64 string in the JSON body (JSON has no binary type).
+  Verified this is a live break, not a theoretical one, by reading the
+  actual client call sites: `apps/web`'s `BloodPressureRecord.tsx` uploads a
+  full-resolution, uncompressed camera photo via `records-api.ts`'s
+  `captureBloodPressurePhoto`, and `apps/web`'s `voice-contribution-api.ts`
+  uploads a recorded audio blob the same way — both comfortably over 100kb
+  for any real input, and both callers swallow the resulting failed response
+  as a silent `null` with no diagnostic. `apps/mobile`'s `capture.tsx` does
+  compress (`quality: 0.5`) but still produces JPEGs past 100kb from a real
+  phone camera. A secondary, lower-priority finding — inconsistent `.max()`
+  bounds on other free-text zod fields across `apps/api` (e.g.
+  `clinical-charting.controller.ts`'s SOAP-note fields have none) — was left
+  out of scope: it isn't causing any user-facing breakage today the way the
+  body limit was, and folding it in would have turned a one-line-root-cause
+  fix into an unrelated multi-controller sweep.
+
+  **What shipped.** `main.ts`: `app.useBodyParser('json', { limit: '20mb' })`
+  right after `setGlobalPrefix`, with a comment explaining the 100kb default
+  and which two routes it was silently breaking. `20mb` covers a realistic
+  phone photo or short voice clip with base64's ~33% overhead included.
+  Matching `.max(20 * 1024 * 1024)` added to `records.controller.ts`'s
+  `captureSchema.bytesBase64` and `language-corpus.controller.ts`'s
+  `voiceClipSchema.bytesBase64`, so an upload that happens to slip under the
+  body-parser ceiling but is still absurdly large gets each route's existing
+  structured `{code: 'VALIDATION_ERROR', ...}` response instead of always
+  falling through to the parser's bare, unstructured 413.
+
+  **Tests.** One new case per controller
+  (`records.controller.test.ts`/`language-corpus.controller.test.ts`),
+  matching each file's existing "rejects a request missing/invalid X"
+  pattern: drive `bytesBase64` one character past the schema ceiling and
+  confirm `BadRequestException`. `pnpm test` went from 931 to 933 API-suite
+  tests.
+
+  **Gate.** `pnpm install --frozen-lockfile` / `pnpm lint` (40/40) /
+  `pnpm typecheck` (40/40) / `pnpm test` (75/75, 933 tests) / `pnpm build`
+  (40/40) all green from the repo root. No journey update under task U's
+  standing rule and no 375px measurement: this is a server-side ceiling fix
+  behind routes both web clients already call exactly as before on the
+  success path — no new product surface, no change to what a person sees,
+  same scope call task II's own log entry made for its own API-only change.
+
+  **For the next run.** The secondary `.max()`-bounds finding above is a
+  real but lower-priority gap — worth a future sweep once there's headroom
+  for a multi-controller pass, not urgent since nothing user-facing breaks
+  from it today. No other lead is open from this line of investigation; read
+  the queue fresh.
 
 - 2026-08-20 — **Task II — exhausted-queue improvement: rate limit `GET
   .../voice-contribution/clips/:clipId/audio`, the read side of task HH's

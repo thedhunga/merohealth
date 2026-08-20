@@ -229,6 +229,14 @@ describe('LanguageCorpusController voice contribution clips', () => {
     await expect(controller.submitVoiceClip(owner1, { ...validClipBody, durationMs: 100 })).rejects.toThrow(BadRequestException);
   });
 
+  it('rejects bytesBase64 over the 20mb ceiling — same schema bound `records.controller.ts`\'s captureSchema documents, matching main.ts\'s body-parser limit', async () => {
+    const controller = buildController();
+    controller.grantConsent(owner1, 'VOICE_CONTRIBUTION');
+    await expect(
+      controller.submitVoiceClip(owner1, { ...validClipBody, bytesBase64: 'a'.repeat(20 * 1024 * 1024 + 1) }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
   it('rate-limits a caller submitting distinct clips in a loop', async () => {
     const controller = buildController();
     controller.grantConsent(owner1, 'VOICE_CONTRIBUTION');

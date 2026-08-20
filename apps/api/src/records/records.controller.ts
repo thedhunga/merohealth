@@ -45,8 +45,10 @@ const captureSchema = z.object({
   clientEncrypted: z.boolean().default(false),
   contentType: z.string().trim().min(1).nullable().default(null),
   // JSON has no binary type; the mobile/web capture flow base64-encodes the
-  // file before this reaches the API.
-  bytesBase64: z.string().trim().min(1),
+  // file before this reaches the API. The ceiling matches `main.ts`'s own
+  // body-parser limit (20mb) so an oversized photo gets this route's
+  // structured `VALIDATION_ERROR` rather than a bare body-parser 413.
+  bytesBase64: z.string().trim().min(1).max(20 * 1024 * 1024),
   pageCount: z.number().int().positive().default(1),
 });
 

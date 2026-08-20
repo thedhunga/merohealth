@@ -114,6 +114,13 @@ describe('RecordsController capture', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('rejects bytesBase64 over the 20mb ceiling — main.ts\'s body-parser limit already blocks a larger request before it gets this far, this is the structured-error path for anything that slips under that but still over the schema bound', async () => {
+    const controller = buildController();
+    await expect(
+      controller.capture(currentUser, { ...validCapture, bytesBase64: 'a'.repeat(20 * 1024 * 1024 + 1) }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('rejects an unknown document kind rather than silently accepting it', async () => {
     const controller = buildController();
     await expect(
