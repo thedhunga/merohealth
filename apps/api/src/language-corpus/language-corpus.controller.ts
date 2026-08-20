@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpException, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import type { CurrentUserResult } from '../auth/auth.service.js';
@@ -6,6 +6,7 @@ import { CurrentUser } from '../auth/current-user.decorator.js';
 import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { CorpusReviewerGuard } from './corpus-reviewer.guard.js';
 import { LanguageCorpusService } from './language-corpus.service.js';
+import { VoiceClipSubmissionRateLimiter } from './voice-clip-submission-rate-limiter.js';
 
 const utteranceKindSchema = z.enum(['USER_MESSAGE', 'CORRECTION', 'VOICE_TRANSCRIPT']);
 const localeSchema = z.enum(['ne', 'en', 'ne-Latn']);
@@ -76,7 +77,14 @@ function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
 @ApiTags('language-corpus')
 @Controller('language-corpus')
 export class LanguageCorpusController {
-  constructor(private readonly corpus: LanguageCorpusService) {}
+  // Same explicit-annotation-plus-default-value shape `RecordsController`
+  // uses for its own rate limiter: Nest's DI needs the annotation to resolve
+  // the provider at runtime, and the default only helps direct construction
+  // in a test.
+  constructor(
+    private readonly corpus: LanguageCorpusService,
+    private readonly submissionLimiter: VoiceClipSubmissionRateLimiter = new VoiceClipSubmissionRateLimiter(),
+  ) {}
 
   @Post('utterances')
   @UseGuards(SessionAuthGuard)
@@ -240,7 +248,18 @@ export class LanguageCorpusController {
       },
     },
   })
-  submitVoiceClip(@CurrentUser() user: CurrentUserResult, @Body() body: unknown) {
+  // async so the rate-limit throw below rejects the returned promise instead
+  // of throwing synchronously out of the method — same fix
+  // `RecordsController.retryExtraction`'s own comment explains, needed so
+  // callers can uniformly `await ... .rejects` regardless of which check
+  // failed.
+  async submitVoiceClip(@CurrentUser() user: CurrentUserResult, @Body() body: unknown) {
+    if (!this.submissionLimiter.allow(user.subjectId)) {
+      throw new HttpException(
+        { code: 'RATE_LIMITED', message: 'Too many clips submitted — wait a few minutes and try again.' },
+        429,
+      );
+    }
     const { bytesBase64, ...input } = parseOrThrow(voiceClipSchema, body);
     return this.corpus.submitVoiceClip({
       ...input,

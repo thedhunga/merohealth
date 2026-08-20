@@ -213,21 +213,63 @@ describe('LanguageCorpusController voice contribution clips', () => {
     expect(clip.ref.byteSize).toBe(Buffer.from('clip bytes').byteLength);
   });
 
-  it('rejects a request missing a required field', () => {
-    // Body validation happens synchronously, before the async store call —
-    // same reason `LanguageCorpusController ingest`'s own validation tests
-    // above assert with a thrown-synchronously `expect(() => ...)`, not `rejects`.
+  it('rejects a request missing a required field', async () => {
+    // submitVoiceClip is async (the rate limiter below needs it), so every
+    // throw inside it — this one included — surfaces as a rejected promise.
     const controller = buildController();
     controller.grantConsent(owner1, 'VOICE_CONTRIBUTION');
     const withoutId: Record<string, unknown> = { ...validClipBody };
     delete withoutId['id'];
-    expect(() => controller.submitVoiceClip(owner1, withoutId)).toThrow(BadRequestException);
+    await expect(controller.submitVoiceClip(owner1, withoutId)).rejects.toThrow(BadRequestException);
   });
 
   it('rejects a clip below the minimum duration', async () => {
     const controller = buildController();
     controller.grantConsent(owner1, 'VOICE_CONTRIBUTION');
     await expect(controller.submitVoiceClip(owner1, { ...validClipBody, durationMs: 100 })).rejects.toThrow(BadRequestException);
+  });
+
+  it('rate-limits a caller submitting distinct clips in a loop', async () => {
+    const controller = buildController();
+    controller.grantConsent(owner1, 'VOICE_CONTRIBUTION');
+
+    // The limiter's ceiling is 20 per window. Each clip's bytes must differ
+    // — `submitVoiceClip`'s own duplicate check would otherwise reject
+    // repeats of `validClipBody` for an unrelated reason before the
+    // twenty-first call ever gets there.
+    for (let i = 0; i < 20; i++) {
+      const clip = await controller.submitVoiceClip(owner1, {
+        ...validClipBody,
+        id: `clip-${i}`,
+        bytesBase64: Buffer.from(`clip bytes ${i}`).toString('base64'),
+      });
+      expect(clip.id).toBe(`clip-${i}`);
+    }
+
+    await expect(
+      controller.submitVoiceClip(owner1, { ...validClipBody, id: 'clip-20', bytesBase64: Buffer.from('clip bytes 20').toString('base64') }),
+    ).rejects.toMatchObject({ status: 429, response: { code: 'RATE_LIMITED' } });
+  });
+
+  it('tracks submission limits per caller, not globally', async () => {
+    const controller = buildController();
+    controller.grantConsent(owner1, 'VOICE_CONTRIBUTION');
+    controller.grantConsent(owner2, 'VOICE_CONTRIBUTION');
+
+    for (let i = 0; i < 20; i++) {
+      await controller.submitVoiceClip(owner1, {
+        ...validClipBody,
+        id: `clip-${i}`,
+        bytesBase64: Buffer.from(`clip bytes ${i}`).toString('base64'),
+      });
+    }
+    await expect(
+      controller.submitVoiceClip(owner1, { ...validClipBody, id: 'clip-20', bytesBase64: Buffer.from('clip bytes 20').toString('base64') }),
+    ).rejects.toMatchObject({ status: 429 });
+
+    // A different contributor's own allowance is unaffected by owner1's spend.
+    const clip = await controller.submitVoiceClip(owner2, validClipBody);
+    expect(clip.contributorId).toBe('owner-2');
   });
 });
 

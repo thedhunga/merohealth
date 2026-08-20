@@ -2407,6 +2407,104 @@ Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
 - 2026-08-20 — **Exhausted-queue improvement: rate limit `POST
+  /language-corpus/voice-contribution/clips`, the broader
+  `SessionAuthGuard`-but-unmetered sweep the last run's "for the next run"
+  note asked for.** Done.
+
+  **Housekeeping first.** Same shape as every recent run: `git checkout main`
+  landed on a history disconnected from any local branch (local `main` stale
+  at `9bdf548`, `origin/main` at `767ba02`, 76 vs. 50 commits, no shared
+  ancestor). `origin/backup/pre-force-push-main-9bdf548` matched local
+  `main`'s tip exactly and `git status` was clean, so `git checkout -B main
+  origin/main` was safe — the by-now-thoroughly-documented 2026-08-15 history
+  consolidation, not new data loss. Not re-flagging this to the owner again;
+  dozens of prior entries already established it's expected, and the backup
+  ref keeps making it a no-op.
+
+  **The sweep.** Task FF's chain closed both paid-external-call sites but
+  named one broader angle as unverified: whether any other
+  `SessionAuthGuard`-only mutation route (not just the two paid-call sites)
+  is expensive enough per-call to be worth rate-limiting. Delegated a
+  read-only sweep of all 27 `apps/api` controllers' `@Post`/`@Put`/`@Patch`/
+  `@Delete` handlers against their guard chains and the services they call.
+  Confirmed false positives already covered: `RecordsController.capture`
+  (`EntitlementsGuard`+quota), `retryExtraction`/`CompanionController
+  .research`/`AuthController.requestOtp`/`EarlyAccessController.register`
+  (each has its own limiter), `InteropController.issueShareLink` and
+  `TeleconsultationController.schedule` (quota/module-gated). Everything else
+  `SessionAuthGuard`-only (identity reviewer actions, credentialing submit,
+  twin-profile confirm, clinical-summary items, immunization records,
+  family-grants delegations, records observation confirm/correct/reject,
+  teleconsultation start/complete/cancel, history migrate, medication-safety
+  check) is a cheap, bounded local DB write — not worth limiting.
+
+  **What the sweep found.** `LanguageCorpusController.submitVoiceClip`
+  (`POST /language-corpus/voice-contribution/clips`) — `SessionAuthGuard`
+  only, no quota, no limiter. Every accepted call is a real
+  `HealthDocumentStore.put()` write (`MinioDocumentStore` in production,
+  a genuine object-storage write plus a SHA-256 checksum), and the only
+  gates are a one-time consent check and a duration bound
+  (`validateVoiceClipDuration`, ≤60s). The duplicate check only rejects
+  byte-identical clips — trivially bypassed by re-recording — so nothing
+  bounded how many distinct clips one authenticated caller could loop-submit,
+  the same "writes unbounded data" shape task FF's own entry described for
+  `retry-extraction`'s Gemini calls, just against storage cost instead of a
+  paid API. Flagged but not fixed: `EngagementController.queueMessage`/
+  `retryMessage` send real SMS/WhatsApp but carry no guard at all yet
+  (documented "clinic-staff, no session to check" exception shared with
+  `BillingController`/`DiagnosticsOrdersController`/`SchedulingController`),
+  so it doesn't match this specific "authenticated but unmetered" bug shape
+  — a genuine gap, but a different fix (add a guard, not a limiter) and out
+  of scope here.
+
+  **What shipped.**
+  `apps/api/src/language-corpus/voice-clip-submission-rate-limiter.ts`: new
+  `VoiceClipSubmissionRateLimiter`, extending `SlidingWindowRateLimiter`
+  (20 per 10 minutes — looser than `RecordExtractionRetryRateLimiter`'s 10,
+  since this is a legitimate bulk-entry flow, a contributor reading several
+  prompts in one sitting, not a retry-on-failure path). Keyed by
+  `subjectId`, same reasoning as the retry-extraction limiter.
+  `language-corpus.controller.ts`: `submitVoiceClip` gained a second
+  constructor-injected limiter (explicit-annotation-plus-default-value
+  shape, matching `RecordsController`) and now throws `{code:
+  'RATE_LIMITED'}` / 429 before the consent/duration/store call. Made the
+  method `async` — needed so the rate-limit throw rejects the returned
+  promise instead of escaping synchronously, the same fix
+  `RecordsController.retryExtraction`'s own comment explains; this also
+  meant updating one existing test ("rejects a request missing a required
+  field") from a synchronous `expect(() => ...).toThrow` to `await
+  expect(...).rejects.toThrow`, since every throw in an async method now
+  surfaces as a rejection — a mechanical, behavior-preserving change, not a
+  new validation gap. `language-corpus.module.ts`: limiter added to
+  `providers`.
+
+  **Tests.** Two new cases in `language-corpus.controller.test.ts`: twenty
+  distinct-content clips succeed and the twenty-first is refused with
+  `{status: 429, response: {code: 'RATE_LIMITED'}}`; a second contributor's
+  own allowance is unaffected by the first caller's spend, proving the key
+  is per-subject, not global. Each loop iteration uses distinct
+  `bytesBase64` content so the existing duplicate-clip check never
+  intervenes before the limiter does.
+
+  **Gate.** `pnpm --filter "./packages/*" build`, then `pnpm install
+  --frozen-lockfile` / `pnpm lint` (40/40) / `pnpm typecheck` (40/40) /
+  `pnpm test` (75/75, 926 API-suite tests, up from 924 — the two new cases)
+  / `pnpm build` (40/40) all green from the repo root. No journey update
+  (task U's rule) and no 375px measurement — API-only change, no UI surface;
+  confirmed no code under `apps/web/src` or `apps/mobile` calls
+  `voice-contribution/clips` today beyond the existing Voice Contribution
+  flow already using it as designed.
+
+  **For the next run.** The `SessionAuthGuard`-but-unmetered sweep is now
+  closed for state-mutating routes. Two concrete, unstarted leads remain: (1)
+  `EngagementController`'s SMS/WhatsApp routes have no guard at all — worth
+  its own audit of whether that's still the intended "clinic-staff caller"
+  shape or a real gap, separate from this rate-limiting chain; (2) this run
+  did not check read-heavy `GET` routes for the same "expensive per-call,
+  no limiter" shape (e.g. anything that fans out to an external call on a
+  read) — unverified, not ruled out.
+
+- 2026-08-20 — **Exhausted-queue improvement: rate limit `POST
   /records/documents/:documentId/retry-extraction`, the unauthenticated-route
   sweep task FF's own "for the next run" note named but did not run.** Done.
 

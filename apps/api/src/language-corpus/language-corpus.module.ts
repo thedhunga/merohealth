@@ -9,6 +9,7 @@ import { CorpusReviewerGuard } from './corpus-reviewer.guard.js';
 import { LanguageCorpusController } from './language-corpus.controller.js';
 import { LanguageCorpusRepository } from './language-corpus.repository.js';
 import { LanguageCorpusService, VOICE_CLIP_AUDIO_STORE } from './language-corpus.service.js';
+import { VoiceClipSubmissionRateLimiter } from './voice-clip-submission-rate-limiter.js';
 
 /**
  * Same `OBJECT_STORAGE_ENDPOINT`-gated choice `RecordsModule.createDocumentStore`
@@ -54,6 +55,7 @@ function createVoiceClipAudioStore(): HealthDocumentStore {
     LanguageCorpusRepository,
     LanguageCorpusService,
     CorpusReviewerGuard,
+    VoiceClipSubmissionRateLimiter,
     { provide: VOICE_CLIP_AUDIO_STORE, useFactory: createVoiceClipAudioStore },
     { provide: SUBSCRIPTION_GRANT_STORE, useClass: PrismaSubscriptionGrantStore },
   ],
