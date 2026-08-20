@@ -2866,6 +2866,60 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-20 — **Standing-rule diversion: red CI on `main`, not a queue task.**
+  Fixed.
+
+  **Housekeeping.** Same shape as every recent entry: local `main` was stuck
+  at the stale commit `9bdf548` with no common ancestor with `origin/main`
+  (now tipped at `ba1bfb5`, task UU's own commit). `git status` was clean, so
+  `git reset --hard origin/main`.
+
+  **Standing red-CI check.** This is the check itself. `gh`/the Actions API
+  showed two runs on `ba1bfb5`: the push-triggered `ci` run (#187) was green,
+  but a later *schedule*-triggered run (#188, the 22:15 UTC nightly against
+  production the workflow's own comment describes) was red on its
+  `journeys-production` job. That is the latest run on `main` by wall clock,
+  so per the standing rule this diversion — not a queue task — is what this
+  run did.
+
+  **Root cause.** All 23 failures were on the `iphone` project only; `phone`
+  (25 tests) passed clean. Every `iphone` failure was the identical
+  `browserType.launch: Executable doesn't exist at
+  .../ms-playwright/webkit-2215/pw_run.sh`. `apps/web/playwright.config.ts`'s
+  `iphone` project uses `devices['iPhone 14']`, which Playwright drives with
+  WebKit, not Chromium — but `journeys-production`'s install step was
+  `playwright install --with-deps chromium` only. Confirmed with `git log`
+  that both the `iphone` project and the nightly `journeys-production` job
+  were added together in `0d17964` and this cron (once daily) had not fired
+  since, so this was the first real signal on the gap, not a fresh
+  regression. The push-triggered `verify` job never caught it because it
+  only runs `--project=phone`.
+
+  **The fix.** One line: `journeys-production`'s install step now installs
+  `chromium webkit` (`.github/workflows/ci.yml`). `verify` is untouched — it
+  doesn't run `iphone` and doesn't need WebKit. No product code changed, so
+  no 375px measurement or message-file update applies here (matching the
+  precedent task UU's log set for a props/config-only change with no visible
+  surface).
+
+  **Verification.** Cannot run the `iphone` project against production from
+  here (no live `E2E_BASE_URL` target, and the point of the bug was the
+  missing browser binary, not test logic), so verified by static inspection
+  of the failing job's log — the error is unambiguous and the fix directly
+  addresses it — plus the full pipeline: `pnpm install --frozen-lockfile`,
+  `pnpm lint` (40/40), `pnpm typecheck` (40/40), `pnpm test` (75/75),
+  `pnpm build` (40/40), all clean. **For the next run:** re-check the next
+  scheduled `journeys-production` run (22:15 UTC) actually goes green with
+  both browsers installed — if `iphone` still fails, it's a real journey bug
+  this time, not an install gap.
+
+  **Queue note.** Did not take a queue task this run — the red-CI standing
+  rule pre-empts the queue by its own text ("if the latest `ci` run on
+  `main` is red, fixing it IS the next task"). The next run should re-check
+  CI first, then task UU's own "for the next run" list is still current:
+  `ProfileSwitcher.tsx`'s modal has no visible close button (backdrop-tap/
+  back-gesture only) is the next lead once CI is confirmed green.
+
 - 2026-08-20 — **Task UU — exhausted-queue improvement: `apps/mobile`
   Pressables had no ARIA role on web.** Done.
 

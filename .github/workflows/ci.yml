@@ -53,7 +53,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 24.6.0, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @swasthya/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @swasthya/web exec playwright install --with-deps chromium webkit
       - run: pnpm --filter @swasthya/web exec playwright test --project=phone --project=iphone
         env:
           E2E_BASE_URL: https://merohealth-beta.vercel.app
