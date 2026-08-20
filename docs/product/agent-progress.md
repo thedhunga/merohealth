@@ -630,6 +630,32 @@ absent, this section is the source of truth), `frontend-design` skill.
       introducing one was out of scope for this fix. **Done 2026-08-20 — see
       the log entry below.**
 
+## GG. Rate limit `POST /records/documents/:documentId/retry-extraction` — the unauthenticated-route sweep task FF's own "for the next run" note asked for but did not run
+
+> Every unchecked queue box was still owner/asset-gated. Task FF's own "for
+> the next run" note asked whether any other unauthenticated `apps/api` route
+> reaches a paid external call the way `companion.controller.ts` did. Swept
+> `apps/api/src` for external-call signatures and found exactly two paid-call
+> sites: `PerplexityHealthService` (already rate-limited, task FF) and
+> `GeminiRecordExtractionService`, reached from `RecordsService.#runExtraction`
+> through two entry points. `captureDocument` is implicitly bounded by
+> `EntitlementsGuard`'s `RequireQuota('DOCUMENTS_STORED')`, but
+> `retryExtraction` — authenticated via `SessionAuthGuard`, but otherwise
+> unmetered — let a caller re-trigger a real Gemini charge on the same
+> `EXTRACTION_FAILED` document in a tight loop.
+
+- [x] `RecordExtractionRetryRateLimiter`
+      (`apps/api/src/records/record-extraction-retry-rate-limiter.ts`): an
+      `@Injectable()` subclass of `SlidingWindowRateLimiter`, 10 calls per 10
+      minutes matching `OtpRequestRateLimiter`'s ceiling, keyed by the
+      session's `subjectId` rather than IP since this route already has a
+      stable authenticated identity. `RecordsController.retryExtraction()`
+      checks it first and throws `HttpException({code: 'RATE_LIMITED', ...},
+      429)` on refusal, same shape task FF used; the method is now `async` so
+      that throw auto-wraps into a rejected promise. Registered on
+      `RecordsModule`'s `providers`. **Done 2026-08-20 — see the log entry
+      below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2379,6 +2405,100 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Exhausted-queue improvement: rate limit `POST
+  /records/documents/:documentId/retry-extraction`, the unauthenticated-route
+  sweep task FF's own "for the next run" note named but did not run.** Done.
+
+  **Housekeeping first.** Same shape as the last several runs: `git checkout
+  main` landed on a history disconnected from any local branch (local `main`
+  stale at `9bdf548`, force-pushed `origin/main` now at `94ebfa7`, 76 vs. 50
+  commits each way) and `git pull` refused with divergent branches. A
+  `backup/pre-force-push-main-9bdf548` branch already existed on the remote,
+  preserving the pre-rewrite history, and every package under `packages/`
+  (including `clinical-safety`, `family`, `health-records`) is present in
+  `origin/main`'s tree — re-verified this is the documented, deliberate
+  history consolidation rather than data loss, same conclusion the last
+  several runs reached. `git status` was clean, so `git reset --hard
+  origin/main` lost nothing.
+
+  **Queue check.** All eight unchecked boxes in the ledger are owner/asset-
+  gated (Google OAuth client id — confirmed still unset in `.env.example`;
+  missing photography credits; payment-provider choice; premium-launch flag;
+  duplex-voice go/no-go measured on the owner's phone; the
+  `InstallPrompt`/`SignInSuggestion` priority call; a standing "every future
+  task adds a journey" rule with no discrete deliverable of its own) — read
+  every one, not just grepped the count. Task FF's own log entry named a
+  concrete unverified lead instead of a vague "look around": whether any
+  other unauthenticated (or under-limited) `apps/api` route reaches a paid
+  external call. Ran that sweep.
+
+  **What the sweep found.** Grepped `apps/api/src` for external-call
+  signatures (`fetch(`, `HttpService`, provider SDK names) and found exactly
+  two paid-call sites: `PerplexityHealthService` (already rate-limited, task
+  FF) and `GeminiRecordExtractionService`, reached from
+  `RecordsService.#runExtraction`. That method has two entry points:
+  `captureDocument` → `#extractIfEligible`, gated by `EntitlementsGuard`'s
+  `RequireQuota('DOCUMENTS_STORED')` on the controller (a new document
+  consumes quota, so extraction on it is implicitly bounded), and
+  `retryExtraction`, gated only by `SessionAuthGuard` — authenticated, but
+  with no quota or rate limit of its own. The transition table only allows a
+  retry from `EXTRACTION_FAILED`, so this isn't open on arbitrary documents,
+  but nothing stopped an authenticated caller from retrying the same failed
+  document in a tight loop, each call a real Gemini charge — the identical
+  "unauthenticated-route" shape task Y/FF fixed, just one auth check further
+  in.
+
+  **What shipped.** `apps/api/src/records/record-extraction-retry-rate-limiter.ts`:
+  new `RecordExtractionRetryRateLimiter`, `@Injectable()` extending the
+  existing `SlidingWindowRateLimiter` (10 per 10 minutes, matching
+  `OtpRequestRateLimiter`'s ceiling). Keyed by the session's `subjectId`
+  rather than IP — unlike the OTP/companion routes, `retry-extraction` sits
+  behind `SessionAuthGuard`, so a stable per-caller identity already exists
+  and is the more precise key (no shared-IP/CGNAT collision risk).
+  `records.controller.ts`: `retryExtraction()` is now `async` (matching
+  `CompanionController.research()`'s own shape, needed so the pre-work throw
+  auto-wraps into a rejected promise instead of throwing synchronously out of
+  a non-async method) and checks `this.retryLimiter.allow(user.subjectId)`
+  first, throwing `HttpException({code: 'RATE_LIMITED', ...}, 429)` on
+  refusal — same shape as `CompanionController.research()`. Constructor
+  gained the limiter as a second parameter with the same
+  explicit-annotation-plus-default-value pattern. `records.module.ts`:
+  `RecordExtractionRetryRateLimiter` added to `providers`, same module
+  `EntitlementsGuard`/`RecordsUsageReader` already live in.
+
+  **Tests.** `records.controller.test.ts`: two new cases under
+  `RecordsController.retryExtraction` — ten retries against a document kept
+  `EXTRACTION_FAILED` by `BrokenExtractionService` all succeed and the
+  eleventh is refused with `{status: 429, response: {code: 'RATE_LIMITED'}}`;
+  a second owner's own document is unaffected by the first caller's spend,
+  proving the key is per-subject, not global. No new tests needed for
+  `SlidingWindowRateLimiter` itself — same reasoning task FF's entry gave for
+  `CompanionResearchRateLimiter`.
+
+  **Gate.** `pnpm --filter "./packages/*" build` first, then `pnpm install
+  --frozen-lockfile` / `pnpm lint` (40/40) / `pnpm typecheck` (40/40) /
+  `pnpm test` (75/75, 924 API-suite tests, up from 922 in task FF's entry —
+  the two new cases above) / `pnpm build` (40/40) all green from the repo
+  root. No journey update under task U's
+  standing rule and no 375px measurement — API-only change, no UI surface;
+  confirmed no code under `apps/web/src` or `apps/mobile` calls
+  `retry-extraction` today (grep found no callers yet — the mobile capture
+  flow has no retry UI), so this closes a live server-side gap ahead of the
+  client actually using it, not behind it.
+
+  **For the next run.** The sweep task FF asked for is done: both paid-call
+  sites (`PerplexityHealthService`, `GeminiRecordExtractionService`) are now
+  rate-limited at every entry point. No further named next-candidate remains
+  from this chain. If the queue is still exhausted, the eight owner-gated
+  boxes are genuinely blocked (verified above, not assumed) — the next
+  autonomous pick will need a fresh sweep rather than a named pointer. A
+  reasonable angle: `apps/api`'s other `SessionAuthGuard`-only routes that
+  mutate state (not just the two paid-call sites) have not been checked for
+  the same "authenticated but unmetered against a per-caller cost" shape
+  this run found on `retry-extraction` — this run did not run that broader
+  sweep (scope was the two named paid-call sites), so it is unverified
+  rather than ruled out.
 
 - 2026-08-20 — **Task FF — exhausted-queue improvement: rate limit `POST
   /companion/research` on `apps/api`, the secondary finding task EE's own

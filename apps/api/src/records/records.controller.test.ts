@@ -246,4 +246,37 @@ describe('RecordsController.retryExtraction', () => {
 
     await expect(controller.retryExtraction(currentUser, document.id)).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it('rate-limits a caller retrying the same paid extraction call in a loop', async () => {
+    const controller = buildController(new InMemoryDocumentStore('HOSTED'), new BrokenExtractionService());
+    const failed = await controller.capture(currentUser, { ...validCapture, contentType: 'image/jpeg' });
+    expect(failed.status).toBe('EXTRACTION_FAILED');
+
+    // The limiter's ceiling is 10 per window; the document stays
+    // EXTRACTION_FAILED after every attempt (BrokenExtractionService always
+    // rejects), so all ten calls are otherwise-valid retries and only the
+    // eleventh should be refused.
+    for (let i = 0; i < 10; i++) {
+      const retried = await controller.retryExtraction(currentUser, failed.id);
+      expect(retried.status).toBe('EXTRACTION_FAILED');
+    }
+
+    await expect(controller.retryExtraction(currentUser, failed.id)).rejects.toMatchObject({
+      status: 429,
+      response: { code: 'RATE_LIMITED' },
+    });
+  });
+
+  it('tracks retry limits per caller, not globally', async () => {
+    const controller = buildController(new InMemoryDocumentStore('HOSTED'), new BrokenExtractionService());
+    const failed = await controller.capture(currentUser, { ...validCapture, contentType: 'image/jpeg' });
+    for (let i = 0; i < 10; i++) await controller.retryExtraction(currentUser, failed.id);
+    await expect(controller.retryExtraction(currentUser, failed.id)).rejects.toMatchObject({ status: 429 });
+
+    // A different owner's document is unaffected by the first caller's spend.
+    const someoneElse: CurrentUserResult = { ...currentUser, subjectId: 'owner-2' };
+    const theirs = await controller.capture(someoneElse, { ...validCapture, contentType: 'image/jpeg' });
+    const retried = await controller.retryExtraction(someoneElse, theirs.id);
+    expect(retried.status).toBe('EXTRACTION_FAILED');
+  });
 });

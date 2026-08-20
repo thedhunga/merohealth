@@ -6,6 +6,7 @@ import { EntitlementsGuard } from '../entitlements/entitlements.guard.js';
 import { FreeTierSubscriptionResolver, SUBSCRIPTION_RESOLVER } from '../entitlements/subscription-resolver.js';
 import { USAGE_READER } from '../entitlements/usage-reader.js';
 import { GeminiRecordExtractionService } from './gemini-extraction.service.js';
+import { RecordExtractionRetryRateLimiter } from './record-extraction-retry-rate-limiter.js';
 import { RECORD_EXTRACTION_SERVICE } from './record-extraction.service.js';
 import { RecordsController } from './records.controller.js';
 import { RecordsRepository } from './records.repository.js';
@@ -46,6 +47,7 @@ function createDocumentStore(): HealthDocumentStore {
     RecordsRepository,
     RecordsService,
     RecordsUsageReader,
+    RecordExtractionRetryRateLimiter,
     EntitlementsGuard,
     { provide: HEALTH_DOCUMENT_STORE, useFactory: createDocumentStore },
     // Degrades to `setup-required` on its own when `GEMINI_API_KEY` is

@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpException, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import type { CurrentUserResult } from '../auth/auth.service.js';
@@ -6,6 +6,7 @@ import { CurrentUser } from '../auth/current-user.decorator.js';
 import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { EntitlementsGuard } from '../entitlements/entitlements.guard.js';
 import { RequireModule, RequireQuota } from '../entitlements/require-entitlement.decorator.js';
+import { RecordExtractionRetryRateLimiter } from './record-extraction-retry-rate-limiter.js';
 import { RecordsService } from './records.service.js';
 
 // Same regex `SchedulingController`/`FamilyGrantsController`/
@@ -72,7 +73,14 @@ function parseOrThrow<T>(schema: z.ZodType<T>, body: unknown): T {
 @ApiTags('records')
 @Controller('records')
 export class RecordsController {
-  constructor(private readonly records: RecordsService) {}
+  // Same explicit-annotation-plus-default-value shape `CompanionController`
+  // uses for its own rate limiter: Nest's DI needs the annotation to resolve
+  // the provider at runtime, and the default only helps direct construction
+  // in a test.
+  constructor(
+    private readonly records: RecordsService,
+    private readonly retryLimiter: RecordExtractionRetryRateLimiter = new RecordExtractionRetryRateLimiter(),
+  ) {}
 
   @Get('health')
   @ApiOperation({ summary: "clinical-suite.md §2's ModuleDescriptor.health(), exposed over HTTP" })
@@ -190,7 +198,12 @@ export class RecordsController {
   @UseGuards(SessionAuthGuard)
   @ApiOperation({ summary: "Re-attempt extraction on one of the caller's own documents stuck on EXTRACTION_FAILED" })
   @ApiParam({ name: 'documentId' })
-  retryExtraction(@CurrentUser() user: CurrentUserResult, @Param('documentId') documentId: string) {
+  async retryExtraction(@CurrentUser() user: CurrentUserResult, @Param('documentId') documentId: string) {
+    if (!this.retryLimiter.allow(user.subjectId))
+      throw new HttpException(
+        { code: 'RATE_LIMITED', message: 'Too many retries — wait a few minutes and try again.' },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     return this.records.retryExtraction(documentId, user.subjectId);
   }
 }
