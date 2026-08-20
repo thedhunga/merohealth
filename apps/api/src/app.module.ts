@@ -5,6 +5,7 @@ import { BillingModule } from './billing/billing.module.js';
 import { ClinicalChartingModule } from './clinical-charting/clinical-charting.module.js';
 import { ClinicalSuiteModule } from './clinical-suite/clinical-suite.module.js';
 import { ClinicalSummaryModule } from './clinical-summary/clinical-summary.module.js';
+import { CompanionResearchRateLimiter } from './companion-research-rate-limiter.js';
 import { CompanionController } from './companion.controller.js';
 import { CredentialingModule } from './credentialing/credentialing.module.js';
 import { DiagnosticsOrdersModule } from './diagnostics-orders/diagnostics-orders.module.js';
@@ -56,6 +57,6 @@ import { TwinProfileModule } from './twin-profile/twin-profile.module.js';
     EarlyAccessModule,
   ],
   controllers: [HealthController, CompanionController, DirectoryController],
-  providers: [PerplexityHealthService],
+  providers: [PerplexityHealthService, CompanionResearchRateLimiter],
 })
 export class AppModule {}

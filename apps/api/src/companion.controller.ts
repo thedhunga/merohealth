@@ -1,7 +1,9 @@
-import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, HttpException, HttpStatus, Post, Req } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { assessSafety, getSafetyTemplate } from '@swasthya/clinical-safety';
 import { z } from 'zod';
+import { requestIp, type IpRequest } from './common/request-ip.js';
+import { CompanionResearchRateLimiter } from './companion-research-rate-limiter.js';
 import { PerplexityHealthService } from './perplexity-health.service.js';
 const requestSchema = z.object({
   message: z.string().trim().min(3).max(4000),
@@ -10,13 +12,16 @@ const requestSchema = z.object({
 @ApiTags('companion')
 @Controller('companion')
 export class CompanionController {
-  // An explicit type annotation is required here, not just the default value:
+  // Explicit type annotations are required here, not just the default values:
   // Nest's DI reflects `design:paramtypes` from the annotation to resolve the
   // provider at runtime. Without it, tsc still emits metadata but as a bare
   // `Object` token, which Nest cannot match to any registered provider and
   // throws on boot — the default value alone only helps direct construction
   // in a test, never Nest's own instantiation path.
-  constructor(private readonly healthResearch: PerplexityHealthService = new PerplexityHealthService()) {}
+  constructor(
+    private readonly healthResearch: PerplexityHealthService = new PerplexityHealthService(),
+    private readonly rateLimiter: CompanionResearchRateLimiter = new CompanionResearchRateLimiter(),
+  ) {}
 
   @Post('assess')
   @ApiOperation({ summary: 'Run deterministic pre-generation safety screening' })
@@ -69,7 +74,12 @@ export class CompanionController {
       },
     },
   })
-  async research(@Body() body: unknown) {
+  async research(@Body() body: unknown, @Req() request: IpRequest) {
+    if (!this.rateLimiter.allow(requestIp(request)))
+      throw new HttpException(
+        { code: 'RATE_LIMITED', message: 'Too many questions from this connection — wait a few minutes and try again.' },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     const parsed = requestSchema.safeParse(body);
     if (!parsed.success)
       throw new BadRequestException({

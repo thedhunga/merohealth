@@ -594,6 +594,42 @@ absent, this section is the source of truth), `frontend-design` skill.
       prior task in this chain needed. **Done 2026-08-20 — see the log entry
       below.**
 
+## FF. Rate limit `POST /companion/research` on `apps/api` — the secondary finding task EE's own sweep surfaced but did not fix
+
+> Every unchecked queue box was still owner/asset-gated. Task EE's own "for
+> the next run" note named this directly, having already ruled the
+> patient-facing access-control sweep genuinely exhausted: `apps/api`'s
+> `companion.controller.ts` `POST /companion/research` carried **no rate
+> limiting or auth of any kind** and forwarded up to 4000 characters to
+> Perplexity's `sonar-pro` model with `search_context_size: 'high'` (the
+> priciest search tier) on every accepted call. Confirmed before starting:
+> no `@nestjs/throttler` dependency and no `ThrottlerModule`/`APP_GUARD`
+> wiring anywhere in `apps/api`. This is a cost/availability risk, not a
+> data-confidentiality one — the same shape task Y already closed on the
+> `apps/web` Next.js route handler for this identical product surface
+> (`apps/web/src/app/api/companion/research/route.ts`), which this NestJS
+> sibling route never had.
+
+- [x] `CompanionResearchRateLimiter` (`apps/api/src/companion-research-rate-limiter.ts`):
+      an `@Injectable()` subclass of the existing `SlidingWindowRateLimiter`,
+      mirroring `OtpRequestRateLimiter`'s shape exactly — 30 calls per 10
+      minutes, the same ceiling the web-side route already uses for this same
+      surface, chosen for the same carrier-grade-NAT reasoning (Nepali mobile
+      networks share addresses across many subscribers, so a tighter per-IP
+      limit would throttle real neighbours together). `CompanionController`'s
+      `research()` method checks it first, before schema parsing, using
+      `requestIp`/`IpRequest` from `apps/api/src/common/request-ip.ts` (the
+      same helper `auth.controller.ts`'s OTP route already uses) via a new
+      `@Req()` parameter; a refused caller gets `HttpException({ code:
+      'RATE_LIMITED', ... }, 429)`, the same `{code, message}` shape
+      `OTP_RATE_LIMITED` uses. `assess()` is untouched — it never leaves the
+      process, so there is nothing to meter. `CompanionResearchRateLimiter` is
+      registered on `AppModule`'s `providers` array alongside the existing
+      `PerplexityHealthService`, since `CompanionController` has never had its
+      own module (registered directly on `AppModule` from the start) and
+      introducing one was out of scope for this fix. **Done 2026-08-20 — see
+      the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2343,6 +2379,87 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-20 — **Task FF — exhausted-queue improvement: rate limit `POST
+  /companion/research` on `apps/api`, the secondary finding task EE's own
+  sweep named but did not fix.** Done.
+
+  **Housekeeping first.** Same shape as the last several runs: `git checkout
+  main` landed on a history disconnected from any local branch (local `main`
+  stale at `9bdf548`, force-pushed `origin/main` now at `27f0520`, 76 vs. 50
+  commits each way) and `git pull` refused with divergent branches. A
+  `backup/pre-force-push-main-9bdf548` branch already existed on the remote,
+  preserving the pre-rewrite history — the documented, deliberate history
+  consolidation, not an unexplained rewrite (same conclusion the last several
+  runs reached; this run re-verified rather than assuming). `git status` was
+  clean, so `git reset --hard origin/main` lost nothing.
+
+  **Queue check.** All eight remaining unchecked boxes in the entire ledger
+  are owner/asset-gated (Google OAuth client id, missing photography credits,
+  payment-provider choice, premium-launch flag, duplex-voice go/no-go, the
+  `InstallPrompt`/`SignInSuggestion` priority call) — read every one before
+  concluding this, not just grepped the count. Picked task EE's own named
+  next candidate instead, per the standing "exhausted queue → highest-value
+  improvement" rule.
+
+  **What shipped.** `apps/api/src/companion-research-rate-limiter.ts`: new
+  `CompanionResearchRateLimiter`, `@Injectable()` extending the existing
+  `SlidingWindowRateLimiter` (30 per 10 minutes, matching the web-side
+  route's own ceiling for this identical product surface — see task Y).
+  `companion.controller.ts`: `research()` gained a `@Req() request: IpRequest`
+  parameter and checks `this.rateLimiter.allow(requestIp(request))` first,
+  before schema parsing, throwing `HttpException({ code: 'RATE_LIMITED',
+  message }, 429)` on refusal — mirrors `OtpRequestRateLimiter`'s call site in
+  `auth.service.ts` exactly, including the "check before parsing" ordering so
+  a caller spraying malformed bodies is throttled on the same allowance as
+  one spraying valid ones. Constructor gained a second parameter with the
+  same explicit-type-annotation-plus-default-value pattern the existing
+  `healthResearch` parameter already uses (Nest's DI needs the annotation;
+  the default only helps direct construction in tests). `assess()` is
+  unchanged — it never leaves the process, so metering it would protect
+  nothing. `app.module.ts`: `CompanionResearchRateLimiter` added to
+  `providers` alongside the existing `PerplexityHealthService`, since
+  `CompanionController` has never had its own module — introducing one was
+  out of scope for a rate-limit fix.
+
+  **Why the controller and not a service-layer check.** `OtpRequestRateLimiter`
+  is checked inside `AuthService`, not `AuthController`, because `AuthService`
+  already existed as the natural home. `CompanionController` has no
+  corresponding service (`PerplexityHealthService` is a thin external-API
+  client, not a domain service), so the check lives in the controller method
+  directly — the same place the `assess()`/`research()` schema validation
+  already lives, keeping the request-handling concerns in one place rather
+  than inventing a service layer for one guard clause.
+
+  **Tests.** `companion.controller.test.ts`: updated the two existing
+  `research()` calls to pass a caller `IpRequest`, since the method now takes
+  one positionally; added two new cases — a caller who exceeds 30 calls in
+  the window gets refused with `{status: 429, response: {code:
+  'RATE_LIMITED'}}` and the underlying `research` mock is never called an
+  additional time (proving the cost is actually avoided, not just that an
+  error is thrown after spending), and a second, distinct caller keeps its
+  own allowance untouched. No new tests needed for
+  `SlidingWindowRateLimiter` itself — the existing shared
+  `sliding-window-rate-limiter.test.ts` suite already covers the base class
+  this subclasses, same as `OtpRequestRateLimiter` needed none of its own.
+
+  **Gate.** `pnpm --filter "./packages/*" build` first, then `pnpm install
+  --frozen-lockfile` / `pnpm lint` (40/40) / `pnpm typecheck` (40/40) /
+  `pnpm test` (75/75, 922 API-suite tests total, up from 920) / `pnpm build`
+  (40/40) all green from the repo root. No journey update under task U's
+  standing rule and no 375px measurement taken — this is an API-only change
+  with no UI surface; confirmed by reading `companion.controller.ts` and its
+  callers that nothing under `apps/web/src` or `apps/mobile` calls the NestJS
+  `/companion/research` route (the web app has its own separate, already
+  rate-limited Next.js route handler at the same path, task Y).
+
+  **For the next run.** The access-control sweep (task Z through EE) and now
+  this rate-limiting gap are both closed. No further named next-candidate
+  remains from either chain. If the queue is still exhausted, a reasonable
+  place to look is whether any other unauthenticated `apps/api` route reaches
+  a paid external call the way `companion.controller.ts` did — this run did
+  not run that sweep (scope was the one named finding), so it is unverified
+  rather than ruled out.
 
 - 2026-08-20 — **Task EE — exhausted-queue improvement: access control on
   `prescribing`'s patient-facing routes; `engagement` and `population-health`
