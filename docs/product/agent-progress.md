@@ -1117,6 +1117,49 @@ absent, this section is the source of truth), `frontend-design` skill.
       tap and `onRequestClose` already use. **Done 2026-08-21 — see the log
       entry below.**
 
+## WW. `AnalyticsController` had zero auth on 7 clinic-wide business-data routes
+
+> The queue is exhausted for the agent (task U's third bullet, task V/V′, and
+> the owner-gated set are all that remain unchecked), so this is a step-4
+> improvement. Found by a fresh sweep rather than a prior log lead:
+> `analytics.controller.ts` (clinical-suite.md row 14) had **no `@UseGuards`
+> anywhere, at class or method level**, and `AppModule` applies no global
+> guard either — so `GET /analytics/billing`, `/analytics/patients`,
+> `/analytics/scheduling`, `/analytics/referrals`, `/analytics/engagement`,
+> `/analytics/immunization` and `/analytics/diagnostics-orders` were all
+> reachable unauthenticated, each returning real clinic-wide business counts
+> (invoice totals by status, patient totals by recorded sex, and so on).
+> Confirmed no frontend caller exists (`apps/web`/`apps/mobile` grepped clean
+> for `analytics`), so this isn't a deliberately public dashboard API — it's
+> an oversight the same shape as task EE's `prescribing` finding, just with
+> aggregate counts instead of individual records.
+>
+> Not the same fix shape as `population-health` (still correctly listed
+> under "Owner-gated" below): that module returns a *per-patient* registry
+> with no `patientId` in the request to scope a session guard against, so it
+> genuinely needs the not-yet-built clinician/`tenancy` role. `analytics`
+> has no per-patient data at all — every summary is a pure aggregate count
+> (`packages/analytics/src/index.ts`'s own doc comment: "no fetching, no
+> filtering… nothing here defines a target, a benchmark"), which is exactly
+> the "business dashboard, owner-only" shape `EarlyAccessController.export`
+> already established and gates with `SessionAuthGuard` + `OwnerGuard`
+> (`SUPER_ADMIN` role) — a precedented, mechanical fix, not a new
+> architecture question.
+
+- [x] `SessionAuthGuard` + `OwnerGuard` on all 7 data-bearing routes;
+      `health` stays ungated (no auth concept, matches every sibling
+      controller's convention). `analytics.module.ts` now imports
+      `AuthModule` directly (the same "import the module, get the guard"
+      wiring `EarlyAccessModule`/`PrescribingModule` use) and provides
+      `OwnerGuard` locally, matching `EarlyAccessModule` exactly since
+      `AuthModule` doesn't provide `OwnerGuard` itself. Added an "auth
+      wiring" describe block to `analytics.controller.test.ts` using the
+      same `Reflect.getMetadata('__guards__', ...)` helper
+      `prescribing.controller.test.ts`/`referrals.controller.test.ts`
+      already use, since a direct method call (every other test in that
+      file) bypasses Nest's guard pipeline entirely. **Done 2026-08-21 — see
+      the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2880,6 +2923,113 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-21 — **Task WW — exhausted-queue improvement: `AnalyticsController`
+  had zero auth on 7 clinic-wide business-data routes.** Done.
+
+  **Housekeeping.** Same shape as every recent entry. `git checkout main`
+  reported 50 commits left behind on a detached `HEAD` (local `main` was
+  still at the stale `9bdf548`, with no common ancestor against
+  `origin/main`, now tipped at `838de1f`). `git status` was clean, so
+  `git reset --hard origin/main` — production's real history, and
+  `origin/backup/pre-force-push-main-9bdf548` still preserves the old tip.
+
+  **Standing red-CI check.** Latest `ci` run on `main` is `838de1f` (push,
+  **success**). The only two *schedule*-triggered `journeys-production` runs
+  are both still from before the WebKit fix (`c4d50a9`, landed
+  2026-08-20T23:20 UTC); the 22:15 UTC nightly hasn't fired again since (this
+  run started 2026-08-21T01:13 UTC). Still unconfirmed — carrying the same
+  note forward again: **check the next `journeys-production` run once it
+  exists; if `iphone` still fails there, it's a real journey bug this time.**
+
+  **Queue check.** Every unchecked box read: task U's third bullet (standing
+  rule, no deliverable), task V (`InstallPrompt`/`SignInSuggestion` priority
+  — owner UX call), V′ (emergency "find a hospital" button — owner call,
+  unsafe to wire unilaterally), and the owner-gated set. Queue exhausted for
+  the agent → a step-4 improvement.
+
+  **Why this.** Ran a fresh sweep rather than reusing a prior log's "for the
+  next run" lead (the one open lead — the extensionless-metadata middleware
+  trap — still isn't actionable: `apps/web/src/app/opengraph-image.tsx` and
+  `twitter-image.tsx` still don't exist). The sweep found
+  `analytics.controller.ts` (`apps/api/src/analytics/`) had no
+  `@UseGuards` at all, at class or method level, on any of its 7
+  data-bearing routes — `patients`, `scheduling`, `billing`, `referrals`,
+  `engagement`, `immunization`, `diagnostics-orders` — each returning real
+  clinic-wide counts (invoice totals by status, patient totals by recorded
+  sex, and so on) to anyone, unauthenticated. Confirmed no frontend caller
+  exists: grepped `apps/web` and `apps/mobile` for `analytics`, found
+  nothing, so this is an oversight, not deliberately public API. Never
+  mentioned in the ledger's "Owner-gated" section or in any prior access-
+  control task's log — unlike `population-health`, which got an explicit
+  owner-gated writeup from task EE.
+
+  **Why this isn't the same shape as `population-health`.** Checked that
+  precedent carefully before touching anything, since it's the closest
+  sibling (also cross-patient, also GET-only, also row-adjacent in
+  `clinical-suite.md`). `population-health.controller.ts` returns a
+  *per-patient* registry (which patients have a given condition/allergy/
+  medication) with no single `patientId` anywhere in its request shape to
+  compare against a caller's `subjectId` — task AA's log entry correctly
+  ruled that one needs a real clinician/role session (the `tenancy` module)
+  that doesn't exist yet, not a mechanical guard. `analytics` is different:
+  every summary is a pure aggregate count with zero per-patient fields —
+  `packages/analytics/src/index.ts`'s own doc comment states this
+  deliberately ("no fetching, no filtering… nothing here defines a target,
+  a benchmark"). That's the exact "business dashboard, owner-only" shape
+  `EarlyAccessController.export` already established: `SessionAuthGuard` +
+  `OwnerGuard` (`SUPER_ADMIN` role) gating the launch-day contact-list CSV
+  export, a precedented, mechanical fix rather than a new architecture
+  question needing an owner call.
+
+  **The fix.** Added `@UseGuards(SessionAuthGuard, OwnerGuard)` to all 7
+  data-bearing routes; left `health` ungated (no auth concept, matches
+  every sibling controller — `prescribing`, `referrals`, etc. — leaving
+  their own `health` routes open). `analytics.module.ts` now imports
+  `AuthModule` directly (not transitively) for `SessionAuthGuard` — the
+  same "import the module, get the guard" wiring `EarlyAccessModule` and
+  `PrescribingModule` use — and provides `OwnerGuard` locally as a module
+  provider, matching `EarlyAccessModule` exactly (`AuthModule` itself
+  doesn't provide `OwnerGuard`, so each consumer that needs it declares it).
+
+  **Verification.** Added an "AnalyticsController auth wiring" describe
+  block to `analytics.controller.test.ts`, same pattern
+  `prescribing.controller.test.ts`/`referrals.controller.test.ts` already
+  use: reads Nest's own `__guards__` reflect-metadata key off each
+  controller method, since the file's other tests call controller methods
+  directly and bypass Nest's guard pipeline entirely — a plain `expect(...).
+  rejects` test would pass even with no guard at all. Asserts all 7 routes
+  carry `[SessionAuthGuard, OwnerGuard]` and `health` carries `undefined`.
+  `app.module.test.ts`'s full-module-graph `compile()` also passed, which is
+  what actually catches an unresolvable-guard DI mistake (its own doc
+  comment explains why — a transitive `AuthModule` re-export previously hid
+  exactly this class of bug for two other controllers). No UI changed, so no
+  375px measurement or message-file update applies (server-only fix,
+  matching the precedent every other `apps/api`-only task in this chain
+  set). Full pipeline from a clean tree: `pnpm install --frozen-lockfile`,
+  `pnpm lint` (40/40), `pnpm typecheck` (40/40), `pnpm test` (75/75 tasks;
+  api 125 files / 936 tests, up from 934 — the two new guard-wiring
+  assertions), `pnpm build` (40/40).
+
+  **For the next run.** In the order I'd take them:
+  1. Re-check the standing red-CI rule first, including whether a
+     `journeys-production` nightly has run since `c4d50a9` and gone green
+     with both browsers installed.
+  2. Task **V′** (owner decision): the emergency screen's dead "find a
+     hospital" button.
+  3. Task **V** (owner decision): `InstallPrompt` vs `SignInSuggestion`
+     priority.
+  4. The extensionless-metadata middleware trap (RR/SS/TT's own recurring
+     note) is still just a note — add `app/opengraph-image.tsx`'s matcher
+     entry in the same commit that first adds such a file.
+  5. `apps/mobile/app/capture.tsx`'s document-photo review `<Image>` has no
+     `accessibilityLabel`, unlike every `Pressable` on the same screen —
+     small, real, low-severity a11y gap surfaced while scouting this run's
+     candidates but not chosen (weaker than the analytics auth gap).
+  6. `companion.controller.ts`'s `POST companion/assess` has no rate limiter
+     unlike its sibling `POST companion/research` — worth checking whether
+     it should share `CompanionResearchRateLimiter`, though it's cheap/local
+     today so the DoS argument is softer than task WW's was.
 
 - 2026-08-21 — **Task VV — exhausted-queue improvement: `ProfileSwitcher`'s
   modal had no visible close button.** Done.

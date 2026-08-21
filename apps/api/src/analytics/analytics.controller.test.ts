@@ -1,6 +1,8 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import { InMemoryDocumentStore } from '@swasthya/storage-adapters';
 import { describe, expect, it, vi } from 'vitest';
+import { OwnerGuard } from '../auth/owner.guard.js';
+import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { BillingRepository } from '../billing/billing.repository.js';
 import { BillingService } from '../billing/billing.service.js';
 import { ClinicalChartingRepository } from '../clinical-charting/clinical-charting.repository.js';
@@ -225,5 +227,30 @@ describe('AnalyticsController.health', () => {
   it('reports UP', async () => {
     const { controller } = buildController();
     await expect(controller.health()).resolves.toEqual({ status: 'UP' });
+  });
+});
+
+// Same pattern `prescribing.controller.test.ts`/`referrals.controller.test.ts`
+// use: Nest's own `@UseGuards` metadata key, since a plain method call
+// (every other test in this file) bypasses Nest's guard pipeline entirely.
+const GUARDS_METADATA = '__guards__';
+const controllerProto = AnalyticsController.prototype as unknown as Record<string, () => unknown>;
+function guardsFor(method: string): unknown {
+  return Reflect.getMetadata(GUARDS_METADATA, controllerProto[method]!);
+}
+
+describe('AnalyticsController auth wiring', () => {
+  it('gates every data-bearing route behind SessionAuthGuard + OwnerGuard', () => {
+    expect(guardsFor('patients')).toEqual([SessionAuthGuard, OwnerGuard]);
+    expect(guardsFor('scheduling')).toEqual([SessionAuthGuard, OwnerGuard]);
+    expect(guardsFor('billing')).toEqual([SessionAuthGuard, OwnerGuard]);
+    expect(guardsFor('referrals')).toEqual([SessionAuthGuard, OwnerGuard]);
+    expect(guardsFor('engagement')).toEqual([SessionAuthGuard, OwnerGuard]);
+    expect(guardsFor('immunization')).toEqual([SessionAuthGuard, OwnerGuard]);
+    expect(guardsFor('diagnosticsOrders')).toEqual([SessionAuthGuard, OwnerGuard]);
+  });
+
+  it('leaves health ungated — no auth concept at all', () => {
+    expect(guardsFor('health')).toBeUndefined();
   });
 });
