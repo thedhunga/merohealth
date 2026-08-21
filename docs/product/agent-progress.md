@@ -3212,6 +3212,69 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-21 — **Task EEE — exhausted-queue improvement: tested
+  `PrismaHistoryStore`, the third of the five remaining untested `apps/api`
+  `Prisma*Store` adapters, following task DDD's own "recommend `history`
+  next" lead.** Added `src/history/prisma-history.store.test.ts`.
+
+  **Housekeeping.** This container's local `main` had a pre-existing
+  divergent `main` (76 vs. 50 different commits, no common ancestor) — the
+  same fresh-container-predates-the-reset pattern the WW–DDD entries
+  describe. `git status` was clean; `origin/backup/pre-force-push-main-9bdf548`
+  still preserves the old tip. `git reset --hard origin/main` before picking
+  a task.
+
+  **Standing red-CI check.** Latest push-triggered `ci` run on `main`
+  (`8798d55`, task DDD's commit) is green — confirmed via the GitHub Actions
+  API before picking a task.
+
+  **Queue check.** Unchanged from CCC/DDD: task U's third bullet, task V/V′,
+  and the owner-gated set are the only unchecked boxes, all blocked on an
+  owner call. Queue exhausted for the agent again → a step-4 improvement,
+  continuing directly from DDD's own explicit recommendation rather than a
+  fresh sweep.
+
+  **The fix.** `history/prisma-history.store.ts`'s `migrate` method has the
+  most branching of the three remaining adapters: a single `$transaction`
+  array that conditionally includes the `historyExchange.createMany` op at
+  all (skipped when the batch is empty), `jsonProfile`'s three-field
+  conditional builder (and its `conditions: []` treated as "nothing
+  offered", not "an empty list was offered"), and every optional exchange
+  field (`conversationId`, `spokenIn`) spread rather than defaulted to
+  `null`, matching `exactOptionalPropertyTypes`. The new test fakes
+  `PrismaService.client`'s `historyMigration.create`, `historyExchange
+  .createMany` and `$transaction` directly (`create`/`createMany` return
+  opaque tokens so the array actually passed to `$transaction` can be
+  asserted on, since none of the three prior adapters' tests needed to
+  mock a `$transaction` array call and there was no existing pattern to
+  follow). Covers: the full-batch happy path asserting both write calls'
+  exact args and the `$transaction` array shape; the empty-exchanges skip
+  of `createMany`; `profileSnapshot` omitted entirely versus built from
+  only the offered fields versus an empty `conditions` array counted as
+  absent; `conversationId`/`spokenIn` omitted when the caller never sent
+  them; an explicit `spokenIn: false` kept (not treated as falsy-absent,
+  the same `!== undefined` distinction `jsonProfile`'s sibling fields
+  don't need since they're never legitimately `false`); multiple exchanges
+  batched into one `createMany` call; the `P2002`-on-`anonymousId` race
+  mapped to `{ alreadyMigrated: true }`; and both a different Prisma error
+  code and a plain non-Prisma error rethrown rather than swallowed. 11
+  tests added (0 before). Full monorepo gate green: `pnpm install
+  --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40), `pnpm
+  test` (128 files / 969 tests, up from 127/958), `pnpm build` (40/40, 35
+  cached). No user-visible change, so no journey update needed under task
+  U's standing rule.
+
+  **For the next run.** Two `Prisma*Store` adapters remain untested:
+  `entitlements/prisma-subscription-grant.store.ts` (real logic:
+  extend-from-later-of-now-or-existing-period date math, never-downgrade
+  tier comparison — recommended next) and `auth/prisma-auth.store.ts` (pure
+  passthrough, lowest value of the group — only if the ledger is otherwise
+  still exhausted when that run starts). Once both are done, this
+  exhausted-queue lead is fully spent and the next run should fall back to
+  a fresh sweep (auth/rate-limit/accessibility/etc., the way CCC's own
+  sweep did) rather than searching for a sixth `Prisma*Store` that isn't
+  there.
+
 - 2026-08-21 — **Task DDD — exhausted-queue improvement: tested
   `PrismaEarlyAccessStore`, the second of the five remaining untested
   `apps/api` `Prisma*Store` adapters task CCC's own log entry named.** Added
