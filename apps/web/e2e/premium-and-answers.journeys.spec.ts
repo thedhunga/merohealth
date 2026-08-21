@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test.describe('premium is visible but not for sale (owner decision 2026-08-18)', () => {
   test('/pricing shows no rupee price for Plus/Pro, offers "be first", and the form works', async ({ page }) => {

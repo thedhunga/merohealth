@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /**
  * `/app` is the Expo web export of `apps/mobile` — the actual product

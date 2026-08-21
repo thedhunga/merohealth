@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 import { mockResearchAnswers, seedAnonymousHistory } from './helpers';
 
@@ -158,9 +158,15 @@ test.describe('dark mode toggle persists (task T)', () => {
 
     // The native checkbox is `sr-only` — the visible switch pill sits on top
     // of it by design (same pattern as CorpusConsentToggle), so a real tap
-    // never lands on the input itself either; `force` skips the pointer-
-    // interception check rather than fighting the component's own styling.
-    await toggle.click({ force: true });
+    // never lands on the input itself; it lands on `ThemeToggle.tsx`'s
+    // wrapping `<label htmlFor="account-theme-dark">`, which is the input's
+    // own immediate parent. Clicking that label — not `toggle` itself with
+    // `force: true` — is what a finger or a mouse actually does: `force`
+    // dispatches a synthetic click at the sr-only input's own (1px-square,
+    // clipped) coordinates, which is a fragile target for pointer automation
+    // across engines and is not the interaction a real person performs.
+    const toggleLabel = toggle.locator('xpath=..');
+    await toggleLabel.click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     expect(await page.evaluate(() => localStorage.getItem('mero-theme'))).toBe('dark');
 

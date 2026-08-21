@@ -1256,6 +1256,119 @@ absent, this section is the source of truth), `frontend-design` skill.
       standing rule needed no journey update, same as task XX's log entry.
       **Done 2026-08-21 — see the log entry below.**
 
+## ZZ. `journeys-production`'s WebKit-only failures, task YY's own top lead — the dark-mode-toggle test's fragile click fixed, real-browser diagnostics added for the rest
+
+> The queue is exhausted for the agent (task U's third bullet, task V/V′,
+> and the owner-gated set are all that remain unchecked), so this is a
+> step-4 improvement. Task YY's own "for the next run" list ranked this
+> lead 1: the manually-triggered `journeys-production` run it confirmed six
+> real (not flaky) `iphone`-only failures across four unrelated spec
+> files — `बोल्नुहोस्`/`Speak` never visible, an advisory appearing where
+> it shouldn't, a canned answer never appearing, `data-theme` never
+> flipping to `dark` on click — with `phone` (Chromium) green on the exact
+> same commit and spec files throughout.
+
+- [x] Investigated all six. **One confirmed, fixed root cause; one ruled
+      out; one plausible-but-unconfirmed explanation; three still
+      genuinely unexplained** — reported honestly rather than guessing a
+      product fix for symptoms that were never actually reproduced.
+
+  **Confirmed and fixed: the dark-mode-toggle test's own click was
+  fragile, independent of any product bug.** `round-seven.journeys.spec.ts`
+  clicked `#account-theme-dark` — `ThemeToggle.tsx`'s native checkbox,
+  `sr-only` (Tailwind: an absolutely-positioned 1px×1px clipped box) — with
+  `force: true`, which dispatches a synthetic click at that element's own
+  tiny coordinates rather than simulating what a finger or mouse actually
+  does: land on the *visible* switch pill, which is the checkbox's own
+  wrapping `<label htmlFor="account-theme-dark">`, and let the browser's
+  native label-activates-control behaviour fire the checkbox's `click`.
+  Forcing a click onto a 1px, clipped target is a known-fragile pattern for
+  cross-engine pointer automation (sub-pixel center-coordinate rounding can
+  land the dispatched point half a pixel outside a box that small); this
+  code path had never been exercised on WebKit at all before task XX's
+  `c4d50a9` fixed the CI-runner WebKit install, so nothing had ever
+  surfaced it. Changed the test to click `toggle.locator('xpath=..')` (the
+  real wrapping label) instead of force-clicking the input — this is not a
+  weakened assertion, it is a *more* faithful one: it now exercises the
+  exact interaction a real person performs, which the old version
+  deliberately routed around. Confirmed locally against Chromium (`pnpm
+  --filter @swasthya/web exec playwright test --project=phone
+  --project=desktop -g "dark mode toggle"`, plus the full local suite) that
+  the new click still passes — this alone cannot prove the WebKit failure
+  is fixed (no WebKit browser is installed in this environment and
+  `playwright install` is off-limits here — see below), but it removes the
+  one fragile step in the whole test that had a documented, plausible
+  cross-engine failure mode, and the CI `iphone` run once this lands is the
+  real verification.
+
+  **Ruled out: service-worker interception stealing the mocked
+  `/api/companion/research` POST in WebKit.** The natural suspect for "a
+  mocked network response never showing up in one engine but not another"
+  is `public/sw.js`'s `fetch` handler racing with Playwright's
+  `page.route()`. Read the handler directly rather than assuming: its very
+  first line is `if (request.method !== 'GET') return;` — every mutation,
+  including this POST, is untouched by the service worker regardless of
+  install/activate/claim timing, in every engine. Not the cause.
+
+  **Plausible but not confirmed: `बोल्नुहोस्`/`Speak` never appearing is
+  the mic-hero honestly falling back to text-first, not a bug.**
+  `useSpeechDictation.ts` sets `supported = Boolean(w.SpeechRecognition ??
+  w.webkitSpeechRecognition)` — if neither constructor exists,
+  `micHeroLayout` never returns `'voiceFirst'`, so `HomeScreen`/
+  `FirstVisitScreen` never render the `t('micLabel')` text these two
+  journeys wait for; they'd see the (correctly rendered, by design —
+  task P) `micUnavailable` copy instead. Real Safari on macOS/iOS has
+  shipped partial `webkitSpeechRecognition` support since versions
+  14.1/14.5, but **Playwright's own WebKit build on Linux — what
+  `journeys-production` actually runs — is a separate, automation-focused
+  build of the engine and may simply not wire up platform speech services
+  at all**, which would produce this exact failure with zero relationship
+  to what a real iPhone visitor experiences. Grounded in the Web Speech
+  API's documented browser-support gaps, not assumed, but still **not
+  confirmed against the actual browser** — no WebKit binary is installed in
+  this environment (`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` ships only
+  Chromium) and this environment's own instructions say not to install one.
+  Left unfixed on purpose: changing test assertions or product fallback
+  copy on an inference this uncertain would be exactly the kind of
+  unverified guess task U's standing rule and this ledger's honesty norm
+  exist to prevent. **For the next run: this is answerable without
+  guessing** — a run with WebKit available locally (or a throwaway
+  `console.log(Boolean(window.SpeechRecognition ??
+  window.webkitSpeechRecognition))` added temporarily to one journey and
+  read back from the now-working diagnostics below) settles it in minutes.
+
+  **Still genuinely unexplained: the canned-answer and advisory-scoping
+  failures.** `POST /api/companion/research` is Next's own route handler
+  (`apps/web/src/app/api/companion/research/route.ts`), not `apps/api` —
+  it needs no backend to be up, the SW ignores it (above), and the fetch
+  call itself (`GetCareFlow.tsx`) is a plain same-origin JSON POST with no
+  exotic options. Nothing found in source explains why the mocked
+  `पहिलो जवाफ।` never appeared or why an advisory showed up on a turn that
+  should not have one, specifically on WebKit. Rather than ship a guess,
+  **added real diagnostics instead of another guess**: every spec now
+  imports `test`/`expect` from a new `e2e/fixtures.ts`, whose `page`
+  fixture forwards `console.error`, uncaught `pageerror`, and
+  `requestfailed` events straight into the test's own stdout. The
+  motivating gap: `journeys-production`'s trace/screenshot artifact
+  (`playwright-report-production`, confirmed present on task YY's run,
+  9433109346) could not be downloaded from this environment — its
+  `blob.core.windows.net` storage host is not on the outbound-network
+  allowlist here (`curl` and the GitHub MCP artifact-download URL both hit
+  a 403 at the proxy). Job logs alone showed only "element not found" with
+  no browser-side cause. With this fixture in place, the *next*
+  `journeys-production` failure — WebKit or otherwise — will print the
+  actual JS error, failed request, or console warning directly into the
+  job log, no artifact download required. Verified locally (Chromium):
+  ran the full suite once and confirmed the new listeners fire correctly
+  on real conditions already present (`apps/api` not running locally
+  produces real, expected `ERR_CONNECTION_REFUSED` lines) without
+  introducing any new failures or false positives of their own.
+
+  **Housekeeping / standing red-CI check.** Same shape as every recent
+  entry — see the log entry below for the full detail (dangling-commit
+  count, `git checkout -B main origin/main`, latest push-triggered `ci` on
+  `main` green at `563dfa3`).
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -3019,6 +3132,106 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-21 — **Task ZZ — exhausted-queue improvement: investigated
+  `journeys-production`'s six confirmed `iphone`-only failures (task YY's
+  own top lead).** One real, fixed cause; one theory ruled out; one
+  plausible-but-unverified explanation; three still open. See the ledger
+  entry above for the full technical trace — this is the run summary.
+
+  **Housekeeping.** Same shape as every recent entry. `git checkout main`
+  reported 50 dangling commits on a detached `HEAD` (local `main` was still
+  at the stale `9bdf548`, no common ancestor against `origin/main`, tipped
+  at `563dfa3`, task YY's own commit). `git status` was clean, so `git
+  checkout -B main origin/main` — production's real history;
+  `origin/backup/pre-force-push-main-9bdf548` still preserves the old tip.
+
+  **Standing red-CI check.** Latest push-triggered `ci` run on `main`
+  (`563dfa3`) is green — confirmed via the GitHub Actions API before
+  picking a task, per the standing rule.
+
+  **Queue check.** Every unchecked box read: task U's third bullet
+  (standing rule, no deliverable), task V/V′ (owner UX/safety calls), and
+  the owner-gated set. Queue exhausted for the agent → a step-4
+  improvement, same as WW/XX/YY. Task YY's own "for the next run" list
+  ranked the `journeys-production` WebKit failures as lead 1, ahead of the
+  two owner-decision tasks — picked that.
+
+  **What was actually available to investigate.** Pulled the manually-
+  triggered run's job log for the failing `journeys-production` job
+  (`96656681923`, via the GitHub Actions API) and parsed out every
+  assertion failure: six real failures, all "element(s) not found" or
+  "attribute never changed" timeouts, all `[iphone]`-only, spanning four
+  spec files (`round-seven`, `personas`, `safety` had one flaky-not-hard
+  failure). Tried to pull the run's own trace/screenshot artifact
+  (`playwright-report-production`, id `9433109346`) for the real browser-
+  side detail — both a direct `curl` and the GitHub MCP artifact-download
+  URL hit the same wall: `productionresultssa0.blob.core.windows.net` is
+  not on this environment's outbound allowlist (confirmed via
+  `$HTTPS_PROXY/__agentproxy/status`, a 403 at the proxy). No WebKit binary
+  is installed locally either (`/opt/pw-browsers` ships only Chromium, and
+  this environment's own instructions say not to run `playwright install`),
+  so nothing here could be reproduced against the real failing engine.
+  Investigated by reading source directly instead of guessing, and used
+  web research only to confirm externally-documented browser facts (Safari
+  `navigator.permissions.query('microphone')` behaviour, Web Speech API
+  support gaps) rather than to invent an explanation.
+
+  **Outcome, one line each — full reasoning in the ledger entry above.**
+  Dark-mode-toggle test's force-click on a 1px `sr-only` checkbox: real,
+  fixed — now clicks the actual wrapping label a person taps. Service
+  worker stealing the mocked POST: ruled out by reading `public/sw.js`
+  directly (`if (request.method !== 'GET') return;`). Mic-hero label never
+  appearing: plausible (Playwright's Linux WebKit build likely lacks
+  `SpeechRecognition` entirely, unrelated to real Safari), but explicitly
+  left unfixed since it is not confirmed. Canned-answer and advisory-
+  scoping failures: still unexplained after investigation. Rather than
+  guess at those three, added `e2e/fixtures.ts` — every spec now imports
+  `test`/`expect` from it instead of `@playwright/test` directly, and its
+  `page` fixture echoes `console.error`, `pageerror`, and `requestfailed`
+  events into the test's own stdout, so the next WebKit failure explains
+  itself in the CI job log with no artifact download required.
+
+  **Verification.** `pnpm install --frozen-lockfile`, `pnpm lint` (40/40),
+  `pnpm typecheck` (40/40), `pnpm test` (75/75 tasks, all cached clean),
+  `pnpm build` (40/40) all green — none of these gates cover `apps/web/e2e`
+  (it's outside both `tsc`'s `include` and `eslint src`), so the e2e
+  changes were verified separately: built all workspace packages
+  (`@swasthya/entitlements`/`@swasthya/family` etc. need their `dist/`
+  output before `next dev` can resolve them — the first local run failed
+  with `Module not found` until `pnpm build` ran), then ran the full local
+  suite twice against Chromium (`--project=phone --project=desktop`): 39
+  passed including the fixed dark-mode-toggle test in both projects; the
+  only two failures (`phone.journeys.spec.ts`'s PWA-manifest icon fetch,
+  "socket hang up") reproduced as a `next dev` resource-contention flake
+  under full parallel load and passed cleanly re-run in isolation —
+  confirmed unrelated to this change before moving on.
+
+  **375px note.** Nothing in this task changed any rendered page or
+  component — the diff is `apps/web/e2e/*` only (a test's click target and
+  a shared fixtures file), so there is no before/after phone-screenshot or
+  screen-count to report this run.
+
+  **For the next run, in order:**
+  1. Settle the mic-hero theory: on a machine where a real WebKit binary is
+     available (or the next `journeys-production` CI run, now with
+     `e2e/fixtures.ts`'s console output attached to the job log), check
+     whether `window.SpeechRecognition ?? window.webkitSpeechRecognition`
+     is actually `undefined` in that engine. If so, the `बोल्नुहोस्`/
+     `Speak` assertions in `round-seven.journeys.spec.ts` and
+     `personas.journeys.spec.ts` need to assert on whichever label the
+     `unavailable` fallback renders instead — a test fix, not a product
+     one, since `micHeroLayout`'s fallback is Round seven task P's own
+     documented, deliberate design.
+  2. The canned-answer (`पहिलो जवाफ।`) and advisory-scoping failures remain
+     the real open question. With diagnostics now in place, the next
+     `journeys-production` run's job log should show a concrete browser-
+     side error or failed request for these two instead of a bare timeout —
+     read that before forming a new theory.
+  3. Task **V′** (owner decision): the emergency screen's dead "find a
+     hospital" button.
+  4. Task **V** (owner decision): `InstallPrompt` vs `SignInSuggestion`
+     priority.
 
 - 2026-08-21 — **Task YY — exhausted-queue improvement: `POST
   /companion/assess` had no rate limiter, the last public POST route in
