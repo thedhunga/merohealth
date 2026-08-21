@@ -1405,6 +1405,49 @@ absent, this section is the source of truth), `frontend-design` skill.
       actual production-WebKit answer once this run's follow-up CI trigger
       completed.**
 
+## BBB. Fix the `@swasthya/database` build/test `prisma generate` race — the turbo.json fix task ZZ and the housekeeping-only run after AAA both named but neither landed
+
+> The queue is exhausted for the agent (task U's third bullet, task V/V′,
+> and the owner-gated set are all that remain unchecked), so this is a
+> step-4 improvement. Two prior log entries (task ZZ's, and the doc-only
+> entry appended after task AAA) independently traced the same self-healing
+> `pnpm test` flake — `@swasthya/database`'s `build`, `lint`, `typecheck`
+> and `test` scripts each run their own `prisma generate` into the same
+> `generated/` output, and root `turbo.json`'s `test` task only
+> `dependsOn: ["^build"]` (upstream packages' build), not this package's
+> own — so when some other workspace package's `test` task pulls in
+> `database#build` via `^build` while `database#test` runs its own
+> `prisma generate` at the same time, the two writers race. Both entries
+> named the fix and left it for "whichever run hits it next"; this run
+> picked it up directly rather than wait for a third flake.
+
+- [x] Added `packages/database/turbo.json` (a Turborepo [Package
+      Configuration](https://turbo.build/repo/docs/reference/package-configurations),
+      `extends: ["//"]`) overriding only the `test` task for this one
+      package: `dependsOn: ["^build", "build"]` — the added bare `"build"`
+      (no `^`) is turbo's syntax for "this package's own build task", which
+      forces `database#build` to fully finish (and its `prisma generate` to
+      finish writing) before `database#test` starts, instead of the two
+      running in parallel. Scoped to `packages/database` only, via a
+      package-level override rather than editing the root `turbo.json`'s
+      `test` task — every other package's `test` graph is unaffected, since
+      Package Configurations completely replace (not merge with) the root's
+      definition for just the tasks they name, in just that package.
+      Confirmed the fix lands where intended with `npx turbo run test
+      --filter=@swasthya/database --dry-run=json`: the graph now lists
+      `@swasthya/database#test` with `@swasthya/database#build` among its
+      `dependencies` (previously only `@swasthya/shared-types#build` was
+      there). Left the redundant `prisma generate` inside the `test` script
+      itself alone — with the race fixed it is no longer concurrent with
+      `build`'s copy, just a cheap, idempotent no-op safety net for anyone
+      running `pnpm --filter @swasthya/database test` directly without
+      going through turbo's graph. Full monorepo gate green: `pnpm install
+      --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+      `pnpm test` (75/75, including a clean `@swasthya/database#build` →
+      `#test` run with no cache to hide a race), `pnpm build` (40/40, 35
+      cached). No user-visible change, so no journey update needed under
+      task U's standing rule. **Done 2026-08-21 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -3168,6 +3211,65 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-21 — **Task BBB — exhausted-queue improvement: fixed the
+  `@swasthya/database` `prisma generate` race two prior entries had named
+  but left open.** Task ZZ's log entry and the doc-only entry appended
+  after task AAA (commit `ee300df`) both independently traced the same
+  self-healing `pnpm test` flake to the same root cause and the same fix,
+  without either landing it. This run landed it.
+
+  **Housekeeping.** `git checkout main` reported local `main` diverged from
+  `origin/main` (76 vs. 50 different commits — local was still the stale
+  pre-force-push tip). `git status` was clean and
+  `origin/backup/pre-force-push-main-9bdf548` already preserves that old
+  history, so `git reset --hard origin/main` — production's real history.
+
+  **Standing red-CI check.** Latest push-triggered `ci` run on `main`
+  (`ee300df`) is green — confirmed via the GitHub Actions API before
+  picking a task, per the standing rule.
+
+  **Queue check.** Same as WW–AAA: task U's third bullet, task V/V′, and
+  the owner-gated set are the only unchecked boxes, all blocked on an owner
+  call. Queue exhausted for the agent → a step-4 improvement. Picked the
+  turbo/Prisma race over starting a fresh sweep: it already had two
+  independent root-cause traces and a named fix sitting unclaimed in the
+  log, which is a stronger signal than searching for a new gap from
+  scratch.
+
+  **The fix.** `packages/database/package.json`'s `build`, `lint`,
+  `typecheck` and `test` scripts each independently run `prisma generate`
+  into the same `generated/` output, and root `turbo.json`'s `test` task
+  only `dependsOn: ["^build"]` — other workspace packages' builds, not this
+  package's own. So when some other package's `test` task pulled in
+  `database#build` through `^build` at the same moment `database#test` ran
+  its own `prisma generate`, the two writes could race. Added
+  `packages/database/turbo.json`, a Turborepo Package Configuration
+  (`extends: ["//"]`) that overrides just the `test` task for this one
+  package to `dependsOn: ["^build", "build"]` — the bare `"build"` (no
+  `^`) means "this package's own build task first". Confirmed with `npx
+  turbo run test --filter=@swasthya/database --dry-run=json` that
+  `@swasthya/database#build` is now listed under `@swasthya/database#test`'s
+  `dependencies` (it wasn't before). Package Configurations replace, not
+  merge, the root's task definition for the task/package they name, so
+  every other package's `test` graph is untouched — verified by running the
+  full monorepo gate, not just the one package: `pnpm install
+  --frozen-lockfile`, `pnpm lint` (40/40 tasks), `pnpm typecheck` (40/40),
+  `pnpm test` (75/75, `database#build` and `#test` both ran uncached in the
+  same invocation with no error — the actual condition that used to race),
+  `pnpm build` (40/40, 35 cached). Left the now-redundant `prisma generate`
+  inside the `test` script itself in place, on purpose — it no longer races
+  anything and stays a cheap safety net for direct
+  `pnpm --filter @swasthya/database test` invocations that bypass turbo's
+  graph entirely. No user-visible change; task U's standing rule needed no
+  journey update, same as tasks XX/YY.
+
+  **For the next run.** The queue is still exhausted for the agent (same
+  three items: task U's third bullet, task V/V′, owner-gated set). No open
+  leads from this run — the turbo/Prisma flake this closes was the only
+  concretely-named unclaimed item sitting in the log. The next run should
+  do a fresh sweep (matching task YY/ZZ's approach) rather than assume one
+  exists.
 
 - 2026-08-21 — **Task AAA — exhausted-queue improvement: confirmed the
   mic-hero-label theory task ZZ left "plausible but not confirmed."**
