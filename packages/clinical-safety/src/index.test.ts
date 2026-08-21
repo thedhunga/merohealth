@@ -170,6 +170,33 @@ describe('Nepal medicine lexicon — brand names people actually say, and the pr
     }
     expect(commonMedicinesInNepal.length).toBeGreaterThanOrEqual(60);
   });
+
+  // A pattern list this size is edited far more often than it is read in
+  // full — these two checks catch the two ways that editing silently breaks
+  // recognition instead of raising a type error: a new/edited pattern that
+  // no longer matches the very name it was written for (a bad escape, a
+  // wrong Devanagari conjunct, a stray anchor), and a pattern copy-pasted
+  // from one entry into another, which would misattribute a real mention.
+  const genericLabelEntries = new Set(['pain-relief balm', 'cold and flu tablet']);
+  it("every entry's own name is recognised by one of its own patterns, except the named generic-label entries (no single brand to match)", () => {
+    for (const m of commonMedicinesInNepal) {
+      if (genericLabelEntries.has(m.en)) continue;
+      expect(m.patterns.some((p) => p.test(m.en))).toBe(true);
+      expect(m.patterns.some((p) => p.test(m.ne))).toBe(true);
+    }
+  });
+
+  it('no pattern is duplicated verbatim across two different entries', () => {
+    const owner = new Map<string, string>();
+    for (const m of commonMedicinesInNepal) {
+      for (const p of m.patterns) {
+        const key = `${p.source} ${p.flags}`;
+        const existing = owner.get(key);
+        expect(existing === undefined || existing === m.en, `pattern /${p.source}/${p.flags} is shared by "${existing}" and "${m.en}"`).toBe(true);
+        owner.set(key, m.en);
+      }
+    }
+  });
 });
 
 describe('one medicine, one name — across scripts', () => {

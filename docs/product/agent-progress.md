@@ -1486,6 +1486,61 @@ absent, this section is the source of truth), `frontend-design` skill.
       user-visible change, so no journey update needed under task U's
       standing rule. **Done 2026-08-21 — see the log entry below.**
 
+## HHH. Guard the Nepal medicine lexicon against silent recognition drift — `packages/clinical-safety`'s own untested invariant, found while confirming GGG's "fresh sweep" fallback had nothing left in `apps/api`/`packages`
+
+> GGG's own "for the next run" note said fall back to a fresh sweep
+> (auth/rate-limit/accessibility/test-coverage) rather than searching
+> `apps/api` for a `Prisma*Store` that isn't there. A `find`-based
+> colocated-test sweep of `apps/api/src` and `packages/*/src` turned up
+> nothing real: every remaining untested file is either a pure interface
+> (`HistoryStore`, `FamilyGrantsStore`, `AuthStore` — no branch to test) or a
+> one-line `SlidingWindowRateLimiter` subclass whose only content is a
+> constant already exercised by `sliding-window-rate-limiter.test.ts`. The
+> access-control and rate-limit sweeps (tasks AA-EE, FF-YY) are confirmed
+> exhausted too — CC/DD/EE's own log entries already tried and re-scoped
+> every remaining controller (`patient-registry`, `scheduling`,
+> `engagement`, `population-health`) as not this pattern. `apps/web`'s
+> untested hooks (`useSession`, `useFamilyGrants`, `useSpeechDictation`, …)
+> are all DOM/browser-API wiring with no `renderHook`/`@testing-library/react`
+> anywhere in this codebase today — every hook with real branching logic
+> already has that logic pulled into a colocated, dependency-free `lib/*`
+> file instead (`lib/focusTrap.ts`'s `shouldWrapFocus`,
+> `server/research-provider.ts`'s `selectProvider`, both already tested).
+> Adding a new test-rendering dependency to unit-test a hook directly would
+> break that established convention unilaterally — not this run's call to
+> make alone.
+>
+> `packages/clinical-safety/src/medicines.ts` — the 67-entry OTC/prescription
+> recognition list the "see a doctor" advisory is built on — had none of
+> that. It is data, not code, so nothing about editing it trips a type error
+> if a new or edited pattern stops matching the name it was written for.
+
+- [x] Two new invariants in `packages/clinical-safety/src/index.test.ts`,
+      next to the existing "every entry has both names…" structural check.
+      **(1)** Every entry's own `en`/`ne` display name is recognised by at
+      least one of its own `patterns` — checked programmatically first
+      (`node --experimental-strip-types`, not by eyeballing 67 entries):
+      65 of 67 pass; the 2 failures are `pain-relief balm`/`दुखाइको मलम` and
+      `cold and flu tablet`/`रुघाखोकीको चक्की`, both deliberately generic
+      category umbrellas with no single brand name of their own (the file's
+      own patterns for them are brand names like Moov/Volini/Sinex/Coldarin,
+      never the category label itself) — named as an explicit exception set
+      in the test rather than silently excluded, so a *third* entry someday
+      failing this check reads as a real regression, not noise. **(2)** No
+      `patterns` regex (by source + flags) is shared verbatim across two
+      different entries — a copy-paste from one medicine into another would
+      misattribute a real mention and currently doesn't happen, but nothing
+      caught that before. Both are prevention against a real, silent failure
+      mode this list is unusually exposed to: a typo'd escape, a wrong
+      Devanagari conjunct, or a copied line would mean a person naming that
+      medicine gets no "see a doctor" advisory at all, and no test or type
+      error would ever say so. Full monorepo gate green: `pnpm install
+      --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+      `pnpm test` (75/75 tasks; `clinical-safety` 92 tests, up from 90;
+      `apps/api` unaffected at 130 files/981 tests), `pnpm build` (40/40, 35
+      cached). No user-visible change, so no journey update needed under
+      task U's standing rule. **Done 2026-08-21 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -3249,6 +3304,76 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-21 — **Task HHH — exhausted-queue improvement: two new invariants
+  guarding `packages/clinical-safety/src/medicines.ts` against silent
+  recognition drift.** Added to `src/index.test.ts`: every entry's own
+  display name must be recognised by one of its own patterns (2 documented
+  exceptions — the two generic-label entries with no single brand name), and
+  no pattern may be duplicated verbatim across two different entries.
+
+  **Housekeeping.** Fresh container, local `main` diverged from
+  `origin/main` again (76 vs. 50 commits, no common ancestor) — the same
+  pattern every WW-onward entry describes. `git status` was clean, so
+  `git reset --hard origin/main`; nothing local was lost.
+  `origin/backup/pre-force-push-main-9bdf548` still preserves the old tip.
+
+  **Standing red-CI check.** Latest push-triggered `ci` run on `main`
+  (`93dbce6`, task GGG's commit) is green — confirmed via the GitHub Actions
+  API before picking a task.
+
+  **Queue check.** Unchanged from CCC-GGG: task U's third bullet, task
+  V/V′, and the owner-gated set are the only unchecked boxes, all blocked
+  on an owner call. Queue exhausted for the agent again.
+
+  **The fix.** GGG's own note said fall back to a fresh sweep rather than
+  hunting `apps/api` for a store that doesn't exist. Swept colocated test
+  coverage across `apps/api/src` and `packages/*/src`: everything left
+  untested is either a pure interface (no branch to test — `HistoryStore`,
+  `FamilyGrantsStore`, `AuthStore`) or a one-line `SlidingWindowRateLimiter`
+  subclass whose only content is a constant the base class's own test
+  already exercises. Re-verified the access-control/rate-limit chains
+  (AA-EE, FF-YY) are genuinely exhausted, not just unchecked — CC/DD/EE's
+  own entries already tried and re-scoped every remaining controller
+  (`patient-registry`, `scheduling`, `engagement`, `population-health`) as
+  not the fixable shape. Checked `apps/web`'s untested hooks too
+  (`useSession`, `useFamilyGrants`, `useSpeechDictation`, `useCorpusConsent`,
+  `useVoiceContributionRecorder`, `useGeminiLiveSession`,
+  `useSpeechPlayback`): all DOM/browser-API wiring, and this codebase has no
+  `renderHook`/`@testing-library/react` anywhere — every hook with real
+  branching already has that logic pulled into a colocated, dependency-free
+  `lib/*` function instead (confirmed `lib/focusTrap.ts`'s
+  `shouldWrapFocus` and `server/research-provider.ts`'s `selectProvider` are
+  both already tested this way). Introducing a hook-testing dependency to
+  unit-test a hook body directly would break that established convention
+  unilaterally, so left it alone rather than picking that fight solo.
+
+  Landed on `medicines.ts` instead: 67 entries, each a display name plus a
+  list of regex patterns, and being data rather than code means a typo'd
+  escape or a wrong Devanagari conjunct in an edited pattern would compile
+  fine and just silently stop firing — no type error, no test, nothing. Ran
+  the self-match check programmatically first rather than trusting a manual
+  read of 67 entries: `m.patterns.some(p => p.test(m.en))` /
+  `p.test(m.ne)` for every entry, 65/67 pass. The 2 failures
+  (`pain-relief balm`/`दुखाइको मलम`, `cold and flu tablet`/`रुघाखोकीको
+  चक्की`) are genuine, not bugs — both are category umbrellas matched only
+  by specific brand names (Moov/Volini/Sinex/Coldarin/etc.), never their own
+  descriptive label — so the test names them as an explicit exception set
+  rather than quietly special-casing them, meaning a third entry someday
+  failing this check reads as a real regression. Also checked for a
+  duplicate-pattern bug across entries (none exists today) and added a test
+  that would catch one being introduced. Full monorepo gate green: `pnpm
+  install --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+  `pnpm test` (75/75 tasks; `clinical-safety` now 92 tests, up from 90),
+  `pnpm build` (40/40, 35 cached). No user-visible change, so no journey
+  update needed under task U's standing rule.
+
+  **For the next run.** Test-coverage sweep is now genuinely exhausted
+  across `apps/api`, `packages/*`, and `apps/web` hooks (see above) — don't
+  re-run it without a new angle. The next fresh sweep should look at
+  `apps/mobile`'s own `src/lib`-equivalent pure-logic files (not yet swept
+  this way) or revisit whether any of the owner-gated items have since
+  picked up an owner decision in this file.
 
 - 2026-08-21 — **Task GGG — exhausted-queue improvement: tested
   `PrismaTwinProfileStore`, the last untested `apps/api` `Prisma*Store`
