@@ -1983,6 +1983,43 @@ third bullet, task V/V′, and the owner-gated set) — the next few runs will
 likely keep landing step-4 picks like this one until the owner clears one of
 the blocked items above or opens a new round.
 
+## QQQ. Swagger UI at `/docs` was publicly reachable in production with zero auth — an unauthenticated schema dump of the whole clinical API
+
+> The queue is exhausted for the agent (task U's third bullet, task V/V′, and
+> the owner-gated set are all that remain unchecked), so this is another
+> step-4 improvement. Task LL's security-headers pass (2026-08-20) called
+> `/docs` "a developer-only page" when deciding not to scope a CSP to it, but
+> never asked whether the route itself should be reachable in production —
+> found while looking for gaps LL's own reasoning left open.
+
+- [x] `main.ts` called `SwaggerModule.setup('docs', app, ...)` unconditionally
+      — no `NODE_ENV` check, unlike the CORS config three lines above it,
+      which already branches on `NODE_ENV === 'production'` for the same
+      reason (loosen only outside prod). Anyone could walk the full schema —
+      every route and DTO field name across all 29 controllers on a live
+      clinical API — with no credentials at all: a free map of the attack
+      surface. Extracted the inline setup into
+      `apps/api/src/swagger-docs.ts`'s `configureSwaggerDocs(app)`, mirroring
+      `security-headers.ts`'s existing shape, and made it a no-op when
+      `NODE_ENV === 'production'`. `main.ts` now calls it in place of the
+      inline `DocumentBuilder`/`SwaggerModule` code.
+- [x] `swagger-docs.test.ts` boots a real Nest HTTP server (the same reason
+      `security-headers.test.ts` does — Swagger wires an Express route
+      directly onto the adapter, outside the module graph
+      `app.module.test.ts` covers) and asserts `/docs` returns 200 outside
+      production and 404 in production, rather than trusting the branch by
+      inspection alone.
+- [x] Full monorepo gate green: `pnpm install --frozen-lockfile`, `pnpm lint`
+      (40/40), `pnpm typecheck` (40/40), `pnpm test` (75/75 tasks, 993 API
+      tests, up from 991 — the two new cases), `pnpm build` (40/40). No
+      user-visible change (this is `apps/api`, not a UI surface), so no new
+      journey needed under task U's standing rule. **Done 2026-08-21.**
+
+**For the next run.** Task NNN's CI-budget-gate-for-`/app` lead is still open
+and still needs an owner-set number first — unchanged. The queue is exhausted
+for the agent again; the next few runs will likely keep landing step-4 picks
+like this one until the owner clears a blocked item or opens a new round.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -3746,6 +3783,51 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-21 — **Task QQQ — exhausted-queue improvement: gated Swagger UI at
+  `/docs` to non-production, closing an unauthenticated full-schema dump on
+  the live clinical API.**
+
+  **Housekeeping.** Fresh container; local `main` was still pointed at the
+  pre-force-push tip (`9bdf548`, 76 commits) with no common ancestor against
+  `origin/main` (50 commits) — the same recurring pattern every WW-onward
+  entry describes. Working tree was clean, so `git reset --hard origin/main`;
+  nothing local was at risk. Also noticed task PPP's own queue entry (rxjs
+  removal, now `origin/main`'s tip `b2ec1c6`) was ticked and committed but
+  never got a prepended log entry — leaving that gap noted here rather than
+  fabricating one after the fact; nothing in this run depended on it.
+
+  **Standing red-CI check.** Latest `ci` run on `main` (`b2ec1c6`, task PPP's
+  own commit) is green — confirmed via the GitHub Actions API before picking
+  a task.
+
+  **Queue check.** Unchanged from CCC onward: task U's third bullet, task
+  V/V′, and the owner-gated set are the only unchecked boxes, all blocked on
+  an owner call. Queue exhausted for the agent again, so this is a step-4
+  improvement, same as OOO/NNN/LLL/KKK/HHH before it. Spawned a survey
+  subagent to sweep for a fresh, unblocked, mechanical gap rather than
+  re-walking already-exhausted threads (dependency sweeps, tap targets,
+  security headers on `apps/web`, `packages/*` test coverage) — it found
+  `apps/api`'s Swagger UI reachable and fully unauthenticated in every
+  environment including production.
+
+  **The fix.** See task QQQ above for the full account. Summary:
+  `main.ts:57` called `SwaggerModule.setup('docs', app, ...)` with no
+  `NODE_ENV` branch at all, unlike the CORS config three lines above it,
+  which already treats production as the strict case. Extracted the setup
+  into `apps/api/src/swagger-docs.ts`'s `configureSwaggerDocs(app)`
+  (mirroring `security-headers.ts`'s existing shape) and made it a no-op in
+  production. Verified with a real-server test (`swagger-docs.test.ts`,
+  following `security-headers.test.ts`'s own pattern) asserting 200 outside
+  production and 404 inside it — not just reading the branch. Full monorepo
+  gate green: `pnpm install --frozen-lockfile`, `pnpm lint` (40/40),
+  `pnpm typecheck` (40/40), `pnpm test` (75/75 tasks, 993 API tests, up from
+  991), `pnpm build` (40/40). No user-visible change, so no new journey
+  needed under task U's standing rule.
+
+  **For the next run.** Task NNN's CI-budget-gate-for-`/app` lead is still
+  open and still needs an owner-set number first — unchanged. Queue exhausted
+  for the agent again.
 
 - 2026-08-21 — **Task OOO — exhausted-queue improvement: the bare
   `pnpm turbo build --filter=@swasthya/mobile...` invocation silently
