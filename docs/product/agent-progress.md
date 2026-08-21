@@ -3212,6 +3212,58 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-21 — **Task FFF — exhausted-queue improvement: tested
+  `PrismaSubscriptionGrantStore`, the fourth of the five `apps/api`
+  `Prisma*Store` adapters, following task EEE's own "recommend
+  `entitlements/prisma-subscription-grant.store.ts` next" lead.** Added
+  `src/entitlements/prisma-subscription-grant.store.test.ts`.
+
+  **Housekeeping.** Fresh container again started on a local `main` that
+  diverged from `origin/main` (76 vs. 50 commits, no common ancestor) — the
+  same pattern EEE's own entry describes. `git status` was clean, so
+  `git reset --hard origin/main` before picking a task; nothing local was
+  lost. `origin/backup/pre-force-push-main-9bdf548` still preserves the old
+  tip if it's ever needed.
+
+  **Standing red-CI check.** Latest push-triggered `ci` run on `main`
+  (`929e8f4`, task EEE's commit) is green — confirmed via the GitHub Actions
+  API before picking a task.
+
+  **Queue check.** Unchanged from CCC/DDD/EEE: task U's third bullet, task
+  V/V′, and the owner-gated set are the only unchecked boxes, all blocked on
+  an owner call. Queue exhausted for the agent again → a step-4 improvement,
+  continuing directly from EEE's own explicit recommendation rather than a
+  fresh sweep.
+
+  **The fix.** `entitlements/prisma-subscription-grant.store.ts`'s
+  `grantPlusMonths` had two branches nothing exercised: the
+  extend-from-later-of-now-or-existing-`currentPeriodEnd` date math (both
+  read `new Date()` internally, so the new test pins "now" with
+  `vi.useFakeTimers`/`setSystemTime` rather than injecting it — there's no
+  injection point to fake around), and the never-downgrade tier comparison
+  via `compareTiers`. Covers: no existing row → fresh PLUS upsert extending
+  from now; a lapsed row (`currentPeriodEnd` in the past, and separately
+  `null`) → extends from now, not the stale/absent date; an active row
+  (`currentPeriodEnd` in the future) → extends from that date instead of
+  now; PRO never downgraded to PLUS; FREE moved up to PLUS; PLUS stays
+  PLUS; and one test documenting `Date#setMonth`'s inherited day-of-month
+  rollover (Jan 31 + 1 month lands on Mar 3, since Feb 2026 has 28 days,
+  rather than clamping to Feb 28) so a future reader doesn't mistake that
+  for a bug. 8 tests added (0 before). Full monorepo gate green: `pnpm
+  install --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+  `pnpm test` (129 files / 977 tests, up from 128/969), `pnpm build` (40/40).
+  No user-visible change, so no journey update needed under task U's
+  standing rule.
+
+  **For the next run.** One `Prisma*Store` adapter remains untested:
+  `auth/prisma-auth.store.ts` — EEE's entry already flagged it as a pure
+  passthrough, the lowest-value of the group, so only pick it up if the
+  ledger is otherwise still exhausted. Once it's done (or judged not worth
+  a test), this exhausted-queue lead is fully spent and the next run should
+  fall back to a fresh sweep (auth/rate-limit/accessibility/etc., the way
+  CCC's own sweep did) rather than searching for a sixth `Prisma*Store`
+  that isn't there.
+
 - 2026-08-21 — **Task EEE — exhausted-queue improvement: tested
   `PrismaHistoryStore`, the third of the five remaining untested `apps/api`
   `Prisma*Store` adapters, following task DDD's own "recommend `history`
