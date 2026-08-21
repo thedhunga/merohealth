@@ -1748,6 +1748,75 @@ never chosen with `/app`'s much heavier shared runtime in mind; (2) the 380 KB
 worth a bundle-analyzer pass to see what's actually in it before assuming
 it's all necessary.
 
+## MMM. `/app`'s 380 KB `__common` chunk was almost entirely two unused barrel exports — task LLL's own "for the next run" lead 2
+
+> The queue is exhausted for the agent (same state III/JJJ/KKK/LLL's own log
+> entries found), so this is another step-4 improvement — the specific pick
+> LLL's own log entry named as the next lead. Confirmed CI was green on
+> `main` (`69b184d`, LLL's own commit) before starting.
+
+- [x] Broke `__common` down module-by-module (Metro's production output has
+      no path names, so this meant exporting with `--no-minify`, splitting on
+      each module's `__d(function...)` boundary, and sizing every chunk). Two
+      things dominated: a single 1.15 MB (uncompressed) module was
+      `lucide-react-native`'s barrel file, and a cluster of ~30 modules
+      (`BounceIn`, `FadeIn`, `FlipInXUp`, `RotateInDownLeft`, `SlideInRight`,
+      `LightSpeedInRight`, `ZoomIn`...) were `react-native-reanimated`'s
+      built-in layout-animation presets. Confirmed both are dead weight:
+      `apps/mobile/app` and `src` import ~30 named icons total from
+      `lucide-react-native` (never its ~1,500-icon barrel) and only
+      `Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat,
+      withTiming` from `react-native-reanimated` — none of the entering/exiting
+      presets. Root cause: Metro's default bundler doesn't drop unused named
+      exports from a CJS-style barrel the way Rollup/webpack tree shaking
+      does, so every icon and every animation preset either barrel re-exports
+      ships regardless of what the app actually imports.
+- [x] Fixed it as a build flag, not an import rewrite. Hand-converting the
+      ~30 icon imports to deep per-icon paths was considered and rejected:
+      `lucide-react-native` renames some icons on export (`Home` ships from
+      `./icons/house.mjs`), so that rewrite is exactly the kind of
+      easy-to-get-quietly-wrong change this ledger warns against. Enabled
+      Metro's own experimental tree shaking instead —
+      `EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 EXPO_UNSTABLE_TREE_SHAKING=1` —
+      set only where `expo export --platform web` actually runs:
+      `scripts/build-mobile-web.sh` (production via `vercel-build.sh`, and
+      local e2e) and the CI workflow's own direct `expo export` step. Neither
+      native builds nor `expo start` pick this up, the same way task LLL
+      scoped `asyncRoutes` to web only. Both flags are Expo's own
+      "unstable"-prefixed names, not something invented here — worth
+      re-checking after any future Expo/Metro version bump in case the flag
+      names or defaults move.
+- [x] Result, same `weight-breakdown.mjs` method LLL used: `__common`
+      (minified, gzipped over the network) 380.0 KB → 144.1 KB; `/app`'s full
+      first load at 375 px **696.2 KB → 457.1 KB (−34%, −239 KB)**, reproduced
+      twice for stability. Verified nothing broke:
+      `apps/web/e2e/app-surface.journeys.spec.ts`'s five tests (load,
+      CTA-to-companion, care/learn/twin tabs — the suite that exercises every
+      icon and the `MicHero` pulse animation) all pass against the
+      tree-shaken build.
+- [x] Found and fixed a second, unrelated bug while verifying: `turbo.json`'s
+      `build` task declared no `env` key, so Turborepo's cache hash never
+      accounted for `EXPO_PUBLIC_API_URL` or the two new flags — a
+      `pnpm turbo build --filter=@swasthya/mobile` run right after adding them
+      silently served a stale, non-tree-shaken cached build, no error or
+      warning. Declared all three in `turbo.json`'s `build.env`; confirmed a
+      changed flag now forces a cache miss and an unchanged one still hits.
+- [x] Full monorepo gate green: `pnpm install --frozen-lockfile`, `pnpm lint`
+      (40/40), `pnpm typecheck` (40/40), `pnpm test` (75/75 tasks, 991 API
+      tests), `pnpm build` (40/40). **Done 2026-08-21.**
+
+**For the next run.** The two barrels this run found are not the only
+barrel-shaped packages in `apps/mobile` — `expo-camera`, `expo-audio`,
+`expo-video` and similar are worth the same module-by-module check now that
+tree shaking is on; it may already be handling them, but that hasn't been
+measured. Separately: `pnpm turbo build --filter=@swasthya/mobile...` run
+bare (the gate command itself, not through `build-mobile-web.sh`) doesn't set
+the tree-shaking flags, so its output in `apps/mobile/dist` is the
+untouched, larger build — harmless today since only `build-mobile-web.sh`'s
+own copy step reads that directory, but worth remembering if that ever
+changes. Task LLL's other lead — a CI budget gate for `/app` — is still open
+and still needs an owner-set number first.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after

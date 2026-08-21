@@ -18,6 +18,13 @@ set -uo pipefail
 # repo root (CI, vercel-build.sh) or from apps/web (playwright.config.ts).
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+# Metro's experimental tree shaking, web export only (native builds don't run
+# this script). Without it, importing even one icon from lucide-react-native
+# or one animation preset from react-native-reanimated pulls their entire
+# barrel file into __common — see docs/product/agent-progress.md task MMM.
+export EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1
+export EXPO_UNSTABLE_TREE_SHAKING=1
+
 echo "==> Building the Expo web export (apps/mobile)"
 if ! pnpm turbo build --filter=@swasthya/mobile...; then
   echo "==> Expo web export failed to build — /app will 404 until this is fixed" >&2

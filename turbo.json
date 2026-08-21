@@ -3,7 +3,12 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".expo/**", ".next/**", "!.next/cache/**"]
+      "outputs": ["dist/**", ".expo/**", ".next/**", "!.next/cache/**"],
+      "env": [
+        "EXPO_PUBLIC_API_URL",
+        "EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH",
+        "EXPO_UNSTABLE_TREE_SHAKING"
+      ]
     },
     "dev": {
       "cache": false,
