@@ -1686,6 +1686,68 @@ not been re-measured against any route touched since task S′ — worth a fresh
 `weight-breakdown.mjs` pass on `/`, `/app`, and whichever marketing route was
 most recently edited, to confirm the 690.7 KB figure hasn't drifted.
 
+## LLL. `/app` shipped one 717.8 KB bundle for the whole product, not just the tab someone opened — task KKK's own "for the next run" lead 2
+
+> The queue is exhausted for the agent (same state III/JJJ/KKK's own log
+> entries found), so this is another step-4 improvement — the specific pick
+> KKK's own log entry named as the next lead. Confirmed CI was green on
+> `main` (`71aaca0`, KKK's own commit) before starting.
+
+- [x] Ran `weight-breakdown.mjs` (extended to take a target path argument,
+      since it was hardcoded to `/`) against `/`, `/app` and `/get-care`.
+      `/` and `/get-care` are both well inside the 600 KB CI gate today
+      (535.9 KB and 547.2 KB respectively) — the 690.7 KB figure task S left
+      behind has already closed, apparently from work landed since
+      2026-08-19 (task S′'s dead-weight removal and `ac0b35e`'s own budget
+      fix), so that part of the gap is just stale documentation, not a live
+      problem. `/app` was the real finding: 735.4 KB in 2 requests, almost
+      all of it (717.8 KB) one `entry-*.js` — the Expo web export bundles
+      every route in the app (`/`, `/companion`, `/care`, `/learn`, `/twin`,
+      `/capture`, `/consent`, `/consultation`, `/records`) into a single
+      file, so a person opening `/app` for the symptom-entry flow downloads
+      the capture, consent and consultation code too, unused. Root cause:
+      `apps/mobile/app.json`'s `expo-router` plugin had no `asyncRoutes`
+      option, so Expo Router falls back to bundling every route eagerly —
+      this is a documented, official setting, not a workaround: `asyncRoutes:
+      "production"` is explicitly "currently web-only and will be disabled
+      on native" per `expo-router`'s own plugin types, so enabling it cannot
+      touch the iOS/Android builds this same `app.json` also configures.
+      Set it, re-ran `expo export --platform web`: the single entry chunk
+      dropped from 4.2 MB to 1.1 MB uncompressed, with `/care`, `/learn`,
+      `/twin`, `/capture`, `/consent`, `/consultation` and `/records` now
+      exporting as their own small chunks (11–69 KB each per the export's own
+      "Static routes" listing) that only load when a person actually opens
+      that tab. First load of `/app` itself: 735.4 KB → 696.2 KB. Verified
+      real navigation, not just direct loads, still works with routes now
+      split across chunks: `apps/web/e2e/app-surface.journeys.spec.ts`'s five
+      tests (load, CTA-to-companion, care/learn/twin tabs — the same file
+      task KKK added tab coverage to) all pass against the async-route
+      build. Full monorepo gate green: `pnpm install --frozen-lockfile`,
+      `pnpm lint` (40/40), `pnpm typecheck` (40/40), `pnpm test` (75/75
+      tasks), `pnpm build` (40/40). No user-visible layout or copy changed,
+      so no new journey — the existing five already re-verify this exact
+      surface, and now do so against the leaner build. **Not fully closed:**
+      696.2 KB still clears no CI budget, because none exists for `/app` —
+      only `/` is gated by `check:budget`. The remaining weight is a 380 KB
+      `__common` chunk (React, Expo Router runtime, shared UI) that
+      async-routes cannot split further; closing the rest would mean
+      auditing that chunk's actual dependencies, which is a different task
+      from this one. Left as an honest gap rather than picked up
+      unilaterally, since there's no owner-set budget number for `/app` to
+      aim at (task S's 600 KB ceiling was set for the marketing homepage,
+      not named as the target for the product surface too). **Done
+      2026-08-21.**
+
+**For the next run.** `weight-breakdown.mjs` now takes a path argument
+(`node scripts/weight-breakdown.mjs /app`) — reuse it rather than
+re-hardcoding. Two real leads: (1) a CI budget gate for `/app` itself,
+mirroring `check:budget`'s shape but against the product surface rather than
+the marketing homepage — needs an owner-set number first, since 600 KB was
+never chosen with `/app`'s much heavier shared runtime in mind; (2) the 380 KB
+`__common` chunk is now the dominant cost and hasn't been broken down —
+worth a bundle-analyzer pass to see what's actually in it before assuming
+it's all necessary.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -3449,6 +3511,59 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-21 — **Task LLL — exhausted-queue improvement: `/app`'s single
+  717.8 KB entry bundle split into per-route chunks, the gap task KKK's own
+  log entry named as the next lead.**
+
+  **Housekeeping.** Fresh container, local `main` had diverged from
+  `origin/main` again with no common ancestor (76 vs. 50 commits) — the
+  same recurring force-push pattern every WW-onward entry describes.
+  Confirmed local `main`'s tip (`9bdf548`) was byte-identical to
+  `origin/backup/pre-force-push-main-9bdf548` before resetting, so nothing
+  local was at risk: `git checkout -B main origin/main`.
+
+  **Standing red-CI check.** Latest `ci` run on `main` (`71aaca0`, task
+  KKK's own commit) is green — confirmed via the GitHub Actions API before
+  picking a task.
+
+  **Queue check.** Unchanged from CCC onward: task U's third bullet, task
+  V/V′, and the owner-gated set are the only unchecked boxes, all blocked on
+  an owner call. Queue exhausted for the agent again.
+
+  **The fix.** See task LLL above for the full account. Summary: KKK's own
+  "for the next run" note asked for a fresh `weight-breakdown.mjs` pass on
+  `/`, `/app` and the most recently edited marketing route. `/` (535.9 KB)
+  and `/get-care` (547.2 KB) are both comfortably under the 600 KB budget —
+  the 690.7 KB figure in task S's own entry had already gone stale, closed
+  by work landed since 2026-08-19. `/app` was the real finding: a single
+  717.8 KB JS bundle carrying every route in the mobile app, because
+  `apps/mobile/app.json`'s `expo-router` plugin never set `asyncRoutes`.
+  Set it to `"production"` (web-only per `expo-router`'s own plugin types —
+  native builds unaffected), which made `expo export --platform web` emit
+  per-route chunks instead of one bundle: entry dropped from 4.2 MB to
+  1.1 MB uncompressed, `/app`'s transferred weight from 735.4 KB to
+  696.2 KB. Verified real tab navigation still works against the
+  now-chunked build, not just direct loads: `app-surface.journeys.spec.ts`'s
+  five tests (load, CTA-to-companion, care/learn/twin tabs) all pass. Full
+  monorepo gate green: `pnpm install --frozen-lockfile`, `pnpm lint`
+  (40/40), `pnpm typecheck` (40/40), `pnpm test` (75/75 tasks), `pnpm build`
+  (40/40). No user-visible change, so no new journey needed under task U's
+  standing rule — the existing five already cover this surface. `/app`
+  still exceeds 600 KB (696.2 KB) and no CI gate enforces a budget on it at
+  all; the remaining weight is a 380 KB shared `__common` chunk that
+  async-routes cannot split further. Left open rather than picked
+  unilaterally — no owner-set budget exists for `/app` to aim at, and
+  further reduction needs a bundle-analyzer pass to see what the shared
+  chunk actually contains before assuming what's safe to cut. Also extended
+  `weight-breakdown.mjs` to take a target path argument (previously
+  hardcoded to `/`) so the next run doesn't have to re-derive this.
+
+  **For the next run.** See task LLL's own "For the next run" note: a
+  CI budget gate for `/app` needs an owner-set number first (600 KB was
+  chosen for the marketing homepage, never for the heavier product
+  surface); and the 380 KB `__common` chunk is now the dominant cost and
+  hasn't been broken down.
 
 - 2026-08-21 — **Task KKK — exhausted-queue improvement: e2e journeys for
   `/app`'s care, learn and twin tabs, the gap task JJJ's own log entry named
