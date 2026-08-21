@@ -1541,6 +1541,45 @@ absent, this section is the source of truth), `frontend-design` skill.
       cached). No user-visible change, so no journey update needed under
       task U's standing rule. **Done 2026-08-21 — see the log entry below.**
 
+## III. Test `apps/api/src/common/request-ip.ts` — the untested function every rate limiter's bucket key runs through
+
+> The queue is exhausted for the agent (same state HHH's own log entry
+> found), so this is another step-4 improvement. A read-only sweep across
+> i18n key parity (`ne.json`/`en.json` — clean, 979/979 keys, zero diff),
+> `apps/mobile` test coverage (every `lib/*.ts` file with logic already has
+> a colocated test), the 375px page audit (all 49 `apps/web` routes already
+> logged as swept), and `apps/api` security headers (already done, its own
+> `security-headers.test.ts` exists) all confirmed exhausted. Two real gaps
+> surfaced: this file, and `early-access/in-memory-early-access.store.ts` (a
+> test-only fake with real branching, untested unlike its sibling in-memory
+> stores). Picked `request-ip.ts` over the fake: it is live production code
+> on the path of every rate-limited route (`auth`, `companion`, `engagement`,
+> `early-access` controllers all call it directly), not a test double, so a
+> regression here is a live security gap, not just a weaker test suite.
+
+- [x] Added `src/common/request-ip.test.ts`, matching
+      `sliding-window-rate-limiter.test.ts`'s sibling style in the same
+      directory. `requestIp()`'s own doc comment names the reason this
+      matters: `request.ip` is only trustworthy because `bootstrap` sets
+      Express's `trust proxy`, and the `'unknown'` fallback is a real shared
+      bucket (fails closed) rather than a bypass — nothing previously
+      asserted that the three-step fallback chain (`request.ip` →
+      `socket.remoteAddress` → `'unknown'`) actually resolves in that order.
+      3 tests: `request.ip` preferred over the socket address when both are
+      present, socket address used when `ip` is absent, and `'unknown'`
+      returned when neither is available (both an empty request and one
+      with an empty `socket` object). Full monorepo gate green: `pnpm
+      install --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck`
+      (40/40), `pnpm test` (75/75 tasks; `apps/api` 131 files/984 tests, up
+      from 130/981), `pnpm build` (40/40, 35 cached). No user-visible
+      change, so no journey update needed under task U's standing rule.
+      **For the next run:** `early-access/in-memory-early-access.store.ts`
+      is the other confirmed gap from this sweep — a test-only fake with
+      real branching (existing+relink, existing+alreadyRegistered,
+      contact-null, new-create) left untested unlike its sibling in-memory
+      stores; pick it up if a fresh sweep doesn't turn up anything higher
+      value first. **Done 2026-08-21.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
