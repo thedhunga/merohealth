@@ -1448,6 +1448,44 @@ absent, this section is the source of truth), `frontend-design` skill.
       cached). No user-visible change, so no journey update needed under
       task U's standing rule. **Done 2026-08-21 — see the log entry below.**
 
+## GGG. Test `apps/api`'s last untested `Prisma*Store` adapter — `PrismaTwinProfileStore`, picked over `PrismaAuthStore` since it actually has branches to exercise
+
+> The queue is exhausted for the agent (task U's third bullet, task V/V′,
+> and the owner-gated set are all that remain unchecked), so this is a
+> step-4 improvement continuing task FFF's own "one adapter remains"
+> lead — except FFF's count was off by one: `PrismaTwinProfileStore` was
+> also untested and had gone unnoticed by CCC's original five-name list.
+
+- [x] Added `src/twin-profile/prisma-twin-profile.store.test.ts`. FFF's log
+      entry named `auth/prisma-auth.store.ts` as the one adapter left, and
+      called it the lowest-value of the group (pure passthrough — every
+      method is a one-line `this.prisma.client.X.method(args)` with no
+      branching for a test to lock in beyond what TypeScript's own Prisma
+      types already guarantee). Read it to confirm that before picking a
+      task, and it's true: there is no logic in that file worth a test.
+      `find apps/api/src -iname "*.store.ts"` against `*.store.test.ts`
+      showed a sixth adapter FFF's count had missed —
+      `twin-profile/prisma-twin-profile.store.ts` — which unlike `auth`
+      does have real branches: an empty-facts early return before ever
+      calling Prisma, a `recordedAt` string → `Date` conversion per fact,
+      and returning `createMany`'s own `{ count }` rather than trusting
+      `input.facts.length` (the file's own doc comment explains why a
+      mismatch is at least conceivable: this is a plain `createMany`, not
+      an upsert, since every fact already carries its own caller-generated
+      `id`). Picked this one over `auth` on the same "real logic over pure
+      passthrough" criterion CCC/DDD/EEE/FFF's own picks used. Test follows
+      `PrismaEarlyAccessStore`'s fake-`PrismaService.client` pattern:
+      covers the empty-array short-circuit (and asserts `createMany` is
+      never called for it), the full field mapping for one fact including
+      the `Date` conversion, multiple facts batched into a single
+      `createMany` call rather than one per fact, and `created` reporting
+      the mocked `count` rather than `facts.length`. 4 tests added (0
+      before). Full monorepo gate green: `pnpm install --frozen-lockfile`,
+      `pnpm lint` (40/40), `pnpm typecheck` (40/40), `pnpm test` (130 files
+      / 981 tests, up from 129/977), `pnpm build` (40/40, 35 cached). No
+      user-visible change, so no journey update needed under task U's
+      standing rule. **Done 2026-08-21 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -3211,6 +3249,58 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-21 — **Task GGG — exhausted-queue improvement: tested
+  `PrismaTwinProfileStore`, the last untested `apps/api` `Prisma*Store`
+  adapter — not `auth/prisma-auth.store.ts`, which task FFF's entry named
+  as the sole remainder.** Added
+  `src/twin-profile/prisma-twin-profile.store.test.ts`.
+
+  **Housekeeping.** Fresh container, local `main` diverged from
+  `origin/main` again (76 vs. 50 commits, no common ancestor) — the same
+  pattern every WW-onward entry describes. `git status` was clean, so
+  `git reset --hard origin/main`; nothing local was lost.
+  `origin/backup/pre-force-push-main-9bdf548` still preserves the old tip.
+
+  **Standing red-CI check.** Latest push-triggered `ci` run on `main`
+  (`4bbf2bb`, task FFF's commit) is green — confirmed via the GitHub
+  Actions API before picking a task.
+
+  **Queue check.** Unchanged from CCC-FFF: task U's third bullet, task
+  V/V′, and the owner-gated set are the only unchecked boxes, all blocked
+  on an owner call. Queue exhausted for the agent again.
+
+  **The fix.** FFF's own "for the next run" note said one `Prisma*Store`
+  adapter remained: `auth/prisma-auth.store.ts`. Reading it confirmed
+  FFF's characterization — pure passthrough, no branch worth a test — but
+  before writing that test, `find apps/api/src -iname "*.store.ts"`
+  against the existing `*.store.test.ts` files turned up a sixth adapter
+  nobody in the CCC-FFF chain had named:
+  `twin-profile/prisma-twin-profile.store.ts`. It has actual logic —
+  an empty-facts early return, a `recordedAt` string-to-`Date` conversion,
+  and passing `createMany`'s own `{ count }` through rather than trusting
+  `input.facts.length` — so it beats `auth` on the same criterion the
+  whole chain has used to rank candidates. Picked it instead. Test mocks
+  `PrismaService.client.subjectTwinFact.createMany`, matching
+  `PrismaEarlyAccessStore`'s fake-Prisma-client convention: the
+  zero-facts short-circuit (and that `createMany` is never called for
+  it), the full per-fact field mapping including the `Date` conversion,
+  multiple facts batched into one `createMany` call rather than looped,
+  and `created` reflecting the mocked `count` rather than `facts.length`.
+  4 tests added (0 before). Full monorepo gate green: `pnpm install
+  --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40), `pnpm
+  test` (130 files / 981 tests, up from 129/977), `pnpm build` (40/40, 35
+  cached). No user-visible change, so no journey update needed under task
+  U's standing rule.
+
+  **For the next run.** `auth/prisma-auth.store.ts` is still untested and
+  still not worth testing — pure passthrough, confirmed independently by
+  both this run and FFF's. Every `Prisma*Store` adapter in `apps/api` is
+  now either tested or judged not worth it, so this exhausted-queue lead
+  is fully spent. The next run should fall back to a fresh sweep
+  (auth/rate-limit/accessibility/test-coverage/etc., the way CCC's own
+  sweep did) rather than searching `apps/api` for a store that isn't
+  there.
 
 - 2026-08-21 — **Task FFF — exhausted-queue improvement: tested
   `PrismaSubscriptionGrantStore`, the fourth of the five `apps/api`
