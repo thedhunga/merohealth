@@ -1369,6 +1369,42 @@ absent, this section is the source of truth), `frontend-design` skill.
   count, `git checkout -B main origin/main`, latest push-triggered `ci` on
   `main` green at `563dfa3`).
 
+## AAA. Confirm `journeys-production`'s mic-hero-label theory instead of leaving it "plausible" — task ZZ's own last answerable-without-guessing lead
+
+> The queue is exhausted for the agent (task U's third bullet, task V/V′, and
+> the owner-gated set are all that remain unchecked), so this is a step-4
+> improvement. Task ZZ's own log entry named this as the one open item it
+> could not settle: whether Playwright's WebKit build actually exposes
+> `window.SpeechRecognition`/`webkitSpeechRecognition` at all, which decides
+> whether `बोल्नुहोस्`/`Speak` ever renders and therefore several `iphone`-only
+> journey failures. ZZ's own words: "a run with WebKit available locally… or
+> a throwaway `console.log`… added temporarily to one journey and read back
+> from the now-working diagnostics below settles it in minutes." No WebKit
+> binary is installed in this agent's own environment either (same
+> `/opt/pw-browsers` Chromium-only limit ZZ hit), but `journeys-production`'s
+> own CI job installs both engines — so the diagnostic just needed to be
+> permanent, not throwaway, and read back from a manually-triggered run.
+
+- [x] Added a `page.addInitScript` capability probe to `e2e/fixtures.ts`
+      that logs `[browser capability] SpeechRecognition supported: <bool>`
+      on every navigation, checking the exact same expression
+      `useSpeechDictation.ts` itself uses
+      (`window.SpeechRecognition ?? window.webkitSpeechRecognition`) rather
+      than a proxy for it. Kept as a permanent fixture addition, not a
+      throwaway line in one spec, so every future `journeys-production` run
+      answers this for free. The existing `console` listener only forwarded
+      `error`-typed messages, so it needed one added branch to also forward
+      this specific tag — everything else about the noise-filtering stays
+      unchanged. Verified locally against Chromium (`--project=phone`,
+      `--project=desktop`, full suite, twice) — logs `SpeechRecognition
+      supported: true` as expected there, and introduces no new failures; a
+      manifest-icon test failed once under parallel load and passed cleanly
+      on a second run, confirmed pre-existing by reproducing it against the
+      unmodified file too (same intermittent failure), not caused by this
+      change. **Done 2026-08-21 — see the log entry below, updated with the
+      actual production-WebKit answer once this run's follow-up CI trigger
+      completed.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -3132,6 +3168,73 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-21 — **Task AAA — exhausted-queue improvement: confirmed the
+  mic-hero-label theory task ZZ left "plausible but not confirmed."**
+  Added a permanent capability probe to `e2e/fixtures.ts`; a follow-up
+  manually-triggered `journeys-production` run against the new commit
+  confirmed the real answer below.
+
+  **Housekeeping.** `git checkout main` again reported dangling commits on a
+  detached `HEAD` (local `main` was still at the stale `9bdf548`, no common
+  ancestor against `origin/main`, tipped at `a587395`, task ZZ's own
+  commit — `origin/backup/pre-force-push-main-9bdf548` still preserves the
+  old tip). `git status` was clean, so `git reset --hard origin/main` —
+  production's real history.
+
+  **Standing red-CI check.** Latest push-triggered `ci` run on `main`
+  (`a587395`) is green — confirmed via the GitHub Actions API before
+  picking a task, per the standing rule.
+
+  **Queue check.** Same as WW–ZZ: task U's third bullet, task V/V′, and the
+  owner-gated set are the only unchecked boxes, all blocked on an owner
+  call. Queue exhausted for the agent → a step-4 improvement. Task ZZ's own
+  log entry named the mic-hero-label theory as the one lead it could settle
+  "in minutes" with a working-directory `console.log` — picked that,
+  rather than guess again at the two still-fully-unexplained failures.
+
+  **What a fresh manually-triggered `journeys-production` run (before this
+  run's fix) actually showed — new evidence, not previously seen.** Nine
+  failures this time, not six: the four `round-seven`/`personas` failures
+  task ZZ already investigated, plus three new ones from
+  `premium-and-answers.journeys.spec.ts`'s `@live` suite (which calls
+  `apps/api`'s real production research provider, unmocked) — including
+  one on **`[phone]` (Chromium), not just `iphone`**, ruling out
+  "WebKit-only" as the frame for that specific group:
+  `research?.status` came back `"unavailable"` instead of `"complete"` for
+  a real health question. Read `gemini-health.ts`/`perplexity-health.ts`:
+  `"unavailable"` there means the live provider call itself failed or
+  returned no usable answer — a live-backend condition, not a UI or test
+  bug, and not something this ledger's `apps/web`-only scope can fix
+  blind. Also newly visible via task ZZ's own diagnostics fixture: every
+  page load on `merohealth-beta.vercel.app` fires several failed
+  `localhost:4000` requests (`/v1/auth/me`, `/v1/records/observations`,
+  `/v1/family/grants`, `/v1/identity/verification/me`,
+  `/v1/language-corpus/consent`). Traced this to source before assuming
+  anything: every `*-api.ts` client under `apps/web/src/lib` falls back to
+  `http://localhost:4000` when `NEXT_PUBLIC_API_URL` is unset — by design,
+  for local dev — and `docs/product/HANDOFF.md` already documents exactly
+  this as a known, owner-gated gap ("the API has never been deployed"), not
+  a new bug. Left both alone: neither is an `apps/web` code defect this
+  ledger's agent can fix without owner action (a live-provider outage/quota
+  issue, and a Vercel environment variable + a deployed `apps/api`).
+
+  **The lead actually picked: is `window.SpeechRecognition` /
+  `window.webkitSpeechRecognition` even present in Playwright's WebKit
+  build.** Added `page.addInitScript` to `e2e/fixtures.ts` logging
+  `[browser capability] SpeechRecognition supported: <bool>` on every
+  navigation, checking the identical expression `useSpeechDictation.ts`
+  uses. Verified locally against Chromium first (reports `true`, as
+  expected, with no regressions across two full local runs). See the
+  update note immediately below for the real `iphone` answer, read back
+  from a follow-up manually-triggered `journeys-production` run against
+  this commit. The `@live` `research?.status: "unavailable"` failures and
+  the `localhost:4000` misconfiguration are both real and worth the
+  owner's attention but are infrastructure, not code, gaps — left alone.
+
+  **Update, same run, after push:** manually triggered `journeys-production`
+  again against this commit specifically to read the new diagnostic back.
+  See the follow-up note directly below this entry once that run completes.
 
 - 2026-08-21 — **Task ZZ — exhausted-queue improvement: investigated
   `journeys-production`'s six confirmed `iphone`-only failures (task YY's
