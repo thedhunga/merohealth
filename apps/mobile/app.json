@@ -43,8 +43,7 @@
           "microphonePermission": "Allow Mero Health to use your microphone during a private consultation.",
           "recordAudioAndroid": true
         }
-      ],
-      "expo-video"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

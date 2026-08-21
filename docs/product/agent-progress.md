@@ -1817,6 +1817,64 @@ own copy step reads that directory, but worth remembering if that ever
 changes. Task LLL's other lead — a CI budget gate for `/app` — is still open
 and still needs an owner-set number first.
 
+## NNN. `apps/mobile` shipped a completely unused native dependency — `expo-video`, the barrel-package check task MMM's own log entry named as the next lead
+
+> The queue is exhausted for the agent (same state III/JJJ/KKK/LLL/MMM's own
+> log entries found), so this is another step-4 improvement — the specific
+> pick MMM's own log entry named as the next lead. Confirmed CI was green on
+> `main` (`35d91d7`, MMM's own commit) before starting.
+
+- [x] Checked the three packages MMM's own "for the next run" note named —
+      `expo-camera`, `expo-audio`, `expo-video` — for the same barrel-export
+      problem MMM found in `lucide-react-native` and
+      `react-native-reanimated`. `expo-camera` and `expo-audio` are both
+      fine: every usage (`apps/mobile/app/capture.tsx`,
+      `apps/mobile/app/consultation.tsx`,
+      `apps/mobile/app/(tabs)/companion.tsx`, `apps/mobile/app/index.web.tsx`)
+      imports 2–3 named exports directly, not a re-exported barrel.
+      `expo-video` was the real finding, but not a barrel problem — a full
+      repo grep (`app`, `src`, `.ts`/`.tsx`) found **zero imports of
+      `expo-video` anywhere**, despite it being a declared `dependency` in
+      `apps/mobile/package.json` and a config plugin entry in
+      `apps/mobile/app.json`. No prior ledger entry explains why it was
+      added; nothing else in the repo (no `ios`/`android` bare directories,
+      no docs) references it either.
+- [x] Removed the dead dependency: deleted `expo-video` from
+      `apps/mobile/package.json`'s `dependencies` and from
+      `apps/mobile/app.json`'s `plugins` array, then `pnpm install` to
+      regenerate the lockfile (18-line diff, `expo-video` entries only).
+- [x] Measured before assuming a bundle-size win, the same
+      `weight-breakdown.mjs` method LLL/MMM used, against `/app`: **no
+      change** — 457.0 KB before and after, byte-identical chunk hashes and
+      sizes (`__common` 144.1 KB, `entry` 278.7 KB, both unchanged). This
+      makes sense on reflection and is worth recording so a future run
+      doesn't re-attempt this expecting a size win: Metro only bundles
+      modules reachable from the entry point, so a package with zero import
+      statements was never added to the graph in the first place, tree
+      shaking or not — unlike MMM's barrels, which *were* imported (for a
+      handful of icons/hooks) and pulled their whole re-export file in with
+      them. The value here is dependency hygiene, not bytes: a smaller
+      `node_modules` footprint, one fewer Expo config plugin running during
+      `expo prebuild`/EAS native builds, and no longer implying (to a future
+      reader of `package.json`/`app.json`) that this app plays video when it
+      does not.
+- [x] Full monorepo gate green: `pnpm install --frozen-lockfile`, `pnpm lint`
+      (40/40), `pnpm typecheck` (40/40), `pnpm test` (75/75 tasks, 991 API
+      tests), `pnpm build` (40/40). No user-visible change (nothing rendered
+      ever depended on `expo-video`), so no new journey needed under task
+      U's standing rule. **Done 2026-08-21.**
+
+**For the next run.** MMM's other two leads are still open and unrelated to
+this one: (1) `pnpm turbo build --filter=@swasthya/mobile...` run bare
+still doesn't set the tree-shaking env flags, so its own `apps/mobile/dist`
+output stays the larger, untouched build — harmless while only
+`build-mobile-web.sh`'s copy step reads that directory, worth fixing if that
+ever changes; (2) a CI budget gate for `/app` itself still needs an
+owner-set number before it can be built. Separately, this run's own
+zero-imports grep only covered `apps/mobile/app` and `apps/mobile/src` —
+worth widening to `packages/*` (`apps/mobile`'s workspace dependencies) if a
+future pass wants to keep hunting for dead weight the same way.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -3580,6 +3638,52 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-21 — **Task NNN — exhausted-queue improvement: removed
+  `expo-video`, a completely unused dependency and config plugin, the
+  barrel-package check task MMM's own log entry named as the next lead.**
+
+  **Housekeeping.** Fresh container, local `main` had diverged from
+  `origin/main` again with no common ancestor (76 vs. 50 commits) — the
+  same recurring force-push pattern every WW-onward entry describes.
+  Confirmed local `main`'s tip (`9bdf548`) was byte-identical to
+  `origin/backup/pre-force-push-main-9bdf548` before resetting, so nothing
+  local was at risk: `git reset --hard origin/main`.
+
+  **Standing red-CI check.** Latest `ci` run on `main` (`35d91d7`, task
+  MMM's own commit) is green — confirmed via the GitHub Actions API before
+  picking a task.
+
+  **Queue check.** Unchanged from CCC onward: task U's third bullet, task
+  V/V′, and the owner-gated set are the only unchecked boxes, all blocked on
+  an owner call. Queue exhausted for the agent again.
+
+  **The fix.** See task NNN above for the full account. Summary: MMM's own
+  "for the next run" note asked for the same barrel-export check against
+  `expo-camera`, `expo-audio` and `expo-video`, now that Metro tree shaking
+  is on. The first two check out clean — direct named imports, no barrel.
+  `expo-video` had a different problem: zero imports anywhere in the repo,
+  despite being a listed dependency and an `app.json` config plugin.
+  Removed both, regenerated the lockfile. Measured `/app` before and after
+  with `weight-breakdown.mjs` expecting a size win like MMM found — got
+  none, byte-identical output both times, because a never-imported module
+  was never in Metro's bundle graph to begin with, tree-shaking or not.
+  Recorded that honestly rather than the size claim task MMM's pattern
+  might suggest: this is a hygiene fix (`node_modules` footprint, one fewer
+  config plugin in native prebuild, no longer implying video support that
+  doesn't exist), not a bundle-weight one. Full monorepo gate green:
+  `pnpm install --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck`
+  (40/40), `pnpm test` (75/75 tasks, 991 API tests), `pnpm build` (40/40).
+  No user-visible change, so no new journey needed under task U's standing
+  rule.
+
+  **For the next run.** MMM's other two leads are still open: a
+  `pnpm turbo build --filter=@swasthya/mobile...` tree-shaking-flag gap, and
+  a `/app` CI budget gate still waiting on an owner-set number. Neither
+  touched by this run. See task NNN's own note for the full detail plus one
+  new lead: this run's zero-imports grep only covered `apps/mobile/app` and
+  `apps/mobile/src`, not `packages/*` — worth widening if a future pass
+  wants to keep hunting for dead dependencies the same way.
 
 - 2026-08-21 — **Task LLL — exhausted-queue improvement: `/app`'s single
   717.8 KB entry bundle split into per-route chunks, the gap task KKK's own
