@@ -1580,6 +1580,45 @@ absent, this section is the source of truth), `frontend-design` skill.
       stores; pick it up if a fresh sweep doesn't turn up anything higher
       value first. **Done 2026-08-21.**
 
+## JJJ. Test `InMemoryEarlyAccessStore` — the gap task III's own "for the next run" note named
+
+> The queue is exhausted for the agent (same state III's own log entry
+> found), so this is another step-4 improvement, and the specific pick III's
+> own log entry named as the next lead once nothing higher-value turned up.
+> Confirmed CI was green on `main` (`c272e46`, the same commit III landed)
+> before starting, per the standing red-CI-stops-the-line rule.
+
+- [x] Added `src/early-access/in-memory-early-access.store.test.ts`, styled
+      after `PrismaEarlyAccessStore`'s own test (same branch set, since both
+      implement `EarlyAccessStore.register`'s dedupe-by-contact contract) and
+      `InMemoryHistoryStore`'s test (same "read the fake's own public state"
+      style, since `PrismaEarlyAccessStore`'s test asserts on mock call args
+      that this fake has none of). 7 tests: a new contact creates a row
+      (`created`); a contact-less registration always creates a fresh row,
+      never dedupes; an existing anonymous row gets linked when the same
+      contact registers with a `userId` (`linked`, and `userId` is written
+      onto the existing row rather than a duplicate); a same-contact retry
+      with no `userId` reports `alreadyRegistered` and leaves exactly one
+      row (the anonymous-retry idempotency the store's own doc comment
+      promises); a contact already linked to one account reports
+      `alreadyRegistered`, not `linked`, when a *different* account tries
+      the same contact, and leaves the original `userId` untouched (this
+      store never reassigns an existing link); `list()` returns rows
+      oldest-registration-first regardless of insertion order; `list()`
+      exposes only the `EarlyAccessRow` shape, not the fake's internal `id`
+      derivation. Full monorepo gate green: `pnpm install --frozen-lockfile`,
+      `pnpm lint` (40/40), `pnpm typecheck` (40/40), `pnpm test` (75/75
+      tasks; `apps/api` 132 files/991 tests, up from 131/984), `pnpm build`
+      (40/40, 35 cached). No user-visible change, so no journey update
+      needed under task U's standing rule. **For the next run:** a fresh
+      sweep found no other
+      untested store or live-path gap in `apps/api`/`packages` — the
+      `Prisma*Store` adapters, the in-memory fakes, and the rate limiters are
+      all covered now. Worth checking next: whether any `apps/mobile`
+      screen added since task TT's e2e sweep (round seven O onward) still
+      lacks a journey, and whether the 375px page-weight audit (task S) has
+      drifted on any route touched by a later task. **Done 2026-08-21.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
