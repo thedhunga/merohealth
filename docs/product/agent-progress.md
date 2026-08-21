@@ -1102,6 +1102,21 @@ absent, this section is the source of truth), `frontend-design` skill.
       accessibility gap. Not fixed here; see new task V′ above for why the
       obvious fix is unsafe and needs an owner call.
 
+## VV. `ProfileSwitcher`'s modal had no visible close button — task UU's own "for the next run" lead 2
+
+> The queue is exhausted for the agent (task U's third bullet, task V/V′, and
+> the owner-gated set are all that remain unchecked), so this is a step-4
+> improvement. Task UU's own log entry named this: dismissal was backdrop-tap
+> or the platform back gesture only, with no control inside the sheet itself
+> — a gap for keyboard/switch-access users, not just a polish nit.
+
+- [x] `apps/mobile/src/components/ProfileSwitcher.tsx`: added a header row to
+      the subject-picker sheet with the existing title plus a 44×44 `X`
+      close button (`accessibilityRole="button"`, localized
+      `accessibilityLabel`), calling the same `setOpen(false)` the backdrop
+      tap and `onRequestClose` already use. **Done 2026-08-21 — see the log
+      entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2865,6 +2880,104 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-21 — **Task VV — exhausted-queue improvement: `ProfileSwitcher`'s
+  modal had no visible close button.** Done.
+
+  **Housekeeping.** Same shape as every recent entry. `git checkout main`
+  reported 50 commits left behind on a detached `HEAD`; `git pull` then
+  showed local `main` stuck at the stale commit `9bdf548` with no common
+  ancestor with `origin/main` (now tipped at `c4d50a9`, the WebKit-install
+  fix). `git status` was clean, so `git reset --hard origin/main` —
+  production's real history, and `origin/backup/pre-force-push-main-9bdf548`
+  still preserves the old tip if it's ever needed.
+
+  **Standing red-CI check.** Latest `ci` run on `main` is `c4d50a9`
+  (**success**), and `deploy-api` is green on the same SHA. The only two
+  *schedule*-triggered `journeys-production` runs in the workflow's history
+  are both before the WebKit fix landed (`ba1bfb5` at 22:45 UTC, red;
+  `bb8a38c` at 2026-08-19, red for an unrelated reason) — the 22:15 UTC
+  nightly hasn't fired again since the fix, so it isn't yet confirmed green.
+  Noting this explicitly for the next run rather than claiming it's verified:
+  **check the next `journeys-production` run once it exists; if `iphone`
+  still fails there, it's a real journey bug this time, not the missing
+  WebKit binary.**
+
+  **Queue check.** Every unchecked box read: task U's third bullet (standing
+  rule, no deliverable), task V (`InstallPrompt`/`SignInSuggestion` priority
+  — owner UX call), V′ (emergency "find a hospital" button — owner call,
+  unsafe to wire unilaterally), and the owner-gated set (duplex-voice
+  findings, corpus licence/release scope, payment provider, the two missing
+  testimonial portraits). Queue exhausted for the agent → a step-4
+  improvement.
+
+  **Why this.** Task UU's own "for the next run" list ranked this lead 2,
+  right after V′: `ProfileSwitcher.tsx`'s subject-picker `Modal` could only
+  be dismissed by tapping the backdrop or the platform back gesture —
+  nothing inside the sheet itself gave a keyboard or switch-access user a
+  way out, and nothing told a screen-reader user the sheet was dismissable
+  at all beyond the two implicit routes.
+
+  **The fix.** Added a header row above the subject list: the existing
+  title plus a new 44×44 `X` (`lucide-react-native`) close button, with
+  `accessibilityRole="button"` and a localized `accessibilityLabel` ("Close"
+  / "बन्द गर्नुहोस्"), calling the same `setOpen(false)` the backdrop
+  `Pressable` and `Modal`'s `onRequestClose` already use — one dismissal
+  path, three ways to trigger it. Matches this file's own established
+  pattern for a circular icon button (`records.tsx`'s "Go back" control) and
+  the 44px tap-target floor tasks W/W′ set for `apps/mobile`. The new button
+  is nested inside the sheet `View`, at the same depth as the existing
+  subject-option `Pressable`s, which already proves (their `onSwitch` calls
+  fire correctly today) that a `Pressable` here does not also trigger the
+  parent backdrop `Pressable`'s dismiss handler — so no double-fire risk.
+
+  **A caveat worth recording.** `canSwitch` (`subjects.length > 1`) is
+  `false` for every real user today: `apps/mobile` has no identity/auth
+  layer yet (`acting-subjects.ts`'s own doc comment), so nothing can
+  populate a second `GUARDIAN`/`DELEGATE` subject and the pill that opens
+  this modal is currently always disabled. This fix is real and correct for
+  when that wiring lands, per the same forward-modelling `acting-subjects.ts`
+  already does — but it has no live user-facing effect until then.
+
+  **Verification.** No RN component-render harness exists in this repo (no
+  `@testing-library/react-native`; same limitation tasks W and UU hit) and,
+  per the caveat above, the multi-subject state needed to open this modal
+  cannot be reached from the current app either — confirmed by building the
+  real `/app` export (`scripts/build-mobile-web.sh`) and driving it with a
+  throwaway Playwright script at 375×812: the profile pill renders
+  `disabled aria-disabled="true"` with a single `SELF` subject, exactly as
+  `acting-subjects.ts` predicts, so the sheet cannot be opened through the
+  live UI today to screenshot. Fell back to the same approach tasks W and UU
+  used for this exact gap: read the resolved JSX and confirmed (a) the close
+  button sits inside the sheet, not the backdrop, at the same nesting depth
+  as the already-working option rows, (b) its tap target is 44×44 per the
+  standing floor, and (c) both locales carry real strings, not a hardcoded
+  fallback. Full pipeline from a clean tree: `pnpm install --frozen-lockfile`,
+  `pnpm lint` (40/40), `pnpm typecheck` (40/40), `pnpm test` (75/75 tasks,
+  api 125 files/934 tests unchanged — a props/JSX-only change, nothing new to
+  unit-test), `pnpm build` (40/40, including the `/app` export). No visible
+  layout change on any *reachable* screen today (the sheet itself is
+  unreachable, per the caveat), so the 375px first-load measurement doesn't
+  apply the way it does for a live page — flagging that explicitly rather
+  than skipping it silently, matching task UU's own precedent for a
+  props-only change.
+
+  **For the next run.** In the order I'd take them:
+  1. Re-check the standing red-CI rule first, including whether a
+     `journeys-production` nightly has run since `c4d50a9` and gone green
+     with both browsers installed.
+  2. Task **V′** (owner decision): the emergency screen's dead "find a
+     hospital" button.
+  3. Task **V** (owner decision): `InstallPrompt` vs `SignInSuggestion`
+     priority.
+  4. The extensionless-metadata middleware trap (RR/SS/TT's own recurring
+     note) is still just a note — add `app/opengraph-image.tsx`'s matcher
+     entry in the same commit that first adds such a file.
+  5. If the queue is still exhausted: once `apps/mobile` gains its
+     identity/auth layer and `acting-subjects.ts` can be populated with a
+     real second subject, add the RN-render-harness-free verification this
+     run couldn't do (a live 375px screenshot of the open sheet) as a
+     regression guard — today there's no way to reach that state to test it.
 
 - 2026-08-20 — **Standing-rule diversion: red CI on `main`, not a queue task.**
   Fixed.

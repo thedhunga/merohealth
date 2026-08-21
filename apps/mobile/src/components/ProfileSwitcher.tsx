@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Check, ChevronDown, ShieldCheck, User } from 'lucide-react-native';
+import { Check, ChevronDown, ShieldCheck, User, X } from 'lucide-react-native';
 import type { LanguageCode } from '@swasthya/shared-types';
 import { colors, radii, spacing } from '@swasthya/configuration';
 import type { ActingSubject } from '@/lib/acting-subjects';
@@ -60,9 +60,19 @@ export function ProfileSwitcher({
       <Modal animationType="fade" onRequestClose={() => setOpen(false)} transparent visible={open}>
         <Pressable onPress={() => setOpen(false)} style={styles.backdrop}>
           <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>
-              {language === 'en' ? 'Whose record is open?' : 'कसको विवरण खुला छ?'}
-            </Text>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>
+                {language === 'en' ? 'Whose record is open?' : 'कसको विवरण खुला छ?'}
+              </Text>
+              <Pressable
+                accessibilityLabel={language === 'en' ? 'Close' : 'बन्द गर्नुहोस्'}
+                accessibilityRole="button"
+                onPress={() => setOpen(false)}
+                style={styles.closeButton}
+              >
+                <X color={colors.muted} size={18} />
+              </Pressable>
+            </View>
             {subjects.map((subject) => (
               <Pressable
                 accessibilityRole="button"
@@ -109,7 +119,9 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     width: '84%',
   },
-  sheetTitle: { color: colors.ink, fontSize: 15, fontWeight: '900', marginBottom: spacing.xs },
+  sheetHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.xs },
+  sheetTitle: { color: colors.ink, flex: 1, fontSize: 15, fontWeight: '900' },
+  closeButton: { alignItems: 'center', height: 44, justifyContent: 'center', width: 44 },
   option: {
     alignItems: 'center',
     borderRadius: radii.md,
