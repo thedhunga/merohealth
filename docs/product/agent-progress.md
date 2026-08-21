@@ -1160,6 +1160,34 @@ absent, this section is the source of truth), `frontend-design` skill.
       file) bypasses Nest's guard pipeline entirely. **Done 2026-08-21 — see
       the log entry below.**
 
+## XX. `apps/mobile/app/capture.tsx`'s document-photo review `<Image>` had no `accessibilityLabel` — task WW's own "for the next run" lead 5
+
+> The queue is exhausted for the agent (task U's third bullet, task V/V′, and
+> the owner-gated set are all that remain unchecked), so this is a step-4
+> improvement. Task WW's own "for the next run" list ranked this lead 5,
+> scouted but not chosen while WW picked the analytics auth gap instead:
+> every interactive control on the capture review screen already carries an
+> `accessibilityRole` (task UU's sweep covered all 66 `Pressable`s in
+> `apps/mobile`), but the one control that actually carries the screen's
+> subject matter — the photo a person is asked to confirm before it uploads
+> to their record — had none. A screen-reader user reaching "Review
+> document" got the document-type pills, the title field and the upload
+> button, with nothing announcing that a photo exists at all, let alone
+> which one, before they commit it to their health record.
+
+- [x] Added `accessible` and a localized `accessibilityLabel` ("Captured
+      document photo" / "खिचिएको कागजातको फोटो", matching the file's own
+      concise style for short controls like "Retake photo" / "फेरि
+      खिच्नुहोस्") to the `<Image>` in `capture.tsx`'s review step. No RN
+      component-render harness exists in this repo (task W's own precedent),
+      so verified the same way task UU/VV did: read the resolved JSX
+      post-edit, confirmed prop order matches the file's existing
+      alphabetical convention (`accessibilityRole` first when present, then
+      alphabetical — `accessibilityLabel` before `accessible` since `i` <
+      `l`), and confirmed no existing Playwright spec queries this element
+      (it isn't part of `/app`'s exported web build's selectors), so no
+      journey needed updating. **Done 2026-08-21 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2923,6 +2951,93 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-21 — **Task XX — exhausted-queue improvement:
+  `capture.tsx`'s document-photo review `<Image>` had no `accessibilityLabel`.**
+  Done.
+
+  **Housekeeping.** Same shape as every recent entry. `git checkout main`
+  reported 76 commits left behind on a detached `HEAD` (local `main` was
+  still at the stale `9bdf548`, with no common ancestor against
+  `origin/main`, now tipped at `7183937`, task WW's own commit). `git
+  status` was clean, so `git reset --hard origin/main` — production's real
+  history, and `origin/backup/pre-force-push-main-9bdf548` still preserves
+  the old tip.
+
+  **Standing red-CI check.** Latest `ci` run on `main` is `7183937` (push,
+  **success**). Still no confirmation either way on the
+  `journeys-production` job: the only `schedule`-triggered run in the
+  workflow's history predates the WebKit fix (`ba1bfb5` at 22:45 UTC, red —
+  the fix itself, `c4d50a9`, landed later at 23:20 UTC) and this run started
+  2026-08-21T02:12 UTC, still before the next 22:15 UTC nightly fires.
+  Carrying the same note forward again: **check the next
+  `journeys-production` job once it runs; if `iphone` still fails there,
+  it's a real journey bug this time.**
+
+  **Queue check.** Every unchecked box read: task U's third bullet (standing
+  rule, no deliverable), task V (`InstallPrompt`/`SignInSuggestion` priority
+  — owner UX call), V′ (emergency "find a hospital" button — owner call,
+  unsafe to wire unilaterally), and the owner-gated set. Queue exhausted for
+  the agent → a step-4 improvement.
+
+  **Why this.** Task WW's own "for the next run" list ranked six leads;
+  #1 (red-CI recheck) is above, #2 and #3 are the owner-decision tasks V′/V
+  (not for the agent), #4 (the extensionless-metadata middleware trap) is
+  still just a note — `apps/web/src/app/opengraph-image.tsx` and
+  `twitter-image.tsx` still don't exist, so there is nothing to add a
+  matcher entry for yet. #5 was this: `apps/mobile/app/capture.tsx`'s
+  document-photo review `<Image>` had no `accessibilityLabel`, unlike every
+  `Pressable` on the same screen (task UU's own sweep already gave all of
+  those a role). Confirmed still true by reading the file directly rather
+  than trusting the old note.
+
+  **The fix.** Added `accessible` and a localized `accessibilityLabel`
+  ("Captured document photo" / "खिचिएको कागजातको फोटो") to the `<Image>` in
+  the review step. Matched the file's own concise labelling style (compare
+  "Retake photo" / "फेरि खिच्नुहोस्" on the button two lines below it) rather
+  than a longer descriptive sentence. `apps/mobile` has no `messages/*.json`
+  — every string in this screen, including its existing
+  `accessibilityLabel`s, is an inline `language === 'en' ? … : …` ternary, so
+  the new string follows the same convention rather than introducing a
+  lookup table this file doesn't otherwise use.
+
+  **Verification.** No RN component-render harness exists in this repo (no
+  `@testing-library/react-native`, task W's own precedent), so verified by
+  reading the resolved JSX post-edit: prop order matches the file's existing
+  alphabetical convention (`accessibilityRole` first when present, then
+  alphabetical — `accessibilityLabel` sorts before `accessible` since `i` <
+  `l` at the point the names diverge, matching `TextInput`'s own prop order
+  five lines below). Checked `apps/web/e2e/app-surface.journeys.spec.ts`
+  (task TT/UU's spec) and the rest of `apps/web/e2e/` for any locator that
+  touches this screen or this image — none do, `/capture` isn't part of the
+  exported `/app` web build's tested surface — so no journey needed updating
+  under task U's standing rule; nothing observable to an existing test
+  changed. Full pipeline from a clean tree: `pnpm install --frozen-lockfile`,
+  `pnpm lint` (40/40), `pnpm typecheck` (40/40), `pnpm test` (75/75 tasks;
+  mobile 10 files/44 tests unchanged — pure prop addition, nothing new to
+  test), `pnpm build` (40/40).
+
+  **For the next run.** In the order I'd take them:
+  1. Re-check the standing red-CI rule first, including whether a
+     `journeys-production` job has run since `c4d50a9` and gone green with
+     both browsers installed.
+  2. Task **V′** (owner decision): the emergency screen's dead "find a
+     hospital" button.
+  3. Task **V** (owner decision): `InstallPrompt` vs `SignInSuggestion`
+     priority.
+  4. The extensionless-metadata middleware trap (RR/SS/TT's own recurring
+     note) — still just a note until an `app/opengraph-image.tsx` or
+     similar file is actually added; wire the matcher in that same commit.
+  5. `companion.controller.ts`'s `POST companion/assess` has no rate
+     limiter unlike its sibling `POST companion/research` — task WW's own
+     lead 6, carried forward; worth checking whether it should share
+     `CompanionResearchRateLimiter`, though it's cheap/local today so the
+     DoS argument is softer than WW's analytics-auth gap was.
+  6. A fresh sweep of `apps/mobile`'s other `<Image>` usages (e.g.
+     `records.tsx`'s document thumbnails, if any) for the same
+     missing-`accessibilityLabel` shape this task fixed on `capture.tsx` —
+     not done this run since scope was one screen, one control, per the
+     one-task-per-run rule.
 
 - 2026-08-21 — **Task WW — exhausted-queue improvement: `AnalyticsController`
   had zero auth on 7 clinic-wide business-data routes.** Done.

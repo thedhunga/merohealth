@@ -184,7 +184,13 @@ export default function CaptureScreen() {
           subjects={actingSubjects}
         />
 
-        <Image resizeMode="cover" source={{ uri: photo.uri }} style={styles.preview} />
+        <Image
+          accessibilityLabel={language === 'en' ? 'Captured document photo' : 'खिचिएको कागजातको फोटो'}
+          accessible
+          resizeMode="cover"
+          source={{ uri: photo.uri }}
+          style={styles.preview}
+        />
 
         <Pressable accessibilityRole="button" onPress={retake} style={styles.retake}>
           <RotateCcw color={colors.primaryDark} size={16} />
