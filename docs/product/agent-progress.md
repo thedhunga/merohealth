@@ -3232,9 +3232,38 @@ run needs to know.
   the `localhost:4000` misconfiguration are both real and worth the
   owner's attention but are infrastructure, not code, gaps — left alone.
 
-  **Update, same run, after push:** manually triggered `journeys-production`
-  again against this commit specifically to read the new diagnostic back.
-  See the follow-up note directly below this entry once that run completes.
+  **Update, same run, after push — the real answer, read back from
+  production.** Manually triggered `journeys-production` again against
+  commit `d2356f6` (run `32451412363`) specifically to read the new
+  diagnostic. Result is unambiguous and has zero contradictions across the
+  whole run: every `[phone]` (Chromium) navigation logged
+  `SpeechRecognition supported: true` (23 occurrences, 05:41:47–05:42:07),
+  then every `[iphone]` (WebKit) navigation from that point on logged
+  `SpeechRecognition supported: false` (57 occurrences, 05:42:18 onward,
+  the higher count from failing tests' retries) — a clean split at the
+  project boundary, not one stray value on either side. **Task ZZ's
+  mic-hero-label theory is confirmed, not just plausible: Playwright's own
+  WebKit build does not implement the Web Speech API at all.** This fully
+  explains the `बोल्नुहोस्`/`Speak` failure and, transitively, several of
+  the other `iphone`-only journey failures that depend on reaching the
+  mic-hero UI at all (the `iphone` project also improved on its own this
+  run — 9 failures again but 1 of last run's 9 was flaky-passed-on-retry
+  this time, and the `@live` `[phone]` failure from the pre-fix run did not
+  recur, suggesting that one was a transient provider hiccup rather than a
+  standing outage — noted, not chased further this run).
+
+  **For the next run.** This is now a settled product fact, not an open
+  question: Playwright's `iphone` project can never exercise voice-first UI
+  and never will until Playwright's own WebKit build changes upstream. The
+  remaining `iphone`-only failures that stem from this (mic-hero text never
+  rendering, and anything gated behind it) are test-suite/tooling
+  limitations, not product bugs — worth an explicit owner call on how
+  `journeys-production` should treat them (branch the assertions on the now
+  -logged capability, or scope those specific journeys to `phone` only)
+  rather than a silent test rewrite from the agent. The `@live`
+  `research?.status: "unavailable"` failures and the `localhost:4000`
+  misconfiguration remain open infrastructure items for the owner, as
+  above.
 
 - 2026-08-21 — **Task ZZ — exhausted-queue improvement: investigated
   `journeys-production`'s six confirmed `iphone`-only failures (task YY's
