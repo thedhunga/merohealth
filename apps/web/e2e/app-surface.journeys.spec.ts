@@ -44,4 +44,43 @@ test.describe('the /app product surface (apps/mobile web export)', () => {
     // rendered rather than navigating to a blank/error screen.
     await expect(page.getByText('आज के भइरहेको छ?')).toBeVisible();
   });
+
+  /**
+   * `/app`'s own landing page (`index.web.tsx`) only links to `/companion`,
+   * so the tab bar's other three destinations — care, learn, twin — had no
+   * journey at all since task TT first wired `/app` into this suite: nothing
+   * asserted they render past a bare route change, let alone a 200. All
+   * three were confirmed static-content-only (no camera, mic or live API —
+   * `care` reads `@swasthya/care-directory`'s bundled fixtures, `learn` reads
+   * `@swasthya/training-content`, `twin` reads local `AppStateProvider`
+   * state) before being added here, unlike `/capture`, `/consent` and
+   * `/consultation`, which MM/NN/OO's own log entries already found
+   * unreachable headlessly for the same reason this suite avoids them.
+   */
+  test('the care tab renders the directory search, not a blank tab', async ({ page }) => {
+    const response = await page.goto('/app/care');
+    expect(response?.status()).toBe(200);
+
+    await expect(page.getByText('सही सेवा खोज्नुहोस्')).toBeVisible();
+    await expect(page.getByLabel('सेवा निर्देशिका खोज्नुहोस्')).toBeVisible();
+  });
+
+  test('the learn tab renders the walkthrough, not a blank tab', async ({ page }) => {
+    const response = await page.goto('/app/learn');
+    expect(response?.status()).toBe(200);
+
+    await expect(page.getByText('एप कसरी चलाउने')).toBeVisible();
+  });
+
+  test('the twin tab renders the health picture, not a blank tab', async ({ page }) => {
+    const response = await page.goto('/app/twin');
+    expect(response?.status()).toBe(200);
+
+    // Not the "मेरो स्वास्थ्य चित्र" heading — the tab bar's own label for
+    // this same tab repeats that exact text, so it resolves twice. The body
+    // copy beneath the heading is unique on the page.
+    await expect(
+      page.getByText('तथ्यहरूको पारदर्शी चित्र—निदान, भविष्यवाणी वा पूर्णताको दाबी होइन।'),
+    ).toBeVisible();
+  });
 });

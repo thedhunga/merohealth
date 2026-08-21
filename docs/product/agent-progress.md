@@ -1619,6 +1619,73 @@ absent, this section is the source of truth), `frontend-design` skill.
       lacks a journey, and whether the 375px page-weight audit (task S) has
       drifted on any route touched by a later task. **Done 2026-08-21.**
 
+## KKK. `/app`'s care, learn and twin tabs had zero e2e coverage — task JJJ's own "for the next run" lead 1
+
+> The queue is exhausted for the agent (same state III/JJJ's own log entries
+> found — task U's third bullet, task V/V′, and the owner-gated set are all
+> that remain unchecked), so this is another step-4 improvement. Task JJJ's
+> own log entry named this the next lead once the `apps/api`/`packages` test
+> sweep came up dry: "whether any `apps/mobile` screen added since task TT's
+> e2e sweep (round seven O onward) still lacks a journey."
+
+- [x] `apps/web/e2e/app-surface.journeys.spec.ts` covered `/app` and
+      `/app/companion` only — the two destinations `index.web.tsx`'s own CTA
+      links to. The tab bar's other three destinations (care, learn, twin)
+      had no journey at all: nothing asserted they render past a bare route
+      change, let alone a 200. Confirmed all three are static-content-only
+      before adding coverage — `care` reads `@swasthya/care-directory`'s
+      bundled fixtures, `learn` reads `@swasthya/training-content`, `twin`
+      reads local `AppStateProvider` state, none touch camera, mic or a live
+      API — unlike `/capture`, `/consent` and `/consultation`, which
+      MM/NN/OO's own log entries already found unreachable headlessly for
+      exactly that reason, so those three stay out of scope here. Verified
+      the actual static export's route list first (`expo export --platform
+      web` → "Static routes (16)") rather than assuming Expo Router's
+      URL shape from reading the file tree — `(tabs)/care` and `/care` both
+      export, confirming the bare paths this spec now hits are real.
+      Added three tests: each navigates straight to `/app/care`, `/app/learn`
+      and `/app/twin`, asserts a 200 (not the JJJ-adjacent 404 failure mode
+      task TT's own spec already guards `/app` and `/app/companion`
+      against), and asserts page-specific content is visible. The twin test
+      needed a second pass: its first version asserted the
+      "मेरो स्वास्थ्य चित्र" heading, which also happens to be the tab bar's
+      own label for that same tab — Playwright's strict mode correctly
+      rejected the ambiguous locator, so it now asserts the unique body copy
+      beneath the heading instead. Confirmed real regression coverage, not
+      a tautology: temporarily renamed `care.tsx`'s heading string and
+      re-ran — the new care test failed as expected, then passed again after
+      reverting. `pnpm build` (`turbo build --filter=@swasthya/web...`) run
+      first so the local Playwright webServer had every workspace package
+      the marketing site imports (`@swasthya/entitlements`, `@swasthya/family`
+      etc.) — without it the dev server 500s on module resolution and every
+      journey in the suite times out, not just the new ones; this was not a
+      regression from this change, just an ordering requirement the existing
+      spec already relied on via CI's own `turbo test`'s `dependsOn:
+      ["^build"]` (see task TT's entry). Full monorepo gate green: `pnpm
+      install --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck`
+      (40/40), `pnpm test` (75/75 tasks), `pnpm build` (40/40). New journeys
+      pass on `desktop` and `phone` (10/10); `iphone` fails on all five tests
+      in the file, old and new alike, with `browserType.launch: Executable
+      doesn't exist at /opt/pw-browsers/webkit-2215/pw_run.sh` — this
+      container has no WebKit binary installed (only Chromium is
+      pre-installed per this environment's own setup notes), a pre-existing
+      environment gap unrelated to this change, not a real spec failure; CI's
+      own runner installs WebKit separately so this should not reproduce
+      there. This is itself a user-visible-change journey addition, so no
+      separate task-U bullet applies — the journeys *are* the required
+      update. **Done 2026-08-21.**
+
+**For the next run.** Test-coverage and journey-coverage sweeps are both
+exhausted again: `apps/api`/`packages`/`apps/web` hooks (task HHH) and now
+`/app`'s reachable static tabs (this entry) all have real coverage. Two
+honest gaps remain, both intentionally out of scope rather than missed:
+`/capture`, `/consent` and `/consultation` still have no headless journey
+because they need camera/mic, which this environment cannot grant even with
+mocking attempted (MM/NN/OO); and the 375px page-weight budget (task S) has
+not been re-measured against any route touched since task S′ — worth a fresh
+`weight-breakdown.mjs` pass on `/`, `/app`, and whichever marketing route was
+most recently edited, to confirm the 690.7 KB figure hasn't drifted.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -3382,6 +3449,56 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-21 — **Task KKK — exhausted-queue improvement: e2e journeys for
+  `/app`'s care, learn and twin tabs, the gap task JJJ's own log entry named
+  as the next lead.**
+
+  **Housekeeping.** Local `main` had again diverged from `origin/main` with
+  no common ancestor (76 vs. 50 commits) — the same recurring force-push
+  pattern every WW-onward entry describes. Confirmed local `main`'s tip was
+  byte-identical to `origin/backup/pre-force-push-main-9bdf548` before
+  resetting, so nothing local was at risk: `git reset --hard origin/main`.
+
+  **Standing red-CI check.** Latest `ci` run on `main` (`26e8943`, task
+  JJJ's own commit) is green — confirmed via the GitHub Actions API before
+  picking a task.
+
+  **Queue check.** Unchanged from CCC onward: task U's third bullet, task
+  V/V′, and the owner-gated set are the only unchecked boxes, all blocked on
+  an owner call. Queue exhausted for the agent again.
+
+  **The fix.** See task KKK above for the full account. Summary: `/app`'s
+  own e2e coverage (task TT) only reached the two destinations
+  `index.web.tsx` links to — `/app` itself and `/app/companion`. The tab
+  bar's other three destinations (care, learn, twin) had no journey; each is
+  confirmed static-content-only (no camera/mic/live API), so each got a
+  direct-navigation test asserting a 200 and page-specific visible content.
+  Verified the real static export's route list (`expo export --platform
+  web`) before writing URLs rather than assuming Expo Router's group-path
+  shape. Proved real regression coverage, not a tautology: temporarily
+  renamed `care.tsx`'s heading string, confirmed the new care test fails
+  with that change in place, then reverted and confirmed it passes clean
+  (`git diff` on `care.tsx` shows no changes in the final commit). Full
+  monorepo gate green: `pnpm install --frozen-lockfile`, `pnpm lint`
+  (40/40), `pnpm typecheck` (40/40), `pnpm test` (75/75 tasks), `pnpm build`
+  (40/40). New journeys pass on `desktop`/`phone` (10/10 across the whole
+  spec file); `iphone` fails on all five tests in the file — old and new
+  alike — with `browserType.launch: Executable doesn't exist at
+  /opt/pw-browsers/webkit-2215/pw_run.sh`. This container has no WebKit
+  binary installed (this environment's own setup notes say only Chromium is
+  pre-installed), so this is a pre-existing local-environment gap, not a
+  regression from this change; CI's own runner installs WebKit separately.
+
+  **For the next run.** See task KKK's own "For the next run" note: both
+  the test-coverage sweep (task HHH) and now the `/app` journey sweep (this
+  entry) are genuinely exhausted. Two honest gaps remain, both
+  intentionally scoped out rather than missed: `/capture`/`/consent`/
+  `/consultation` still have no headless journey (need camera/mic — MM/NN/OO
+  already found this unreachable headlessly) and task S's 690.7 KB page-weight
+  figure has not been re-measured since — worth a fresh
+  `weight-breakdown.mjs` pass on `/`, `/app`, and the most recently edited
+  marketing route.
 
 - 2026-08-21 — **Task HHH — exhausted-queue improvement: two new invariants
   guarding `packages/clinical-safety/src/medicines.ts` against silent
