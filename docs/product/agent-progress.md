@@ -1938,6 +1938,51 @@ new surfaced by the `packages/*` dependency sweep above; if a future pass
 wants to keep hunting for dead weight, `apps/api` and `apps/web` haven't
 had the same zero-imports check run against them yet.
 
+## PPP. `apps/api` declared `rxjs` as a direct dependency with zero imports anywhere in the repo — the zero-imports sweep task OOO's own log entry named as the next lead
+
+> The queue is exhausted for the agent (task U's third bullet, task V/V′,
+> and the owner-gated set are all that remain unchecked, same as OOO found),
+> so this is another step-4 improvement. Ran the zero-imports check OOO's
+> log entry asked for against `apps/api` and `apps/web`.
+
+- [x] `apps/web`: every declared dependency (`@swasthya/*`, `lucide-react`,
+      `motion`, `next`, `next-intl`, `react`, `react-dom`) has a real import
+      somewhere under `src`. Nothing to remove.
+- [x] `apps/api`: every `@swasthya/*` workspace package, `@nestjs/*`,
+      `helmet`, and `zod` are genuinely imported. Two were not, on first
+      pass — `reflect-metadata` and `rxjs` — but `reflect-metadata` is a
+      side-effect import (`import 'reflect-metadata';` at the top of
+      `src/main.ts`, required once for Nest's decorator metadata to work at
+      all), invisible to a `from '<pkg>'` grep, so it stays. `rxjs` had no
+      import anywhere — not `from 'rxjs'`, not a bare reference outside its
+      own `package.json` line — confirmed with a whole-repo grep, not just
+      `apps/api/src`. No `packages/*` workspace declares or imports it
+      either, so nothing depends on `apps/api` re-exporting or hoisting it.
+      NestJS's own packages (`@nestjs/core` etc.) carry `rxjs` as their own
+      transitive dependency, so removing the direct declaration changes
+      nothing about what actually resolves at runtime — it only stops
+      `apps/api` claiming a dependency it never used. Removed the one line
+      from `apps/api/package.json`'s `dependencies`, ran `pnpm install` to
+      regenerate `pnpm-lock.yaml` (three lines removed, `rxjs` still present
+      as `@nestjs/core`'s own transitive entry), then confirmed
+      `pnpm install --frozen-lockfile` accepts the regenerated lockfile.
+- [x] Full monorepo gate green from the repository root, the exact sequence
+      the working agreement requires: `pnpm install --frozen-lockfile`,
+      `pnpm lint` (40/40), `pnpm typecheck` (40/40, confirming nothing
+      relied on `rxjs`'s ambient types), `pnpm test` (75/75 tasks),
+      `pnpm build` (40/40). No user-visible change, so no new journey needed
+      under task U's standing rule. **Done 2026-08-21.**
+
+**For the next run.** Task NNN's CI-budget-gate-for-`/app` lead is still
+open and still needs an owner-set number first — unchanged from OOO's note.
+The zero-imports sweep is now done for `apps/web` and `apps/api` both, and
+found exactly one real hit across both; `packages/*` was already swept clean
+by NNN. If a future pass wants more mechanical housekeeping in the same
+vein, the ledger's queue itself is still exhausted for the agent (task U's
+third bullet, task V/V′, and the owner-gated set) — the next few runs will
+likely keep landing step-4 picks like this one until the owner clears one of
+the blocked items above or opens a new round.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
