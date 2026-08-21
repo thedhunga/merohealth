@@ -2020,6 +2020,44 @@ and still needs an owner-set number first — unchanged. The queue is exhausted
 for the agent again; the next few runs will likely keep landing step-4 picks
 like this one until the owner clears a blocked item or opens a new round.
 
+## RRR. Three account/legal toggle switches had a sub-44px tap target — the exact `FaqList` bug (task RR), never applied to the switch shape it shares
+
+> The queue is exhausted for the agent (task U's third bullet, task V/V′, and
+> the owner-gated set are all that remain unchecked), so this is another
+> step-4 improvement. Spawned a survey subagent to sweep several fresh
+> categories (zero-imports on `apps/api`/`apps/web`, silently-swallowed
+> catches beyond the already-audited `apps/mobile`, unguarded routes) — all
+> came back clean; the one real gap it found was this.
+
+- [x] `ThemeToggle.tsx`, `CorpusConsentToggle.tsx`, and `DataConsentView.tsx`
+      each render a native-checkbox switch as `<label class="flex shrink-0
+      cursor-pointer items-center gap-3 ..."><span/*label text*/><span
+      class="h-7 w-12 ..."/*pill*/><input class="sr-only" .../></label>`. The
+      `<label>` — not the `<input>`, which is visually hidden — is the actual
+      tap target, but with `items-center` and no `min-h`, its rendered height
+      is capped by its tallest child: the `h-7` (28px) pill. Same defect task
+      RR fixed on `FaqList`'s `<summary>` row, on a different component shape
+      that RR's own sweep never reached. Added `min-h-11` to all three
+      labels, mirroring RR's fix and comment exactly.
+- [x] Verified at 375px with headless Chromium against `/legal/data-consent`
+      (the one public page among the three — `ThemeToggle`/
+      `CorpusConsentToggle` live behind `AccountView`): each toggle label's
+      `getBoundingClientRect().height` is 44px post-fix (was capped at the
+      28px pill height before). No visual regression — the pill and label
+      text are unchanged, only the row's minimum height grew, adding
+      padding above/below the pill rather than resizing it.
+- [x] Full monorepo gate green: `pnpm install --frozen-lockfile`, `pnpm lint`
+      (40/40), `pnpm typecheck` (40/40), `pnpm test` (75/75 tasks, 993 API
+      tests unchanged), `pnpm build` (40/40). Purely a `className` change (no
+      new copy, no logic change), so no message-file edits and no new
+      journey needed under task U's standing rule — existing journeys that
+      already click these three toggles (if any) are unaffected since the
+      click handler and DOM structure are unchanged. **Done 2026-08-21.**
+
+**For the next run.** Task NNN's CI-budget-gate-for-`/app` lead is still open
+and still needs an owner-set number first — unchanged. Queue exhausted for
+the agent again.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -3783,6 +3821,69 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-21 — **Task RRR — exhausted-queue improvement: fixed a sub-44px tap
+  target on the three account/legal toggle switches, the same defect task RR
+  fixed on `FaqList` but never applied to this shape.**
+
+  **Housekeeping.** Fresh container; this repo's clone was shallow, and
+  `git merge-base` between local `main` (9bdf548) and `origin/main` (d08266a)
+  came back empty/exit-1 rather than the recurring "no common ancestor"
+  every WW-onward entry describes — that empty result was the shallow clone
+  hiding the real history, not an actual force-push divergence this time.
+  `git fetch --unshallow origin` fixed it: merge-base then resolved cleanly
+  to local `main`'s own tip, confirming `origin/main` was a clean 50-commit
+  fast-forward ahead with nothing local at risk. `git merge --ff-only
+  origin/main` rather than the `git reset --hard` prior entries used —
+  equivalent result here since local had zero unique commits, but worth
+  unshallowing first before assuming a reset is safe; a shallow clone can
+  make a real divergence look identical to a plain fast-forward gap, or vice
+  versa.
+
+  **Standing red-CI check.** Latest `ci` run on `main` (`d08266a`, task
+  QQQ's own commit) is green — confirmed via the GitHub Actions API before
+  picking a task.
+
+  **Queue check.** Unchanged from CCC onward: task U's third bullet, task
+  V/V′, and the owner-gated set are the only unchecked boxes, all blocked on
+  an owner call. Queue exhausted for the agent again, so this is a step-4
+  improvement, same as QQQ/OOO/NNN before it. Spawned a survey subagent
+  rather than re-walking exhausted threads; it checked a zero-imports sweep
+  on `apps/api`/`apps/web` (task OOO's own named lead, still untried until
+  now — clean, every declared dependency in both is actually imported),
+  silently-swallowed catches/fire-and-forget promises in `apps/web` and
+  `apps/api` (clean — every one either sets error UI state, rethrows as a
+  typed HTTP exception, or has a comment justifying the swallow), and an
+  unguarded-route sweep (clean — the only unguarded routes are the four
+  intentionally owner-gated modules plus genuinely non-sensitive ones). The
+  one real finding: three toggle switches under 44px.
+
+  **The fix.** See task RRR above for the full account. Summary:
+  `ThemeToggle.tsx`, `CorpusConsentToggle.tsx` (both `apps/web/src/
+  components/account/`) and `DataConsentView.tsx`
+  (`apps/web/src/components/legal/`) all share one native-checkbox switch
+  shape — a `<label>` wrapping a hidden `sr-only` `<input>`, a text span, and
+  an `h-7 w-12` pill span — where the `<label>` is the real tap target but
+  has `items-center` and no `min-h`, so its height collapses to the pill's
+  28px. This is the identical defect task RR fixed on `FaqList`'s
+  `<summary>` row (same `min-h-11` fix, same reasoning), just never applied
+  here since it's a different component shape RR's own sweep didn't touch.
+  Added `min-h-11` to all three labels, matching RR's comment. Verified with
+  headless Chromium at 375px against `/legal/data-consent` (the one public
+  page of the three — the other two live behind `AccountView`):
+  `getBoundingClientRect().height` on each toggle label is 44px post-fix.
+  Purely a `className` addition — no logic, copy, or DOM-structure change —
+  so no message-file edits and no new journey needed. Full monorepo gate
+  green: `pnpm install --frozen-lockfile`, `pnpm lint` (40/40), `pnpm
+  typecheck` (40/40), `pnpm test` (75/75 tasks, 993 API / 526 web tests
+  unchanged), `pnpm build` (40/40).
+
+  **For the next run.** Task NNN's CI-budget-gate-for-`/app` lead is still
+  open and still needs an owner-set number first — unchanged. Queue exhausted
+  for the agent again. If a future survey wants a fresh angle: `apps/mobile`
+  hasn't had the same sub-44px sweep re-run since task W/W′ fixed the
+  original gaps there — worth re-checking now that later tasks (VV, XX, and
+  others) have added new Pressables since.
 
 - 2026-08-21 — **Task QQQ — exhausted-queue improvement: gated Swagger UI at
   `/docs` to non-production, closing an unauthenticated full-schema dump on

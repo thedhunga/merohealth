@@ -113,7 +113,13 @@ export function DataConsentView() {
                     {t(`purposes.${key}.body`)}
                   </p>
                 </div>
-                <label className="flex shrink-0 cursor-pointer items-center gap-3 sm:pt-1" htmlFor={inputId}>
+                {/*
+                  `min-h-11` floors the label at 44px — it's the actual tap
+                  target (wraps the `sr-only` checkbox) but `items-center`
+                  otherwise caps its height at the `h-7` switch pill inside
+                  it. Same fix as `FaqList`'s `<summary>` row.
+                */}
+                <label className="flex min-h-11 shrink-0 cursor-pointer items-center gap-3 sm:pt-1" htmlFor={inputId}>
                   <span aria-hidden className="text-sm font-semibold text-ink-soft">
                     {checked ? t('onLabel') : t('offLabel')}
                   </span>
