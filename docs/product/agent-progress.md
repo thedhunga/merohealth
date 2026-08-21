@@ -1875,6 +1875,69 @@ zero-imports grep only covered `apps/mobile/app` and `apps/mobile/src` —
 worth widening to `packages/*` (`apps/mobile`'s workspace dependencies) if a
 future pass wants to keep hunting for dead weight the same way.
 
+## OOO. The bare `turbo build` for `apps/mobile` silently shipped the untree-shaken 2.8 MB bundle — task NNN's own "for the next run" lead 1
+
+> The queue is exhausted for the agent (task U's third bullet, task V/V′,
+> and the owner-gated set are all that remain unchecked), so this is
+> another step-4 improvement — the specific pick task NNN's own log entry
+> named as lead 1. Confirmed CI was green on `main` (`1f1b335`, NNN's own
+> commit) before starting. A `packages/*` zero-imports sweep (NNN's other
+> lead) was also run first: every package's declared dependency
+> (`pdf-lib`, `minio`, `@prisma/adapter-pg`, `@swasthya/text-normalization`,
+> `@swasthya/entitlements`, and the many `@swasthya/shared-types` deps) has
+> a real import somewhere in that package's own `src` — nothing dead found,
+> recorded here so a future run doesn't re-walk the same ground.
+
+- [x] Reproduced the gap MMM's log entry described before touching
+      anything: `EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH` /
+      `EXPO_UNSTABLE_TREE_SHAKING` only ever got set inside
+      `scripts/build-mobile-web.sh` (via `export`) and directly in
+      `ci.yml`'s one `expo export` step — both wrap `pnpm turbo build
+      --filter=@swasthya/mobile...`, never `expo export` itself. So the
+      bare command, unset, ran with neither flag: `rm -rf apps/mobile/dist
+      && pnpm turbo build --filter=@swasthya/mobile... --force` with both
+      vars explicitly `unset` produced a 2,831,802-byte (uncompressed)
+      `__common` chunk — task MMM's own pre-fix number, not its 650 KB
+      post-fix one, confirming the flags genuinely were not reaching this
+      path.
+- [x] Fixed it at the one place every caller of `apps/mobile`'s build
+      passes through regardless of how it's invoked — the package's own
+      `build` script — rather than adding a third place to remember the
+      two flags: `apps/mobile/package.json`'s `"build"` script now reads
+      `"EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 EXPO_UNSTABLE_TREE_SHAKING=1
+      expo export --platform web"`. `build-mobile-web.sh`'s own `export`
+      lines and `ci.yml`'s `env:` block are now redundant (same values,
+      re-set) rather than load-bearing, and were left in place rather than
+      pulled out in the same change — removing them is a separate,
+      lower-value cleanup with its own risk of quietly un-covering this
+      exact gap again if a future edit ever touches the script without
+      noticing the env block was the only thing setting the flags. No
+      cross-platform shell concern: every build entry point in this repo
+      (`build-mobile-web.sh`, `vercel-build.sh`, `ci.yml`) already assumes
+      a POSIX shell, and Node's `engines` field pins `>=22` with no Windows
+      dev workflow documented anywhere in the repo.
+- [x] Re-ran the identical bare-command reproduction after the fix, vars
+      still `unset` in the shell: `__common` dropped to 650,870 bytes —
+      byte-for-byte the same size MMM's own fix produced through
+      `build-mobile-web.sh`, confirming the bare path now matches every
+      other build path instead of silently diverging from it.
+- [x] Full monorepo gate green from the repository root, the exact command
+      sequence the ledger's working agreement requires: `pnpm install
+      --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+      `pnpm test` (75/75 tasks, 991 API tests), `pnpm build` (40/40) — and
+      confirmed the `apps/mobile/dist` output `pnpm build` itself produces
+      is the tree-shaken 650 KB build, not the 2.8 MB one, so the fix holds
+      through the real gate command and not just the isolated repro. No
+      user-visible change (nothing rendered ever depended on which build
+      path set these flags), so no new journey needed under task U's
+      standing rule. **Done 2026-08-21.**
+
+**For the next run.** Task NNN's other lead — a CI budget gate for `/app`
+itself — is still open and still needs an owner-set number first. Nothing
+new surfaced by the `packages/*` dependency sweep above; if a future pass
+wants to keep hunting for dead weight, `apps/api` and `apps/web` haven't
+had the same zero-imports check run against them yet.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -3638,6 +3701,50 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-21 — **Task OOO — exhausted-queue improvement: the bare
+  `pnpm turbo build --filter=@swasthya/mobile...` invocation silently
+  shipped the untree-shaken 2.8 MB bundle, task NNN's own log entry named
+  as the next lead.**
+
+  **Housekeeping.** Fresh container, local `main` had again diverged from
+  `origin/main` with no common ancestor (76 vs. 50 commits) — the same
+  recurring force-push pattern every WW-onward entry describes. Confirmed
+  local `main`'s tip (`9bdf548`) matched `origin/backup/pre-force-push-main-9bdf548`
+  before resetting, so nothing local was at risk: `git reset --hard
+  origin/main`.
+
+  **Standing red-CI check.** Latest `ci` run on `main` (`1f1b335`, task
+  NNN's own commit) is green — confirmed via the GitHub Actions API before
+  picking a task.
+
+  **Queue check.** Unchanged from CCC onward: task U's third bullet, task
+  V/V′, and the owner-gated set are the only unchecked boxes, all blocked
+  on an owner call. Queue exhausted for the agent again.
+
+  **The fix.** See task OOO above for the full account. Summary: the two
+  Metro tree-shaking env flags MMM introduced were only ever set inside
+  `build-mobile-web.sh` and `ci.yml`'s own `expo export` step, both of
+  which wrap `pnpm turbo build --filter=@swasthya/mobile...` — never the
+  build command itself. Reproduced the gap first (bare command, flags
+  unset, `__common` back to MMM's original 2,831,802-byte pre-fix size),
+  then moved the flags into `apps/mobile/package.json`'s own `"build"`
+  script so every caller gets them regardless of how the build is invoked,
+  then reproduced again to confirm the bare command now matches
+  `build-mobile-web.sh`'s output exactly (650,870 bytes). Also ran the
+  `packages/*` zero-imports dependency sweep task NNN's log entry named as
+  its other lead — every declared dependency across all 35 packages
+  resolved to a real import; nothing dead found, recorded so it isn't
+  re-walked. Full monorepo gate green: `pnpm install --frozen-lockfile`,
+  `pnpm lint` (40/40), `pnpm typecheck` (40/40), `pnpm test` (75/75 tasks,
+  991 API tests), `pnpm build` (40/40), with the real `apps/mobile/dist`
+  output from `pnpm build` itself confirmed tree-shaken. No user-visible
+  change, so no new journey under task U's standing rule.
+
+  **For the next run.** Task NNN's other lead — a CI budget gate for
+  `/app` itself — is still open and still needs an owner-set number first.
+  `apps/api` and `apps/web` haven't had the same zero-imports dependency
+  check run against them yet, if a future pass wants to keep hunting.
 
 - 2026-08-21 — **Task NNN — exhausted-queue improvement: removed
   `expo-video`, a completely unused dependency and config plugin, the
