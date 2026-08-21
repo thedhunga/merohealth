@@ -3265,6 +3265,25 @@ run needs to know.
   misconfiguration remain open infrastructure items for the owner, as
   above.
 
+  **One more real, self-healing flake caught while confirming this push was
+  actually green — worth naming, not worth chasing this run.** The
+  push-triggered `verify` run for the first commit (`d2356f6`, run
+  `32451409704`) failed `pnpm test` with `Cannot find module
+  '/generated/internal/prismaNamespace.ts'` in `@swasthya/database`, while
+  the *manually-triggered* `verify` run against the exact same commit
+  (`32451412363`, running concurrently) passed cleanly. Read both logs:
+  `@swasthya/database`'s `build` and `test` scripts each run their own
+  `prisma generate` into the same `generated/` directory, and turbo doesn't
+  serialize those two tasks for this package — so under the right timing,
+  one invocation's write and the other's read race. Confirmed self-healing:
+  the very next push (`04e8641`, run `32452075635`) passed clean. Not a
+  regression from this run's change (neither commit touched
+  `packages/database`), and not chased further here since main is
+  confirmed green on the latest commit — but **for the next run**, if this
+  recurs, the fix is a `turbo.json` `dependsOn` from `database#test` to
+  `database#build` (or dropping the redundant `prisma generate` from one of
+  the two scripts) so the two invocations can't overlap.
+
 - 2026-08-21 — **Task ZZ — exhausted-queue improvement: investigated
   `journeys-production`'s six confirmed `iphone`-only failures (task YY's
   own top lead).** One real, fixed cause; one theory ruled out; one
