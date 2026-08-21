@@ -2058,6 +2058,110 @@ like this one until the owner clears a blocked item or opens a new round.
 and still needs an owner-set number first — unchanged. Queue exhausted for
 the agent again.
 
+## SSS. Standing red-CI investigation — root-caused `journeys-production`'s remaining "genuinely unexplained" WebKit failures task ZZ left open; confirmed it is the same owner-blocked gap task AAA already found, not a regression; corrected a stale `HANDOFF.md` row while in there
+
+> The nightly `journeys-production` run against `main`'s then-latest commit
+> (`9efe402`, task RRR's own) came back red — the standing rule at the top of
+> this file makes root-causing that this run's task rather than picking a
+> fresh one. Confirmed first, not assumed: the `verify` job (the one that
+> actually gates `deploy-api`) was green on the same commit; only the
+> separate live-production journey job failed, and only on the nightly
+> `schedule` trigger — `journeys-production` never runs on a plain push (see
+> `ci.yml`'s `if: github.event_name == 'schedule' || … 'workflow_dispatch'`),
+> so there was no prior green run of it on this commit to compare against, a
+> correction to how this entry's own investigation initially read the
+> evidence.
+
+- [x] Re-ran the failed job once (`rerun_failed_jobs`) to eliminate simple
+      flake before spending more effort — matches this ledger's own
+      re-run-at-most-once norm. It failed again, worse (9 failures, up from
+      7), all but one on `[iphone]`/WebKit, spanning four unrelated spec
+      files — not consistent with ordinary flake, so kept digging rather
+      than writing it off.
+- [x] Read the full job log (task ZZ's own `[browser capability]`/
+      `[browser request failed]`/`[browser console.error]` diagnostics
+      fixture, added in ZZ specifically so a future red run could self-explain
+      instead of needing another guess). Two findings, both conclusive:
+      1. **ZZ's "plausible but unconfirmed" SpeechRecognition theory is
+         confirmed true.** `[browser capability] SpeechRecognition supported:
+         false` appears on every `iphone` navigation, `true` on every `phone`
+         one — Playwright's own Linux WebKit build genuinely does not expose
+         `window.SpeechRecognition`/`webkitSpeechRecognition`, so the
+         mic-hero honestly falls back to text-first on that engine exactly as
+         `useSpeechDictation.ts` is written to. Not a product bug.
+      2. **The rest of ZZ's "still genuinely unexplained" failures (canned
+         answer never appearing, advisory-scoping, dark-mode toggle not
+         persisting) all trace to one cause**, visible directly in the
+         `[browser request failed]` lines: `merohealth-beta.vercel.app`'s
+         deployed bundle calls `https://localhost:4000/v1/auth/me` (and
+         `/v1/records/observations`, `/v1/family/grants`,
+         `/v1/language-corpus/consent`, …) on every page load and every one
+         of those connections is refused. `AccountView.tsx`'s own comment
+         confirms the mechanism: `useSession` redirects to `/signin` on
+         anything other than a live session, so a reload that can't reach
+         `/v1/auth/me` never reaches `#account-theme-dark` at all — exactly
+         the dark-mode-toggle failure. This is `docs/product/HANDOFF.md`'s
+         already-documented, already owner-gated line ("Sign-in / register /
+         account / family … The API has never been deployed") and task AAA's
+         own log entry already traced the same `localhost:4000` calls to the
+         same `NEXT_PUBLIC_API_URL`-unset fallback and explicitly left it
+         alone as infrastructure, not code. Nothing here is new *cause* —
+         it's the first time every one of ZZ's remaining failures has been
+         individually traced back to it with the actual failed-request
+         evidence in hand, rather than staying an open "still unexplained"
+         line. Closing that thread for good: no further agent run should
+         re-investigate `journeys-production`'s WebKit-only failures as a
+         mystery — they resolve to (a) the confirmed SpeechRecognition gap
+         above (harmless, by design) and (b) this `localhost:4000` gap,
+         unresolvable without the owner deploying `apps/api` and setting
+         `NEXT_PUBLIC_API_URL` on Vercel per `docs/deployment/
+         dedicated-server.md`.
+      3. Checked whether `patient-registry`/`scheduling`'s unauthenticated
+         write routes (`POST /patients/:patientId/demographics`,
+         `POST /appointments/:appointmentId/cancel`) were a fresh gap a
+         survey subagent flagged — they are not: task CC/DD already
+         investigated exactly these two controllers and moved them to
+         "Owner-gated" for the same reason `patient-registry` is there
+         (`patientId` is a clinic-minted id independent of the auth
+         `subjectId` space; a `subjectId`-comparison guard would 404 every
+         legitimate appointment, the exact self-inflicted lockout task CC's
+         own log entry ruled out). No action taken; not re-added to the
+         queue.
+      4. Also spawned a subagent to re-verify every `Pressable`/`Touchable*`
+         tap-target size across `apps/mobile` (RRR's own "worth re-checking"
+         lead, since VV/XX added Pressables after task W/W′). All 61
+         non-decorative targets resolve to ≥44px on their smaller dimension,
+         either explicitly or by a provably larger child. No violations.
+- [x] **Housekeeping fix, found while re-reading `HANDOFF.md` for the
+      `NEXT_PUBLIC_API_URL` row above**: its "12 API tests fail locally" row
+      (written 2026-08-16, never touched since) no longer matches reality — a
+      fresh `pnpm install --frozen-lockfile` plus `pnpm test` from this run
+      shows 993/993 API tests, 133/133 files, clean. Struck the row through
+      rather than deleting it outright, in case the underlying `pnpm` dedup
+      issue is environment-specific and resurfaces; corrected the "Fix"
+      column to match. `docs/product/HANDOFF.md`'s own stated policy is to
+      edit stale lines here rather than let them drift, and this run's own
+      gate run is the freshest possible evidence.
+- [x] Full monorepo gate green: `pnpm install --frozen-lockfile`, `pnpm lint`,
+      `pnpm typecheck`, `pnpm test` (993 API tests, unchanged), `pnpm build`.
+      Docs-only change — no source touched, so no journey update needed under
+      task U's standing rule. **Done 2026-08-21.**
+
+**For the next run.** Queue exhausted for the agent again (task U's third
+bullet, task V/V′, and the owner-gated set, including `patient-registry`/
+`scheduling`, are the only unchecked boxes). `journeys-production`'s red
+nightly status is now fully explained and will stay red until the owner
+deploys `apps/api` and sets `NEXT_PUBLIC_API_URL` — do not re-investigate it
+as a mystery again; do check whether it has gone green after that owner step,
+and if so, close this entry's "unresolvable without the owner" framing.
+Un-investigated so far: whether `/app` still 404s in production the way
+`HANDOFF.md`'s existing row says — `scripts/vercel-build.sh` (which
+`apps/web/vercel.json`'s `buildCommand` actually calls) already builds and
+publishes the Expo web export to `apps/web/public/app`, which reads as
+already fixed, but this run had no outbound network access to
+`merohealth-beta.vercel.app` to confirm directly (proxy 403) — a future run
+with that access should check before editing the row.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -3821,6 +3925,103 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-21 — **Task SSS — standing red-CI investigation: root-caused
+  `journeys-production`'s remaining "genuinely unexplained" WebKit failures
+  task ZZ left open, confirmed it's the same owner-blocked gap task AAA
+  already found rather than a new regression, and corrected a stale
+  `HANDOFF.md` row found along the way.**
+
+  **Housekeeping.** Fresh container; local `main` was on the pre-force-push
+  history (76 commits) with no common ancestor against `origin/main` (50
+  commits) — the same recurring pattern every WW-onward entry describes.
+  Working tree clean, so `git reset --hard origin/main`; nothing local at
+  risk.
+
+  **Standing red-CI check — and why this became the task.** The GitHub
+  Actions API showed the latest `ci` run on `main` (`9efe402`, task RRR's own
+  commit) red: `verify` (the job that actually gates `deploy-api`) was green,
+  but `journeys-production` — the nightly job that runs the real journeys
+  against `https://merohealth-beta.vercel.app` — failed. Per this file's own
+  standing rule, root-causing that is the task, not picking a fresh one from
+  the queue.
+
+  **What actually happened, in order.** Initially read a second, earlier `ci`
+  run on the same commit as "passed 19 minutes prior," which would make a
+  single re-run to rule out flake reasonable under this ledger's own
+  re-run-once norm. That reasoning was subtly wrong and is corrected here for
+  whoever reads this next: `journeys-production` only runs on the nightly
+  `schedule` trigger or `workflow_dispatch` (`ci.yml`'s own `if:`), never on
+  a plain push — so the earlier green run was `verify` only; there was no
+  prior `journeys-production` result on this commit to have "passed." The
+  re-run itself was still worth doing (a second red run of the same size and
+  shape rules out a single transient blip, and it did — the second run failed
+  worse: 9 failures vs. 7, not fewer), just not for the reason first written
+  down.
+
+  **Root cause, read from task ZZ's own diagnostics fixture.** ZZ (2026-08-21
+  earlier) added `[browser capability]`/`[browser request failed]`/`[browser
+  console.error]` forwarding to `e2e/fixtures.ts` specifically so a future red
+  run could self-explain. It worked. Two findings from the actual job log,
+  both conclusive, not guessed:
+  1. `[browser capability] SpeechRecognition supported: false` on every
+     `iphone` navigation, `true` on every `phone` one — confirms ZZ's own
+     "plausible but unconfirmed" theory that Playwright's Linux WebKit build
+     genuinely does not expose `SpeechRecognition`, so the mic-hero's
+     text-first fallback there is correct behaviour, not a bug.
+  2. `[browser request failed] GET https://localhost:4000/v1/auth/me —
+     Could not connect to localhost` (and the same for `/v1/records/
+     observations`, `/v1/family/grants`, `/v1/language-corpus/consent`) fires
+     on every page load. `AccountView.tsx`'s own comment confirms the
+     mechanism — `useSession` redirects to `/signin` on anything but a live
+     session — which is exactly why the dark-mode-toggle test's reload never
+     finds `#account-theme-dark`: the auth check can't reach a server that
+     isn't deployed, so the page bounces before the toggle ever renders. This
+     is `HANDOFF.md`'s already-documented "the API has never been deployed"
+     line, and task AAA's own log entry already traced these same
+     `localhost:4000` calls to the same cause and left it alone as
+     infrastructure. What's new here is not the cause — it's that every one
+     of ZZ's remaining "still genuinely unexplained" failures now has its own
+     confirmed line of evidence, closing that open thread for good rather
+     than leaving it open for another run to re-guess.
+
+  **Two side-checks, both came back clean.** A survey subagent flagged
+  `patient-registry`/`scheduling`'s unauthenticated write routes (`POST
+  /patients/:patientId/demographics`, `POST /appointments/:appointmentId/
+  cancel`) as a possible fresh gap — read both controllers directly before
+  acting: tasks CC/DD already investigated exactly these two and moved them
+  to "Owner-gated" for the documented id-space reason (a `subjectId`
+  comparison would 404 every legitimate appointment). Not a fresh bug; left
+  alone. A second subagent re-verified every `apps/mobile` `Pressable`/
+  `Touchable*` tap-target size (RRR's own "worth re-checking" lead) — all 61
+  non-decorative targets are ≥44px on their smaller dimension. No violations.
+
+  **The one real fix shipped.** `docs/product/HANDOFF.md`'s "12 API tests
+  fail locally" row (written 2026-08-16, untouched since) no longer matches
+  reality: a fresh `pnpm install --frozen-lockfile` plus `pnpm test` this run
+  shows 993/993 API tests, 133/133 files, clean. Struck the row through
+  rather than deleting it, in case the underlying `pnpm` dedup issue is
+  environment-specific and resurfaces.
+
+  **Gate.** `pnpm install --frozen-lockfile`, `pnpm lint` (40/40), `pnpm
+  typecheck` (40/40), `pnpm test` (75/75 tasks, 993 API tests unchanged),
+  `pnpm build` (40/40) all green. Docs-only change, no source touched — no
+  journey update needed under task U's standing rule.
+
+  **For the next run.** `journeys-production`'s red nightly status is now
+  fully explained (SpeechRecognition gap, harmless; `localhost:4000`,
+  owner-blocked) — do not re-investigate it as a mystery again; do check
+  whether it has gone green after the owner deploys `apps/api` and sets
+  `NEXT_PUBLIC_API_URL`, and if so, close out this entry's framing.
+  Un-investigated: whether `HANDOFF.md`'s "`/app` 404" row is itself now
+  stale — `scripts/vercel-build.sh` (what `apps/web/vercel.json`'s
+  `buildCommand` actually calls) already builds and publishes the Expo web
+  export to `apps/web/public/app`, which reads as already fixed, but this run
+  had no outbound network access to `merohealth-beta.vercel.app` to confirm
+  (proxy 403 on the one host that matters here). Queue exhausted for the
+  agent again otherwise — task U's third bullet, task V/V′, and the
+  owner-gated set (now including `patient-registry`/`scheduling`, confirmed
+  correctly placed there) are the only unchecked boxes.
 
 - 2026-08-21 — **Task RRR — exhausted-queue improvement: fixed a sub-44px tap
   target on the three account/legal toggle switches, the same defect task RR

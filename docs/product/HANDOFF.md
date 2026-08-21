@@ -51,7 +51,7 @@ before anything else when answers say `setup-required`.
 | Sign-in / register / account / family | Web calls `NEXT_PUBLIC_API_URL`, unset → `http://localhost:4000`. **The API has never been deployed.** | Follow the API-only runbook in `docs/deployment/dedicated-server.md`, then set `NEXT_PUBLIC_API_URL` in Vercel. |
 | Google sign-in | Not built; needs an OAuth client id only the owner can create | Spec is in the ledger, section D. |
 | `/app` 404 | The Expo build is never published — the script that copies it lives in the root `vercel.json`, which Vercel doesn't read (Root Directory is `apps/web`) | Ledger, Round three B3. |
-| 12 API tests fail locally | `TypeError: Right-hand side of 'instanceof'` — a class-identity mismatch (two `@nestjs/common` copies) after a pnpm reinstall. **Pre-existing on `origin/main`, not caused by recent work.** | `pnpm install --frozen-lockfile` from a clean `node_modules`, or `pnpm dedupe`. Not a code bug. |
+| ~~12 API tests fail locally~~ | Stale as of 2026-08-21 — re-verified with a fresh `pnpm install --frozen-lockfile` on this row's own prescribed fix and the full suite is clean: 993/993 API tests, 133/133 files. Whatever caused the `@nestjs/common` class-identity mismatch this row described (2026-08-16) is gone from the current lockfile/dependency tree. Left the row rather than deleting it, in case the underlying `pnpm` dedup issue is environment-specific and resurfaces. | If it recurs: `pnpm install --frozen-lockfile` from a clean `node_modules`, or `pnpm dedupe`. |
 
 ## What was done in the last session (2026-08-16), in order
 
