@@ -3212,6 +3212,89 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-21 — **Task CCC — exhausted-queue improvement: tested
+  `apps/api`'s `Prisma*Store` adapters, which had zero coverage anywhere in
+  the monorepo.** Added
+  `src/family/prisma-family-grants.store.test.ts`.
+
+  **Housekeeping.** `git checkout main` again reported local `main` stale
+  and diverged from `origin/main` with no common ancestor (this run's local
+  tip was `9bdf548`, six runs behind — evidently this container's checkout
+  predates every reset from AAA/BBB onward, not just the original
+  force-push). `git status` was clean and
+  `origin/backup/pre-force-push-main-9bdf548` still preserves that old tip,
+  so `git reset --hard origin/main` — production's real history. Confirmed
+  this is the same known, already-diagnosed pattern the last several
+  entries describe (a fresh container's local clone can start behind
+  `origin/main`), not a new incident — no other explanation was assumed
+  without checking the log first.
+
+  **Standing red-CI check.** Latest push-triggered `ci` run on `main`
+  (`a6bfe9b`) is green — confirmed via the GitHub Actions API before
+  picking a task, per the standing rule.
+
+  **Queue check.** Same as WW–BBB: task U's third bullet, task V/V′, and
+  the owner-gated set (Google sign-in, the two missing testimonial
+  portraits, payments, premium launch) are the only unchecked boxes, all
+  blocked on an owner call or external credits. Queue exhausted for the
+  agent → a step-4 improvement. Delegated a fresh sweep (Explore agent) over
+  auth gaps, rate-limit gaps, accessibility, tap targets and test coverage
+  rather than assuming one of task BBB's categories still had headroom.
+  Auth gaps, rate-limit gaps and accessibility all came back clean — every
+  route the sweep flagged already carries a documented reason it is
+  unguarded, and every icon-only control already has a label. Test coverage
+  was the real gap: `apps/api/src/{family,history,auth,twin-profile,
+  entitlements,early-access}` each pair an `InMemory*Store` (tested) with a
+  `Prisma*Store` (never tested, and no integration/e2e suite exercises them
+  either).
+
+  **The fix.** Picked `family/prisma-family-grants.store.ts` over its five
+  siblings: it's the only one with a real throw branch outside pure
+  Prisma-to-domain passthrough — `toEnrolment()` asserts
+  `enrolmentMethod`/`enrolmentRecordedBy` are both-null-or-both-set and
+  throws a data-integrity error rather than guessing when a row violates
+  that pairing (the schema's own comment says why: silently dropping the
+  method or inventing a `recordedBy` would misrepresent whether assisted
+  enrolment happened). No prior test in this repo mocks `PrismaService`, so
+  there was no local convention to match; the new test constructs a fake
+  `{ client: { delegationGrant: {...}, guardianshipGrant: {...} } }` typed
+  as `PrismaService` via `as unknown as`, matching the shape
+  `PrismaFamilyGrantsStore`'s constructor actually reads, and covers all six
+  methods plus both `toEnrolment` branches (fully-null → `null`,
+  fully-set → the consent object, half-set either direction → throws) and
+  the `Date → ISO string` mapping on every field including the ones that
+  stay `null`. Avoided `expect.objectContaining(...)` as an object-literal
+  *property* value (`data: expect.objectContaining(...)`) after the first
+  draft failed `@typescript-eslint/no-unsafe-assignment` — that matcher's
+  return type is `any` in this repo's type setup, and eslint's rule flags an
+  `any`-typed value assigned to a named object property specifically (a bare
+  matcher passed as a whole call argument, or nested in an array literal,
+  is not flagged the same way — see the two working examples elsewhere in
+  `apps/api/src`); switched to asserting the full expected `data` shape
+  instead, and to a typed destructure (`const [callArg] = create.mock.calls[0]
+  as [{ data: {...} }]`) where a reference-identity check on `scopes`
+  still needed the raw call args. Full monorepo gate:
+  `pnpm install --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck`
+  (40/40), `pnpm test` (126 files / 949 tests, up from 125/938 before this
+  run — note `pnpm --filter @swasthya/api test` run directly, bypassing
+  turbo's build-dependency graph, falsely fails ~90 files with "Failed to
+  resolve entry for package" errors; always verify through `pnpm test` at
+  the root, which resolves workspace packages via turbo first), `pnpm build`
+  (40/40, 35 cached). No user-visible change.
+
+  **For the next run.** Five more untested `Prisma*Store` adapters remain:
+  `history/prisma-history.store.ts` (untested `migrate()` unique-constraint
+  handling and `jsonProfile()` field-stripping — the next-best candidate,
+  same shape as this run's pick), `auth/prisma-auth.store.ts`,
+  `twin-profile/prisma-twin-profile.store.ts`,
+  `entitlements/prisma-subscription-grant.store.ts`, and
+  `early-access/prisma-early-access.store.ts` (thinner passthroughs, lower
+  bug-risk). `apps/web/src/hooks/useSession.ts`'s redirect-on-any-failure
+  logic is also untested and auth-facing, but this repo has no
+  `renderHook`-style precedent yet (existing hook tests only cover extracted
+  pure helpers) — a bigger lift than a single-file addition, flagged rather
+  than started.
+
 - 2026-08-21 — **Task BBB — exhausted-queue improvement: fixed the
   `@swasthya/database` `prisma generate` race two prior entries had named
   but left open.** Task ZZ's log entry and the doc-only entry appended
