@@ -1188,6 +1188,74 @@ absent, this section is the source of truth), `frontend-design` skill.
       (it isn't part of `/app`'s exported web build's selectors), so no
       journey needed updating. **Done 2026-08-21 — see the log entry below.**
 
+## YY. `POST /companion/assess` had no rate limiter — the last public POST route in `apps/api` with no caller governance at all
+
+> The queue is exhausted for the agent (task U's third bullet, task V/V′,
+> and the owner-gated set are all that remain unchecked), so this is a
+> step-4 improvement. Task XX's own "for the next run" list ranked this
+> lead 5, flagged with a genuine open question: `companion.controller.ts`'s
+> `assess()` reaches no paid model (`assessSafety`/`getSafetyTemplate` are
+> pure, deterministic, in-process lookups), unlike its sibling `research()`,
+> so `CompanionResearchRateLimiter`'s own doc comment — "the only
+> unauthenticated route... that reaches a paid model" — would become false
+> if reused here, and the money-based DoS argument every existing limiter
+> in this API documents doesn't apply the same way.
+>
+> Re-ran task WW's controller-by-controller sweep to check whether this was
+> really the highest-value remaining gap before touching it. Every
+> zero-`@UseGuards` controller (`clinical-suite`, `directory`, `health`,
+> plus the already owner-gated `engagement`/`patient-registry`/
+> `population-health`/`scheduling`) turned out to be intentionally public —
+> `clinical-suite.controller.ts` only reports module availability metadata,
+> `directory.controller.ts` only serves the already fictional-labelled
+> demonstration directory. The `apps/mobile` `<Image>` accessibility sweep
+> task XX's own lead 6 suggested was already fully closed (`capture.tsx` is
+> the only file using `<Image>` in `apps/mobile` at all, fixed by task XX
+> itself). `zod` string bounds (task KK), fire-and-forget async calls
+> (tasks MM/NN/OO/QQ), i18n key parity between `ne.json`/`en.json` (979
+> keys each, zero drift), and the `opengraph-image.tsx`/`twitter-image.tsx`
+> middleware note (still moot — `apps/web` already serves a working static
+> `/mero-health-social.png` for `openGraph`/`twitter` metadata, so there is
+> nothing to add a matcher entry for) were all re-checked directly rather
+> than trusted from old notes, and all came back clean.
+>
+> That left `assess()`: confirmed by grep that **no caller anywhere in the
+> repo calls this route** — `apps/mobile`'s companion screen and `apps/web`'s
+> `/api/companion/research` route both run `assessSafety` themselves rather
+> than over HTTP — so like task WW's `AnalyticsController` finding, this is
+> an oversight rather than a deliberately ungated integration surface (the
+> full `@ApiTags`/`@ApiOperation`/`@ApiBody` Swagger documentation shows it
+> is meant to be a real, callable API route, just one nothing calls yet).
+> Zero external cost is not zero risk: every other unauthenticated mutation
+> route in this API (`research`, OTP request, retry-extraction, engagement
+> messages, voice-clip submission/read) already treats "unbounded,
+> unauthenticated, POST" alone as worth closing, regardless of per-call
+> cost — this was the one exception.
+
+- [x] Added `CompanionAssessRateLimiter` (`apps/api/src/
+      companion-assess-rate-limiter.ts`), a dedicated `SlidingWindowRateLimiter`
+      subclass rather than reusing `CompanionResearchRateLimiter`, with a doc
+      comment explaining exactly why the two don't share one. 60 per 10
+      minutes — double `CompanionResearchRateLimiter`'s ceiling — since this
+      route costs nothing per call and no real client hits it today; the
+      number only needs to bound a scripted loop, not ration a shared cost.
+      Wired into `CompanionController.assess()` the same shape `research()`
+      already uses: `@Req() request: IpRequest`, `requestIp(request)` as the
+      key, a 429 `HttpException` with `{ code: 'RATE_LIMITED' }` before the
+      request schema even parses. Registered `CompanionAssessRateLimiter` in
+      `AppModule`'s `providers` array alongside `CompanionResearchRateLimiter`
+      (the default constructor parameter alone only helps direct
+      instantiation in a test, per this file's own comment on Nest's DI
+      reflection). Updated `companion.controller.test.ts`'s two existing
+      `assess()` calls to pass a caller, and added a cutoff test and a
+      separate-caller test mirroring the existing `research()` rate-limit
+      tests exactly (60 accepted calls, the 61st throws `{ status: 429,
+      response: { code: 'RATE_LIMITED' } }`, a different IP keeps its own
+      allowance). No frontend caller and no Playwright journey touches this
+      route, so nothing observable to an existing test changed — task U's
+      standing rule needed no journey update, same as task XX's log entry.
+      **Done 2026-08-21 — see the log entry below.**
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -2951,6 +3019,173 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-21 — **Task YY — exhausted-queue improvement: `POST
+  /companion/assess` had no rate limiter, the last public POST route in
+  `apps/api` with no caller governance at all.** Done. **Also: the
+  `journeys-production` iphone question five run-logs have carried forward
+  unresolved is now answered — it fails for real. See below, this is now
+  the top lead for the next run.**
+
+  **Housekeeping.** Same shape as every recent entry. `git checkout main`
+  reported 50 dangling commits on a detached `HEAD` (local `main` was still
+  at the stale `9bdf548`, no common ancestor against `origin/main`, tipped
+  at `7cac5f3`, task XX's own commit). `git status` was clean, so `git
+  checkout -B main origin/main` — production's real history, and
+  `origin/backup/pre-force-push-main-9bdf548` still preserves the old tip.
+
+  **Standing red-CI check.** Latest *push*-triggered `ci` run on `main`
+  (`7cac5f3`) is green — the run that actually gates `deploy-api`, per this
+  standing rule's own concern. But five straight log entries (PP/QQ/RR/TT/
+  WW/XX) have carried forward the same unresolved note: no `schedule`-
+  triggered `journeys-production` run has completed since the WebKit-install
+  fix (`c4d50a9`) landed, so nobody actually knew whether `iphone` passes
+  post-fix. Rather than carry the same guess forward a sixth time, triggered
+  `ci` manually via `workflow_dispatch` on `main` (`gh`-equivalent MCP
+  action) to get a real answer before picking a task.
+  **Answer: `journeys-production` fails.** WebKit installed cleanly this
+  time (task XX's fix worked), but the `iphone` project itself now fails 6
+  tests, 1 more flaky, against `phone` (Chromium) passing clean on the same
+  spec files. Every single failure is `[iphone]`-only — full detail below.
+  This does **not** block `deploy-api` (it only triggers off `workflow_run`
+  of `ci`'s *own* conclusion per run; the push-triggered runs that actually
+  gate it never include this job), so it is not the "stops the line"
+  emergency the standing rule was written for — but it is a real,
+  previously-unconfirmed production bug, now confirmed, and ranked below as
+  the clear next task.
+
+  **Queue check.** Every unchecked box read: task U's third bullet
+  (standing rule, no deliverable), task V/V′ (owner UX/safety calls), and
+  the owner-gated set. Queue exhausted for the agent → a step-4 improvement,
+  same as WW/XX.
+
+  **Why this.** Task XX's own "for the next run" list ranked six leads.
+  #1 (the red-CI recheck) is the finding above. #2/#3 are the owner-decision
+  tasks V′/V (not for the agent). #4 (the extensionless-metadata middleware
+  trap) is now confirmed permanently moot, not just still-open: `apps/web`
+  already serves `openGraph`/`twitter` metadata from a working static
+  `/mero-health-social.png` (`lib/seo.ts`'s `socialImageUrl()`), so there is
+  no live bug for an `opengraph-image.tsx`/`twitter-image.tsx` matcher entry
+  to fix — drop this lead from future "for the next run" lists unless one of
+  those files is actually added. #6 (a fresh `apps/mobile` `<Image>` sweep)
+  is also closed: `capture.tsx`, which task XX itself already fixed, is the
+  *only* file using `<Image>` in `apps/mobile` — confirmed by grep, not
+  assumed. That left #5: `companion.controller.ts`'s `assess()` has no rate
+  limiter, unlike every sibling public mutation route in this API.
+
+  Before touching it, re-ran task WW's own controller-by-controller sweep to
+  check nothing higher-value was hiding in plain sight. Every remaining
+  zero-`@UseGuards` controller (`clinical-suite`, `directory`, `health`) is
+  intentionally public on inspection: `clinical-suite.controller.ts` only
+  reports module *availability* metadata (no patient data — `resolve()` just
+  wraps `@swasthya/module-registry`'s health-state computation), and
+  `directory.controller.ts` only serves the already-`isFictionalDemo`-
+  labelled demonstration directory (the same fictional data set V′'s log
+  entry discusses). Also re-checked, all clean: `zod` string bounds (task
+  KK's sweep), fire-and-forget async calls across `apps/mobile` (tasks
+  MM/NN/OO/QQ — `records.tsx`, `index.web.tsx`, `companion.tsx`'s `void`
+  calls all already have full try/catch/finally with user-facing errors),
+  and i18n key parity between `ne.json`/`en.json` (979 keys each side, zero
+  drift, zero identical-value pairs that aren't intentional — brand name,
+  numeric placeholders, medical units, or Nepali voice-corpus prompts that
+  are supposed to stay Nepali regardless of locale toggle).
+
+  **Why `assess()` is a real gap, not a non-issue.** `assess()` reaches no
+  paid model — `assessSafety`/`getSafetyTemplate` are pure, deterministic,
+  in-process lookups, unlike sibling `research()` — which is exactly why
+  `CompanionResearchRateLimiter` was never extended to cover it: its own doc
+  comment ties it specifically to "the only unauthenticated route... that
+  reaches a paid model," and reusing it here would make that comment false.
+  But confirmed by grep that **no caller anywhere in the repo calls this
+  route at all** — `apps/mobile`'s companion screen and `apps/web`'s
+  `/api/companion/research` route both run `assessSafety` themselves rather
+  than over HTTP — so, like task WW's `AnalyticsController` finding, this is
+  an oversight (the full `@ApiTags`/`@ApiOperation`/`@ApiBody` Swagger
+  documentation shows it's meant to be a real, callable route) rather than a
+  deliberately-open integration surface. Zero external cost is not zero
+  risk: every other unauthenticated mutation route in this API already
+  treats "unbounded, unauthenticated, POST" alone as worth closing,
+  regardless of per-call cost — this was the one exception.
+
+  **The fix.** Added `CompanionAssessRateLimiter`
+  (`apps/api/src/companion-assess-rate-limiter.ts`), a dedicated
+  `SlidingWindowRateLimiter` subclass rather than a reuse of
+  `CompanionResearchRateLimiter`, with a doc comment explaining exactly why
+  the two don't share one. 60 per 10 minutes — double the research ceiling —
+  since this route costs nothing per call and nothing calls it today; the
+  number only needs to bound a scripted loop, not ration a shared cost.
+  Wired into `CompanionController.assess()` the same shape `research()`
+  already uses: `@Req() request: IpRequest`, `requestIp(request)` as the
+  key, a 429 `HttpException` with `{ code: 'RATE_LIMITED' }` before the
+  request schema even parses. Registered `CompanionAssessRateLimiter` in
+  `AppModule`'s `providers` array alongside `CompanionResearchRateLimiter` —
+  the default constructor parameter alone only helps direct instantiation in
+  a test, per this controller's own comment on Nest's DI reflection.
+
+  **Verification.** Updated `companion.controller.test.ts`'s two existing
+  `assess()` calls to pass a caller (the method signature now requires one),
+  and added a cutoff test and a separate-caller test mirroring the existing
+  `research()` rate-limit tests exactly: 60 accepted calls, the 61st throws
+  `{ status: 429, response: { code: 'RATE_LIMITED' } }`, a different IP
+  keeps its own allowance. No frontend caller and no Playwright journey
+  touches this route, so nothing observable to an existing test changed —
+  task U's standing rule needed no journey update, same as task XX's log
+  entry. Full pipeline from a clean tree: `pnpm install --frozen-lockfile`,
+  `pnpm lint` (40/40), `pnpm typecheck` (40/40), `pnpm test` (75/75 tasks,
+  938/938 tests — 8/8 in `companion.controller.test.ts` including the two
+  new cases), `pnpm build` (40/40).
+
+  **The `journeys-production` failure, in full — for the next run to fix.**
+  Manually triggered run:
+  https://github.com/thedhunga/merohealth/actions/runs/32442807059 (job
+  `journeys-production`, commit `7cac5f3`, `phone`+`iphone` against
+  `https://merohealth-beta.vercel.app` with `E2E_LIVE=1`). `phone`
+  (Chromium) passed clean. `iphone` (WebKit) failed 6, flaked 1, out of the
+  same spec files everything else in this run also exercised:
+  - `round-seven.journeys.spec.ts:16` (task O) — "returning-visitor home
+    screen": `getByText('बोल्नुहोस्').first()` never becomes visible.
+  - `round-seven.journeys.spec.ts:48` (task P/Q) — "conversation mode
+    thread": the first answer's chat bubble unexpectedly *does* carry a
+    `getByRole('note')` advisory (expected 0, got 1) — the same advisory-
+    scoping task P/Q shipped.
+  - `round-seven.journeys.spec.ts:91` (task R) — "the second-answer reaction
+    card": `getByText('पहिलो जवाफ।')` (the first canned answer) never
+    appears.
+  - `round-seven.journeys.spec.ts:135` (task T) — "dark mode toggle
+    persists": clicking the toggle (`{ force: true }`) never sets
+    `<html data-theme="dark">` — locator resolves, attribute stays `null`.
+    This one is the strongest lead: it is a binary state check, not a
+    timing-sensitive text-visibility wait, so it is unlikely to be a slow-
+    paint flake the way the others could individually be explained away.
+  - `personas.journeys.spec.ts:14` and `:50` — the grandmother and
+    English-returnee persona journeys (task U's second bullet).
+  - `safety.journeys.spec.ts:23` (flaky, not a hard fail) — the English
+    crisis-template journey: 60-second timeout on attempt 1, passed on
+    retry.
+  Every failure is WebKit-only; the identical assertions pass under
+  Chromium in the same run. This is the *first* time `iphone` has ever
+  completed a `journeys-production` run (every earlier `schedule` run
+  failed at the WebKit-install step itself, per task XX's log), so these
+  may be genuine, always-present WebKit incompatibilities that installing
+  WebKit simply never let anyone see before now — not a new regression.
+  Recommend starting from the dark-mode toggle (task T) as the clearest,
+  least-ambiguous repro, run locally with `playwright test --project=iphone
+  --project=phone` against a local build to see whether it reproduces
+  off-production too, before assuming it's a production-only environment
+  difference.
+
+  **For the next run.** In order:
+  1. **`journeys-production`'s WebKit failures, detailed above.** This is
+     now a confirmed, real, previously-invisible bug — the clear next task,
+     not another "recheck and carry forward."
+  2. Task **V′** (owner decision): the emergency screen's dead "find a
+     hospital" button.
+  3. Task **V** (owner decision): `InstallPrompt` vs `SignInSuggestion`
+     priority.
+  4. `companion.controller.test.ts` mocks `PerplexityHealthService` as
+     `{ research } as never` in several tests — worth a look at whether a
+     narrower fake type would catch a signature drift `as never` currently
+     hides, though this is a nice-to-have, not a bug with a live symptom.
 
 - 2026-08-21 — **Task XX — exhausted-queue improvement:
   `capture.tsx`'s document-photo review `<Image>` had no `accessibilityLabel`.**

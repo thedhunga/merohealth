@@ -3,6 +3,7 @@ import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { assessSafety, getSafetyTemplate } from '@swasthya/clinical-safety';
 import { z } from 'zod';
 import { requestIp, type IpRequest } from './common/request-ip.js';
+import { CompanionAssessRateLimiter } from './companion-assess-rate-limiter.js';
 import { CompanionResearchRateLimiter } from './companion-research-rate-limiter.js';
 import { PerplexityHealthService } from './perplexity-health.service.js';
 const requestSchema = z.object({
@@ -21,6 +22,7 @@ export class CompanionController {
   constructor(
     private readonly healthResearch: PerplexityHealthService = new PerplexityHealthService(),
     private readonly rateLimiter: CompanionResearchRateLimiter = new CompanionResearchRateLimiter(),
+    private readonly assessRateLimiter: CompanionAssessRateLimiter = new CompanionAssessRateLimiter(),
   ) {}
 
   @Post('assess')
@@ -35,7 +37,12 @@ export class CompanionController {
       },
     },
   })
-  assess(@Body() body: unknown) {
+  assess(@Body() body: unknown, @Req() request: IpRequest) {
+    if (!this.assessRateLimiter.allow(requestIp(request)))
+      throw new HttpException(
+        { code: 'RATE_LIMITED', message: 'Too many requests from this connection — wait a few minutes and try again.' },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     const parsed = requestSchema.safeParse(body);
     if (!parsed.success)
       throw new BadRequestException({
