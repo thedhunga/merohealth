@@ -3212,6 +3212,66 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-21 — **Task DDD — exhausted-queue improvement: tested
+  `PrismaEarlyAccessStore`, the second of the five remaining untested
+  `apps/api` `Prisma*Store` adapters task CCC's own log entry named.** Added
+  `src/early-access/prisma-early-access.store.test.ts`.
+
+  **Housekeeping.** This container's local `main` was six commits behind
+  `origin/main` with no common ancestor — same known pattern the WW–CCC
+  entries describe (a fresh container clone starting before the
+  force-push/reset lineage). `git status` was clean;
+  `origin/backup/pre-force-push-main-9bdf548` still preserves the old tip.
+  `git reset --hard origin/main` before picking a task.
+
+  **Standing red-CI check.** Latest push-triggered `ci` run on `main`
+  (`8b65b64`, task CCC's commit) is green — confirmed via the GitHub
+  Actions API before picking a task.
+
+  **Queue check.** Unchanged from CCC: task U's third bullet, task V/V′,
+  and the owner-gated set are the only unchecked boxes, all blocked on an
+  owner call. Queue exhausted for the agent again → a step-4 improvement,
+  continuing directly from CCC's own explicit list of the five untested
+  `Prisma*Store` siblings rather than re-running a fresh sweep, since CCC's
+  sweep already came back clean on auth/rate-limit/accessibility gaps that
+  same day.
+
+  **The fix.** Of the five remaining (`auth`, `early-access`,
+  `entitlements`/subscription-grant, `history`, `twin-profile`), picked
+  `early-access/prisma-early-access.store.ts`: its `register` method has
+  the richest branching of the group — a create-then-catch race against the
+  database's own unique constraint on `contact`, with three outcomes
+  (`created` / `linked` / `alreadyRegistered`) depending on whether the
+  conflicting row is anonymous or already tied to a different account. The
+  store's own doc comment claims a specific concurrency-safety property
+  ("two concurrent sign-ins racing the same contact can never both report
+  `linked`"); that property was previously unverified by any test. The new
+  test mocks `PrismaService.client.earlyAccess` (`create`/`updateMany`/
+  `findMany`) matching `PrismaFamilyGrantsStore`'s fake-Prisma-client
+  pattern, and covers: the plain create path with and without a contact and
+  `userId` (asserting `userId` is omitted from the write, not sent as
+  `null`, for an anonymous call); the race-linked outcome; the
+  already-linked-to-someone-else outcome (`updateMany` returns
+  `count: 0`); a same-outcome contact-less-input guard on the
+  `input.contact && input.userId` branch; a non-unique-constraint error
+  rethrown rather than swallowed; and `list()`'s ordering and `source`
+  cast. 20 tests total (up from 0). Full monorepo gate green: `pnpm install
+  --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40), `pnpm
+  test` (127 files / 958 tests, up from 126/949), `pnpm build` (40/40, 35
+  cached). No user-visible change, so no journey update needed under task
+  U's standing rule.
+
+  **For the next run.** Three `Prisma*Store` adapters are still untested:
+  `auth/prisma-auth.store.ts` (pure passthrough — lowest value of the
+  three), `entitlements/prisma-subscription-grant.store.ts` (real logic:
+  extend-from-later-of-now-or-existing-period date math, never-downgrade
+  tier comparison), and `history/prisma-history.store.ts` (real logic: a
+  `$transaction` pairing a unique-constrained migration row with a batch of
+  exchange rows, the same create-then-catch idiom `early-access` uses, plus
+  `jsonProfile`'s multi-branch optional-field mapping). Recommend
+  `history` next — most branching left — then `subscription-grant`, then
+  `auth` only if the ledger is otherwise still exhausted.
+
 - 2026-08-21 — **Task CCC — exhausted-queue improvement: tested
   `apps/api`'s `Prisma*Store` adapters, which had zero coverage anywhere in
   the monorepo.** Added
