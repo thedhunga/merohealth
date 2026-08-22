@@ -3055,6 +3055,88 @@ that only got a `## Log` entry — worth the next run doing a quick
 `git log --oneline` vs. this file's `## [A-Z]+\.` headings diff before
 trusting "the last lettered section" as the full picture of what's done.
 
+## FFFF. Fixed a real quota-bypass race: concurrent document captures could all pass `DOCUMENTS_STORED` at once, oversold by the number in flight
+
+> Found and fixed 2026-08-22. Queue still exhausted (same standing boxes as
+> EEEE's own "For the next run" — task U's third bullet, task V/V′, the
+> owner-gated set) so this is a step-4 improvement to work already done, not
+> a queued task. Dispatched a research agent to sweep for a genuinely new
+> category of bug rather than a re-skin of an already-exhaustively-checked
+> one (rate limiting, access control, unbounded fields, tap targets,
+> dark-mode tokens, e2e coverage, fire-and-forget guards, bundle size,
+> untested files, lexicon/retrieval matching — all named explicitly as
+> already covered, to steer it away from a fourth pass over the same
+> ground). It found a real one; verified independently by reading the three
+> files involved before touching anything.
+
+- [x] `EntitlementsGuard.canActivate` (`apps/api/src/entitlements/entitlements.guard.ts`)
+      reads the caller's current `DOCUMENTS_STORED` count and checks it
+      against the plan limit *before* the route handler runs — a snapshot,
+      not a reservation. `RecordsService.captureDocument`
+      (`records.service.ts`) then does `await this.store.put(...)` (the
+      actual upload) *before* the call that increments the count
+      (`repository.saveDocument`, counted live off `RecordsRepository`'s
+      map by `RecordsUsageReader.read`). Two or more concurrent captures
+      from the same owner sitting at 24 of the FREE plan's 25-document
+      limit all read 24 in the guard, all pass, and all upload — the guard
+      alone cannot close this, because its own check runs before the gap
+      that causes it. Not previously flagged anywhere in the ledger or in a
+      code comment (`grep` for "race"/"concurrent"/"TOCTOU" across
+      `entitlements`/`records` returned nothing before this fix).
+      `RecordsService.#saveWithinQuota` now rechecks the count and calls
+      `repository.saveDocument` in one synchronous step with no `await`
+      between them — since `RecordsRepository`'s reads/writes are plain
+      `Map` operations and JS never preempts a synchronous block, this
+      makes the check-then-save step itself uninterruptible: whichever
+      concurrent request's continuation the event loop happens to run
+      first always sees every prior one's save, so the limit holds
+      regardless of how many captures raced to get here. A capture rejected
+      at this second gate also deletes the blob it had already uploaded
+      (`store.delete`, best-effort — a delete failure is swallowed so it
+      never masks the real `QUOTA_EXCEEDED` rejection), so a request that
+      loses the race does not leave storage nobody can ever list or reach.
+      `RecordsService`'s constructor gained an `@Optional()` `SubscriptionResolver`
+      parameter defaulting to `new FreeTierSubscriptionResolver()` — same
+      "optional, defaults so every existing manual `new RecordsService(...)`
+      call in this file's own test suite keeps compiling unchanged" shape
+      the `extraction` parameter already used, so this needed no test-file
+      rewrite, only new tests.
+- [x] Five new tests in `records.service.test.ts`: sequential rejection once
+      the FREE limit is reached; the `QUOTA_EXCEEDED` verdict shape matches
+      `EntitlementsGuard`'s own exception body exactly (including the
+      `upgradeTo: 'PLUS'` suggestion); the uploaded blob is deleted on
+      rejection; five concurrent captures at the last open slot — the
+      actual regression test — resolve to exactly one success and four
+      rejections, with the repository landing at precisely 25 documents,
+      never 26+; and a rejection for one owner never touches a different
+      owner's quota. The concurrency test is the one that matters: against
+      the pre-fix code it would have shown all five succeeding, since
+      `RecordsService` had no quota awareness of its own at all before this
+      change — the guard was the *only* enforcement, and this test calls
+      the service directly, the same way a raced set of real HTTP requests
+      would reach it once each has already passed the guard's own
+      before-the-upload snapshot.
+- [x] Full monorepo gate green from the repository root: `pnpm install
+      --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+      `pnpm test` (75/75 tasks; 1000 API tests, up from 995 — the five new
+      ones), `pnpm build` (40/40).
+
+**For the next run.** Queue still exhausted — same standing boxes as
+before (task U's third bullet, task V/V′, the owner-gated set). The
+research agent's fallback lead, unused since a real bug turned up instead:
+`apps/mobile` still has no way to render-test a real RN component tree
+under vitest. `react-test-renderer` is already an unused devDependency
+there; a safely small first slice (no new dependency, no general testing
+framework) would be one `*.test.tsx` on the simplest existing presentational
+component using `react-test-renderer`'s `create()` directly, asserting on
+the rendered tree/props — proving the harness works before anyone commits
+to `@testing-library/react-native`. This same TOCTOU shape — a guard's
+before-the-handler check racing an inside-the-handler `await` that only
+increments the counter after — will resurface for every future
+`UsageReader` built the same way (share links, assistant messages); worth
+a grep for the same pattern once those modules exist, rather than
+assuming this fix generalizes on its own.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -4818,6 +4900,97 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-22 — **Task FFFF — exhausted-queue improvement: fixed a real
+  quota-bypass race in document capture (`DOCUMENTS_STORED`).**
+
+  **Housekeeping.** `git checkout main && git pull` fast-forwarded cleanly
+  (`ea36d94` → `e3f23c3`, tasks CCCC/DDDD/EEEE already merged) — no
+  stale-tip reconciliation needed.
+
+  **Picking the task.** EEEE's own "For the next run" left the queue
+  exhausted again — same standing boxes (task U's third bullet, task V/V′,
+  the owner-gated set), plus two weak leads: `apps/mobile`'s missing
+  RN-render test infra (repeatedly flagged as "bigger than a single run")
+  and a documentation-only ledger-bookkeeping audit. Rather than take
+  either at face value, dispatched a research agent with an explicit list
+  of every bug category this ledger has already swept exhaustively (rate
+  limiting, access control, unbounded fields, security headers, tap
+  targets, dark-mode tokens, e2e coverage, fire-and-forget async guards,
+  bundle size/tree-shaking, untested files, clinical-safety/retrieval
+  string-matching bugs, microphone detection) and asked it to find something
+  in a genuinely different category, or fall back to a small-scoped slice of
+  the mobile test-infra lead if nothing held up. It found a real one:
+  `EntitlementsGuard.canActivate` checks the `DOCUMENTS_STORED` quota
+  synchronously before the route handler runs, but `RecordsService.captureDocument`
+  only increments the count *after* an `await this.store.put(...)` — an
+  async gap several concurrent captures from the same owner can all read
+  through at once, oversold by roughly however many are in flight. Verified
+  independently by reading `entitlements.guard.ts`, `records.service.ts` and
+  `records-usage.reader.ts` myself before writing anything — the guard
+  really does run its check before the upload, and the increment really
+  does happen only in `saveDocument`, which nothing calls until after the
+  upload resolves.
+
+  **Why this one over the two leads.** The RN-render-test-infra lead had
+  already been named three times (task VVV, EEEE, and the run before it)
+  without anyone scoping it small enough to actually pick up; a fabricated
+  small scope this run invents on its own is weaker evidence of value than
+  a real, reproducible bug a fresh sweep independently found. The
+  ledger-bookkeeping audit is a documentation exercise, not an improvement
+  to the product — worth doing eventually, not worth spending this run's
+  one task on.
+
+  **What was built.** `RecordsService.#saveWithinQuota` (new private
+  method) rechecks `DOCUMENTS_STORED` against the caller's plan and calls
+  `repository.saveDocument` in one synchronous step — no `await` between
+  the count read and the write — which makes that step itself
+  uninterruptible under JS's single-threaded event loop: whichever
+  concurrent request's continuation runs first always sees every prior
+  one's save, so the limit holds no matter how many captures raced to get
+  here. A request that loses the race also deletes the blob it had already
+  uploaded (`store.delete`, best-effort, failure swallowed so it never
+  masks the real `QUOTA_EXCEEDED` rejection the caller needs to see) —
+  otherwise a rejected request would still leave storage nobody can ever
+  list or reach. `RecordsService`'s constructor gained an `@Optional()`
+  `SubscriptionResolver` parameter defaulting to
+  `new FreeTierSubscriptionResolver()`, the same "optional with a default"
+  shape the existing `extraction` parameter already used, so every
+  pre-existing `new RecordsService(repository, store, ...)` call in this
+  file's own test suite kept compiling with no rewrite.
+
+  Five new tests in `records.service.test.ts`: sequential rejection at the
+  FREE plan's 25-document limit; the `QUOTA_EXCEEDED` verdict body matches
+  `EntitlementsGuard`'s own shape exactly, `upgradeTo: 'PLUS'` included; the
+  uploaded blob is deleted on rejection; **the regression test** — five
+  concurrent captures at the last open slot resolve to exactly one success
+  and four rejections, with the repository landing at precisely 25
+  documents, never 26+ (this test fails against the pre-fix code, where all
+  five would have succeeded — `RecordsService` had no quota awareness of
+  its own at all before this change, the guard was the only enforcement,
+  and this test calls the service directly the same way a raced set of real
+  HTTP requests reaches it once each has already cleared the guard's own
+  before-the-upload snapshot); and a rejection for one owner never touches
+  a different owner's quota.
+
+  Full monorepo gate green from the repository root: `pnpm install
+  --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40), `pnpm
+  test` (75/75 tasks; 1000 API tests, up from 995), `pnpm build` (40/40).
+
+  **For the next run.** Queue still exhausted — same standing boxes as
+  before. This same shape — a guard's before-the-handler check racing an
+  inside-the-handler `await` that only increments the real counter
+  afterward — will resurface for every future `UsageReader` built the same
+  way (share links, assistant messages, extraction pages); worth a
+  deliberate grep for it once those modules exist rather than assuming this
+  one fix generalizes on its own. The `apps/mobile` RN-render-test-infra
+  lead is still open and still unscoped: `react-test-renderer` is an unused
+  devDependency there; a first slice small enough for one run would be a
+  single `*.test.tsx` on the simplest existing presentational component
+  using `react-test-renderer`'s `create()` directly (no new dependency, no
+  `@testing-library/react-native`), asserting on the rendered tree/props —
+  proving the harness works before anyone commits to a general RN testing
+  framework.
 
 - 2026-08-22 — **Task EEEE — exhausted-queue improvement: gave `/validate`
   (Voice Validation, `/contribute`'s crowd-verification sibling) its first

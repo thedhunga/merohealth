@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { checkQuota } from '@swasthya/entitlements';
 import {
   buildTimeline,
   confirmObservation,
@@ -15,6 +16,7 @@ import type {
   HealthDocumentKind,
   HealthObservation,
 } from '@swasthya/shared-types';
+import { FreeTierSubscriptionResolver, SUBSCRIPTION_RESOLVER, type SubscriptionResolver } from '../entitlements/subscription-resolver.js';
 import { RECORD_EXTRACTION_SERVICE, type RecordExtractionService } from './record-extraction.service.js';
 import { RecordsRepository } from './records.repository.js';
 
@@ -47,6 +49,14 @@ export class RecordsService {
     @Optional()
     @Inject(RECORD_EXTRACTION_SERVICE)
     private readonly extraction?: RecordExtractionService,
+    // Same "@Optional() with a default" shape as `retryLimiter` in
+    // `RecordsController` — Nest injects the real bound resolver in
+    // production, and every existing `new RecordsService(repository, store)`
+    // call across this file's own test suite keeps working unchanged,
+    // getting the same FREE-everyone stand-in `RecordsModule` binds.
+    @Optional()
+    @Inject(SUBSCRIPTION_RESOLVER)
+    private readonly subscriptions: SubscriptionResolver = new FreeTierSubscriptionResolver(),
   ) {}
 
   /**
@@ -66,7 +76,44 @@ export class RecordsService {
 
     const ref = await this.store.put({ ownerId: input.ownerId, filename: input.filename, blob });
 
-    const stored = this.repository.saveDocument({
+    let stored: HealthDocument;
+    try {
+      stored = this.#saveWithinQuota(input, ref);
+    } catch (error) {
+      // The upload above already landed on the backend; a rejected save must
+      // not leave it there paying for storage nobody can ever list or reach.
+      // The quota error is what the caller needs to see, so a delete failure
+      // is swallowed rather than replacing it — cleanup is best-effort, the
+      // rejection itself is not.
+      await this.store.delete(ref).catch(() => undefined);
+      throw error;
+    }
+
+    return this.#extractIfEligible(stored, input);
+  }
+
+  /**
+   * `EntitlementsGuard.canActivate` already checked `DOCUMENTS_STORED`
+   * before this request reached the controller — but that check runs before
+   * `captureDocument`'s own `await this.store.put(...)`, and several
+   * concurrent captures from the same owner can all read the same
+   * under-the-limit count in that gap and all pass it, oversold by roughly
+   * however many are in flight at once. This recheck runs synchronously, no
+   * `await` between reading `listDocuments().length` and calling
+   * `saveDocument` — one uninterruptible tick of the event loop — so
+   * whichever request's continuation the scheduler happens to run first
+   * always sees every prior one's save, and the limit holds regardless of
+   * how many captures raced to get here.
+   */
+  #saveWithinQuota(input: CaptureDocumentInput, ref: HealthDocument['ref']): HealthDocument {
+    const tier = this.subscriptions.resolveTier(input.ownerId);
+    const used = this.repository.listDocuments(input.ownerId).length;
+    const verdict = checkQuota(tier, 'DOCUMENTS_STORED', used);
+    if (!verdict.allowed) {
+      throw new ForbiddenException({ code: 'QUOTA_EXCEEDED', ...verdict });
+    }
+
+    return this.repository.saveDocument({
       id: randomUUID(),
       ownerId: input.ownerId,
       kind: input.kind,
@@ -79,8 +126,6 @@ export class RecordsService {
       clientEncrypted: input.clientEncrypted,
       pageCount: input.pageCount,
     });
-
-    return this.#extractIfEligible(stored, input);
   }
 
   /**

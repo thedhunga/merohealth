@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { InMemoryDocumentStore, StoragePolicyError } from '@swasthya/storage-adapters';
 import type { HealthObservation } from '@swasthya/shared-types';
 import { describe, expect, it, vi } from 'vitest';
@@ -104,6 +104,80 @@ describe('RecordsService.captureDocument', () => {
     const { service } = buildService(new InMemoryDocumentStore('GOOGLE_DRIVE'));
     const document = await service.captureDocument(makeCapture({ clientEncrypted: true }));
     expect(document.ref.backend).toBe('GOOGLE_DRIVE');
+  });
+});
+
+describe('RecordsService.captureDocument quota', () => {
+  const FREE_TIER_LIMIT = 25;
+
+  function fillToLimit(service: RecordsService, count: number, ownerId = 'owner-1') {
+    return Promise.all(
+      Array.from({ length: count }, (_unused, index) =>
+        service.captureDocument(makeCapture({ ownerId, filename: `existing-${index}.jpg` })),
+      ),
+    );
+  }
+
+  it('rejects a capture once the FREE plan’s DOCUMENTS_STORED limit is reached', async () => {
+    const { service } = buildService();
+    await fillToLimit(service, FREE_TIER_LIMIT);
+
+    await expect(service.captureDocument(makeCapture())).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('carries the QUOTA_EXCEEDED verdict, matching EntitlementsGuard’s own exception shape', async () => {
+    const { service } = buildService();
+    await fillToLimit(service, FREE_TIER_LIMIT);
+
+    try {
+      await service.captureDocument(makeCapture());
+      expect.unreachable('expected captureDocument to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({
+        code: 'QUOTA_EXCEEDED',
+        dimension: 'DOCUMENTS_STORED',
+        allowed: false,
+        upgradeTo: 'PLUS',
+      });
+    }
+  });
+
+  it('deletes the already-uploaded blob when a capture is rejected for quota, rather than orphaning it', async () => {
+    const { service, store } = buildService();
+    await fillToLimit(service, FREE_TIER_LIMIT);
+
+    const deleteSpy = vi.spyOn(store, 'delete');
+    await expect(service.captureDocument(makeCapture())).rejects.toBeInstanceOf(ForbiddenException);
+    expect(deleteSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it(
+    'never oversells the limit when several captures race at the last slot — ' +
+      'EntitlementsGuard alone cannot catch this, since its check runs before captureDocument’s own upload await',
+    async () => {
+      const { service, repository } = buildService();
+      await fillToLimit(service, FREE_TIER_LIMIT - 1); // exactly one slot left
+
+      const attempts = 5;
+      const results = await Promise.allSettled(
+        Array.from({ length: attempts }, (_unused, index) =>
+          service.captureDocument(makeCapture({ filename: `race-${index}.jpg` })),
+        ),
+      );
+
+      expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+      expect(results.filter((result) => result.status === 'rejected')).toHaveLength(attempts - 1);
+      expect(repository.listDocuments('owner-1')).toHaveLength(FREE_TIER_LIMIT);
+    },
+  );
+
+  it('does not consume the quota of a different owner', async () => {
+    const { service } = buildService();
+    await fillToLimit(service, FREE_TIER_LIMIT, 'owner-1');
+
+    const document = await service.captureDocument(makeCapture({ ownerId: 'owner-2' }));
+    expect(document.status).toBe('STORED');
   });
 });
 
