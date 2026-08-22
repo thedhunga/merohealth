@@ -59,7 +59,13 @@ export function ProfileSwitcher({
 
       <Modal animationType="fade" onRequestClose={() => setOpen(false)} transparent visible={open}>
         <Pressable onPress={() => setOpen(false)} style={styles.backdrop}>
-          <View style={styles.sheet}>
+          {/* Bare `View`s don't claim the touch responder, so a tap landing on the
+              title, padding or gaps between rows — anywhere that isn't itself a
+              Pressable — falls through to the backdrop above and dismisses the
+              whole sheet. `accessible={false}` keeps this wrapper out of the a11y
+              tree so the title/close button/options are still each announced on
+              their own, the way task UU's audit already relies on. */}
+          <Pressable accessible={false} onPress={() => {}} style={styles.sheet}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>
                 {language === 'en' ? 'Whose record is open?' : 'कसको विवरण खुला छ?'}
@@ -87,7 +93,7 @@ export function ProfileSwitcher({
                 {subject.id === active.id ? <Check color={colors.primary} size={16} /> : null}
               </Pressable>
             ))}
-          </View>
+          </Pressable>
         </Pressable>
       </Modal>
     </>

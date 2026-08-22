@@ -2284,6 +2284,76 @@ component or hook that itself calls `useRouter`/`usePathname` directly
 reproduce and the same two choices apply: extract the pure logic again, or
 fix `vitest.config.ts` once for every future consumer.
 
+## VVV. `ProfileSwitcher`'s subject sheet could dismiss itself on a near-miss tap — task VV's own close-button fix, undermined by the container it sits in
+
+> Queue exhausted the same way it was after SSS/TTT/UUU — task U's third
+> bullet, task V/V′, and the owner-gated set are the only other unchecked
+> boxes. Surveyed the codebase fresh (delegated to an Explore agent, then
+> verified every claim by hand before touching anything) for the highest-value
+> gap in a category otherwise mostly closed. Checked mobile a11y labels/roles,
+> unbounded `z.string()` DTO fields, unguarded API routes, unused dependencies
+> and dead files, and fire-and-forget async calls — all came back clean,
+> confirming the ledger's own "queue exhausted" claims. One real, unfixed bug
+> turned up: `ProfileSwitcher.tsx`'s subject-picker sheet
+> (`apps/mobile/src/components/ProfileSwitcher.tsx`), the modal task VV just
+> gave a visible close button, was still nested directly inside the
+> full-screen backdrop `Pressable` as a bare `View`. React Native's touch
+> responder system only stops a touch from bubbling to an ancestor once
+> *something* claims responder-ship; the option rows and the new close button
+> do that correctly (confirmed no double-fire risk in task VV/UU), but nothing
+> claimed it for the sheet's non-interactive area — the title text, the
+> header row's whitespace, the `spacing.lg` padding, the `spacing.xs` gaps
+> between subject rows. A tap landing on any of that silently fell through to
+> the backdrop and closed the whole picker: the exact "no journey update
+> needed" invisible failure this ledger keeps finding, this time in the
+> control a guardian/delegate uses to pick whose record is open.
+
+- [x] Wrapped the sheet's `View` in its own `Pressable` with a no-op
+      `onPress={() => {}}` — claiming the responder for the whole sheet area
+      so a near-miss tap no longer bubbles to the backdrop. Set
+      `accessible={false}` on that wrapper specifically so it doesn't become
+      a single opaque accessible node swallowing the title, close button and
+      option rows underneath it — those still need to be announced
+      individually, the property task UU's audit already relies on.
+- [x] **No colocated test.** Tried first: `apps/mobile/src/components/` has
+      zero existing component-render tests, and confirmed why by attempting
+      one — `apps/mobile`'s vitest config has no RN/DOM environment, and
+      importing anything from `'react-native'` (even a bare `View`) fails at
+      parse time (`RolldownError: Parse failure ... Flow is not supported`,
+      inside `react-native/index.js` itself, before any test code runs).
+      `react-test-renderer` is present in the repo (used by
+      `state/app-state.test.tsx`) but only ever exercises files with zero
+      `'react-native'` imports — pure context/hook logic, the same
+      lib-extraction convention task UUU used minutes earlier. This bug isn't
+      pure logic to extract; it's a JSX structural/touch-responder property
+      of the component tree itself, so there is no pure function to pull out
+      and no working way to render-test the RN tree under this toolchain
+      today. Matches this file's own instruction to leave a task honestly
+      unfinished rather than fake coverage — recorded here instead as a gap:
+      if a future task adds a React Native Testing Library / RN preset to
+      `apps/mobile`'s vitest config, this component is the first candidate
+      for a real regression test.
+- [x] Full monorepo gate green from the repository root: `pnpm install
+      --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+      `pnpm test` (75/75 tasks; `@swasthya/mobile` unchanged at 10 files/44
+      tests — no test added, see above), `pnpm build` (40/40). No copy
+      changed and no new user-facing screen, so no `ne.json`/`en.json` edit;
+      no new journey under task U's standing rule since `apps/web/e2e`
+      doesn't cover `apps/mobile`. **Done 2026-08-22.**
+
+**For the next run.** Queue exhausted again — task U's third bullet, task
+V/V′, and the owner-gated set are the only unchecked boxes. Two concrete
+leads this run's survey turned up but did not chase (both infrastructure, not
+user-facing bugs): (1) `apps/mobile` has no way to render-test a real RN
+component tree under vitest at all — every existing mobile test is pure
+logic in `src/lib`/`src/state`; adding a proper environment (or accepting
+`react-test-renderer` against a `.web.tsx` variant, if one existed) would
+open up regression coverage for the fix above and any future touch-handling
+bug like it. (2) the survey agent's own runner-up, unconfirmed: whether
+`useFocusTrap`'s `inert` toggling on `main, footer` (apps/web) correctly
+covers every layout variant the app renders — flagged as worth a look, not
+verified as a real gap.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
