@@ -4458,7 +4458,56 @@ run needs to know.
   so no journey update needed under task U's standing rule.
 
   **Update, same run, after push — the real answer, read back from
-  production.** See below.
+  production.** Confirmed `main`'s push-triggered `verify` run (`7c257ad`)
+  green, then manually triggered `ci.yml` (`workflow_dispatch`, run
+  `32559404331`) specifically to read the new diagnostic against real
+  production. `verify` passed clean; `journeys-production` failed again (8
+  failures + 2 flaky, the same `iphone`/`SpeechRecognition` cluster SSS
+  already closed, not re-investigated), but this time the `@live` failure
+  named its own cause in the job log, first attempt and retry both:
+
+  ```
+  provider=gemini-grounded diagnostic=HTTP 500 · gemini-3.7-flash is currently
+  experiencing high demand, spikes in demand are usually temporary. Please try
+  again later. · tried=[gemini-3.7-flash,gemini-3.5-flash,gemini-3.5-flash-lite]
+  · probe[interactions-ungrounded=200 generateContent-grounded=429]
+
+  Retry #1:
+  provider=gemini-grounded diagnostic=HTTP 429 · You exceeded your current
+  quota, please check your plan and billing details. ...
+  · tried=[gemini-3.7-flash,gemini-3.5-flash,gemini-3.5-flash-lite]
+  · probe[interactions-ungrounded=200 generateContent-grounded=429]
+  ```
+
+  **This settles it: the free-tier `GEMINI_API_KEY` genuinely does not have
+  enough capacity to serve production traffic reliably**, not a code defect.
+  All three model candidates were tried and refused on quota both times;
+  `gemini-health.ts`'s own ungrounded fallback ran too (its presence in the
+  diagnostic depends on `allGroundedRefused`, which only becomes true once
+  every candidate is quota-refused) and *also* hit quota — Google's own
+  wording ("high demand", "exceeded your current quota") is external
+  capacity, not something this codebase can retry or route around. The one
+  encouraging data point: `probeQuotaShape`'s own fresh, separate ungrounded
+  probe call succeeded (`200`) moments later — free-tier quota here looks
+  like a tight, fluctuating window (seconds to low minutes) rather than a
+  fully exhausted daily allowance, consistent with task AAA's own single
+  earlier occurrence reading as "transient" before this run's two-for-two
+  confirmed it as a standing pattern, not a one-off.
+
+  **For the next run — this is now an owner decision, not a lead to keep
+  chasing.** The fix is infrastructure, not `apps/web` code: either put the
+  `GEMINI_API_KEY` on a paid tier (real quota), or configure
+  `PERPLEXITY_API_KEY` and set `RESEARCH_PROVIDER=perplexity` — read
+  `research-provider.ts` first if picking this: it selects **one** provider
+  exclusively by which key is present, with no automatic fallback if both
+  are configured and the chosen one fails a given request. Building real
+  cross-provider fallback (try Perplexity when Gemini's own call fails, not
+  just at startup) would be a legitimate `apps/web` code task *if* the owner
+  wants both keys running rather than a single upgraded one — worth a
+  concrete proposal next run only once the owner has said which direction
+  they want, not before. Until then, real users asking real symptom
+  questions in production are intermittently getting no answer at all — this
+  is the core product's central feature, not a peripheral one.
 
 - 2026-08-22 — **Exhausted-queue improvement: gave `/contribute` (Voice
   Contribution) its first e2e journey coverage — the lead tasks YYY and ZZZ
