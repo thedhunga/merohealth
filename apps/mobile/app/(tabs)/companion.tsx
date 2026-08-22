@@ -196,21 +196,25 @@ export default function CompanionScreen() {
 
   const speakGuidance = () => {
     fireAndForget(() => Speech.stop());
-    Speech.speak(
-      language === 'en'
-        ? 'Tell me the main thing happening today. I will help you find a safe next step.'
-        : 'आज भइरहेको मुख्य कुरा भन्नुहोस्। म सुरक्षित अर्को कदम खोज्न मद्दत गर्छु।',
-      { language: language === 'en' ? 'en-US' : 'ne-NP', rate: 0.9 },
+    fireAndForget(() =>
+      Speech.speak(
+        language === 'en'
+          ? 'Tell me the main thing happening today. I will help you find a safe next step.'
+          : 'आज भइरहेको मुख्य कुरा भन्नुहोस्। म सुरक्षित अर्को कदम खोज्न मद्दत गर्छु।',
+        { language: language === 'en' ? 'en-US' : 'ne-NP', rate: 0.9 },
+      ),
     );
   };
 
   const speakAnswer = () => {
     fireAndForget(() => Speech.stop());
-    Speech.speak(
-      language === 'en'
-        ? 'Symptoms can have many causes. This information does not make a diagnosis. Seek urgent help for trouble breathing, fainting, or severe chest pain.'
-        : 'लक्षणका धेरै कारण हुन सक्छन्। यहाँको जानकारीले निदान गर्दैन। सास फेर्न गाह्रो, बेहोस वा कडा छाती दुखाइ भए तुरुन्त सहायता लिनुहोस्।',
-      { language: language === 'en' ? 'en-US' : 'ne-NP', rate: 0.88 },
+    fireAndForget(() =>
+      Speech.speak(
+        language === 'en'
+          ? 'Symptoms can have many causes. This information does not make a diagnosis. Seek urgent help for trouble breathing, fainting, or severe chest pain.'
+          : 'लक्षणका धेरै कारण हुन सक्छन्। यहाँको जानकारीले निदान गर्दैन। सास फेर्न गाह्रो, बेहोस वा कडा छाती दुखाइ भए तुरुन्त सहायता लिनुहोस्।',
+        { language: language === 'en' ? 'en-US' : 'ne-NP', rate: 0.88 },
+      ),
     );
   };
 

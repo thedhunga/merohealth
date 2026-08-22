@@ -2354,6 +2354,73 @@ bug like it. (2) the survey agent's own runner-up, unconfirmed: whether
 covers every layout variant the app renders — flagged as worth a look, not
 verified as a real gap.
 
+## WWW. Five `Speech.speak()` calls in `apps/mobile` bypassed the fire-and-forget guard task QQ built for exactly this — task QQ's own sweep fixed `Speech.stop()` beside every one of them and left `speak()` bare
+
+> Queue exhausted the same way it was after SSS/TTT/UUU/VVV — task U's third
+> bullet, task V/V′, and the owner-gated set are the only other unchecked
+> boxes. Surveyed fresh (delegated to an Explore agent, then verified every
+> claim by hand before touching anything): apps/web tap targets outside the
+> already-audited set (clean — everything uses `min-h-11`/`size-11`+),
+> hardcoded copy bypassing next-intl (clean), `apps/api` routes with no zod
+> schema at all (clean), a DRAFT observation reaching the assistant/a share
+> link/an export (clean — every consumer filters by `CONFIRMED`/`CORRECTED`
+> by construction), and recently-touched components with real branching logic
+> and no colocated test (each has an explicit, reasoned "not tested" comment
+> matching this repo's established precedent). Also independently re-checked
+> task VVV's own flagged-but-unconfirmed runner-up: `useFocusTrap`'s default
+> `inertSelector = 'main, footer'` claims "there is exactly one of each per
+> page" — `apps/web/src/app/[locale]/layout.tsx` does render exactly one
+> `<main>` and one `<footer>`, unconditionally, on every route including the
+> `error.tsx`/`not-found.tsx` boundaries (there is only one `layout.tsx` in
+> the whole `[locale]` tree). The comment's claim holds; not a bug. One real,
+> unfixed bug turned up: task QQ (2026-08-20) routed `apps/mobile`'s six
+> fire-and-forget `Speech.stop()`/`Haptics.selectionAsync()` calls through the
+> new `fireAndForget()` helper specifically because a rejected or thrown
+> promise from a missing native module (a stripped build, or the web export
+> with no equivalent) would otherwise become an unhandled rejection and crash
+> the screen or flood the console — and left `Speech.speak()` bare at every
+> one of the five sites that call it (`learn.tsx` ×2, `companion.tsx` ×2,
+> `index.web.tsx` ×1), even though it is the same native module, the far more
+> consequential call (it is what actually reads health guidance aloud), and
+> sits immediately beside an already-guarded `fireAndForget(() =>
+> Speech.stop())` at four of the five sites. Task QQ's sweep fixed half of
+> each call pair and missed the other half.
+
+- [x] Wrapped all five `Speech.speak(...)` calls in `fireAndForget(...)`,
+      matching the shape `Speech.stop()` already uses at the same sites. No
+      behavioural change to the speech itself — `fireAndForget` still invokes
+      the thunk synchronously; it only swallows a rejection/throw that would
+      otherwise be unhandled. No new colocated test:
+      `src/lib/fire-and-forget.test.ts` already covers the helper's own
+      rejection/throw-swallowing behaviour generically (task QQ's precedent
+      added it once for exactly this), and — as task VVV documented — this
+      repo's vitest config cannot render an RN component tree at all
+      (`react-native`'s own source fails to parse under Rolldown/esbuild,
+      `Flow is not supported`), so there is no way to render-test these call
+      sites directly.
+- [x] Full monorepo gate green from the repository root: `pnpm install
+      --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+      `pnpm test` (75/75 tasks; `@swasthya/mobile` re-run without cache to
+      confirm — unchanged at 10 files / 44 tests, since no test file was
+      touched), `pnpm build` (40/40). No copy changed and no new user-facing
+      screen, so no `ne.json`/`en.json` edit; no new journey under task U's
+      standing rule since `apps/web/e2e` doesn't cover `apps/mobile` and
+      nothing about what a person sees or when changed — only the rejection
+      path.
+
+**For the next run.** Queue exhausted again — task U's third bullet, task
+V/V′, and the owner-gated set are the only unchecked boxes. One housekeeping
+note: task VVV's own entry above (`## VVV`, 2026-08-22) says "Done ... see
+the log entry below," but no `## Log` entry for it exists — the code change
+itself is present and verified in
+`apps/mobile/src/components/ProfileSwitcher.tsx` (the no-op `Pressable`
+wrapper with `accessible={false}`), so nothing was lost, but the run that did
+it apparently didn't prepend its log entry before stopping. Not fixed here
+since the underlying work is real, done, and already described in the task
+text above — flagging so a future run doesn't waste time hunting for a
+missing entry. No other unchased leads from this run's survey — every fresh
+category came back clean or (the `useFocusTrap` case) confirmed not a bug.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -4117,6 +4184,49 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-22 — **Task WWW — exhausted-queue improvement: wrapped `apps/mobile`'s
+  five bare `Speech.speak()` calls in the `fireAndForget()` guard task QQ
+  built for exactly this native module, which already wrapped every adjacent
+  `Speech.stop()` call and missed `speak()` itself.**
+
+  **Housekeeping.** Fresh container; local `main` was 50 commits behind a
+  force-pushed `origin/main` with no common ancestor — the same recurring
+  pattern every WW-onward entry describes. Confirmed local `main`'s tip
+  (`9bdf548`) was byte-identical to `origin/backup/pre-force-push-main-9bdf548`
+  before resetting, so nothing local was at risk. `git reset --hard
+  origin/main`. Standing red-CI check: the latest push-triggered `ci` run on
+  `main` (`6643680`) is green — no line-stop needed.
+
+  **Why this task.** Round seven's lettered queue is fully checked; task U's
+  third bullet, task V/V′, and the "Owner-gated" section are explicitly not
+  for the agent. Ran a fresh Explore survey across categories this ledger's
+  history hasn't already swept clean this exact way (see `## WWW`'s own
+  rationale above for the full list) and independently re-verified its top
+  finding by reading every call site myself before touching anything.
+
+  **What shipped.** `apps/mobile/app/(tabs)/learn.tsx` (2 sites: the
+  walkthrough narrator and the per-lesson transcript "Listen" button),
+  `apps/mobile/app/(tabs)/companion.tsx` (2 sites: `speakGuidance`,
+  `speakAnswer`), and `apps/mobile/app/index.web.tsx` (1 site:
+  `speakIntroduction`) — each `Speech.speak(...)` call now runs inside
+  `fireAndForget(() => Speech.speak(...))` instead of bare, so a missing
+  native module (stripped build, or a web export with no `speechSynthesis`
+  equivalent) can no longer throw synchronously or reject unhandled out of
+  what is, in every one of these five places, actual spoken health guidance.
+
+  **Gate.** `pnpm install --frozen-lockfile`, `pnpm lint` (40/40), `pnpm
+  typecheck` (40/40), `pnpm test` (75/75 tasks cached-clean, plus
+  `@swasthya/mobile` re-run standalone without cache to be certain — 10 files
+  / 44 tests, unchanged), `pnpm build` (40/40) all green. No user-visible
+  copy or behaviour changed, so no `ne.json`/`en.json` edit and no new
+  journey under task U's standing rule.
+
+  **For the next run.** See `## WWW`'s own "For the next run" note above:
+  queue exhausted again (task U's third bullet, task V/V′, owner-gated only),
+  plus a flag that task VVV's log entry is missing from this section even
+  though its code is present and verified — not this run's to fix, just
+  worth knowing before searching for it.
 
 - 2026-08-22 — **Task UUU — exhausted-queue improvement: gave `useSession`'s
   sign-in-redirect decision a colocated test, and fixed a vitest module

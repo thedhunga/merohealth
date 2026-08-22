@@ -74,10 +74,12 @@ export default function LearnScreen() {
     const title = language === 'en' ? currentStep.titleEn : currentStep.titleNe;
     const body = language === 'en' ? currentStep.bodyEn : currentStep.bodyNe;
     const separator = language === 'en' ? '. ' : '। ';
-    Speech.speak(`${title}${separator}${body}`, {
-      language: language === 'en' ? 'en-US' : 'ne-NP',
-      rate: 0.88,
-    });
+    fireAndForget(() =>
+      Speech.speak(`${title}${separator}${body}`, {
+        language: language === 'en' ? 'en-US' : 'ne-NP',
+        rate: 0.88,
+      }),
+    );
   };
 
   const restart = () => {
@@ -278,12 +280,14 @@ export default function LearnScreen() {
                         language === 'en' ? 'Listen to this lesson' : 'यो पाठ सुन्नुहोस्'
                       }
                       onPress={() =>
-                        Speech.speak(
-                          language === 'en' ? lesson.transcriptEn : lesson.transcriptNe,
-                          {
-                            language: language === 'en' ? 'en-US' : 'ne-NP',
-                            rate: 0.88,
-                          },
+                        fireAndForget(() =>
+                          Speech.speak(
+                            language === 'en' ? lesson.transcriptEn : lesson.transcriptNe,
+                            {
+                              language: language === 'en' ? 'en-US' : 'ne-NP',
+                              rate: 0.88,
+                            },
+                          ),
                         )
                       }
                       style={styles.transcriptListen}

@@ -163,11 +163,13 @@ export default function WebWelcomeScreen() {
 
   const speakIntroduction = () => {
     fireAndForget(() => Speech.stop());
-    Speech.speak(
-      en
-        ? "Hello. I'm Sathi, your health companion. I understand what you say and help you find a safe next step."
-        : 'नमस्ते। म स्वास्थ्य साथी हुँ। तपाईंको कुरा बुझेर सुरक्षित अर्को कदम खोज्न मद्दत गर्छु।',
-      { language: en ? 'en-US' : 'ne-NP', rate: 0.88, pitch: 1 },
+    fireAndForget(() =>
+      Speech.speak(
+        en
+          ? "Hello. I'm Sathi, your health companion. I understand what you say and help you find a safe next step."
+          : 'नमस्ते। म स्वास्थ्य साथी हुँ। तपाईंको कुरा बुझेर सुरक्षित अर्को कदम खोज्न मद्दत गर्छु।',
+        { language: en ? 'en-US' : 'ne-NP', rate: 0.88, pitch: 1 },
+      ),
     );
   };
 
