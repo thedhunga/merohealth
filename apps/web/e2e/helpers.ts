@@ -154,6 +154,69 @@ export async function mockVoiceClipSubmit(page: Page) {
 }
 
 /**
+ * Fakes `/validate`'s three endpoints — `GET .../validation/next`,
+ * `GET .../clips/:clipId/audio`, `POST .../clips/:clipId/validations` — from
+ * an in-memory queue, mirroring `mockVoiceClipSubmit`'s single-endpoint shape
+ * but covering every call `voice-validation-api.ts` makes. `clips` is
+ * consumed in order as `fetchNextClipToValidate` polls `/validation/next`;
+ * once exhausted it returns `{ clip: null }` so `VoiceValidationView` reaches
+ * its `done` state, matching `LanguageCorpusService.nextClipForValidation`'s
+ * real "nothing left" response rather than needing a separate empty-queue
+ * fixture. `voteError`, when set, makes every `POST .../validations` call
+ * fail with that `code` instead of succeeding — the shape
+ * `VoiceValidationApiError` throws — for exercising the race-condition path
+ * (`RACE_ERROR_CODES` in `VoiceValidationView.tsx`) without a second real
+ * validator.
+ */
+export async function mockVoiceValidationQueue(
+  page: Page,
+  clips: Array<{ id: string; taskKind: 'READ_PROMPT' | 'FREE_SPEECH' }>,
+  voteError?: string,
+) {
+  let next = 0;
+
+  await page.route('**/v1/language-corpus/voice-contribution/validation/next', async (route) => {
+    const clip = clips[next] ?? null;
+    if (clip) next += 1;
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        clip: clip && {
+          id: clip.id,
+          contributorId: 'someone-else',
+          consentVersion: 'voice-contribution-consent-v1',
+          taskId: `task-${clip.id}`,
+          taskKind: clip.taskKind,
+          selfReport: { district: 'काठमाडौं', motherTongue: 'NEPALI', ageBand: '25_34', gender: null },
+          device: 'e2e',
+          durationMs: 4000,
+          capturedAt: new Date(0).toISOString(),
+          ref: { backend: 'HOSTED', externalId: `ref-${clip.id}`, byteSize: 9, contentType: 'audio/webm', checksumSha256: 'e2e' },
+        },
+      }),
+    });
+  });
+
+  await page.route('**/v1/language-corpus/voice-contribution/clips/*/audio', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ contentType: 'audio/webm', bytesBase64: btoa('fake-audio') }),
+    });
+  });
+
+  await page.route('**/v1/language-corpus/voice-contribution/clips/*/validations', async (route) => {
+    if (voteError) {
+      await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ code: voteError }) });
+      return;
+    }
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({ validation: { id: 'e2e-validation', verdict: 'RIGHT' }, status: 'PENDING' }),
+    });
+  });
+}
+
+/**
  * Replaces `navigator.mediaDevices.getUserMedia` and `window.MediaRecorder`
  * with fakes that drive `useVoiceContributionRecorder`'s own event listeners
  * (`ondataavailable`/`onstop`) directly, the same `page.addInitScript`

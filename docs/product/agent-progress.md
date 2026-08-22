@@ -2982,6 +2982,79 @@ guards), whether its own doc comment matches what it actually does to a bare
 element, rather than assuming a utility class's stated contract holds for
 every caller shape.
 
+## EEEE. `/validate` had zero e2e coverage — `/contribute`'s own sibling gap, closed the same way
+
+> Found and fixed 2026-08-22. DDDD's own two leads both turned out to be
+> dead ends on inspection: the `bg-white`/`text-indigo-800` pairs are
+> confirmed, by reading `globals.css`'s `@theme` block directly, to be two
+> Tailwind literals that neither theme ever redefines — `--color-indigo-800`
+> has no entry in the dark-theme block and `white` is explicitly documented
+> there as intentionally theme-invariant — so no reactive-inheritance bug is
+> possible in that shape at all, not merely unlikely. The `sr-only`/
+> motion-reduce "escape hatches" turned out not to be custom utility classes
+> with their own doc comment in the first place — `sr-only` is Tailwind's
+> own built-in and the motion-reduce guard is a bare media query, not a
+> class callers rely on a stated contract for — so `.theme-pin-light` was
+> already the only such class, and DDDD had just finished fixing it. Went
+> looking for the next highest-value gap instead; `/contribute`'s own e2e
+> gap (tasks YYY/ZZZ) had already been closed one run earlier (commit
+> `6831130`, log entry above dated 2026-08-22) without ever getting its own
+> lettered queue section — its direct sibling, `/validate` (Round six §M's
+> Validation flow box, the crowd-verification side of the same corpus
+> feature), had the identical gap and was never mentioned anywhere in the
+> ledger as covered.
+
+- [x] `apps/web/e2e/voice-validation.journeys.spec.ts` (5 tests): anonymous
+      visitor redirected to `/signin?next=/validate`; a signed-in visitor
+      sees a clip to judge and voting advances to the next one; judging the
+      last clip reaches the done panel; a clip someone else just resolved
+      (`CLIP_ALREADY_RESOLVED`) is skipped quietly with no error banner,
+      matching `VoiceValidationView.tsx`'s actual `RACE_ERROR_CODES`
+      handling rather than the unused per-code translated strings sitting
+      beside it; `/en/validate` renders in English. Unlike `/contribute`
+      there is no consent gate to mock — `VoiceValidationView`'s own doc
+      comment explains why (judging an already-consented clip is not itself
+      a new act of contribution) — so the only new fixture needed was a
+      three-endpoint queue mock.
+- [x] Added `mockVoiceValidationQueue` to `apps/web/e2e/helpers.ts`, mirroring
+      `mockVoiceClipSubmit`'s shape but covering all three calls
+      `voice-validation-api.ts` makes (`GET .../validation/next`,
+      `GET .../clips/:clipId/audio`, `POST .../clips/:clipId/validations`)
+      from one in-memory clip queue, with an optional `voteError` for the
+      race-condition path. `fetchNextClipToValidate` returns `{ clip: null }`
+      once the queue is consumed, exercising the real `done` transition
+      instead of a separate empty-queue fixture.
+- [x] Verified for real, not just "should pass": built the app
+      (`pnpm --filter @swasthya/web... build`, confirms `/ne/validate` and
+      `/en/validate` both prerender) and ran the new spec against it with
+      `playwright test --project=phone voice-validation` — all 5 pass.
+- [x] No copy changed and no `ne.json`/`en.json` edit — this is test-only,
+      same as `/contribute`'s own e2e task and CCCC/DDDD's CSS-only fixes.
+- [x] Full monorepo gate green from the repository root: `pnpm install
+      --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+      `pnpm test` (75/75 tasks; 995 API tests unchanged — e2e specs are not
+      part of this gate, see `playwright.config.ts`/`turbo.json`), `pnpm
+      build` (40/40, `/validate` present in both locales in the route
+      manifest).
+
+**For the next run.** Queue exhausted again — task U's third bullet, task
+V/V′, and the owner-gated set are the only standing unchecked boxes. The
+`GEMINI_API_KEY` quota finding (AAAA/BBBB/CCCC's own "for the next run"
+notes) is still open and still an owner decision, not a lead to keep
+re-checking — DDDD's own entry silently dropped mentioning it, which this
+entry is restoring, not re-litigating: the fix is putting the key on a paid
+tier or setting `RESEARCH_PROVIDER=perplexity`, see `research-provider.ts`
+and the log entry a few screens below this one for the full diagnostic.
+Two smaller leads surfaced but not chased this run, lower-value than
+`/validate` was: (1) `apps/mobile` has no way to render-test a real RN
+component tree under vitest (named once, task VVV, never picked up —
+infra-shaped, bigger than a single run); (2) this run's own ledger search
+confirms the top-level lettered-section convention has silently skipped a
+few smaller test-only/docs-only commits (like `/contribute`'s own e2e task)
+that only got a `## Log` entry — worth the next run doing a quick
+`git log --oneline` vs. this file's `## [A-Z]+\.` headings diff before
+trusting "the last lettered section" as the full picture of what's done.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -4745,6 +4818,104 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-22 — **Task EEEE — exhausted-queue improvement: gave `/validate`
+  (Voice Validation, `/contribute`'s crowd-verification sibling) its first
+  e2e journey coverage.**
+
+  **Housekeeping.** `git checkout main && git pull` fast-forwarded cleanly
+  (`ea36d94` → `5b13690`, tasks CCCC and DDDD already merged) — no
+  stale-tip reconciliation needed. Standing red-CI check: the latest `ci`
+  run on `main` (`5b13690`) is green (confirmed via the GitHub Actions API,
+  not assumed).
+
+  **Picking the task.** DDDD's own "For the next run" named two leads. Both
+  turned out to be dead ends rather than a quick follow-on: (1) the
+  `bg-white`/`text-indigo-800` pairs it flagged in `LocaleSwitcher.tsx`,
+  `Header.tsx`, `Button.tsx`'s `inverse` variant, `OrganizationTabs.tsx`'s
+  CTA button and `VoiceLabView.tsx` are two Tailwind literals, confirmed by
+  reading `globals.css`'s `@theme` block directly: `--color-indigo-800` has
+  no entry anywhere in the dark-theme override block, and `white` carries an
+  explicit comment there saying it is deliberately theme-invariant. Neither
+  is a CSS custom property either element resolves against its own scope, so
+  the `.theme-pin-light`-class bug (inherited `color` from a stale ancestor
+  resolution) cannot occur in this shape at all — not "unlikely," structurally
+  impossible. (2) The "other escape-hatch utility classes" lead does not
+  have a second instance to audit: `sr-only` is Tailwind's own built-in
+  (never defined in `globals.css`), and the motion-reduce block is a bare
+  `@media` query, not a class with a stated per-caller contract — so
+  `.theme-pin-light` was already the only such class, and DDDD had just
+  finished fixing it.
+
+  Went looking for the next highest-value gap instead of taking either dead
+  lead literally. Dispatched a research agent to survey every "For the next
+  run" note from task ~1100 through DDDD for a dropped thread; it surfaced
+  `/contribute`'s missing e2e coverage as "twice named, never picked up" —
+  but checking `git log` first caught that this was already wrong:
+  `/contribute`'s e2e spec was added one run earlier (commit `6831130`,
+  logged further below in this same file, dated 2026-08-22) without ever
+  getting its own lettered queue section, which is exactly why the survey
+  agent — reading only the lettered sections — missed it. That is a real
+  gap in the ledger's own bookkeeping discipline, not just a wrong pick: a
+  run can silently vanish from "what's done" if it only leaves a `## Log`
+  entry and no queue section. Checked the actual diff instead of trusting
+  either the ledger text or the agent's read of it, and found `/contribute`'s
+  direct sibling, `/validate` (same Round six §M feature, same session-gate
+  shape, same "crowd-verifies the corpus" purpose), had the identical
+  zero-e2e-coverage gap and had never been mentioned as covered anywhere.
+
+  **What was built.** `apps/web/e2e/voice-validation.journeys.spec.ts` (5
+  tests): an anonymous visitor is redirected to `/signin?next=/validate`; a
+  signed-in visitor sees a clip to judge and voting advances to the next
+  one; judging the last clip reaches the done panel; a clip someone else
+  just resolved (`CLIP_ALREADY_RESOLVED`) is skipped quietly with no error
+  banner — matching `VoiceValidationView.tsx`'s real `RACE_ERROR_CODES`
+  handling, which silently calls `loadNext()` rather than surfacing the
+  three per-code translated strings that sit unused beside `errors.GENERIC`
+  in both `ne.json`/`en.json` (a pre-existing quirk, not something this task
+  changed — those strings were already there and already unused; flagging
+  it rather than "fixing" a UX choice this task wasn't scoped to make);
+  `/en/validate` renders in English. Unlike `/contribute` there is no
+  consent gate to mock here — `VoiceValidationView`'s own doc comment
+  explains why judging an already-consented clip needs nothing beyond a
+  session — so the only new fixture was a three-endpoint queue mock.
+
+  Added `mockVoiceValidationQueue` to `apps/web/e2e/helpers.ts`, mirroring
+  `mockVoiceClipSubmit`'s single-endpoint shape but covering all three calls
+  `voice-validation-api.ts` makes (`GET .../validation/next`,
+  `GET .../clips/:clipId/audio`, `POST .../clips/:clipId/validations`) from
+  one in-memory clip queue that returns `{ clip: null }` once consumed —
+  exercising the real `done` transition rather than a separate fixture for
+  it — plus an optional `voteError` parameter for the race-condition case.
+
+  **Verified for real.** Built the app (`pnpm --filter @swasthya/web...
+  build`; the route manifest shows `/ne/validate` and `/en/validate` both
+  prerendering) and ran the new spec against the real built-and-served app
+  with `playwright test --project=phone voice-validation.journeys.spec.ts`
+  — all 5 pass, none skipped.
+
+  **Gate.** Full monorepo gate green from the repository root: `pnpm
+  install --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+  `pnpm test` (75/75 tasks; 995 API tests unchanged — Playwright e2e specs
+  are a separate job, not part of `pnpm test`, see `playwright.config.ts`),
+  `pnpm build` (40/40). No copy changed and no `ne.json`/`en.json` edit —
+  test-only, same precedent as `/contribute`'s own e2e task.
+
+  **For the next run.** Queue exhausted again — task U's third bullet, task
+  V/V′, and the owner-gated set are the only standing unchecked boxes. The
+  `GEMINI_API_KEY` quota finding (tasks AAAA/BBBB/CCCC) is still open and
+  still an owner decision — DDDD's own log entry silently stopped
+  mentioning it, which risked it being forgotten; it is restated here, not
+  re-diagnosed, see the 2026-08-20 log entry a few screens below for the
+  full retry evidence. Two smaller leads, lower-value than `/validate` was:
+  (1) `apps/mobile` still has no way to render-test a real RN component tree
+  under vitest (task VVV, named once, never picked up — infra-shaped,
+  probably bigger than one run); (2) before trusting "the last lettered
+  section's own For-the-next-run note" as the full picture of what is done,
+  diff `git log --oneline` against this file's `## [A-Z]+\.` headings —
+  this run found at least one commit (`6831130`) that only ever got a `##
+  Log` entry and no queue section, which is exactly the gap that almost
+  caused `/validate`'s own duplicate-of-`/contribute` mistake.
 
 - 2026-08-22 — **Task DDDD — exhausted-queue improvement: `.theme-pin-light`
   never re-established `color` for a bare heading/paragraph, so it left the
