@@ -2632,6 +2632,85 @@ a live session plus a `VOICE_CONTRIBUTION` consent grant before the recorder
 renders — worth a dedicated task once there's appetite for standing up that
 full mock chain, not a quick follow-on.
 
+## AAAA. Fixed a real drug-identity bug in the Nepal medicine lexicon — `सेटिरिजिन` (cetirizine) silently fired on every mention of `लेभोसेटिरिजिन` (levocetirizine), a different medicine, and task HHH's own duplicate-pattern test could not have caught it
+
+> Found and fixed 2026-08-22. Queue exhausted the same way as every WW-onward
+> entry — task U's third bullet, task V/V′, and the owner-gated set are the
+> only standing unchecked boxes. Rather than re-run another category sweep,
+> spent the survey budget on `packages/clinical-safety` itself, the one
+> package where a silent data bug has a direct patient-safety consequence
+> rather than just a code-quality one.
+
+- [x] Root cause, verified directly (not assumed from reading): Devanagari
+      has no `\b` word-boundary equivalent, and `medicines.ts`'s cetirizine
+      entry matched the bare pattern `/सेटिरिजिन/u` with no boundary at all.
+      `सेटिरिजिन` is a literal trailing substring of `लेभोसेटिरिजिन`
+      (levocetirizine) — confirmed with `node -e`:
+      `/सेटिरिजिन/u.test('लेभोसेटिरिजिन')` → `true`. `detectAdvisoryTriggers`
+      (`index.ts:203-213`) iterates every entry independently with no
+      first-match-wins or cross-entry dedup between named entries — only
+      `genericMedicinePatterns` dedups against named entries, not
+      named-against-named (`index.ts:219`) — so a Nepali answer naming only
+      levocetirizine got **both** "cetirizine" and "levocetirizine" attached
+      to the advisory, misidentifying which drug was actually named. Task
+      HHH's own "no pattern duplicated verbatim across two entries" check
+      (`index.test.ts`, 2026-08-21) could not have caught this: the two
+      patterns are not identical, one is just an unbounded substring of the
+      other's match.
+- [x] Fix: narrowed the pattern to `/(?<!लेभो)सेटिरिजिन/u` — a negative
+      lookbehind for the "levo-" prefix, the same shape as the existing
+      `निको(?![\p{L}\p{M}])` boundary guard two entries up in the same file.
+      Verified both directions with `node -e`: bare `सेटिरिजिन` still matches
+      (`true`), `लेभोसेटिरिजिन` no longer does (`false`).
+- [x] New invariant test in `index.test.ts`, next to HHH's verbatim-duplicate
+      check: no entry's pattern may match a *different* entry's own en/ne
+      display name, catching this whole bug class (an unbounded pattern
+      overlapping another entry, not just a literal copy) rather than just
+      this one pair. Two pairs are excluded on an explicit allow-list, not
+      silently: `cough syrup`/`codeine cough syrup` and `oral contraceptive
+      pill`/`emergency contraceptive pill` both have one name as a genuine,
+      intentional substring of the other (a codeine cough syrup **is** a
+      cough syrup), so both should list when the more specific one is named
+      — verified this reasoning by reading both entries' own patterns and
+      tiers, not assumed. Confirmed the test fails without the source fix
+      (`git stash` on `medicines.ts` alone, re-ran, got the exact expected
+      failure message naming the collision) and passes with it — the test
+      is proven to catch the bug it was written for, not just written to
+      look like it would.
+- [x] While in `index.test.ts`, found and fixed one unrelated stray NUL byte
+      (`\x00`) embedded mid-file at the old byte offset ~13645, inside the
+      `` `${p.source} ${p.flags}` `` template literal task HHH's own
+      duplicate check builds — likely a prior run's tool mangled a space
+      into a null byte at some point; harmless to Vitest (a valid JS string
+      character) but made the file register as binary to `grep`/`rg`
+      (confirmed: every `Grep`/`grep` call against this file failed with
+      "binary file matches" until this was fixed), silently breaking any
+      future grep-based search or sweep against this exact file. Replaced
+      with a literal space; confirmed exactly one occurrence in the whole
+      file before touching it.
+- [x] Full monorepo gate green from the repository root: `pnpm install
+      --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+      `pnpm test` (75/75 tasks; `@swasthya/clinical-safety` 99 tests, up
+      from 92; `@swasthya/api` 995/995 unchanged), `pnpm build` (40/40). No
+      UI, copy or user-visible behaviour changed — data and tests only — so
+      no `ne.json`/`en.json` edit and no new journey under task U's standing
+      rule.
+
+**For the next run.** Queue exhausted again — task U's third bullet, task
+V/V′, and the owner-gated set are the only standing unchecked boxes. Two
+leads, neither urgent: (1) the same substring-collision failure mode is only
+guarded against now, not swept for elsewhere in the repo — `packages/family`,
+`packages/health-records` and others also do free-text pattern matching and
+were not audited this run, scoped out deliberately to keep this fix small and
+verified rather than a speculative broad sweep. (2) The most recent prior
+run's own still-open finding stands: production's `GEMINI_API_KEY` is
+free-tier and intermittently quota-refuses real research requests (confirmed
+twice via `journeys-production`'s `@live` diagnostic, see the log entry
+below) — this is an owner infrastructure decision (upgrade the key or switch
+`RESEARCH_PROVIDER=perplexity`), not agent work, and should stay the first
+thing any run checks for an owner response before picking a fresh
+step-4 lead.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -4395,6 +4474,79 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-22 — **Task AAAA — exhausted-queue improvement: fixed a real
+  drug-identity bug in `packages/clinical-safety`'s medicine lexicon — a
+  Nepali mention of levocetirizine alone also silently attached cetirizine,
+  a different medicine, to the advisory.**
+
+  **Housekeeping.** Fresh container; local `main` was again a stale
+  pre-force-push tip (`9bdf548`) with no common ancestor against
+  `origin/main` (`1d510a0`, 50 commits) — the same recurring pattern every
+  WW-onward entry describes. `origin/backup/pre-force-push-main-9bdf548`
+  still matched local `main`'s old tip exactly (verified: `git diff --stat`
+  between the two tips is empty — only the commit graph was rewritten, no
+  file content differs), so nothing local was at risk; reconciled with
+  `git reset --hard origin/main`. Standing red-CI check: the latest
+  push-triggered `ci` run on `main` (`1d510a0`, the prior run's own
+  diagnostic-improvement commit) is green.
+
+  **Queue check.** Same as every recent entry: task U's third bullet, task
+  V/V′, and the owner-gated set are the only unchecked boxes, all blocked on
+  an owner call. Queue exhausted for the agent → step-4. Rather than another
+  blind category sweep, spawned an Explore agent to survey fresh candidates
+  against everything the ledger's Log already records as done (rate
+  limiting, access control, `z.string()`/`z.array()` bounding, mobile
+  accessibility/crash-safety, e2e coverage). It surfaced a real,
+  independently-verified bug rather than another mechanical gap — see below.
+
+  **What was found and fixed.** `medicines.ts`'s cetirizine entry matched
+  the unbounded Devanagari pattern `/सेटिरिजिन/u`. Devanagari has no `\b`
+  equivalent, and `सेटिरिजिन` is a literal trailing substring of
+  `लेभोसेटिरिजिन` (levocetirizine) — confirmed directly with
+  `node -e "/सेटिरिजिन/u.test('लेभोसेटिरिजिन')"` → `true` before touching
+  anything. `detectAdvisoryTriggers` (`index.ts:203-213`) has no
+  first-match-wins or named-vs-named dedup, so an answer naming only
+  levocetirizine got both drug names attached — the wrong medicine identity
+  on a "see a doctor before taking this" advisory. Task HHH's own
+  verbatim-duplicate-pattern test (2026-08-21) could not have caught this:
+  the two patterns aren't identical, one just unboundedly contains the
+  other's match. Fixed with a negative lookbehind,
+  `/(?<!लेभो)सेटिरिजिन/u`, the same shape as the existing `निको` boundary
+  guard two entries up in the same file; verified both directions with
+  `node -e` (bare cetirizine still matches, levocetirizine no longer
+  false-positives). Added a new invariant test in `index.test.ts` — no
+  entry's pattern may match a different entry's own display name, with an
+  explicit two-pair allow-list for the two collisions that are genuinely
+  intentional by design (`codeine cough syrup`/`cough syrup`, `emergency
+  contraceptive pill`/`oral contraceptive pill`) — and proved the test
+  actually catches the bug class by stashing just the `medicines.ts` fix,
+  re-running, and confirming the exact expected failure, before unstashing.
+
+  **Incidental fix.** Found one stray NUL byte embedded mid-`index.test.ts`
+  (inside the existing duplicate-pattern check's template literal) that was
+  making every `grep`/`Grep` call against the file report "binary file
+  matches" and return nothing — confirmed exactly one occurrence
+  file-wide before replacing it with the space it was clearly meant to be.
+  Harmless to Vitest itself but was silently breaking grep-based searches
+  against this one file for however long it had been there.
+
+  **Gate.** `pnpm install --frozen-lockfile`, `pnpm lint` (40/40), `pnpm
+  typecheck` (40/40), `pnpm test` (75/75 tasks; `@swasthya/clinical-safety`
+  99 tests, up from 92; `@swasthya/api` 995/995 unchanged), `pnpm build`
+  (40/40) all green. No UI, copy or user-visible behaviour changed — so no
+  `ne.json`/`en.json` edit and no new journey needed under task U's standing
+  rule.
+
+  **For the next run.** Queue exhausted again — task U's third bullet, task
+  V/V′, and the owner-gated set are the only standing unchecked boxes. Two
+  leads: (1) this run only guards the exact failure mode found, not a full
+  substring-collision sweep of other packages doing free-text pattern
+  matching (`packages/family`, `packages/health-records`) — deliberately
+  scoped out to keep this a small, verified fix rather than a speculative
+  broad one. (2) The prior run's `GEMINI_API_KEY` quota finding (below) is
+  still open and still the higher-priority item to check for an owner
+  response before picking a fresh step-4 lead.
 
 - 2026-08-22 — **Exhausted-queue improvement: the `@live` research test's
   failure told you *that* the live provider was unavailable but never *why*

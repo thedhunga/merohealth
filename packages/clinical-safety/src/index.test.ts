@@ -205,10 +205,32 @@ describe('Nepal medicine lexicon — brand names people actually say, and the pr
     const owner = new Map<string, string>();
     for (const m of commonMedicinesInNepal) {
       for (const p of m.patterns) {
-        const key = `${p.source} ${p.flags}`;
+        const key = `${p.source} ${p.flags}`;
         const existing = owner.get(key);
         expect(existing === undefined || existing === m.en, `pattern /${p.source}/${p.flags} is shared by "${existing}" and "${m.en}"`).toBe(true);
         owner.set(key, m.en);
+      }
+    }
+  });
+
+  // A verbatim duplicate above is not the only way a pattern misattributes a
+  // mention: an entry's own pattern can, without being copied, still match a
+  // *different* entry's name outright (Devanagari has no \b, so "सेटिरिजिन"
+  // used to match inside "लेभोसेटिरिजिन" — two different medicines, both
+  // then listed for a mention of only one). Two pairs are deliberately
+  // excluded because one name really is a literal substring of the other by
+  // design and both should list when the more specific one is named: a
+  // codeine cough syrup is a cough syrup, an emergency contraceptive pill is
+  // a contraceptive pill.
+  const intentionalOverlap = new Set(['codeine cough syrup:cough syrup', 'emergency contraceptive pill:oral contraceptive pill']);
+  it("no entry's pattern matches a different entry's own name, except the two intentional generic/specific pairs", () => {
+    for (const a of commonMedicinesInNepal) {
+      for (const b of commonMedicinesInNepal) {
+        if (a === b || intentionalOverlap.has([a.en, b.en].sort().join(':'))) continue;
+        for (const p of a.patterns) {
+          expect(p.test(b.en), `"${a.en}"'s pattern /${p.source}/${p.flags} matches "${b.en}"`).toBe(false);
+          expect(p.test(b.ne), `"${a.en}"'s pattern /${p.source}/${p.flags} matches "${b.ne}"`).toBe(false);
+        }
       }
     }
   });
