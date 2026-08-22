@@ -1763,6 +1763,7 @@
       "submit": "Submit",
       "uploading": "Uploading…",
       "permissionDenied": "Microphone access was denied. Allow microphone access in your browser to contribute a recording.",
+      "deviceUnavailable": "No microphone was found, or it's being used by another app. Check your microphone and try again.",
       "unsupported": "This browser cannot record audio. Try a recent version of Chrome or Safari.",
       "errors": {
         "VOICE_CONTRIBUTION_CONSENT_REQUIRED": "Your Voice Contribution consent is no longer active — please refresh the page.",

@@ -303,10 +303,18 @@ function TaskRecorder({
             <p className="mt-6 text-sm font-semibold text-accent-danger" role="alert">
               {recorderT('permissionDenied')}
             </p>
+          ) : status === 'device-unavailable' ? (
+            <p className="mt-6 text-sm font-semibold text-accent-danger" role="alert">
+              {recorderT('deviceUnavailable')}
+            </p>
           ) : null}
 
           <div className="mt-6 flex flex-col items-center gap-4">
-            {status === 'idle' || status === 'requesting-permission' || status === 'permission-denied' || status === 'unsupported' ? (
+            {status === 'idle' ||
+            status === 'requesting-permission' ||
+            status === 'permission-denied' ||
+            status === 'device-unavailable' ||
+            status === 'unsupported' ? (
               <Button disabled={status === 'requesting-permission'} onClick={() => void start()} variant="accent">
                 <Mic aria-hidden className="size-4" />
                 {recorderT('start')}

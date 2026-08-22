@@ -2504,6 +2504,93 @@ flagged for a future run this time; the survey's other candidate (unscoped
 Prisma queries outside the WW–EE chain) came back clean and is not a lead
 worth re-checking without a new signal.
 
+## YYY. `useVoiceContributionRecorder` told everyone the microphone was blocked by permission, even when there was no microphone at all — task XXX's own "queue exhausted" survey, run fresh
+
+> Every unchecked queue box was still owner/asset-gated. Delegated a fresh
+> sweep (explicit instructions not to re-report anything the WW–XXX chain
+> already covers — access control, rate limiting, tap targets, dark mode,
+> bundle weight, crash-safety guards, accessibility, test coverage, e2e
+> journeys, security headers, body/field bounding, the safety-phrase
+> normalization fix). One candidate the sweep's own report flagged as
+> already fixed (`marigold-800`/`marigold-900` undefined tokens, task T″'s
+> lead) turned out to be a stale lead — verified directly with a grep,
+> both tokens are defined in `globals.css` — so it is not re-reported here.
+> The real finding: `useVoiceContributionRecorder.ts`'s `getUserMedia` call
+> had a bare `catch { setStatus('permission-denied') }`, collapsing every
+> possible failure into one diagnosis. Verified directly against the DOM
+> spec, not assumed: `getUserMedia` throws `NotFoundError` when no
+> microphone is attached and `NotReadableError` when one exists but is busy
+> in another app/OS call — both ordinary desktop conditions, neither an
+> actual permission the browser ever prompted for — and both were shown the
+> same "Allow microphone access in your browser" copy (`en.json:1765`,
+> `ne.json:1765`) as a real refusal, with no way for the person to tell what
+> was actually wrong or how to fix it. This blocks `/contribute` (the
+> language-corpus voice-contribution flow) end to end for anyone in that
+> state. The mobile app already rejected exactly this shape of bug for the
+> analogous camera flow (`apps/mobile/src/lib/request-camera-access.ts`,
+> tasks MM/NN/OO's own "one message for every failure" anti-pattern); this
+> web hook never got the equivalent scrutiny.
+
+- [x] Split the failure classification into a pure, colocated
+      `resolveGetUserMediaFailureStatus()` in the new
+      `apps/web/src/hooks/voice-contribution-recorder-status.ts` — only
+      `NotAllowedError` maps to `permission-denied`; every other
+      `DOMException` (`NotFoundError`, `NotReadableError`,
+      `OverconstrainedError`, etc.) and any non-`DOMException` throw maps to
+      a new `device-unavailable` status, on the principle that a browser
+      never actually asked permission for those. This is the same split
+      `useSession.ts`/`session-redirect.ts` already established, for the
+      same reason — it lets the decision be unit tested without mocking
+      `navigator.mediaDevices`/`MediaRecorder` at all.
+- [x] Wired `device-unavailable` through `useVoiceContributionRecorder.ts`
+      (new status in the union, included in the "show the record button
+      again" status list) and `VoiceContributionView.tsx` (its own alert
+      message, added to the same status list the retry button already
+      checks). New `deviceUnavailable` copy added to **both**
+      `apps/web/messages/en.json` and `ne.json`: "No microphone was found,
+      or it's being used by another app. Check your microphone and try
+      again." / "माइक्रोफोन फेला परेन, वा यो अर्को एपले प्रयोग गरिरहेको छ।
+      आफ्नो माइक्रोफोन जाँचेर फेरि प्रयास गर्नुहोस्।" — no fabricated
+      figures or claims, a plain statement of the two real causes.
+- [x] Five new cases in the colocated
+      `voice-contribution-recorder-status.test.ts`: `NotAllowedError` →
+      `permission-denied`; `NotFoundError`, `NotReadableError`, an
+      unrecognised `DOMException` subtype, and a non-`DOMException` throw
+      all → `device-unavailable` (erring toward the actionable message
+      rather than assuming denial on an error shape the code doesn't
+      recognise).
+- [x] Full monorepo gate green from the repository root: `pnpm install
+      --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+      `pnpm test` (75/75 tasks; `@swasthya/web` 537/537 tests, +5 over the
+      previous baseline; `@swasthya/api` unchanged at 993/993), `pnpm build`
+      (40/40, `/contribute` present in both locales in the route manifest).
+      **No Playwright journey added** — a deliberate, documented scope cut,
+      not an oversight: `/contribute` has **zero** existing e2e coverage of
+      any kind (confirmed by grepping `apps/web/e2e/` for the route and for
+      `getUserMedia`/`mediaDevices`), and the page itself is gated behind a
+      live session *and* a second `VOICE_CONTRIBUTION`-specific consent
+      grant (`VoiceContributionView.tsx:43-96`) before the recorder ever
+      renders — mocking that whole chain plus a specific `getUserMedia`
+      rejection shape would be standing up the route's first-ever journey,
+      not extending an existing one, and is a separable, larger task in its
+      own right. The pure classification logic is unit tested instead,
+      matching this codebase's own established convention for hooks that
+      wrap browser device APIs.
+
+**For the next run.** Task U's third bullet, task V/V′, and the
+owner-gated set are still the only standing unchecked boxes. Two leads from
+this run's own survey, ranked: (1) `/contribute` has no e2e journey at all —
+worth a dedicated task once there's appetite for mocking a full
+session+consent+`getUserMedia` chain, not a quick follow-on. (2) Two
+`z.array()` request fields have no `.max()` — `family-grants.controller.ts`'s
+`scopes` (4 valid enum values, no reason to allow more) and
+`interop.controller.ts`'s `documentIds` (drives a synchronous per-item
+ownership loop in `InteropService.issueShareLink`) — every other
+`z.array()` in `apps/api` already has one (`history.controller.ts`,
+`twin-profile.controller.ts`). Same shape as task KK's `z.string()` bounding
+sweep, just for array length instead of string length; not re-verified by
+this run, just handed forward.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after

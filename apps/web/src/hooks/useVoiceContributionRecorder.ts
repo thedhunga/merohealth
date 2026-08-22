@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MAX_VOICE_CLIP_DURATION_MS } from '@swasthya/language-corpus';
+import { resolveGetUserMediaFailureStatus } from './voice-contribution-recorder-status';
 
 export type VoiceContributionRecorderStatus =
   | 'idle'
@@ -9,6 +10,7 @@ export type VoiceContributionRecorderStatus =
   | 'recording'
   | 'recorded'
   | 'permission-denied'
+  | 'device-unavailable'
   | 'unsupported';
 
 export interface VoiceContributionRecording {
@@ -29,11 +31,14 @@ export interface UseVoiceContributionRecorderResult {
 
 /**
  * Browser `MediaRecorder` capture for one Voice Contribution clip. No test
- * file — this codebase does not unit-test hooks or components that wrap
- * browser device APIs (`useGeminiLiveSession.ts`, `useSession.ts`, neither
- * has one either); the pure quality-gate logic this hook leans on
+ * file for the hook itself — this codebase does not unit-test hooks or
+ * components that wrap browser device APIs directly (`useGeminiLiveSession.ts`
+ * has none either); the pure quality-gate logic this hook leans on
  * (`MAX_VOICE_CLIP_DURATION_MS`, `validateVoiceClipDuration`) already has its
- * own coverage in `@swasthya/language-corpus`.
+ * own coverage in `@swasthya/language-corpus`, and the `getUserMedia`
+ * failure-classification decision is split into
+ * `voice-contribution-recorder-status.ts` and tested there, the same split
+ * `useSession.ts`/`session-redirect.ts` already established.
  *
  * Auto-stops at `MAX_VOICE_CLIP_DURATION_MS` so a free-speech answer that
  * wanders cannot silently produce a clip the server would reject anyway —
@@ -81,8 +86,8 @@ export function useVoiceContributionRecorder(): UseVoiceContributionRecorderResu
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      setStatus('permission-denied');
+    } catch (error) {
+      setStatus(resolveGetUserMediaFailureStatus(error));
       return;
     }
 
