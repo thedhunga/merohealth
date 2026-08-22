@@ -4396,6 +4396,92 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-22 — **Exhausted-queue improvement: gave `/contribute` (Voice
+  Contribution) its first e2e journey coverage — the lead tasks YYY and ZZZ
+  both carried forward unchanged, framed as "a dedicated task... not a quick
+  follow-on."**
+
+  **Housekeeping.** Fresh container; local `main` was 50 commits behind a
+  force-pushed `origin/main` with no common ancestor between the two tips —
+  the same pattern every WW-onward entry describes. Local `main`'s tip
+  (`9bdf548`) matched `origin/backup/pre-force-push-main-9bdf548` exactly, so
+  nothing local was at risk; reconciled with `git checkout -B main
+  origin/main` rather than a merge. Standing red-CI check: the latest
+  push-triggered `ci` run on `main` (`736f178`, task ZZZ's own commit) is
+  green — no line-stop needed.
+
+  **Why this task, and why the "not a quick follow-on" framing was stale.**
+  Round seven's lettered queue is fully checked; task U's third bullet, task
+  V/V′, and the "Owner-gated" section are the only unchecked boxes and none
+  are agent work. Rather than re-run another blind sweep across categories
+  this ledger has already swept clean a dozen times over, spent the survey
+  budget confirming the one lead every recent run has named but skipped:
+  `/contribute`'s missing e2e coverage. An Explore pass read
+  `VoiceContributionView.tsx`, `useSession.ts`/`session-redirect.ts`,
+  `useCorpusConsent.ts`, `useVoiceContributionRecorder.ts`, and every
+  existing `e2e/` spec, and found the framing outdated: `round-seven.journeys.spec.ts`'s
+  `/account` journey (commit `519a3ef2`, 2026-08-20) already built the
+  `page.route('**/v1/auth/me', …)` session mock this route needs — task YYY's
+  log entry (also 2026-08-22, earlier the same day) still called this
+  "gated behind a live session... not a quick follow-on" without noticing
+  the mock had landed three days earlier. Consent-grant seeding is the same
+  `page.route` technique against a second endpoint. Only the recording states
+  (`getUserMedia`/`MediaRecorder`) needed genuinely new infrastructure.
+
+  **What shipped.** `apps/web/e2e/voice-contribution.journeys.spec.ts`, five
+  tests covering every state `VoiceContributionView`'s own state machine has:
+  anonymous → redirected to `/signin?next=/contribute`; signed in, no
+  consent → consent-gate card, blocked from the self-report form until
+  granted; granting consent → self-report form appears; self-report
+  submitted → first `READ_PROMPT` task's recorder renders in its idle state;
+  and — the one novel piece — a full record → stop → preview → submit cycle
+  run five times (one per task in `VOICE_CONTRIBUTION_TASKS`) reaching the
+  `DonePanel`. Plus one `/en/contribute` locale smoke test. Three new
+  reusable helpers in `e2e/helpers.ts`: `mockSignedInSession` (extracted from
+  the inline fixture `round-seven.journeys.spec.ts` already had, so both
+  call sites now share one definition), `mockCorpusConsent` (a small
+  in-memory grant list backing `GET .../consent` and
+  `POST .../consent/VOICE_CONTRIBUTION/grant`, so granting via the real
+  button actually flips what the next fetch returns), and `mockVoiceRecorder`
+  — replaces `navigator.mediaDevices.getUserMedia` and `window.MediaRecorder`
+  with fakes that drive `useVoiceContributionRecorder`'s own
+  `ondataavailable`/`onstop` listeners directly via `page.addInitScript`,
+  the same technique `fixtures.ts` already uses to report
+  `SpeechRecognition` presence, chosen over Playwright's
+  `--use-fake-device-for-media-stream` launch flags because those are
+  Chromium-only and the `iphone` (WebKit) project needs the same journey to
+  run there too.
+
+  **Verification beyond the standard gate.** `e2e/` is excluded from both
+  `pnpm lint` (script is `eslint src`) and `pnpm typecheck` (tsconfig
+  excludes `e2e`) in this repo already — not something this task changed —
+  so the real verification was running the suite itself. Built the mobile
+  web export and published it to `apps/web/public/app` exactly as
+  `scripts/build-mobile-web.sh`/`ci.yml` do, ran `next start`, and executed
+  `playwright test --project=phone` against the production build — the exact
+  command `ci.yml`'s `verify` job runs. Result: 30 passed, 2 skipped
+  (`@live`, expected without `E2E_LIVE=1`), including all 5 new tests and
+  zero regressions in the other 25. Also ran `check:budget` (unaffected, as
+  expected — no page weight touched). Could not run the `iphone` (WebKit)
+  project locally — no WebKit binary installed in this environment, the same
+  gap `fixtures.ts`'s own doc comment names — so `mockVoiceRecorder`'s
+  portability to real WebKit is unverified until `journeys-production`'s
+  nightly run picks it up; if it fails there, the fake `MediaRecorder`/
+  `MediaStream` classes in `e2e/helpers.ts` are the first place to look.
+
+  **Gate.** `pnpm install --frozen-lockfile`, `pnpm lint` (40/40), `pnpm
+  typecheck` (40/40), `pnpm test` (75/75 tasks, `@swasthya/api` 995/995
+  unchanged), `pnpm build` (40/40) all green. No product code changed — only
+  `e2e/` test files — so no `ne.json`/`en.json` edit was needed and none was
+  made.
+
+  **For the next run.** Queue exhausted again — task U's third bullet, task
+  V/V′, and the owner-gated set are the only unchecked boxes, and this run's
+  own lead (`/contribute` e2e coverage) is now closed. Watch the next
+  `journeys-production` nightly run for the `iphone` project specifically —
+  it is the first real signal on whether `mockVoiceRecorder` survives actual
+  WebKit rather than just Chromium.
+
 - 2026-08-22 — **Task ZZZ — exhausted-queue improvement: bounded the last two
   unbounded `z.array()` request fields in `apps/api`.**
 
