@@ -219,6 +219,22 @@
   --color-accent-text: #2e2663;
   --color-accent-danger: #b42318;
   --color-accent-success: #146c43;
+  /*
+   * Without this, a bare heading/paragraph with no `text-ink` utility of its
+   * own (relying on `body { color: var(--color-ink) }`'s inherited value)
+   * stays whatever `color` body already resolved to — set once, at body,
+   * from the *page* theme — because re-pinning the custom properties above
+   * does not retroactively re-run `var(--color-ink)` for an ancestor that
+   * never referenced it locally. In dark mode that inherited value is
+   * `--color-ink`'s near-white, landing on this pinned-light card as
+   * near-white-on-near-white. Elements that already carry an explicit
+   * `text-ink`/`text-ink-soft` class were never affected — declaring
+   * `color: var(--color-X)` on themselves makes the var() resolve against
+   * this element's own pinned scope. This line does the same for every
+   * element that doesn't. Found via `GetCareFlow.tsx`'s `LoadingPanel`,
+   * already `.theme-pin-light`-wrapped and still invisible in dark mode.
+   */
+  color: var(--color-ink);
 }
 
 @layer base {

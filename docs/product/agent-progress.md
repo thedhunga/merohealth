@@ -2878,6 +2878,110 @@ correct, is worth doing before trusting the rest of that grep by eye. The
 first thing to check for an owner response before picking a fresh step-4
 lead.
 
+## DDDD. `.theme-pin-light` itself was incomplete — it never fixed a bare heading/paragraph with no `text-ink` class of its own, so it silently left the emergency-response message readable in light mode only — task CCCC's own "for the next run" `bg-white` grep lead, chased one component deeper than planned
+
+> Found and fixed 2026-08-22. Queue exhausted the same way as every WW-onward
+> entry — task U's third bullet, task V/V′, and the owner-gated set are the
+> only standing unchecked boxes. Started from task CCCC's own named lead
+> (audit the ~15 further `bg-white` hits its own grep turned up but didn't
+> individually re-verify) and found a bug one layer beneath it.
+
+- [x] Traced `GetCareFlow.tsx`'s `OffTopicPanel` (`bg-indigo-50`, no
+      `theme-pin-light`) as a `bg-white`-adjacent case of the same
+      token-mismatch class CCCC fixed — its reply `<p>` has no `text-ink`
+      class, so it inherits the theme-reactive `body { color: var(--color-ink) }`
+      default and goes near-white in dark mode against the always-light
+      `indigo-50` card. Confirmed `LoadingPanel` two functions above it
+      already applies `theme-pin-light` to the identical `bg-indigo-50`
+      background — the sibling this component should have matched from the
+      start.
+- [x] Added `theme-pin-light` to `OffTopicPanel`'s `Panel` — matched
+      `LoadingPanel`'s existing pattern exactly — then verified with a
+      throwaway Playwright script against the real built-and-served app
+      (`pnpm build && pnpm --filter @swasthya/web start`, `POST
+      /api/companion/research` mocked to `domain: 'OFF_TOPIC'`,
+      `localStorage.mero-theme` toggled, `getComputedStyle` read on the real
+      rendered `<p>`) **and it did not fix the bug**: the reply text still
+      computed `rgb(241, 239, 251)` — identical to the panel's own
+      background — in dark mode.
+- [x] Root-caused why the fix didn't take: CSS custom-property re-pinning
+      (`.theme-pin-light`'s `--color-ink: #171429`) only changes what
+      `var(--color-ink)` resolves to for an element that *itself* declares
+      `color: var(--color-ink)` (i.e. carries a `text-ink` utility). `body`'s
+      base-layer `color: var(--color-ink)` resolves once, at `body`, to a
+      literal colour; every descendant with no `color` of its own inherits
+      that already-resolved literal, not a live re-evaluation of the
+      variable — so a bare heading/paragraph inside a `.theme-pin-light`
+      subtree stays whatever colour the *page* theme picked, regardless of
+      the local re-pin. `.theme-pin-light`'s own explaining comment in
+      `globals.css` claimed the opposite ("nesting `bg-sand`/`text-ink`/
+      `border-line` etc. inside stays correct") — true only for elements
+      that use those utilities explicitly, which every prior caller of this
+      escape hatch happened to do except for two bare headings.
+- [x] Confirmed this was not unique to `OffTopicPanel`: `LoadingPanel`
+      itself — already `theme-pin-light`-wrapped, presumed correct, never
+      individually re-verified — has a bare `<h2>` with the same gap.
+      Measured directly (delayed the mocked research route 3s to catch the
+      loading state): dark mode, `h2` computed `rgb(241, 239, 251)` on a
+      `rgb(241, 239, 251)` panel — fully invisible, not just low-contrast.
+      Also checked `EmergencyPanel` (`theme-pin-light bg-danger-100`), the
+      most safety-critical instance of this exact shape: its emergency
+      `<p>{response.template}</p>` is likewise bare. Measured with a mocked
+      `EMERGENCY` response before touching anything: dark mode, the
+      emergency message text was rendering fully invisible against its own
+      card — the actual crisis guidance a person in danger needs to read.
+- [x] Fixed at the source instead of patching three call sites separately:
+      added `color: var(--color-ink);` to `.theme-pin-light` itself in
+      `globals.css`, with a comment explaining why the custom-property reset
+      alone was insufficient (see above). This re-establishes `color` at the
+      pinned boundary so every bare descendant inherits the correct literal
+      instead of leaking the page-theme value, while every existing caller
+      that already sets `text-ink`/`text-ink-soft` explicitly is unaffected
+      (those elements' own `var()` resolution was already correct — this
+      only changes elements that had no local `color` declaration at all).
+      Covers every current `.theme-pin-light` usage
+      (`EarlyAccessCard`, `SymptomEntry`, `EmergencyPanel`, `LoadingPanel`,
+      `OffTopicPanel`, `MegaMenu`, `OrganizationTabs`) and every future one,
+      not just the three found here.
+- [x] Verified end-to-end against the rebuilt, re-served app, before and
+      after, for all three affected panels: `OffTopicPanel`'s reply,
+      `LoadingPanel`'s heading and `EmergencyPanel`'s message all now
+      compute `rgb(23, 20, 41)` (the pinned dark ink) in **both** light and
+      dark mode, pixel-identical between themes as the escape hatch
+      intends, against their respective fixed-light backgrounds
+      (`rgb(241, 239, 251)` indigo-50, `rgb(254, 228, 226)` danger-100).
+      Light mode is unchanged from before this fix in all three cases.
+- [x] Mobile impact: all three panels render inside `GetCareFlow`, which is
+      the phone-first `/get-care` journey itself (not a `lg:`-only desktop
+      surface like CCCC's fix) — this is the primary surface the 375 px
+      measurement discipline exists for, not a side case.
+- [x] Full monorepo gate green from the repository root: `pnpm install
+      --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+      `pnpm test` (75/75 tasks; 995 API tests unchanged, no new test — a
+      CSS-token fix with no new branching logic, same precedent as tasks
+      RRR and CCCC), `pnpm build` (40/40). No copy changed and no DOM
+      structure changed (one added class, one added CSS declaration), so no
+      `ne.json`/`en.json` edit and no new journey needed under task U's
+      standing rule.
+
+**For the next run.** Queue exhausted again — task U's third bullet, task
+V/V′, and the owner-gated set are the only standing unchecked boxes. Task
+CCCC's own lead (the ~15 further `bg-white` hits its grep turned up) is now
+narrower: `LocaleSwitcher.tsx`, `Header.tsx`, `Button.tsx`'s `inverse`
+variant, `OrganizationTabs.tsx`'s CTA button and `VoiceLabView.tsx` all pair
+`bg-white` with `text-indigo-800` (a static Tailwind colour, not a theme
+token) rather than `text-ink`/`text-ink-soft` — read but not yet
+individually re-verified against the rendered app; they are very unlikely to
+share this bug class (nothing there is theme-reactive) but "unlikely" is not
+"confirmed," and confirming was exactly what turned up this run's finding.
+A second, more structural lead this run's own fix surfaced: `.theme-pin-light`
+was trusted as correct by every caller that added it, for months, without
+anyone re-deriving what it actually guarantees — worth asking, for any other
+"escape hatch" utility class in `globals.css` (`sr-only`, the motion-reduce
+guards), whether its own doc comment matches what it actually does to a bare
+element, rather than assuming a utility class's stated contract holds for
+every caller shape.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -4641,6 +4745,67 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-22 — **Task DDDD — exhausted-queue improvement: `.theme-pin-light`
+  never re-established `color` for a bare heading/paragraph, so it left the
+  emergency-response message and two other panels invisible in dark mode;
+  fixed at the source in `globals.css` rather than patching each call site.**
+
+  **Housekeeping.** `git checkout main && git pull` fast-forwarded cleanly
+  (`ea36d94` → `df74082`, task CCCC's dark-mode fix already merged) — no
+  stale-tip reconciliation needed this run. Standing red-CI check: the
+  latest `ci` run on `main` (`df74082`) is green.
+
+  **Queue check.** Same as every recent entry: task U's third bullet, task
+  V/V′, and the owner-gated set are the only unchecked boxes, all blocked on
+  an owner call. Queue exhausted for the agent → step-4. Task CCCC's own
+  "for the next run" lead named the ~15 further `bg-white` hits its grep
+  turned up as worth individually re-verifying rather than trusting by eye —
+  started there.
+
+  **What was found and fixed.** `GetCareFlow.tsx`'s `OffTopicPanel` pairs a
+  fixed `bg-indigo-50` background with a bare reply `<p>` (no `text-ink`
+  class) — the same token-mismatch shape CCCC fixed, one component over.
+  Adding `theme-pin-light` (matching sibling `LoadingPanel`, which already
+  has it on the identical background) did **not** fix it when verified
+  against the real built app: the text still rendered invisible in dark
+  mode. Root cause: `.theme-pin-light` only resets the `--color-*` custom
+  properties; `body`'s base-layer `color: var(--color-ink)` resolves once,
+  at `body`, to a literal, and every bare descendant with no `color` of its
+  own inherits that already-resolved literal rather than re-evaluating the
+  variable locally. Only elements that explicitly carry `text-ink`/
+  `text-ink-soft` were ever actually fixed by the escape hatch — every prior
+  caller happened to apply it that way except two bare headings. Checked
+  every existing `.theme-pin-light` user for the same gap: `LoadingPanel`'s
+  heading had it too (confirmed invisible, same near-white-on-near-white),
+  and — the one that matters most — `EmergencyPanel`'s actual emergency
+  message `<p>` had it as well, meaning the crisis guidance text a person in
+  danger needs to read was rendering fully invisible in dark mode. Fixed
+  once, at the source: added `color: var(--color-ink);` to
+  `.theme-pin-light` itself in `globals.css`, which fixes all three found
+  here and every future caller, with zero effect on callers that already set
+  their own text colour explicitly. Verified end-to-end against the
+  rebuilt, re-served app (mocked `OFF_TOPIC`/loading-delay/`EMERGENCY`
+  responses, `localStorage.mero-theme` toggled, `getComputedStyle` read on
+  the real rendered text): all three now compute the pinned dark ink
+  (`rgb(23, 20, 41)`) in both light and dark mode, light mode pixel-identical
+  to before. Full gate green (`pnpm install --frozen-lockfile`, lint 40/40,
+  typecheck 40/40, test 75/75 — 995 API tests unchanged, build 40/40); no
+  copy or DOM structure changed, so no `ne.json`/`en.json` edit and no new
+  journey, per task U's standing rule and the RRR/CCCC precedent for
+  CSS-token-only fixes.
+
+  **For the next run.** Task CCCC's `bg-white` lead is narrower now: the
+  remaining ~10 hits (`LocaleSwitcher.tsx`, `Header.tsx`, `Button.tsx`'s
+  `inverse` variant, `OrganizationTabs.tsx`'s CTA, `VoiceLabView.tsx`) pair
+  `bg-white` with `text-indigo-800` — a static Tailwind colour, not a theme
+  token — so they are unlikely to share this bug class, but "unlikely" was
+  also true of `OffTopicPanel` right up until it wasn't; worth a pass that
+  actually confirms rather than assumes. Separately, this run's own finding
+  suggests checking whether `globals.css`'s other "escape hatch" utilities
+  (`sr-only`, the reduced-motion guards) still do what their own doc
+  comments claim for every current caller shape, the same way
+  `.theme-pin-light`'s comment turned out to overstate its own guarantee.
 
 - 2026-08-22 — **Task AAAA — exhausted-queue improvement: fixed a real
   drug-identity bug in `packages/clinical-safety`'s medicine lexicon — a

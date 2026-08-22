@@ -543,7 +543,13 @@ function OffTopicPanel({
   const resultT = useTranslations('getCare.result');
   const reply = t('reply');
   return (
-    <Panel className="bg-indigo-50">
+    // `theme-pin-light`: `bg-indigo-50` is a fixed light Tailwind colour, not
+    // a theme token (unlike `LoadingPanel`'s identical background above,
+    // which already pins it) — without this, `reply`'s untinted text below
+    // inherits `--color-ink` and flips to near-white in dark mode, going
+    // invisible against this still-light card. See `globals.css`'s
+    // dark-theme comment and task CCCC's `MegaMenu`/`OrganizationTabs` fix.
+    <Panel className="theme-pin-light bg-indigo-50">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 text-indigo-700">
           <MessageCircleHeart aria-hidden className="size-6" />
