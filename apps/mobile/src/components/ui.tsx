@@ -1,33 +1,16 @@
 import {
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
   type PressableProps,
-  type ScrollViewProps,
 } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
 import { colors, radii, spacing } from '@swasthya/configuration';
 import type { LucideIcon } from 'lucide-react-native';
 
-export function Screen({ children, contentContainerStyle, ...props }: ScrollViewProps) {
-  const { width } = useWindowDimensions();
-  return (
-    <ScrollView
-      contentContainerStyle={[
-        styles.screen,
-        { paddingHorizontal: width >= 720 ? spacing.xxl : spacing.lg },
-        contentContainerStyle,
-      ]}
-      showsVerticalScrollIndicator={false}
-      {...props}
-    >
-      {children}
-    </ScrollView>
-  );
-}
+// Moved to its own file, `Screen.tsx` — see that file's doc comment for why.
+export { Screen } from './Screen';
 
 // Moved to its own file, `SathiOrb.tsx` — see that file's doc comment for why.
 export { SathiOrb } from './SathiOrb';
@@ -87,23 +70,8 @@ export function ActionCard({
 // Moved to its own file, `Pill.tsx` — see that file's doc comment for why.
 export { Pill } from './Pill';
 
-export function SectionTitle({
-  eyebrow,
-  title,
-  body,
-}: {
-  eyebrow?: string;
-  title: string;
-  body?: string;
-}) {
-  return (
-    <View style={styles.sectionTitle}>
-      {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-      <Text style={styles.h2}>{title}</Text>
-      {body ? <Text style={styles.body}>{body}</Text> : null}
-    </View>
-  );
-}
+// Moved to its own file, `SectionTitle.tsx` — see that file's doc comment for why.
+export { SectionTitle } from './SectionTitle';
 
 export const uiStyles = StyleSheet.create({
   h1: {
@@ -142,16 +110,6 @@ export const uiStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  screen: {
-    alignSelf: 'center',
-    backgroundColor: colors.canvas,
-    flexGrow: 1,
-    gap: spacing.xl,
-    maxWidth: 1180,
-    paddingBottom: 124,
-    paddingTop: spacing.xl,
-    width: '100%',
-  },
   actionCard: {
     alignItems: 'center',
     borderRadius: 20,
@@ -173,8 +131,4 @@ const styles = StyleSheet.create({
   actionBadge: { fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
   actionTitle: { color: colors.ink, fontSize: 16, fontWeight: '900' },
   actionSubtitle: { color: colors.muted, fontSize: 12, lineHeight: 17 },
-  sectionTitle: { gap: spacing.sm },
-  eyebrow: { color: colors.primary, fontSize: 10, fontWeight: '900', letterSpacing: 1.3 },
-  h2: { color: colors.ink, fontSize: 28, fontWeight: '900', letterSpacing: -0.7, lineHeight: 35 },
-  body: { color: colors.muted, fontSize: 15, lineHeight: 23 },
 });

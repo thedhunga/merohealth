@@ -3286,6 +3286,45 @@ the owner weighing in, per FFFF's own original scoping intent. Queue still
 exhausted otherwise — same standing boxes as every run since task U (task
 U's third bullet, task V/V′, the owner-gated set).
 
+## IIII. Extracted `Screen` and `SectionTitle` out of `ui.tsx` into their own testable files — the lead GGGG and HHHH's own log entries both named and neither had run
+
+> The queue is exhausted for the agent (task U's third bullet, task V/V′, and
+> the owner-gated set are all that remain unchecked), so this is another
+> step-4 improvement. Both GGGG's and HHHH's own "For the next run" named the
+> same precisely-scoped lead: `Screen` and `SectionTitle` are the only two
+> other `ui.tsx` exports with no `react-native-reanimated` or
+> `lucide-react-native` import in their module, so they could be pulled out
+> and rendered under `react-test-renderer` + vitest the same way `Pill` and
+> `SathiOrb` already were — without waiting on the still-open
+> `lucide-react-native`/`react-native-svg` question that blocks `ActionCard`.
+
+- [x] `apps/mobile/src/components/Screen.tsx` and `SectionTitle.tsx`: moved
+      out of `ui.tsx` verbatim (styles moved, not duplicated), following the
+      `Pill`/`SathiOrb` doc-comment convention explaining why each file has no
+      reanimated/lucide import. `ui.tsx` now re-exports both; all call sites
+      import from `@/components/ui` already, so none needed changes — checked
+      all nine (`consent.tsx`, `records.tsx`, `care.tsx`, `companion.tsx`,
+      `twin.tsx`, `learn.tsx`, `index.tsx` (both), `(tabs)/index.tsx`)
+      directly rather than trusting the re-export was enough. Removed the
+      now-orphaned `screen`/`sectionTitle`/`eyebrow`/`h2`/`body` entries from
+      `ui.tsx`'s remaining `StyleSheet.create` call; `ActionCard`'s styles are
+      untouched. `Screen.test.tsx` (2 tests: renders children; merges a
+      caller `contentContainerStyle` rather than replacing the base layout)
+      and `SectionTitle.test.tsx` (3 tests: renders the required title; omits
+      the eyebrow/body `Text` nodes when neither prop is passed; renders both
+      when passed). **Done 2026-08-22 — see the log entry below.**
+
+**For the next run.** `lucide-react-native`/`react-native-svg` is now the
+only thing left blocking a component from being tested directly from
+`ui.tsx` — `ActionCard` is the sole remaining export there, and it needs
+`Icon`/`ChevronRight` from `lucide-react-native` for its whole body, so it
+cannot be split out the same way. The icon/codegen question itself is
+unchanged from GGGG: needs either a per-icon mock or a Metro-equivalent
+resolver; do not reach for `@testing-library/react-native` or a general RN
+testing framework without the owner weighing in. Queue still exhausted
+otherwise — same standing boxes as every run since task U (task U's third
+bullet, task V/V′, the owner-gated set).
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -5049,6 +5088,53 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-22 — **Task IIII — exhausted-queue improvement: extracted `Screen`
+  and `SectionTitle` out of `apps/mobile`'s `ui.tsx` into their own files, the
+  lead GGGG and HHHH's own log entries both named and neither had run.**
+
+  **Housekeeping.** `git checkout main && git pull` fast-forwarded cleanly
+  (`ea36d94` → `4544698`, tasks CCCC/DDDD/EEEE/FFFF/GGGG/HHHH already merged)
+  — no stale-tip reconciliation needed. Standing red-CI check: the latest
+  `ci` run on `main` (`4544698`) is green (confirmed via the GitHub Actions
+  API, 6 most recent runs all `success`).
+
+  **Picking the task.** Queue exhausted for the agent (task U's third
+  bullet, task V/V′, the owner-gated set) — same as every run since task U.
+  Both GGGG's and HHHH's own "For the next run" named the same lead:
+  `Screen` and `SectionTitle` are `ui.tsx`'s only other exports with no
+  `react-native-reanimated`/`lucide-react-native` import, so they could be
+  pulled out and tested the same way `Pill` and `SathiOrb` already were.
+
+  **What was built.** `Screen.tsx` and `SectionTitle.tsx`, moved out of
+  `ui.tsx` with styles relocated (not duplicated) and the same doc-comment
+  convention `Pill.tsx`/`SathiOrb.tsx` use. `ui.tsx` re-exports both, so its
+  nine call sites needed no changes — checked each directly rather than
+  trusting the re-export was sufficient. Removed the orphaned
+  `screen`/`sectionTitle`/`eyebrow`/`h2`/`body` style entries from `ui.tsx`'s
+  remaining `StyleSheet.create`; `ActionCard`, the one export still blocked
+  on the `lucide-react-native` question, is unchanged. `Screen.test.tsx` (2
+  tests) and `SectionTitle.test.tsx` (3 tests).
+
+  This was a pure extraction with no rendered-output change — `pnpm build`
+  produced the identical 17 web bundles/16 static routes GGGG and HHHH both
+  recorded, confirming the split is invisible to Metro — so no 375px
+  before/after screenshot applies; nothing a person sees changed.
+
+  Full monorepo gate green from the repository root: `pnpm install
+  --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+  `pnpm test` (75/75 tasks; `apps/mobile` 14 test files / 57 tests, up from
+  12/52), `pnpm build` (40/40).
+
+  **For the next run.** `lucide-react-native`/`react-native-svg` is now the
+  only thing blocking a component from being tested directly from `ui.tsx`
+  — `ActionCard` is the sole remaining export there and needs
+  `Icon`/`ChevronRight` for its whole body, so it cannot be split out the
+  same way; the icon/codegen question itself is unchanged from GGGG (needs a
+  per-icon mock or a Metro-equivalent resolver — do not reach for
+  `@testing-library/react-native` or a general RN testing framework without
+  the owner weighing in). Queue still exhausted otherwise — same standing
+  boxes as every run since task U.
 
 - 2026-08-22 — **Task HHHH — exhausted-queue improvement: unblocked
   `react-native-reanimated` under vitest with a hand-rolled mock, after
