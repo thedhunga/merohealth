@@ -2162,6 +2162,59 @@ already fixed, but this run had no outbound network access to
 `merohealth-beta.vercel.app` to confirm directly (proxy 403) — a future run
 with that access should check before editing the row.
 
+## TTT. Confirm `HANDOFF.md`'s "`/app` 404" row — task SSS's own last un-investigated lead, checkable without production network access after all
+
+> Task SSS (2026-08-21) left this as the one lead it couldn't close: whether
+> `scripts/vercel-build.sh` actually publishes the Expo web export to
+> `apps/web/public/app` the way the code reads. It had no outbound access to
+> `merohealth-beta.vercel.app` to confirm against production. This run
+> doesn't either (same proxy block, confirmed again below) — but the
+> production build command can be run locally, which is evidence SSS didn't
+> think to reach for.
+
+- [x] Ran `bash scripts/vercel-build.sh` — the exact command
+      `apps/web/vercel.json`'s `buildCommand` invokes on Vercel — from a
+      clean tree (`apps/web/public/app` and `apps/mobile/dist` removed
+      first, confirmed absent). It built the Expo web export and populated
+      `apps/web/public/app/index.html` (87 KB, real markup, not an error
+      page) plus every other app route (`care.html`, `companion.html`,
+      `records.html`, `twin.html`, …), `_expo/` assets and the `(tabs)/`
+      routes.
+- [x] That alone doesn't prove `/app` (no filename) resolves — static
+      directories don't always serve their `index.html` on the bare path.
+      Built `@swasthya/web` for production (`pnpm build`, part of the gate
+      below) and ran `pnpm start` against the real output: `GET /app` →
+      `200`, 87,079 bytes, the same Expo `index.html`. `GET /app/` → `308`
+      redirect (Next.js's normal trailing-slash handling). Confirms the
+      Round three B3 fix works end to end in this build pipeline.
+- [x] Re-confirmed the network gap rather than assuming it still holds:
+      `WebFetch` against `https://merohealth-beta.vercel.app/app` returned
+      `EGRESS_BLOCKED` from this environment's proxy, same as SSS's `curl`
+      403. So this still cannot confirm the *live* site — only that the
+      build this repo ships would serve `/app` correctly if deployed as
+      configured. Struck `HANDOFF.md`'s row rather than deleting it, same
+      convention SSS used for the API-tests row: the remaining uncertainty
+      is Vercel project configuration (Root Directory, a stale deploy
+      predating a recent fix), not this codebase, and a future run with
+      real network access should verify the live URL directly before
+      trusting this fully.
+- [x] Full monorepo gate green: `pnpm install --frozen-lockfile`, `pnpm lint`
+      (40/40), `pnpm typecheck` (40/40), `pnpm test` (75/75 tasks, 993 API
+      tests unchanged), `pnpm build` (11/11, the same build this task's
+      evidence came from). Docs-only change — no source touched, so no
+      journey update needed under task U's standing rule. **Done
+      2026-08-22.**
+
+**For the next run.** Queue exhausted for the agent again — task U's third
+bullet, task V/V′, and the owner-gated set are the only unchecked boxes, and
+this task's own local-build evidence is the strongest confirmation available
+without production network access. If a future run gets outbound access to
+`merohealth-beta.vercel.app`: check `/app` directly, and if it's still 404
+there despite this run's local evidence, the cause is Vercel project
+configuration (Root Directory pointed somewhere `vercel.json` doesn't cover,
+or a deploy that predates this fix landing), not the build script — don't
+re-investigate the script itself.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -3925,6 +3978,64 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-22 — **Task TTT — exhausted-queue improvement: confirmed
+  `HANDOFF.md`'s "`/app` 404" row is stale, with actual build evidence
+  instead of reading code and guessing.**
+
+  **Housekeeping.** Fresh container; local `main` was on the pre-force-push
+  history, no common ancestor against `origin/main` — the same recurring
+  pattern every WW-onward entry describes. Working tree clean, so
+  `git reset --hard origin/main`; nothing local at risk. Standing red-CI
+  check: latest push-triggered `ci` run on `main` (`f1149f1`) is green; the
+  one red run since (`9efe402`, `schedule` event) is `journeys-production`,
+  already fully explained by task SSS — not a fresh regression, no action
+  needed.
+
+  **Why this task.** Round seven's lettered queue (O through SSS) is fully
+  checked; task U's third bullet and task V/V′ are standing/owner-gated, not
+  agent-completable; the "Owner-gated" section is explicitly not for the
+  agent. Per this file's own instructions, that means picking the
+  highest-value improvement to work already done. Task SSS's own "for the
+  next run" note named exactly one concrete, checkable lead: whether
+  `HANDOFF.md`'s "`/app` 404" row still matches reality, blocked only on
+  network access SSS didn't have.
+
+  **What this run added that SSS couldn't.** SSS could only read
+  `scripts/vercel-build.sh` and reason about what it should do. This run ran
+  it — the literal command `apps/web/vercel.json`'s `buildCommand` invokes
+  on Vercel — from a clean tree with `apps/web/public/app` and
+  `apps/mobile/dist` removed first. It built the Expo web export and
+  populated `apps/web/public/app/index.html` (87 KB of real markup) plus
+  every other route. Then went one step further than reading the filesystem:
+  built `@swasthya/web` for production and ran `pnpm start` against the real
+  output. `GET /app` → `200`, the same 87,079-byte `index.html`. That
+  matters because a populated `public/app/` directory doesn't by itself
+  prove the bare `/app` path (no filename) resolves to it — this confirms
+  Next.js's static serving does the right thing here, not just that the
+  files exist.
+
+  **What's still unconfirmed, honestly.** `WebFetch` against
+  `https://merohealth-beta.vercel.app/app` returned `EGRESS_BLOCKED` from
+  this environment's proxy — the same wall SSS hit with `curl`. So this is
+  strong evidence the codebase's build pipeline serves `/app` correctly, not
+  proof the live site does. Struck the `HANDOFF.md` row rather than deleting
+  it, SSS's own convention for exactly this situation, and named the one
+  remaining gap (Vercel project config, not code) directly in the row.
+
+  **Gate.** `pnpm install --frozen-lockfile`, `pnpm lint` (40/40), `pnpm
+  typecheck` (40/40), `pnpm test` (75/75 tasks, 993 API tests, all clean),
+  `pnpm build` (11/11, the same build this task's evidence came from) all
+  green. Docs-only change, no source touched — no journey update needed
+  under task U's standing rule.
+
+  **For the next run.** Queue still exhausted the same way it was after SSS.
+  The one remaining thread on `/app`: if a future run has real outbound
+  access to `merohealth-beta.vercel.app`, check `/app` directly. If it 404s
+  there despite this run's local evidence, look at Vercel project
+  configuration (Root Directory, a stale deploy predating this fix) before
+  suspecting the build script again — this run has now confirmed the script
+  itself works correctly twice over (files published, path resolves).
 
 - 2026-08-21 — **Task SSS — standing red-CI investigation: root-caused
   `journeys-production`'s remaining "genuinely unexplained" WebKit failures
