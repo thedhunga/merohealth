@@ -4396,6 +4396,70 @@ re-read the table itself rather than trust this paragraph.
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
 
+- 2026-08-22 — **Exhausted-queue improvement: the `@live` research test's
+  failure told you *that* the live provider was unavailable but never *why*
+  — closed that gap, then used it to get the real answer.**
+
+  **Housekeeping.** Fresh container; local `main` was again a stale
+  pre-force-push tip with no common ancestor against `origin/main` — the
+  same recurring pattern every WW-onward entry describes.
+  `origin/backup/pre-force-push-main-9bdf548` still matches local `main`'s
+  old tip exactly, so nothing local was at risk; reconciled with
+  `git checkout -B main origin/main`. Standing red-CI check: the latest
+  push-triggered `ci` run on `main` (`6831130`, the `/contribute` e2e commit)
+  is green.
+
+  **Queue check.** Same as every recent entry: task U's third bullet, task
+  V/V′, and the owner-gated set are the only unchecked boxes, all blocked on
+  an owner call. Queue exhausted for the agent → step-4. The prior entry's
+  own "for the next run" note asked specifically to watch the next nightly
+  `journeys-production` run for the `iphone` project. Pulled it via the
+  GitHub Actions API (run `32534014114`, the 2026-08-21 22:41 UTC cron):
+  9 failures, the same shape task AAA/SSS already fully diagnosed — 8
+  `iphone`-only failures downstream of Playwright's WebKit build not
+  implementing `SpeechRecognition` (task SSS closed this explicitly: "no
+  further agent run should re-investigate `journeys-production`'s WebKit-only
+  failures as a mystery"), so left alone. **Not** re-investigating that.
+
+  **What was new: the 9th failure, `[phone]` (Chromium) on
+  `premium-and-answers.journeys.spec.ts`'s live paracetamol question,
+  `research?.status` came back `"unavailable"`.** This is a different animal
+  from SSS's WebKit cluster — it isn't `apps/api`/`localhost:4000` at all.
+  `/api/companion/research` is `apps/web`'s own Next.js route handler; the
+  `@live` test posts to it directly with no `page`, so `e2e/fixtures.ts`'s
+  console/network forwarding (built for exactly this kind of silent
+  production failure) never runs on this code path. Task AAA's own log entry
+  already flagged one earlier occurrence of this exact failure as
+  "infrastructure, not code" and moved on without being able to say more —
+  and this run confirms it isn't a one-off: it's now failed on two separate
+  nightly runs, on `[phone]` this time, not just `[iphone]`.
+  `gemini-health.ts`'s `emptyResearch()` already attaches a `diagnostic`
+  string to exactly this situation ("so a failing production call can be
+  diagnosed from its own response instead of from server logs nobody is
+  watching" — its own doc comment) but the test never read it, so every
+  failure so far has thrown away the one piece of evidence that would explain
+  it.
+
+  **What shipped.** `premium-and-answers.journeys.spec.ts`'s two `@live`
+  tests now type `provider`/`diagnostic` onto the parsed response and pass
+  them as the `expect(...).toBe('complete')` assertion message, so the job
+  log prints the upstream HTTP status, Google's error reason and quota
+  detail directly instead of the bare "Expected complete, Received
+  unavailable" that sent task AAA hunting through source with no way to
+  confirm a cause. No product code changed.
+
+  **Verification.** `pnpm install --frozen-lockfile`, `pnpm lint` (40/40),
+  `pnpm typecheck` (40/40), `pnpm test` (75/75, `@swasthya/web` 537/537 and
+  `@swasthya/api` 995/995 unchanged), `pnpm build` (40/40) all green. `e2e/`
+  is excluded from lint/typecheck/test in this repo already. Ran
+  `playwright test --project=phone e2e/premium-and-answers.journeys.spec.ts`
+  locally: the two non-`@live` tests still pass, the two `@live` tests still
+  skip cleanly with `E2E_LIVE` unset — no regression. No user-visible change,
+  so no journey update needed under task U's standing rule.
+
+  **Update, same run, after push — the real answer, read back from
+  production.** See below.
+
 - 2026-08-22 — **Exhausted-queue improvement: gave `/contribute` (Voice
   Contribution) its first e2e journey coverage — the lead tasks YYY and ZZZ
   both carried forward unchanged, framed as "a dedicated task... not a quick

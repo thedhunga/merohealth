@@ -43,11 +43,21 @@ test.describe('answers @live', () => {
     expect(res.ok()).toBe(true);
     const body = (await res.json()) as {
       domain: string;
-      research: { status: string; answer: string | null } | null;
+      research: { status: string; answer: string | null; provider: string; diagnostic?: string } | null;
       advisory: { kind: string; medicines: string[] } | null;
     };
     expect(body.domain).toBe('HEALTH');
-    expect(body.research?.status).toBe('complete');
+    // `diagnostic` (HealthResearch's own doc comment: "so a failing production
+    // call can be diagnosed from its own response instead of from server logs
+    // nobody is watching") is unused by anything else this request fixture has
+    // — no `page`, so `fixtures.ts`'s console/error forwarding never runs here.
+    // Passing it as the assertion message means a real provider failure names
+    // its own upstream HTTP status and quota reason in the job log directly,
+    // instead of the bare "Expected complete, Received unavailable" that sent
+    // task AAA hunting through source for an explanation it could not get.
+    expect(body.research?.status, `provider=${body.research?.provider} diagnostic=${body.research?.diagnostic}`).toBe(
+      'complete',
+    );
     expect(body.research?.answer ?? '').toMatch(/[ऀ-ॿ]/); // Devanagari
     expect(body.advisory?.kind).toBe('medicine');
     expect(body.advisory?.medicines.length).toBeGreaterThan(0);
@@ -64,8 +74,12 @@ test.describe('answers @live', () => {
         ],
       },
     });
-    const body = (await res.json()) as { research: { status: string; answer: string | null } | null };
-    expect(body.research?.status).toBe('complete');
+    const body = (await res.json()) as {
+      research: { status: string; answer: string | null; provider: string; diagnostic?: string } | null;
+    };
+    expect(body.research?.status, `provider=${body.research?.provider} diagnostic=${body.research?.diagnostic}`).toBe(
+      'complete',
+    );
     expect(body.research?.answer ?? '').toMatch(/महिना|शिशु|बच्चा/);
   });
 });
