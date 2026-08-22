@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -9,18 +8,8 @@ import {
   type PressableProps,
   type ScrollViewProps,
 } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronRight } from 'lucide-react-native';
 import { colors, radii, spacing } from '@swasthya/configuration';
-import type { LanguageCode } from '@swasthya/shared-types';
 import type { LucideIcon } from 'lucide-react-native';
 
 export function Screen({ children, contentContainerStyle, ...props }: ScrollViewProps) {
@@ -40,85 +29,8 @@ export function Screen({ children, contentContainerStyle, ...props }: ScrollView
   );
 }
 
-export function SathiOrb({ language, size = 68 }: { language: LanguageCode; size?: number }) {
-  const progress = useSharedValue(0);
-  const reduced = useReducedMotion();
-
-  useEffect(() => {
-    if (!reduced) {
-      progress.value = withRepeat(
-        withTiming(1, { duration: 2800, easing: Easing.inOut(Easing.sin) }),
-        -1,
-        true,
-      );
-    }
-  }, [progress, reduced]);
-
-  const animated = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: reduced ? 0 : progress.value * -7 },
-      { scale: reduced ? 1 : 1 + progress.value * 0.035 },
-      { rotate: `${reduced ? 0 : progress.value * 2}deg` },
-    ],
-  }));
-
-  return (
-    <Animated.View
-      accessible
-      accessibilityLabel={language === 'en' ? 'Swasthya Sathi companion' : 'स्वास्थ्य साथी'}
-      style={[styles.orbWrap, { height: size, width: size }, animated]}
-    >
-      <View
-        style={[
-          styles.orbOuterRing,
-          {
-            borderRadius: size / 2,
-            height: size,
-            width: size,
-          },
-        ]}
-      />
-      <LinearGradient
-        colors={[colors.saffronSoft, colors.mintStrong, colors.primarySoft]}
-        end={{ x: 1, y: 1 }}
-        style={[
-          styles.orb,
-          {
-            borderRadius: size / 2,
-            height: size * 0.78,
-            left: size * 0.11,
-            top: size * 0.11,
-            width: size * 0.78,
-          },
-        ]}
-      >
-        <LinearGradient
-          colors={[colors.primary, colors.primaryDark]}
-          style={[
-            styles.orbCore,
-            {
-              borderRadius: size,
-              height: size * 0.34,
-              width: size * 0.34,
-            },
-          ]}
-        />
-        <View
-          style={[
-            styles.orbHighlight,
-            {
-              borderRadius: size,
-              height: size * 0.13,
-              right: size * 0.16,
-              top: size * 0.13,
-              width: size * 0.13,
-            },
-          ]}
-        />
-      </LinearGradient>
-    </Animated.View>
-  );
-}
+// Moved to its own file, `SathiOrb.tsx` — see that file's doc comment for why.
+export { SathiOrb } from './SathiOrb';
 
 interface ActionCardProps extends PressableProps {
   icon: LucideIcon;
@@ -240,24 +152,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xl,
     width: '100%',
   },
-  orbWrap: { position: 'relative' },
-  orbOuterRing: {
-    borderColor: 'rgba(169,223,201,.35)',
-    borderWidth: 1,
-    position: 'absolute',
-  },
-  orb: {
-    alignItems: 'center',
-    elevation: 4,
-    justifyContent: 'center',
-    position: 'absolute',
-    shadowColor: colors.primary,
-    shadowOffset: { height: 9, width: 0 },
-    shadowOpacity: 0.23,
-    shadowRadius: 22,
-  },
-  orbCore: { alignItems: 'center', justifyContent: 'center' },
-  orbHighlight: { backgroundColor: 'rgba(255,255,255,.8)', position: 'absolute' },
   actionCard: {
     alignItems: 'center',
     borderRadius: 20,

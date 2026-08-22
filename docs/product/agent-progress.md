@@ -3215,6 +3215,77 @@ without the owner weighing in, per FFFF's own original scoping intent.
 Queue still exhausted otherwise — same standing boxes as every run since
 task U (task U's third bullet, task V/V′, the owner-gated set).
 
+## HHHH. Unblocked `react-native-reanimated` under vitest with a hand-rolled mock — the low-risk half of GGGG's own "for the next run" lead 1, `SathiOrb` extracted the same way `Pill` was
+
+> Found and fixed 2026-08-22. Queue still exhausted (task U's third bullet,
+> task V/V′, the owner-gated set) so this is another step-4 improvement.
+> GGGG's own "For the next run" called a `react-native-reanimated` →
+> `react-native-reanimated/mock.js` alias "low-risk, standard" and left it
+> for whoever picked up the lead. Trying it literally first — same
+> methodology GGGG itself used on FFFF's plan — showed that framing was
+> wrong.
+
+- [x] Aliased `react-native-reanimated` straight to the package's own
+      `mock.js` first, exactly as named. It does not resolve under vitest:
+      that file does `require('./src/mock')`, and because the alias target
+      lives inside `node_modules`, vitest treats the whole module as
+      external CJS and hands the `require` straight to Node rather than
+      through Vite's resolver — Node has no `./src/mock` (only `mock.ts`),
+      so it throws `Cannot find module './src/mock'` before a single test
+      runs.
+- [x] Tried the compiled alternative, `react-native-reanimated/lib/module/mock.js`,
+      instead. That one resolves, but it re-exports from the package's real
+      `./index`, which pulls in `react-native-worklets`' native codegen and
+      fails with the exact same `SyntaxError: Unexpected token 'typeof'`
+      `lucide-react-native`/`react-native-svg` hit in task GGGG. Both of the
+      package's own shipped mocks are dead ends under vitest today — there
+      is no working off-the-shelf mock for this dependency here, so GGGG's
+      "low-risk, standard" framing did not survive contact.
+- [x] Hand-rolled one instead, scoped to exactly what this codebase's only
+      `react-native-reanimated` consumer calls: `apps/mobile/src/test/reanimated-mock.ts`
+      exports `Easing`, `useAnimatedStyle`, `useReducedMotion`,
+      `useSharedValue`, `withRepeat`, `withTiming`, and a default
+      `{ View }` standing in for `Animated`. Each is a synchronous,
+      motionless equivalent — `useSharedValue` returns a plain mutable
+      object, `withTiming`/`withRepeat` are identity functions, `Easing`'s
+      two methods are no-ops — good enough to render and assert on, not a
+      faithful animation reimplementation. Aliased in
+      `apps/mobile/vitest.config.ts` next to the existing
+      `react-native-web` one.
+- [x] The alias alone still did not reach `SathiOrb`: it lives in `ui.tsx`,
+      whose module scope also imports `lucide-react-native` (for
+      `ActionCard`'s icon) — still broken under vitest, unchanged by this
+      task — so importing anything from that file, `SathiOrb` included,
+      still fails regardless of the reanimated fix. Extracted `SathiOrb`
+      into its own file, `apps/mobile/src/components/SathiOrb.tsx`, the
+      same move GGGG made for `Pill`, with its styles moved (not
+      duplicated). `ui.tsx` now does `export { SathiOrb } from './SathiOrb'`;
+      all three existing call sites (`app/index.tsx`,
+      `app/(tabs)/index.tsx`, `app/(tabs)/companion.tsx`) needed no
+      changes — verified by reading each one, not assumed.
+- [x] `SathiOrb.test.tsx` (4 tests): exposes the English accessibility
+      label; exposes the Nepali accessibility label; sizes itself from an
+      explicit `size` prop; defaults to 68 when the caller passes none.
+- [x] Full monorepo gate green from the repository root: `pnpm install
+      --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+      `pnpm test` (75/75 tasks; `apps/mobile` 12 test files / 52 tests, up
+      from 11/48), `pnpm build` (40/40 — `apps/mobile`'s real Metro web
+      export still produced the same 17 bundles/16 static routes, since the
+      vitest alias and the file split are both invisible to Metro, same as
+      GGGG's own finding).
+
+**For the next run.** `lucide-react-native`/`react-native-svg` is now the
+only import in `ui.tsx` still blocking a component from being tested
+directly from that file (`ActionCard`, `Screen`, `SectionTitle` — the
+latter two use neither reanimated nor lucide and could be extracted the
+same way if someone wants them under test without waiting on the icon
+question). The icon/codegen question itself is unchanged from GGGG: needs
+either a per-icon mock or a Metro-equivalent resolver, do not reach for
+`@testing-library/react-native` or a general RN testing framework without
+the owner weighing in, per FFFF's own original scoping intent. Queue still
+exhausted otherwise — same standing boxes as every run since task U (task
+U's third bullet, task V/V′, the owner-gated set).
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -4978,6 +5049,73 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-22 — **Task HHHH — exhausted-queue improvement: unblocked
+  `react-native-reanimated` under vitest with a hand-rolled mock, after
+  GGGG's own "low-risk, standard" plan for it turned out not to work.**
+
+  **Housekeeping.** `git checkout main && git pull` fast-forwarded cleanly
+  (`ea36d94` → `de78889`, tasks CCCC/DDDD/EEEE/FFFF/GGGG already merged) —
+  no stale-tip reconciliation needed. Standing red-CI check: the latest
+  `ci` run on `main` (`de78889`) is green (confirmed via the GitHub Actions
+  API).
+
+  **Picking the task.** Queue exhausted for the agent (task U's third
+  bullet, task V/V′, the owner-gated set) — same as every run since task
+  U — so this is another step-4 improvement. GGGG's own "For the next
+  run" named a precisely-scoped lead: alias `react-native-reanimated` to
+  its own shipped `mock.js`, called "low-risk, standard." Tried it
+  literally first rather than trusting the description, the same
+  methodology GGGG itself used on FFFF's plan.
+
+  **What actually happened.** The root `mock.js` does `require('./src/mock')`
+  — a `.ts` file. Aliasing straight to it fails under vitest:
+  `node_modules`-resident modules are treated as external CJS, so that
+  `require` goes to plain Node rather than through Vite's resolver, and
+  Node has no `./src/mock` (only `mock.ts`) — `Cannot find module
+  './src/mock'` before a single test runs. The compiled alternative,
+  `lib/module/mock.js`, resolves but re-exports from the package's real
+  `./index`, which pulls in `react-native-worklets`' native codegen and
+  hits the exact same `SyntaxError: Unexpected token 'typeof'`
+  `lucide-react-native`/`react-native-svg` hit in GGGG. Both of the
+  package's own mocks are dead ends here — there is no working
+  off-the-shelf reanimated mock under vitest today, so "low-risk,
+  standard" did not survive contact.
+
+  **What was built.** A hand-rolled mock,
+  `apps/mobile/src/test/reanimated-mock.ts`, scoped to exactly the six
+  names this codebase's one reanimated consumer (`SathiOrb`) calls:
+  `Easing`, `useAnimatedStyle`, `useReducedMotion`, `useSharedValue`,
+  `withRepeat`, `withTiming`, plus a default `{ View }` standing in for
+  `Animated` — synchronous, motionless equivalents, good enough to render
+  and assert on. Aliased in `apps/mobile/vitest.config.ts` next to the
+  existing `react-native-web` alias. That alone did not reach `SathiOrb`,
+  though: it still lived in `ui.tsx`, whose module scope also imports
+  `lucide-react-native` (still broken, unchanged by this task), so
+  importing anything from that file kept failing regardless. Extracted
+  `SathiOrb` into its own file, `SathiOrb.tsx` — the same move GGGG made
+  for `Pill` — with styles moved, not duplicated. `ui.tsx` now does
+  `export { SathiOrb } from './SathiOrb'`; its three call sites
+  (`app/index.tsx`, `app/(tabs)/index.tsx`, `app/(tabs)/companion.tsx`)
+  needed no changes — checked each directly. `SathiOrb.test.tsx` (4
+  tests): English accessibility label; Nepali accessibility label; sizes
+  from an explicit `size` prop; defaults to 68 when unset.
+
+  Full monorepo gate green from the repository root: `pnpm install
+  --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+  `pnpm test` (75/75 tasks; `apps/mobile` 12 test files / 52 tests, up
+  from 11/48), `pnpm build` (40/40 — same 17 bundles/16 static routes as
+  GGGG, confirming again that the vitest alias and file split are
+  invisible to the real Metro bundler).
+
+  **For the next run.** `lucide-react-native`/`react-native-svg` is now
+  the only thing in `ui.tsx` blocking a component from being tested
+  directly from that file; `Screen` and `SectionTitle` use neither
+  reanimated nor lucide and could be extracted the same way without
+  waiting on the icon question. That question itself is unchanged from
+  GGGG: needs a per-icon mock or a Metro-equivalent resolver; do not reach
+  for `@testing-library/react-native` or a general RN testing framework
+  without the owner weighing in. Queue still exhausted otherwise.
 
 - 2026-08-22 — **Task GGGG — exhausted-queue improvement: gave `apps/mobile`
   its first real component render test, and found out why three prior runs'

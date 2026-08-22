@@ -15,11 +15,22 @@ import { defineConfig } from 'vitest/config';
 // (`View`, `Text`, `Pressable`, `StyleSheet`, ...), so a component that only
 // uses those renders under `react-test-renderer` without pulling in a
 // native bridge or a new dependency.
+//
+// `react-native-reanimated` is aliased to a hand-rolled mock
+// (`src/test/reanimated-mock.ts`) rather than the package's own `mock.js`:
+// that stock mock still re-exports from the package's real `./index`, which
+// pulls in `react-native-worklets`' native codegen and fails to parse under
+// vitest the same way `lucide-react-native`/`react-native-svg` do (see the
+// Round seven GGGG log entry) — there is no working off-the-shelf mock for
+// this package under vitest today.
 export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
       'react-native': 'react-native-web',
+      'react-native-reanimated': fileURLToPath(
+        new URL('./src/test/reanimated-mock.ts', import.meta.url),
+      ),
     },
   },
   oxc: false,
