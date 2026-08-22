@@ -23,6 +23,11 @@ import { defineConfig } from 'vitest/config';
 // vitest the same way `lucide-react-native`/`react-native-svg` do (see the
 // Round seven GGGG log entry) — there is no working off-the-shelf mock for
 // this package under vitest today.
+//
+// `lucide-react-native` is aliased the same way, to `src/test/lucide-mock.ts`
+// — it deep-imports `react-native-svg`'s fabric codegen, which fails to
+// parse under vitest for the same package-exports-map reason (Round seven
+// GGGG's log entry, and IIII's own "for the next run" lead).
 export default defineConfig({
   resolve: {
     alias: {
@@ -30,6 +35,9 @@ export default defineConfig({
       'react-native': 'react-native-web',
       'react-native-reanimated': fileURLToPath(
         new URL('./src/test/reanimated-mock.ts', import.meta.url),
+      ),
+      'lucide-react-native': fileURLToPath(
+        new URL('./src/test/lucide-mock.ts', import.meta.url),
       ),
     },
   },

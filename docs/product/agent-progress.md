@@ -3325,6 +3325,51 @@ testing framework without the owner weighing in. Queue still exhausted
 otherwise — same standing boxes as every run since task U (task U's third
 bullet, task V/V′, the owner-gated set).
 
+## JJJJ. Extracted `ActionCard` out of `ui.tsx` into its own testable file — the `lucide-react-native` mock IIII's own "for the next run" lead named
+
+> The queue is exhausted for the agent (task U's third bullet, task V/V′,
+> and the owner-gated set are all that remain unchecked), so this is
+> another step-4 improvement. IIII's own "For the next run" named the last
+> lead in this chain: `ActionCard` was the one `ui.tsx` export still blocked
+> on `lucide-react-native`, which fails to parse under vitest the same way
+> `react-native-reanimated` did before HHHH gave it a hand-rolled mock. The
+> same fix applies here — a per-icon mock, the option GGGG's log entry
+> already named as viable, over a Metro-equivalent resolver.
+
+- [x] `apps/mobile/src/test/lucide-mock.ts`: a hand-rolled mock scoped to
+      exactly the icons `ActionCard.tsx` and its own test need
+      (`ChevronRight`, which `ActionCard` imports directly, and
+      `Stethoscope`, used as the test's `icon` prop) — each a plain `View`
+      standing in for the real SVG, following the same "scoped, not
+      exhaustive, extend if a future test needs another icon name"
+      convention `reanimated-mock.ts` set. Aliased in
+      `apps/mobile/vitest.config.ts` next to the existing
+      `react-native-reanimated` alias. `apps/mobile/src/components/ActionCard.tsx`:
+      moved out of `ui.tsx` verbatim (styles moved, not duplicated),
+      following the `Pill`/`SathiOrb`/`Screen`/`SectionTitle` doc-comment
+      convention. `ui.tsx` now re-exports it; all seven call sites
+      (`capture.tsx`, `index.tsx`, `records.tsx`, `(tabs)/companion.tsx`,
+      `(tabs)/index.tsx`, `(tabs)/twin.tsx`) import from `@/components/ui`
+      already, so none needed changes — checked each directly rather than
+      trusting the re-export was enough. `ui.tsx`'s entire remaining
+      `styles` `StyleSheet.create` block was `action*`-only, so it is gone,
+      not just trimmed. `ActionCard.test.tsx` (5 tests): renders
+      title/subtitle/badge; renders no subtitle or badge text when neither
+      is passed; exposes a button role; calls `onPress` exactly once per
+      tap; renders the caller-supplied icon component, not a hardcoded one.
+      **Done 2026-08-22 — see the log entry below.**
+
+**For the next run.** Every `ui.tsx` export is now split into its own file
+and independently testable — the `lucide-react-native`/`react-native-svg`
+question this chain (GGGG→HHHH→IIII→JJJJ) worked through is fully resolved
+for this codebase's current icon usage. `ProfileSwitcher.tsx` is the other
+file that imports `lucide-react-native` directly (`ChevronDown`, `X`,
+`Check`, `UserRound`, `Plus`, `Pencil`) and has no test coverage yet; the
+same `lucide-mock.ts` pattern applies, extended with whichever icon names
+that component needs, if a future run wants to give it its first test.
+Queue still exhausted otherwise — same standing boxes as every run since
+task U (task U's third bullet, task V/V′, the owner-gated set).
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -5088,6 +5133,85 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-22 — **Task JJJJ — exhausted-queue improvement: extracted
+  `ActionCard` out of `apps/mobile`'s `ui.tsx` into its own testable file,
+  closing out the `lucide-react-native` question IIII's own log entry left
+  as the last lead in this chain.**
+
+  **Housekeeping.** `git checkout main && git pull` fast-forwarded cleanly
+  (`ea36d94` → `afac977`, tasks CCCC/DDDD/EEEE/FFFF/GGGG/HHHH/IIII already
+  merged) — no stale-tip reconciliation needed. Standing red-CI check: the
+  latest `ci` run on `main` (`afac977`) is green (confirmed via the GitHub
+  Actions API, 6 most recent runs all `success`).
+
+  **Picking the task.** Queue exhausted for the agent (task U's third
+  bullet, task V/V′, the owner-gated set) — same as every run since task U.
+  IIII's own "For the next run" named the last lead in the GGGG→HHHH→IIII
+  chain: `ActionCard` was `ui.tsx`'s one remaining export still blocked on
+  `lucide-react-native`, which fails to parse under vitest for the same
+  `react-native-svg`/codegen reason `react-native-reanimated` did before
+  HHHH's hand-rolled mock unblocked `SathiOrb`.
+
+  **What was built.** `apps/mobile/src/test/lucide-mock.ts` — scoped to
+  exactly `ChevronRight` (imported directly by `ActionCard.tsx`) and
+  `Stethoscope` (used as the test's `icon` prop, matching a real production
+  usage in `(tabs)/index.tsx`'s "doctor" card), each a plain `View` standing
+  in for the real SVG. Same "scoped, not exhaustive — extend if a future
+  test needs another icon name" convention `reanimated-mock.ts` set, not a
+  `Proxy`-based catch-all: named exports keep the mock's contract explicit
+  and match how every other test-only shim in this file works. Aliased in
+  `apps/mobile/vitest.config.ts` next to the existing
+  `react-native-reanimated` alias.
+
+  `apps/mobile/src/components/ActionCard.tsx`: moved out of `ui.tsx`
+  verbatim (styles moved, not duplicated), with the same doc-comment
+  convention `Pill.tsx`/`SathiOrb.tsx`/`Screen.tsx`/`SectionTitle.tsx` use.
+  `ui.tsx` now does `export { ActionCard } from './ActionCard'`; its seven
+  call sites (`capture.tsx`, `index.tsx`, `records.tsx`,
+  `(tabs)/companion.tsx`, `(tabs)/index.tsx`, `(tabs)/twin.tsx`) needed no
+  changes — checked each directly rather than trusting the re-export was
+  sufficient. `ui.tsx`'s entire remaining `styles` `StyleSheet.create` call
+  was `action*`-only, so the whole block is gone, not just trimmed; the
+  `ChevronRight`/`LucideIcon` imports that only `ActionCard` used are gone
+  too. `ActionCard.test.tsx` (5 tests): renders title/subtitle/badge;
+  renders no subtitle or badge text when neither is passed; exposes a
+  button role for assistive tech; calls `onPress` exactly once per tap;
+  renders the caller-supplied icon component rather than a hardcoded one.
+
+  One real snag along the way: an early version of the "omits" test used
+  `findAllByProps({ children: 'Doctor' })` and asserted length 1, which
+  failed with length 2 — `react-test-renderer`'s tree includes both the
+  composite `<Text>` instance and its rendered host instance, and both
+  carry `props.children`, so a bare title match double-counts regardless of
+  whether badge/subtitle are present. Rewrote the assertion to check that
+  the badge/subtitle text is *absent* rather than counting title-node
+  occurrences — the actually-meaningful thing that test was trying to
+  prove, and not sensitive to renderer-internal node duplication.
+
+  This was a pure extraction with no rendered-output change — `pnpm build`
+  produced the identical 17 web bundles/16 static routes GGGG, HHHH and
+  IIII all recorded, confirming the split and the new alias are invisible
+  to the real Metro bundler — so no 375px before/after screenshot applies;
+  nothing a person sees changed.
+
+  Full monorepo gate green from the repository root: `pnpm install
+  --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+  `pnpm test` (75/75 tasks; `apps/mobile` 15 test files / 62 tests, up from
+  14/57), `pnpm build` (40/40).
+
+  **For the next run.** Every `ui.tsx` export is now split into its own
+  file and independently testable — the `lucide-react-native`/
+  `react-native-svg` question this GGGG→HHHH→IIII→JJJJ chain worked through
+  is fully resolved for this codebase's current icon usage; there is no
+  more low-risk extraction work left in `ui.tsx` itself. `ProfileSwitcher.tsx`
+  is the other file that imports `lucide-react-native` directly
+  (`ChevronDown`, `X`, `Check`, `UserRound`, `Plus`, `Pencil`) and has no
+  test coverage yet; the same `lucide-mock.ts` pattern applies, extended
+  with whichever icon names that component needs, if a future run wants to
+  give it its first test. Queue still exhausted otherwise — same standing
+  boxes as every run since task U (task U's third bullet, task V/V′, the
+  owner-gated set).
 
 - 2026-08-22 — **Task IIII — exhausted-queue improvement: extracted `Screen`
   and `SectionTitle` out of `apps/mobile`'s `ui.tsx` into their own files, the
