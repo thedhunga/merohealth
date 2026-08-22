@@ -16,10 +16,14 @@ const isoInstant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 
 // Mirrors `packages/family`'s `DelegationScope` union exactly — the
 // controller boundary is where an out-of-range value from the client
-// becomes a 400 rather than reaching `grantDelegation` at all.
+// becomes a 400 rather than reaching `grantDelegation` at all. `.max(4)`
+// on `scopes` is the count of that union's own members: there is no valid
+// request that repeats or pads past one of each, so a caller sending
+// thousands of copies 400s here instead of reaching the service with an
+// array that large.
 const createDelegationSchema = z.object({
   delegatePhone: z.string().trim().min(1).max(20),
-  scopes: z.array(z.enum(['VIEW_RECORD', 'ASK_ASSISTANT', 'MANAGE_APPOINTMENTS', 'UPLOAD_DOCUMENTS'])).min(1),
+  scopes: z.array(z.enum(['VIEW_RECORD', 'ASK_ASSISTANT', 'MANAGE_APPOINTMENTS', 'UPLOAD_DOCUMENTS'])).min(1).max(4),
   expiresAt: z.string().regex(isoInstant, 'expiresAt must be an ISO 8601 UTC instant'),
 });
 

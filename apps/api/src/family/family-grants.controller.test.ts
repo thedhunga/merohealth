@@ -125,6 +125,20 @@ describe('FamilyGrantsController.createDelegation', () => {
     ).toThrow(BadRequestException);
   });
 
+  // The union only has 4 members, so 5 is already past every valid request —
+  // this is the bound that was missing before every other `z.array()` in
+  // `apps/api` got one.
+  it('rejects a scopes array longer than the union it validates against', async () => {
+    const { controller } = await buildController();
+    expect(() =>
+      controller.createDelegation(currentUser('janaki'), {
+        delegatePhone: DELEGATE_PHONE,
+        scopes: ['VIEW_RECORD', 'ASK_ASSISTANT', 'MANAGE_APPOINTMENTS', 'UPLOAD_DOCUMENTS', 'VIEW_RECORD'],
+        expiresAt: '2027-01-01T00:00:00.000Z',
+      }),
+    ).toThrow(BadRequestException);
+  });
+
   // Before this test existed, a non-ISO `expiresAt` like this sailed past
   // both the old `.min(1)` check here and `grantDelegation`'s own
   // `expiresAt <= grantedAt` string comparison ('f' sorts after every digit),

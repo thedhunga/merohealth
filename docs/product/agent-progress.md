@@ -2591,6 +2591,47 @@ ownership loop in `InteropService.issueShareLink`) — every other
 sweep, just for array length instead of string length; not re-verified by
 this run, just handed forward.
 
+## ZZZ. Bound the two remaining unbounded `z.array()` request fields — task YYY's own lead 2, `apps/api`'s last two array-length gaps in the `z.string()` bounding sweep task KK started
+
+> Verified both directly rather than trusting the handed-forward lead: grepped
+> every `z.array(` in `apps/api/src` outside test files and confirmed
+> `family-grants.controller.ts`'s `scopes` and `interop.controller.ts`'s
+> `documentIds` were the only two with no `.max()`, everything else
+> (`history.controller.ts`, `twin-profile.controller.ts`) already has one.
+
+- [x] `family-grants.controller.ts`'s `createDelegationSchema.scopes` gets
+      `.max(4)` — the exact count of `DelegationScope`'s own union members,
+      so a request cannot pad the array with valid-but-redundant entries
+      past what a real request could ever need.
+- [x] `interop.controller.ts`'s `issueShareLinkSchema.documentIds` gets
+      `.max(40)`, matching `history.controller.ts`'s own array-length
+      ceiling. `InteropService.issueShareLink` runs one ownership lookup per
+      id in a synchronous `for` loop before ever calling into
+      `packages/interop` — an unbounded array was a caller-controlled way to
+      force an arbitrarily large number of those lookups on a single
+      request, the same shape of gap task KK's string-bounding sweep fixed
+      for individual field lengths.
+- [x] One new test per controller (`family-grants.controller.test.ts`,
+      `interop.controller.test.ts`), each asserting a `BadRequestException`
+      for an array one entry past its new ceiling, matching the existing
+      "rejects before it ever reaches the service/domain layer" style
+      already used for every other bound in both files.
+- [x] Full monorepo gate green from the repository root: `pnpm install
+      --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+      `pnpm test` (75/75 tasks; `@swasthya/api` 995/995, +2 over the
+      previous baseline), `pnpm build` (40/40). No UI, copy or user-visible
+      behaviour changed — both fields already required `.min(1)`, so no
+      legitimate request that ever succeeded before can fail now — so no
+      `ne.json`/`en.json` edit and no new journey.
+
+**For the next run.** Queue exhausted again the same way as every WW-onward
+entry — task U's third bullet, task V/V′, and the owner-gated set are the
+only standing unchecked boxes. One lead remains from task YYY's own survey,
+not yet picked up: `/contribute` has zero e2e journey coverage, gated behind
+a live session plus a `VOICE_CONTRIBUTION` consent grant before the recorder
+renders — worth a dedicated task once there's appetite for standing up that
+full mock chain, not a quick follow-on.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -4354,6 +4395,62 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-22 — **Task ZZZ — exhausted-queue improvement: bounded the last two
+  unbounded `z.array()` request fields in `apps/api`.**
+
+  **Housekeeping.** `main` was force-pushed since this container's local
+  history last saw it (76 local commits vs. 50 on `origin/main`, `git log`
+  showed no shared tip) — reconciled with `git reset --hard origin/main`
+  rather than a merge/rebase, since the local tree was clean and nothing
+  local was at risk. Confirmed `origin/main`'s tip (`91dbc2b`, task YYY's
+  microphone-permission fix) matches what task YYY's own queue entry
+  describes. Noted but did not backfill: task YYY's commit updated the task
+  queue (`## YYY` section, fully checked) but never prepended a `## Log`
+  entry — the two "For the next run" leads it named only survive in the
+  queue section itself. Worth the next run's attention if the log's
+  "newest first" continuity matters for a quick skim; nothing was lost since
+  the leads are still findable in the queue.
+
+  **Why this task.** Queue exhausted the same way as every WW-onward
+  entry — task U's third bullet, task V/V′, and the owner-gated set are the
+  only unchecked boxes, and V/V′ are explicitly owner decisions, not agent
+  work. Took the higher-confidence of task YYY's own two ranked leads: lead
+  2 (bound two unbounded `z.array()` fields) over lead 1 (`/contribute`'s
+  missing e2e journey, explicitly flagged as "a dedicated task... not a
+  quick follow-on" needing a full session+consent+`getUserMedia` mock
+  chain). Re-verified lead 2 directly before touching anything — grepped
+  every `z.array(` in `apps/api/src` outside test files and confirmed
+  `family-grants.controller.ts`'s `scopes` and `interop.controller.ts`'s
+  `documentIds` were in fact the only two with no `.max()`.
+
+  **What shipped.** `scopes` in `family-grants.controller.ts` gets
+  `.max(4)` (the exact size of the `DelegationScope` union it validates
+  against). `documentIds` in `interop.controller.ts` gets `.max(40)`,
+  matching `history.controller.ts`'s own array-length ceiling — this one
+  is the real gap: `InteropService.issueShareLink` runs one ownership
+  lookup per id in a synchronous loop before ever reaching
+  `packages/interop`, so the array length was a caller-controlled multiplier
+  on that loop with no ceiling at all. One new test per controller, each
+  confirming a `BadRequestException` for an array one entry past its new
+  bound, matching the "rejects before it ever reaches the service/domain
+  layer" pattern both test files already use for their other bounds. Full
+  details are in the task's own `## ZZZ` entry above.
+
+  **Gate.** `pnpm install --frozen-lockfile`, `pnpm lint` (40/40), `pnpm
+  typecheck` (40/40), `pnpm test` (75/75 tasks; `@swasthya/api` 995/995,
+  +2 over task YYY's own 993/993 baseline), `pnpm build` (40/40) all green.
+  No UI or copy changed — both fields already required `.min(1)`, so no
+  request that ever legitimately succeeded before can fail under the new
+  ceiling — so no `ne.json`/`en.json` edit and no new journey.
+
+  **For the next run.** Queue exhausted again — task U's third bullet, task
+  V/V′, and the owner-gated set are the only unchecked boxes. One lead
+  remains, carried forward from task YYY unchanged: `/contribute` has zero
+  e2e journey coverage (gated behind a live session plus a
+  `VOICE_CONTRIBUTION` consent grant before the recorder renders) — a
+  dedicated task once there's appetite for standing up that full mock
+  chain from scratch, not a quick follow-on.
 
 - 2026-08-22 — **Task XXX — exhausted-queue improvement: `packages/clinical-safety`'s
   self-harm/emergency interception matched only a literal single space

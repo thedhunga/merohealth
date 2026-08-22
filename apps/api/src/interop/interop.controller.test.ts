@@ -123,6 +123,18 @@ describe('InteropController share links', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  // Without this bound, `InteropService.issueShareLink`'s per-id ownership
+  // lookup loop would run once per entry in whatever array a caller sent.
+  it('rejects a documentIds array past the 40-id ceiling before it ever reaches the ownership loop', async () => {
+    const { controller } = buildController();
+    await expect(
+      controller.issueShareLink(currentUser, {
+        documentIds: Array.from({ length: 41 }, (_, index) => `doc-${index}`),
+        ttlSeconds: 3600,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('lists and revokes the caller’s own links', async () => {
     const { records, controller } = buildController();
     const document = await records.captureDocument(makeCapture());
