@@ -33,7 +33,21 @@ export function OrganizationTabs() {
           </p>
         </div>
 
-        <div aria-label={t('tabsLabel')} className="mt-10 grid gap-3 md:grid-cols-3" role="tablist">
+        {/*
+          `theme-pin-light`: the unselected tab's `border-line`/`bg-white`/
+          `text-ink` is the same fixed "light chip on a permanently-dark
+          ground" idiom `MegaMenu` uses (task T′ already excluded both from
+          the dark-mode flip on purpose). Without pinning, `border-line`/
+          `text-ink` still flip to their dark values against the fixed white
+          background, dropping the unselected tab to near-invisible
+          contrast in dark mode — pinning resolves every token here back to
+          light, keeping the fixed-light chip readable in both themes.
+        */}
+        <div
+          aria-label={t('tabsLabel')}
+          className="theme-pin-light mt-10 grid gap-3 md:grid-cols-3"
+          role="tablist"
+        >
           {organizationTabs.map((tab, index) => {
             const selected = tab.key === active;
             const Icon = TAB_ICONS[index] ?? Building2;

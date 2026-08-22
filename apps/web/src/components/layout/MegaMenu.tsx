@@ -26,7 +26,15 @@ export function MegaMenu({ segment, onNavigate, panelId }: MegaMenuProps) {
       // Popped forward off the forest header, the same "white card on a dark
       // ground" language `OrganizationTabs` uses — no hairline border needed
       // since the colour change from the header is already the boundary.
-      className="bg-white shadow-menu"
+      // `theme-pin-light`: task T′ already ruled this panel out of the
+      // dark-mode flip on purpose (it stands off the always-`bg-indigo-900`
+      // header, not the page, so flipping it would merge it back into the
+      // header). But its content still used the flipping `text-ink`/
+      // `text-ink-soft` tokens against this fixed-white ground, so in dark
+      // mode the panel went to ~1.1:1 contrast — pinning resolves every
+      // token inside back to its light value, keeping T′'s fixed-light
+      // panel but making its own text readable again.
+      className="theme-pin-light bg-white shadow-menu"
       id={panelId}
       // The panel is a region rather than a menu: it holds links, not commands.
       role="region"

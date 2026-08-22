@@ -2784,6 +2784,100 @@ decision (upgrade the key or switch `RESEARCH_PROVIDER=perplexity`), not
 agent work, and should stay the first thing any run checks for an owner
 response before picking a fresh step-4 lead.
 
+## CCCC. Fixed a real dark-mode contrast bug in `MegaMenu` and `OrganizationTabs` — task T′ deliberately left both unconverted, but that decision only covered the background, not the text tokens still riding on top of it
+
+> Found and fixed 2026-08-22. Queue exhausted the same way as every WW-onward
+> entry — task U's third bullet, task V/V′, and the owner-gated set are the
+> only standing unchecked boxes. Spawned a survey subagent to check five
+> fresh categories (substring-collision matching in packages T″/AAAA/BBBB's
+> sweeps hadn't reached, untested files with real branches, entitlement-guard
+> pairing, fire-and-forget async crashes, external-paid-call rate limiting) —
+> four came back clean; the fifth surfaced this.
+
+- [x] Root cause, verified directly against the rendered app, not just read
+      from source: `MegaMenu.tsx`'s panel and `OrganizationTabs.tsx`'s
+      unselected tab both hardcode `bg-white` while their text
+      (`text-ink`/`text-ink-soft`) uses the theme-reactive tokens
+      `globals.css` flips to near-white in dark mode
+      (`--color-ink: #f1effb`). Computed: `text-ink` on white is 1.14:1,
+      `text-ink-soft` is 1.92:1 — both fail WCAG AA's 4.5:1 by a wide margin,
+      on two live desktop surfaces (every page's nav dropdown; `/en`'s
+      homepage organizations section). The survey's first proposed fix
+      (flip the background to the theme-reactive `bg-surface`, matching
+      `MobileNav`'s drawer) turned out to be wrong: task T′'s own log entry
+      (search "MegaMenu was on task T's list; left unconverted,
+      deliberately") had already investigated this exact component and
+      ruled the white background **intentionally fixed**, not tied to page
+      theme — the panel is meant to visually stand off the always-`bg-
+      indigo-900` `Header` (confirmed: not a token, a literal fixed brand
+      colour), so flipping it dark would merge it back into the header it's
+      supposed to contrast against. Read that reasoning before touching
+      anything and confirmed `Header.tsx:106`'s `bg-indigo-900` directly.
+- [x] Correct fix, respecting T′'s documented intent rather than overriding
+      it: `theme-pin-light` (the existing escape-hatch class `globals.css`
+      itself describes for exactly this — "a light card floating on... a
+      permanently-dark full-bleed brand section, where the card itself —
+      not the page — is the thing setting the ground") on `MegaMenu`'s panel
+      root and on `OrganizationTabs`'s tab-list wrapper. This resolves
+      `text-ink`/`text-ink-soft`/`border-line` back to their light values
+      inside both subtrees regardless of site theme, so the fixed-white
+      card keeps dark, readable text in both themes instead of inheriting
+      the page's dark-mode text colour onto a background that never moves.
+      `bg-white` itself is untouched in both files — this was never a
+      background bug, only a token-mismatch bug in what sits on it.
+- [x] Verified end-to-end against the actual built app (not assumed from
+      CSS), before and after: built and served `apps/web` locally
+      (`pnpm --filter @swasthya/web build && start`), loaded `/en` with
+      `localStorage.mero-theme='dark'`, and read `getComputedStyle` on the
+      real rendered elements. Post-fix, dark mode: both `OrganizationTabs`'s
+      unselected tab and the opened `MegaMenu` panel compute
+      `background-color: rgb(255, 255, 255)` (unchanged — still the fixed
+      white T′ intended) with link/label text at `rgb(23, 20, 41)`
+      (contrast 17.97:1); light mode is pixel-identical to before
+      (`rgb(255, 255, 255)`, unchanged). Confirmed my first, wrong
+      `bg-surface` attempt separately, before discarding it — it did read as
+      `rgb(23, 18, 51)` (dark) in dark mode, which is exactly the "merges
+      into the header" regression T′'s reasoning warned about, not a fix.
+- [x] Mobile impact, measured rather than assumed: both components are
+      `lg:`-only in the DOM already (`OrganizationTabs`'s section is
+      `hidden ... lg:block`; `MegaMenu`'s triggers sit inside the desktop
+      nav row). Headless Chromium at 375×812 confirms `OrganizationTabs`'s
+      `[role="tablist"]` renders `display: none` (0×0) and every `MegaMenu`
+      trigger button renders 0×0 as well — this fix has zero effect on the
+      phone layout the ledger measures, confirmed rather than inferred from
+      the `lg:` class names alone.
+- [x] Full monorepo gate green from the repository root: `pnpm install
+      --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+      `pnpm test` (75/75 tasks; 995 API tests and 537 web tests unchanged —
+      no new test added, since this is a CSS-token-only fix with no new
+      branching logic to assert on, same as task RRR's identical-shape
+      fix), `pnpm build` (40/40). Purely a `className` addition (no copy, no
+      DOM structure, no logic changed), so no `ne.json`/`en.json` edit and
+      no new journey needed under task U's standing rule — same precedent
+      task RRR recorded for its own className-only fix.
+
+**For the next run.** Queue exhausted again — task U's third bullet, task
+V/V′, and the owner-gated set are the only standing unchecked boxes. The
+survey agent's other four checked categories came back clean and are not
+leads: substring-collision matching in `digital-twin`/`care-directory`/
+`medication-safety`/`evaluation`/`module-registry` (none do the kind of
+free-text term matching the bug class needs); untested files in `apps/api`
+(everything left is a zero-branch passthrough); `@RequireModule`/
+`@RequireQuota` decorator usage without its paired `EntitlementsGuard`
+(all three usages correctly paired); and fire-and-forget async crashes
+beyond the existing `fireAndForget()` helper (none found). One fresh,
+narrower lead this run's own fix surfaced but didn't chase: `grep -rn
+"bg-white" apps/web/src` turns up ~15 more hits beyond the two fixed here —
+most are legitimately fixed brand chrome already paired with fixed text
+(buttons like `Button.tsx`'s `inverse` variant, `Header.tsx`'s skip link),
+but none were individually re-verified token-by-token the way `MegaMenu`/
+`OrganizationTabs` were here; a future run auditing that full list against
+its own text tokens, rather than assuming "looks like fixed chrome" is
+correct, is worth doing before trusting the rest of that grep by eye. The
+`GEMINI_API_KEY` quota finding from prior runs remains open and is still the
+first thing to check for an owner response before picking a fresh step-4
+lead.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
