@@ -2215,6 +2215,75 @@ configuration (Root Directory pointed somewhere `vercel.json` doesn't cover,
 or a deploy that predates this fix landing), not the build script — don't
 re-investigate the script itself.
 
+## UUU. `useSession`'s redirect decision had zero test coverage, and testing it the way this repo tests every other hook surfaced a real vitest gap
+
+> Queue exhausted the same way it was after SSS and TTT — task U's third
+> bullet, task V/V′, and the owner-gated set are the only other unchecked
+> boxes. Per this file's own instructions, that means picking the
+> highest-value improvement to work already done. Surveyed for the shape this
+> ledger already rewards — a real gap in a category otherwise mostly closed —
+> and found one: `apps/web/src/hooks/useSession.ts` decides, on every visit
+> to a protected page, whether to bounce an anonymous visitor to `/signin`
+> and what `?next=` to send them back to afterward. That decision had never
+> been exercised by a test, unlike `resolveEffectiveTheme` (`useTheme.ts`) and
+> `shouldAnimateReveal` (`useReveal.ts`), the two hooks in this same directory
+> that already extract their pure logic into a colocated, DI-tested function.
+
+- [x] Extracted `useSession.ts`'s two decisions into a new
+      `apps/web/src/hooks/session-redirect.ts`: `resolveSignInRedirect(status,
+      pathname)` (which state redirects, and that the visitor's own path
+      rides along as `?next=`) and `resolveSessionState(query)` (collapsing
+      `anonymous` into `loading` so no caller ever has to handle a third
+      state it has no content for). `useSession.ts` now calls both instead of
+      inlining the logic; behaviour is unchanged, `SessionState`/
+      `OptionalSessionState` are re-exported from `useSession.ts` so every
+      existing importer (`AccountView`, `Header`, `MobileNav`, `HomeScreen`,
+      `VoiceValidationView`, `RegisterView`, `VoiceContributionView`) compiles
+      unchanged.
+- [x] **Why a new file and not just a test on `useSession.ts` directly.** Tried
+      that first — `apps/web/src/hooks/useSession.test.ts` importing the two
+      functions straight from `./useSession` failed before a single assertion
+      ran: `Cannot find module '.../next-intl@.../node_modules/next/navigation'
+      ... Did you mean to import "next/navigation.js"?`. Root cause: `next`
+      ships no `exports` field in its `package.json`, so subpath resolution
+      falls back to the filesystem — fine for Next's own bundler, but vitest
+      externalises `next` to Node's native ESM resolver for any test that
+      imports it transitively, and that resolver doesn't do the
+      extension-less fallback Next's own tooling does. No existing test file
+      had ever imported `@/i18n/navigation` (every component that uses
+      `useSession`/`useOptionalSession` is covered by e2e journeys, not unit
+      tests — the established split this repo already uses), so nothing had
+      hit this before. Fixing it in `vitest.config.ts` for every consumer was
+      the wider-blast-radius option; moving the two pure functions to a file
+      with zero `next`/`next-intl` imports fixes it for this task without
+      touching shared config, and matches the existing `useTheme`/`useReveal`
+      convention of keeping the pure decision separate from the hook that
+      wraps it in `useEffect`.
+- [x] Added `apps/web/src/hooks/session-redirect.test.ts`: six cases —
+      anonymous redirects to `/signin` carrying the exact pathname as `next`;
+      loading and authenticated both redirect to nothing; `anonymous`
+      collapses to `loading`; `loading` and `authenticated` pass through
+      unchanged (the authenticated case asserts the same object reference,
+      not just a deep-equal copy, since `resolveSessionState` must not
+      reconstruct it).
+- [x] Full monorepo gate green from the repository root: `pnpm install
+      --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+      `pnpm test` (75/75 tasks; `@swasthya/web` 55/55 files, 532/532 tests,
+      up from 526 — the new file's 6 cases are the only addition; `@swasthya/api`
+      133/133 files, 993/993 tests unchanged), `pnpm build` (40/40). No
+      user-visible copy or behaviour changed, so no `ne.json`/`en.json` edit
+      and no journey update under task U's standing rule. **Done 2026-08-22.**
+
+**For the next run.** Queue exhausted again — task U's third bullet, task
+V/V′, and the owner-gated set are the only unchecked boxes. The vitest gap
+this task found (any test that transitively imports `@/i18n/navigation`
+fails outside this workaround) is now understood and worked around here, but
+not fixed at the config level — if a future task needs to unit-test a
+component or hook that itself calls `useRouter`/`usePathname` directly
+(rather than a pure function extracted out of one), the same failure will
+reproduce and the same two choices apply: extract the pure logic again, or
+fix `vitest.config.ts` once for every future consumer.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -3978,6 +4047,99 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-22 — **Task UUU — exhausted-queue improvement: gave `useSession`'s
+  sign-in-redirect decision a colocated test, and fixed a vitest module
+  resolution gap that had silently kept every router-using hook untestable.**
+
+  **Housekeeping.** Fresh container; local `main` was 50 commits behind a
+  force-pushed `origin/main` with no common ancestor — the same recurring
+  pattern every WW-onward entry describes, and local `main` was byte-identical
+  to `origin/backup/pre-force-push-main-9bdf548`, confirming nothing local was
+  at risk. `git reset --hard origin/main`. Standing red-CI check: the latest
+  push-triggered `ci` run on `main` (`6fb9aa2`) is green; the one red run
+  since (`9efe4024`, `schedule` event) is `journeys-production`, already fully
+  explained by task SSS/TTT — no action needed.
+
+  **Why this task.** Round seven's lettered queue is fully checked; task U's
+  third bullet, task V/V′, and the "Owner-gated" section are explicitly not
+  for the agent. Surveyed the codebase for the shape this ledger's history
+  keeps rewarding: a real, mechanical, well-scoped gap in a category mostly
+  closed. Checked `apps/api` controllers for unauthenticated/unrated routes
+  first (the WW–YY chain's own territory) — found nothing new; `billing`/
+  `clinical-charting`'s unguarded staff-action routes are the same
+  already-documented tenancy-blocked pattern task EE's log entry explains, not
+  a fresh gap. Checked every `packages/*` and `apps/api/src` file for a
+  missing colocated test — `configuration` was the only real hit, but it is a
+  pure `as const` data object with no function to exercise, not a meaningful
+  test. Checked `apps/mobile/src/components` — `ProfileSwitcher.tsx`/`ui.tsx`
+  have no test, but `apps/mobile`'s screens are deliberately covered by
+  Playwright journeys against the Expo web export (tasks TT/KKK) rather than
+  unit tests, and no RN testing-library is installed, so adding component
+  tests there would be new infrastructure, not a mechanical fix. Checked
+  `apps/web/src/hooks` last: most hooks (`useSession`, `useOptionalSession`,
+  `useFamilyGrants`, `useCorpusConsent`, …) had zero tests, but two —
+  `useTheme.ts` (`resolveEffectiveTheme`) and `useReveal.ts`
+  (`shouldAnimateReveal`) — already establish the repo's own pattern for this
+  exact situation: extract the pure, side-effect-free decision out of the
+  `useEffect`/`useState` wrapper and test that directly with dependency
+  injection, no component render needed. `useSession.ts` was the one hook in
+  that untested set with real branching logic worth locking in: it decides,
+  on every visit to a protected page, whether an anonymous visitor gets
+  bounced to `/signin` and what `?next=` path brings them back — the same
+  class of subtle redirect/dead-end bug this ledger has repeatedly found
+  elsewhere (task V's `SignInSuggestion`/`InstallPrompt` race, task V′'s dead
+  emergency button).
+
+  **What went sideways, and what it revealed.** Applying the exact
+  `useTheme`/`useReveal` pattern — write `useSession.test.ts` importing the
+  extracted functions straight from `./useSession` — failed immediately, not
+  from a logic bug but a module resolution error: vitest couldn't resolve
+  `next/navigation` as imported transitively through `next-intl`'s
+  `@/i18n/navigation` wrapper (`next`'s `package.json` has no `exports`
+  field, so subpath resolution falls back to the filesystem — fine for Next's
+  bundler, but vitest externalises `next` to Node's native ESM resolver for
+  any test that pulls it in, and that resolver doesn't do the extension-less
+  fallback Next's own tooling does). No test file had ever imported
+  `@/i18n/navigation` before — every component that calls
+  `useSession`/`useOptionalSession` is covered by e2e journeys instead of
+  unit tests, the established split for React components in this repo — so
+  nothing had hit this failure until a hook-level test did. Rather than widen
+  the fix into `vitest.config.ts` (correct for every future consumer, but a
+  shared-config change with a much bigger blast radius than a single task
+  should carry unverified), moved the two pure decisions into a new
+  `apps/web/src/hooks/session-redirect.ts` with zero `next`/`next-intl`
+  imports: `resolveSignInRedirect(status, pathname)` and
+  `resolveSessionState(query)`. `useSession.ts` now calls both; behaviour is
+  byte-for-byte identical, and `SessionState`/`OptionalSessionState` are
+  re-exported from `useSession.ts` so none of its seven existing importers
+  needed to change.
+
+  **What shipped.** `session-redirect.ts` (extracted logic) and
+  `session-redirect.test.ts` (6 cases: anonymous → `/signin?next=<exact
+  pathname>`; loading/authenticated → no redirect; anonymous collapses to
+  loading; loading and authenticated pass through unchanged, the
+  authenticated case asserted by reference to prove `resolveSessionState`
+  doesn't reconstruct the object).
+
+  **Gate.** `pnpm install --frozen-lockfile`, `pnpm lint` (40/40), `pnpm
+  typecheck` (40/40), `pnpm test` (75/75 tasks; `@swasthya/web` 55/55 files,
+  532/532 tests, +6 over TTT's baseline and nothing else changed;
+  `@swasthya/api` 133/133 files, 993/993 tests unchanged), `pnpm build`
+  (40/40) all green. No user-visible copy or behaviour changed — no
+  `ne.json`/`en.json` edit, no journey update needed under task U's standing
+  rule.
+
+  **For the next run.** Queue exhausted again the same way — task U's third
+  bullet, task V/V′, and the owner-gated set are the only unchecked boxes.
+  The vitest gap this run found is worked around here, not fixed at the
+  config level: any future test that imports a component or hook calling
+  `useRouter`/`usePathname` *directly* (not a pure function already extracted
+  out of one) will hit the identical `next/navigation` resolution failure.
+  Two choices when that happens: extract the pure logic again (this task's
+  approach, no shared-config risk), or fix `vitest.config.ts` once for every
+  consumer after that — worth doing if a third hook needs it, not worth the
+  blast radius for a second data point alone.
 
 - 2026-08-22 — **Task TTT — exhausted-queue improvement: confirmed
   `HANDOFF.md`'s "`/app` 404" row is stale, with actual build evidence

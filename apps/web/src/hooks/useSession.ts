@@ -3,13 +3,10 @@
 import { useEffect, useState } from 'react';
 
 import { usePathname, useRouter } from '@/i18n/navigation';
-import { getCurrentUser, type CurrentUserResponse } from '@/lib/auth-api';
+import { getCurrentUser } from '@/lib/auth-api';
+import { resolveSessionState, resolveSignInRedirect, type OptionalSessionState, type SessionState } from './session-redirect';
 
-export type SessionState =
-  | { status: 'loading' }
-  | { status: 'authenticated'; user: CurrentUserResponse };
-
-export type OptionalSessionState = SessionState | { status: 'anonymous' };
+export type { OptionalSessionState, SessionState };
 
 /**
  * Shared poll against `GET /auth/me`. `useSession` and `useOptionalSession`
@@ -62,12 +59,11 @@ export function useSession(): SessionState {
   const query = useSessionQuery();
 
   useEffect(() => {
-    if (query.status === 'anonymous') router.replace({ pathname: '/signin', query: { next: pathname } });
+    const redirect = resolveSignInRedirect(query.status, pathname);
+    if (redirect) router.replace(redirect);
   }, [query.status, router, pathname]);
 
-  // Still redirecting: report `loading` rather than `anonymous` so a caller
-  // of this hook never has to handle a third state it has no content for.
-  return query.status === 'anonymous' ? { status: 'loading' } : query;
+  return resolveSessionState(query);
 }
 
 /**
