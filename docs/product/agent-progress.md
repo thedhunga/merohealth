@@ -3137,6 +3137,84 @@ increments the counter after — will resurface for every future
 a grep for the same pattern once those modules exist, rather than
 assuming this fix generalizes on its own.
 
+## GGGG. Gave `apps/mobile` its first real component render test — the RN-render-test-infra lead FFFF, EEEE and VVV all named but none had actually attempted
+
+> Found and fixed 2026-08-22. Queue still exhausted (task U's third bullet,
+> task V/V′, the owner-gated set) so this is another step-4 improvement.
+> FFFF's own "For the next run" repeated the same speculative plan three
+> runs running — "a single `*.test.tsx` ... using `create()` directly" —
+> without anyone having actually tried it. Trying it surfaced that the plan
+> as written does not work, and why.
+
+- [x] Attempted the plan literally first: a throwaway test importing `Pill`
+      from `ui.tsx` via `react-test-renderer`'s `create()`. It failed before
+      a single assertion ran — `react-native`'s own package entry
+      (`node_modules/react-native/index.js`) is written in Flow, and neither
+      vitest's `oxc` nor `esbuild` transform strips Flow syntax, so anything
+      importing from `'react-native'` fails to parse under vitest today,
+      full stop. Fixed with one line in `apps/mobile/vitest.config.ts`:
+      `resolve.alias` maps the bare specifier `'react-native'` to
+      `'react-native-web'` — already a real dependency here, not a new one,
+      because it is how this exact app ships to web (see the Round seven UU
+      log entry) — which is plain modern JS/TS with the same primitive
+      exports (`View`, `Text`, `Pressable`, `StyleSheet`, ...).
+- [x] That alias alone was not enough for `ui.tsx` specifically: the module
+      also imports `react-native-reanimated` (for `SathiOrb`) and
+      `lucide-react-native` (for `ActionCard`'s `ChevronRight`) at module
+      scope, so importing anything from that file — even `Pill`, which uses
+      neither — still executes both. `react-native-reanimated` failed on a
+      Node ESM directory-import error from its own worklets dependency.
+      `lucide-react-native` failed with `SyntaxError: Unexpected token
+      'typeof'` transitively, traced (by importing
+      `react-native-svg/lib/module/index.js` directly to force resolution
+      away from any package-field ambiguity) to `react-native-svg`'s fabric
+      codegen components, which deep-import
+      `react-native/Libraries/Utilities/codegenNativeComponent` — a path
+      React Native's own `package.json` `exports` map does not expose
+      outside Metro's special-cased resolution, so Node's own exports
+      enforcement blocks it (`Cannot find package
+      'react-native/Libraries/Utilities/codegenNativeComponent'`). Getting
+      real icon and animation components under `react-test-renderer` needs
+      a `react-native-reanimated` mock alias (ships one at
+      `react-native-reanimated/mock.js`, the standard Jest-ecosystem
+      pattern) plus a real Metro-equivalent resolver or a hand-rolled mock
+      for every codegen native component `react-native-svg` touches — both
+      genuinely bigger than one run, so left for a future run rather than
+      guessed at here.
+- [x] Picked a target the two dependency-poisoned imports don't apply to
+      instead of forcing `ui.tsx`: extracted `Pill` — the only component in
+      that file with neither import anywhere in its own module — into its
+      own file, `apps/mobile/src/components/Pill.tsx`, with its own styles
+      (moved, not duplicated). `ui.tsx` now does `export { Pill } from
+      './Pill'`, so all three existing call sites (`app/index.tsx`,
+      `app/capture.tsx`, `app/(tabs)/care.tsx`) needed no changes — verified
+      by reading each one, not assumed. `Pill.test.tsx` (4 tests): renders
+      the label; `selected` reaches `accessibilityState` (not just styling,
+      since that is what a screen reader actually reads); `selected` absent
+      leaves `accessibilityState.selected` `undefined` rather than a
+      defaulted `false`, matching the component's own `selected?: boolean`
+      contract; `onPress` fires exactly once per simulated tap.
+- [x] Full monorepo gate green from the repository root: `pnpm install
+      --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+      `pnpm test` (75/75 tasks; `apps/mobile` 11 test files / 48 tests, up
+      from 10/44), `pnpm build` (40/40 — `apps/mobile`'s real Metro web
+      export still produced the same 17 bundles/16 static routes, since the
+      vitest alias and the file split are both invisible to Metro).
+
+**For the next run.** The harness now genuinely renders a real,
+already-shipping component end to end — this was never actually proven
+before today despite three log entries citing it as an open lead. The
+remaining, now precisely-scoped work: (1) add the `react-native-reanimated`
+→ `react-native-reanimated/mock.js` alias next to the `react-native-web`
+one — low-risk, standard, unblocks `SathiOrb` and any other reanimated
+consumer; (2) `lucide-react-native`/`react-native-svg` needs either a
+per-icon mock or accepting that icon-bearing components stay untested under
+vitest until a Metro-equivalent resolver is worth the investment — do not
+reach for `@testing-library/react-native` or a general RN testing framework
+without the owner weighing in, per FFFF's own original scoping intent.
+Queue still exhausted otherwise — same standing boxes as every run since
+task U (task U's third bullet, task V/V′, the owner-gated set).
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -4900,6 +4978,86 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-22 — **Task GGGG — exhausted-queue improvement: gave `apps/mobile`
+  its first real component render test, and found out why three prior runs'
+  "for the next run" plan for it never actually got tried.**
+
+  **Housekeeping.** `git checkout main && git pull` fast-forwarded cleanly
+  (`ea36d94` → `66c7ca2`, tasks CCCC/DDDD/EEEE/FFFF already merged) — no
+  stale-tip reconciliation needed. Standing red-CI check: the latest `ci`
+  run on `main` (`66c7ca2`) is green (confirmed via the GitHub Actions API).
+
+  **Picking the task.** The queue is exhausted for the agent (task U's
+  third bullet, task V/V′, the owner-gated set) — same as every run since
+  task U. FFFF's own "For the next run" repeated a plan first floated at
+  VVV and repeated again at EEEE: add one `*.test.tsx` on the simplest
+  existing presentational `apps/mobile` component using
+  `react-test-renderer`'s `create()` directly, to prove the RN-render-test
+  harness actually works before anyone commits to
+  `@testing-library/react-native`. Three log entries had cited this as the
+  next lead without anyone attempting it. Attempted it literally first
+  rather than trusting the plan was as small as described.
+
+  **What actually happened.** A throwaway test importing `Pill` from
+  `ui.tsx` failed immediately: `react-native`'s own package entry
+  (`node_modules/react-native/index.js`) is written in Flow, which neither
+  vitest's `oxc` nor `esbuild` transform strips, so any import of
+  `'react-native'` fails to parse under vitest as it stands today — the
+  harness the plan assumed already worked, didn't. Fixed the root cause
+  with one line: `apps/mobile/vitest.config.ts`'s `resolve.alias` now maps
+  the bare specifier `'react-native'` to `'react-native-web'`, already a
+  real dependency (it is how this exact app ships to web — Round seven
+  UU), not a new one. That unblocked plain-primitive components, but not
+  `ui.tsx` itself: the whole file also imports `react-native-reanimated`
+  (for `SathiOrb`) and `lucide-react-native` (for `ActionCard`'s icon) at
+  module scope, so importing anything from it — even `Pill`, which uses
+  neither — still executes both, and both failed independently
+  (`react-native-reanimated`'s worklets dependency hit a Node ESM
+  directory-import error; `lucide-react-native` failed transitively through
+  `react-native-svg`'s fabric codegen components, which deep-import
+  `react-native/Libraries/Utilities/codegenNativeComponent` — a path React
+  Native's own `exports` map hides outside Metro's special-cased resolver).
+  Traced both by isolating each import in its own throwaway probe test
+  rather than guessing from the bare error text.
+
+  **What was built.** Rather than chase both of those (a `reanimated` mock
+  alias is standard and low-risk; a `react-native-svg`/codegen mock is not,
+  and is bigger than one run), extracted `Pill` — `ui.tsx`'s only export
+  with neither import anywhere in its module — into its own file,
+  `apps/mobile/src/components/Pill.tsx`, with its styles moved (not
+  duplicated). `ui.tsx` now does `export { Pill } from './Pill'`, so its
+  three existing call sites (`app/index.tsx`, `app/capture.tsx`,
+  `app/(tabs)/care.tsx`) needed no changes — checked each one directly.
+  `Pill.test.tsx` (4 tests): renders the label; `selected` reaches
+  `accessibilityState` (what a screen reader actually reads, not just a
+  style diff); `selected` omitted leaves `accessibilityState.selected`
+  `undefined` rather than a defaulted `false`, matching the component's own
+  `selected?: boolean` contract; `onPress` fires exactly once per simulated
+  tap.
+
+  Full monorepo gate green from the repository root: `pnpm install
+  --frozen-lockfile`, `pnpm lint` (40/40 — one `@typescript-eslint/no-unsafe-call`
+  finding on the raw `.props.onPress()` call, fixed by typing the found
+  node's props before calling), `pnpm typecheck` (40/40), `pnpm test`
+  (75/75 tasks; `apps/mobile` 11 test files / 48 tests, up from 10/44),
+  `pnpm build` (40/40 — `apps/mobile`'s real Metro web export still
+  produced the same 17 bundles / 16 static routes, confirming the vitest
+  alias and the file split are both invisible to the actual production
+  bundler).
+
+  **For the next run.** Queue still exhausted — same standing boxes as
+  before. The RN-render-test harness is now proven end to end against a
+  real, already-shipping component, which none of the three prior citations
+  of this lead had actually done. Two precisely-scoped follow-ons if
+  someone wants icon/animation components under test next: a
+  `react-native-reanimated` → `react-native-reanimated/mock.js` alias
+  (ships in the package already, the standard Jest-ecosystem pattern, low
+  risk); and a decision on whether `lucide-react-native`/`react-native-svg`
+  is worth a hand-rolled mock or should just stay untested under vitest
+  until a Metro-equivalent resolver is worth building — not a call to make
+  unilaterally, per FFFF's own original scoping intent to avoid backing
+  into a general RN testing framework by accretion.
 
 - 2026-08-22 — **Task FFFF — exhausted-queue improvement: fixed a real
   quota-bypass race in document capture (`DOCUMENTS_STORED`).**

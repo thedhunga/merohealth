@@ -172,26 +172,8 @@ export function ActionCard({
   );
 }
 
-export function Pill({
-  label,
-  selected,
-  onPress,
-}: {
-  label: string;
-  selected?: boolean;
-  onPress?: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={[styles.pill, selected && styles.pillSelected]}
-    >
-      <Text style={[styles.pillText, selected && styles.pillTextSelected]}>{label}</Text>
-    </Pressable>
-  );
-}
+// Moved to its own file, `Pill.tsx` — see that file's doc comment for why.
+export { Pill } from './Pill';
 
 export function SectionTitle({
   eyebrow,
@@ -297,18 +279,6 @@ const styles = StyleSheet.create({
   actionBadge: { fontSize: 8, fontWeight: '900', letterSpacing: 0.8 },
   actionTitle: { color: colors.ink, fontSize: 16, fontWeight: '900' },
   actionSubtitle: { color: colors.muted, fontSize: 12, lineHeight: 17 },
-  pill: {
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    justifyContent: 'center',
-    minHeight: 44,
-    paddingHorizontal: spacing.lg,
-  },
-  pillSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
-  pillText: { color: colors.ink, fontWeight: '800' },
-  pillTextSelected: { color: 'white' },
   sectionTitle: { gap: spacing.sm },
   eyebrow: { color: colors.primary, fontSize: 10, fontWeight: '900', letterSpacing: 1.3 },
   h2: { color: colors.ink, fontSize: 28, fontWeight: '900', letterSpacing: -0.7, lineHeight: 35 },
