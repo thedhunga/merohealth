@@ -165,6 +165,31 @@ describe('retrieveForSubject', () => {
     expect(result.documents[0]?.document.id).toBe('doc-1');
   });
 
+  it('still matches a document title containing an expanded term as a whole word', () => {
+    const result = retrieveForSubject(
+      'subject-1',
+      { observations: [], documents: [makeDocument({ title: 'Renal Function Test — Om Hospital' })] },
+      'kidney',
+    );
+
+    expect(result.documents).toHaveLength(1);
+  });
+
+  it('does not match an expanded term as a raw substring of an unrelated word in a document title', () => {
+    // clinicalTermMap's kidney concept includes the English surface form
+    // "renal", a literal substring of "adrenal" — an unrelated endocrine
+    // concept not in the term map. Before matchesAnyTerm was tokenized, a
+    // kidney question retrieved and cited an adrenal-panel document as
+    // kidney evidence.
+    const result = retrieveForSubject(
+      'subject-1',
+      { observations: [], documents: [makeDocument({ title: 'Adrenal Function Panel — Om Hospital' })] },
+      'how is my kidney doing',
+    );
+
+    expect(result.documents).toEqual([]);
+  });
+
   it('never returns another subject observation, even when it is sitting in the same corpus', () => {
     const result = retrieveForSubject(
       'subject-1',

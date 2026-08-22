@@ -2711,6 +2711,79 @@ below) — this is an owner infrastructure decision (upgrade the key or switch
 thing any run checks for an owner response before picking a fresh
 step-4 lead.
 
+## BBBB. Fixed a real retrieval bug: `packages/retrieval`'s `matchesAnyTerm` matched an expanded term as a raw substring of an unrelated word — `renal` (kidney) inside `adrenal` (a different, unrelated concept) — task AAAA's own "for the next run" lead 1
+
+> Found and fixed 2026-08-22. Task AAAA's own log entry named the exact next
+> step: the substring-collision bug class it fixed in
+> `packages/clinical-safety` was "only guarded against now, not swept for
+> elsewhere in the repo." Delegated that sweep to a subagent covering
+> `packages/family`, `packages/health-records`, `packages/language-corpus`,
+> `packages/text-normalization` and `packages/intent-router` in addition to
+> the two the note named. Four came back clean (either no free-text matching
+> at all, or matching already boundary-safe or dedup'd); `packages/retrieval`
+> had a real, reproducible instance, verified directly before fixing it.
+
+- [x] Root cause, verified directly: `expandQuery`'s own query-side matching
+      (`termAppears`, `index.ts:143-149`) is already boundary-guarded —
+      tokenizes the query and requires a single-word term to equal a whole
+      token. But the *label/title*-side matcher used afterward,
+      `matchesAnyTerm` (`index.ts:281-284` before this fix), did a raw
+      `normalizedText.includes(term)` with no boundary at all. `clinicalTermMap`'s
+      `kidney` concept lists the English surface form `renal`
+      (`index.ts:39-43`), and `renal` is a literal substring of `adrenal` — an
+      unrelated endocrine concept not in the term map. Confirmed end-to-end
+      with the real, unmodified functions before touching anything: the query
+      `"how is my kidney doing"` expands to include the term `renal`, and
+      `retrieveForSubject` then matched and cited a document titled `"Adrenal
+      Function Panel — Om Hospital"` as kidney evidence — a materially wrong
+      citation a grounded answer would have surfaced to the person asking
+      about their kidneys.
+- [x] Fix: `matchesAnyTerm` now tokenizes `text` the same way `termAppears`
+      already tokenizes the query, and applies the same word/phrase split — a
+      single-word term must equal a whole token, a multi-word term (`blood
+      sugar`) is still checked as a phrase against the normalized text, since
+      tokenizing would lose the adjacency that makes it a phrase. Labels and
+      document titles are canonical strings, not user input, so unlike
+      `termAppears` there is no possessive-suffix case to also handle here.
+- [x] Two new tests in `index.test.ts`'s `retrieveForSubject` block: the
+      `renal`/`adrenal` regression (confirmed it fails without the source fix
+      — reverted `index.ts` alone via `git stash`, reran, got the exact wrong
+      citation back — then restored the fix and confirmed it passes) and a
+      positive counterpart confirming a genuine `"Renal Function Test"` title
+      still matches a `kidney` query, so the boundary fix doesn't quietly stop
+      matching real single-word terms.
+- [x] Full monorepo gate green from the repository root: `pnpm install
+      --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+      `pnpm test` (75/75 tasks; `@swasthya/retrieval` 27/27, up from 25),
+      `pnpm build` (40/40). No UI, copy or user-visible behaviour changed —
+      matching logic and tests only — so no `ne.json`/`en.json` edit and no
+      new journey under task U's standing rule.
+- [x] Housekeeping while starting this run: `main` on GitHub had been
+      force-pushed to an unrelated commit history since the last run (no
+      shared git ancestor with the previous local clone's `main`), with the
+      prior history preserved at `origin/backup/pre-force-push-main-9bdf548`.
+      Content-wise the new history is a strict superset (616 files, ~72k
+      lines ahead) and CI on its tip (`024b3b8`) was green, so this run
+      treated `origin/main` as authoritative and continued from there rather
+      than attempting to reconcile two disjoint histories. Flagging it here
+      only because the working agreement assumes continuous ancestry between
+      runs, and this run had none to build on — worth the owner's attention if
+      it wasn't an intentional history rewrite.
+
+**For the next run.** Queue exhausted again — task U's third bullet, task
+V/V′, and the owner-gated set are the only standing unchecked boxes. The
+audit this run ran also swept `packages/family`, `packages/health-records`,
+`packages/language-corpus`, `packages/text-normalization` and
+`packages/intent-router` for the same substring-collision failure mode and
+found nothing else exploitable (`intent-router` has one same-category,
+same-outcome collision — `दुखाइ`/`शिरदुखाइ` — that changes nothing observable
+and was left as-is rather than fixed for its own sake). The most recent
+still-open finding stands: production's `GEMINI_API_KEY` is free-tier and
+intermittently quota-refuses real research requests — an owner infrastructure
+decision (upgrade the key or switch `RESEARCH_PROVIDER=perplexity`), not
+agent work, and should stay the first thing any run checks for an owner
+response before picking a fresh step-4 lead.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after

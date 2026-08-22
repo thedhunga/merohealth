@@ -278,9 +278,23 @@ function citeDocument(document: HealthDocument): Citation {
   };
 }
 
+/**
+ * Same word/phrase distinction as `termAppears`, mirrored onto the label/
+ * title side of matching. Without it, a single-word term matches as a raw
+ * substring: `clinicalTermMap`'s `renal` (kidney) is a literal substring of
+ * `adrenal` (an unrelated endocrine concept), so a kidney question would
+ * retrieve and cite an adrenal-panel document as kidney evidence. Labels and
+ * document titles are canonical strings, not user input, so — unlike
+ * `termAppears` — there is no possessive-suffix case to also check here.
+ */
 function matchesAnyTerm(terms: readonly string[], text: string): boolean {
   const normalizedText = normalize(text);
-  return terms.some((term) => term.length > 0 && normalizedText.includes(term));
+  const textTokens = tokenize(text);
+  return terms.some((term) => {
+    if (term.length === 0) return false;
+    if (term.includes(' ')) return normalizedText.includes(term);
+    return textTokens.includes(term);
+  });
 }
 
 function byEffectiveAtDescending(a: { effectiveAt: string | null }, b: { effectiveAt: string | null }): number {
