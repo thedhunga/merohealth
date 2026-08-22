@@ -42,6 +42,21 @@ describe('clinical safety routing', () => {
       riskLevel: 'CLINICIAN_RECOMMENDED', matchedRuleIds: [], interruptConversation: false,
     });
   });
+  it.each([
+    ['I want to kill  myself', 'MENTAL_HEALTH_CONCERN'],
+    ['I want to kill\nmyself', 'MENTAL_HEALTH_CONCERN'],
+    ['I want to kill\tmyself', 'MENTAL_HEALTH_CONCERN'],
+    ['I want to kill\u200bmyself', 'MENTAL_HEALTH_CONCERN'],
+    ['I  cannot   breathe', 'EMERGENCY_NOW'],
+    ['मलाई सास फेर्न\u200bगाह्रो छ', 'EMERGENCY_NOW'],
+  ])(
+    'still interrupts for %s despite irregular whitespace or a zero-width character between the matching words',
+    (message, expected) => {
+      const result = assessSafety(message);
+      expect(result.riskLevel).toBe(expected);
+      expect(result.interruptConversation).toBe(true);
+    },
+  );
   it('never fabricates a template', () => expect(getSafetyTemplate('made-up', 'en')).toBeNull());
   it('returns the approved template text for every known id and language', () => {
     for (const templateId of Object.keys(approvedSafetyTemplates) as (keyof typeof approvedSafetyTemplates)[]) {

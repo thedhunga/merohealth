@@ -2421,6 +2421,89 @@ text above — flagging so a future run doesn't waste time hunting for a
 missing entry. No other unchased leads from this run's survey — every fresh
 category came back clean or (the `useFocusTrap` case) confirmed not a bug.
 
+## XXX. `packages/clinical-safety`'s interception missed a double space, a line break or a zero-width character between the two words of an otherwise-matching phrase — a patient-safety gap, not a stylistic one
+
+> Queue exhausted the same way it was after SSS/TTT/UUU/VVV/WWW — task U's
+> third bullet, task V/V′, and the owner-gated set are the only other
+> unchecked boxes. Surveyed fresh (delegated to an Explore agent with
+> explicit instructions not to re-report anything the WW–WWW chain already
+> swept, then verified the finding by hand before touching anything): Prisma
+> queries missing an ownership scope in modules outside the WW–EE
+> access-control chain (clean), `useEffect` cleanup gaps (clean), untested
+> recently-touched components (each has a reasoned "not tested" precedent),
+> and raw database errors reaching a client (clean, typed error classes
+> rethrow to a global filter). One real, unfixed bug turned up in
+> `packages/clinical-safety` itself: every phrase in `safetyRules` (the
+> self-harm, emergency-breathing, emergency-chest, maternal and pediatric
+> rules) and in `adviceVerbPatterns` matches on a **literal single space**
+> between two words — `/kill myself/i`, `/मर्न (मन|चाहन्छु...)/u`, etc. —
+> with no `\s+` or similar tolerance. `assessSafety`'s own normalization
+> (`.normalize('NFKC').replace(/[''']/g, "'").trim()`) never collapsed
+> whitespace or stripped zero-width characters, so a double space (an
+> autocorrect artefact), a line break (pressing return mid-message in a chat
+> box) or a zero-width character (some IME/copy-paste input) inserted
+> between the two matching words silently defeated interception. Verified
+> directly, independent of the survey agent's own claim, before writing any
+> code: `assessSafety('I want to kill myself')` returns
+> `MENTAL_HEALTH_CONCERN` as expected, but
+> `assessSafety('I want to kill  myself')` (two spaces) and
+> `assessSafety('I want to kill\nmyself')` (a line break) both returned no
+> match at all — `CLINICIAN_RECOMMENDED`, the same verdict as a genuinely
+> benign message. This is the module the standing constraints name
+> explicitly ("Never weaken the safety layer... runs its deterministic
+> interception before any model call") and the exact class of near-miss its
+> own `self-harm-001` comment already documents once (the 2026-08-19 journey
+> test that found "मलाई अब बाँच्न मन छैन" reaching the model) — this is the
+> same failure mode from a different, entirely mechanical cause: not a
+> missing phrasing, but ordinary spacing/line-break variation in real typed
+> input defeating a phrasing that *was* already covered.
+
+- [x] Added a shared `normalizeForMatching()` helper in
+      `packages/clinical-safety/src/index.ts`: NFKC-normalizes, replaces the
+      zero-width/format character range (`\u200b`–`\u200f`, `\ufeff`) with a
+      space, collapses any run of whitespace (including a line break or tab)
+      to a single space, folds the two typographic quote characters to `'`
+      (moved here from `assessSafety`'s own inline logic, unchanged
+      behaviour), then trims. `assessSafety` now calls it instead of its own
+      inline normalization, and `detectAdvisoryTriggers` — which had no
+      quote-folding or whitespace-collapsing at all before this — now calls
+      the same shared function, closing the identical gap in
+      `adviceVerbPatterns` and the medicine-name patterns. Zero-width
+      characters are replaced with a space rather than stripped outright, on
+      the module's own stated philosophy ("these are language patterns, not
+      clinical claims; err towards matching") — stripping them would turn
+      `kill\u200bmyself` into the unbroken `killmyself`, which would still
+      miss the space-delimited phrase; replacing with a space lets the
+      existing phrase list catch it as written, with no new phrasing needed.
+- [x] Six new cases in the colocated `index.test.ts`, added as their own
+      `it.each` block rather than folded into the existing "interrupts for
+      %s" table so the regression is legible as its own class: a double
+      space, a line break and a tab all splitting "kill myself"; a
+      zero-width space splitting "kill myself" and splitting the Devanagari
+      breathing-difficulty phrase; and a double-spaced "I  cannot   breathe".
+      All six assert `interruptConversation: true` and the correct
+      `riskLevel`, mirroring the existing table's shape. Wrote the
+      zero-width test inputs using an explicit `'\u200b'` escape in the
+      source rather than pasting the literal invisible character — the
+      literal character is unreadable in a diff and, during this task's own
+      first attempt, silently corrupted the file (confirmed with `file`/a
+      byte-level Python check) when passed through as raw text instead of an
+      escape sequence.
+- [x] Full monorepo gate green from the repository root: `pnpm install
+      --frozen-lockfile`, `pnpm lint` (40/40), `pnpm typecheck` (40/40),
+      `pnpm test` (75/75 tasks; `@swasthya/clinical-safety` 98/98 tests, +6
+      over the previous baseline, nothing else in its dependent graph
+      changed behaviour), `pnpm build` (40/40). No copy changed and no
+      user-facing screen changed, so no `ne.json`/`en.json` edit and no new
+      journey under task U's standing rule — this is a matching-logic fix
+      with no new UI.
+
+**For the next run.** Queue exhausted again — task U's third bullet, task
+V/V′, and the owner-gated set are the only unchecked boxes. Nothing new
+flagged for a future run this time; the survey's other candidate (unscoped
+Prisma queries outside the WW–EE chain) came back clean and is not a lead
+worth re-checking without a new signal.
+
 ## Owner-gated (not for the agent)
 
 - Store apps: Apple Developer + Google Play accounts, then EAS builds — after
@@ -4184,6 +4267,61 @@ re-read the table itself rather than trust this paragraph.
 
 Newest first. One entry per run: date, task, outcome, and anything the next
 run needs to know.
+
+- 2026-08-22 — **Task XXX — exhausted-queue improvement: `packages/clinical-safety`'s
+  self-harm/emergency interception matched only a literal single space
+  between the two words of a phrase, so a double space, a line break or a
+  zero-width character silently defeated it.**
+
+  **Housekeeping.** Continuation of the same container/run as task WWW
+  earlier today — `main` was already at `ec1f4d8` with no force-push since,
+  confirmed with a plain `git pull`. Standing red-CI check: the latest
+  push-triggered `ci` run on `main` was still `in_progress` for `ec1f4d8` at
+  the time of the check (the immediately preceding commit, `6643680`, is
+  green) — not red, so no line-stop.
+
+  **Why this task.** Queue exhausted the same way as every WW-onward entry —
+  task U's third bullet, task V/V′, and the owner-gated set are the only
+  unchecked boxes. Ran a fresh Explore survey, explicitly told not to
+  re-report anything the WW–WWW chain already swept (unscoped Prisma
+  queries, useEffect cleanup gaps, untested components, raw DB errors to the
+  client — all came back clean), and independently re-verified its top
+  finding by hand — `node -e` against the actual `/kill myself/i` regex —
+  before writing any code.
+
+  **What shipped.** `normalizeForMatching()` in
+  `packages/clinical-safety/src/index.ts`, shared by `assessSafety` and
+  `detectAdvisoryTriggers`: collapses whitespace runs to one space, turns
+  zero-width/format characters into a space (not a deletion — stripping
+  would still break the phrase, replacing lets it match as written), and
+  keeps the existing NFKC + smart-quote folding. Six new `index.test.ts`
+  cases lock in a double space, a line break, a tab and a zero-width space
+  all still triggering `MENTAL_HEALTH_CONCERN`/`EMERGENCY_NOW`. Full details
+  and the exact failing-before-this-fix repro are in the task's own `## XXX`
+  entry above.
+
+  **A tooling near-miss worth naming.** The first attempt at both the source
+  fix and the test cases passed a literal invisible zero-width character
+  through as raw text in an edit rather than a `\u200b`-style escape — the
+  parameter layer decoded the escape into the actual character before it
+  reached the file, silently. `file` flagged the result as binary/`data`,
+  which is what caught it; a byte-level Python check confirmed a stray
+  literal `U+200B` sitting in a regex character class and in a test string,
+  unreadable in a normal diff. Rewrote both using an explicit Python
+  string-replace to guarantee the literal `\u` escape text lands in the
+  file, not the decoded character. No functional bug shipped — this was
+  caught before the gate ran — but worth a note for any future run editing
+  zero-width/control characters into a file: verify with `file <path>` and a
+  byte-level check, don't trust that what you typed is what landed.
+
+  **Gate.** `pnpm install --frozen-lockfile`, `pnpm lint` (40/40), `pnpm
+  typecheck` (40/40), `pnpm test` (75/75 tasks; `@swasthya/clinical-safety`
+  98/98, +6), `pnpm build` (40/40) all green. No copy or UI changed, so no
+  `ne.json`/`en.json` edit and no new journey.
+
+  **For the next run.** Queue exhausted again — task U's third bullet, task
+  V/V′, and the owner-gated set are the only unchecked boxes. Nothing new
+  flagged.
 
 - 2026-08-22 — **Task WWW — exhausted-queue improvement: wrapped `apps/mobile`'s
   five bare `Speech.speak()` calls in the `fireAndForget()` guard task QQ

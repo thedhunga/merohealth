@@ -79,14 +79,31 @@ export const approvedSafetyTemplates = {
   },
 } as const;
 type SafetyTemplateId = keyof typeof approvedSafetyTemplates;
+
+// Every phrase in `safetyRules`/`adviceVerbPatterns` matches on a literal
+// single space between words, so a double space (a common autocorrect
+// artefact), a line break (pressing return mid-message in a chat box), or a
+// zero-width character (some IME/copy-paste input) between two otherwise
+// matching words was silently missing interception entirely — confirmed
+// directly: `assessSafety('I want to kill  myself')` (double space) and
+// `assessSafety('I want to kill\nmyself')` both returned no match. NFKC also
+// does not fold typographic quotes to their ASCII equivalents — they aren't
+// canonically equivalent — so `can'?t breathe` misses "can’t breathe" once a
+// phone's smart-punctuation autocorrect (the default on iOS and most Android
+// keyboards) rewrites the apostrophe. Shared by both matching functions
+// below so the same bypass class can't slip past either one; folding here,
+// once, protects every current and future rule's phrase rather than relying
+// on each phrase to defend itself.
+function normalizeForMatching(text: string): string {
+  return text
+    .normalize('NFKC')
+    .replace(/[\u200b-\u200f\ufeff]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/[‘’]/g, "'")
+    .trim();
+}
 export function assessSafety(message: string): SafetyAssessment {
-  // NFKC does not fold typographic quotes to their ASCII equivalents — they
-  // aren't canonically equivalent — so a phrase like `can'?t breathe` misses
-  // "can’t breathe" once a phone's smart-punctuation autocorrect (the
-  // default on iOS and most Android keyboards) rewrites the apostrophe.
-  // Folding here protects every current and future rule's phrase, not just
-  // the ones already written defensively.
-  const normalized = message.normalize('NFKC').replace(/[‘’]/g, "'").trim();
+  const normalized = normalizeForMatching(message);
   const matches = safetyRules.filter((rule) => rule.phrases.some((phrase) => phrase.test(normalized)));
   const first = matches[0];
   if (!first) return { riskLevel: 'CLINICIAN_RECOMMENDED', matchedRuleIds: [], interruptConversation: false };
@@ -171,7 +188,7 @@ const adviceVerbPatterns: readonly RegExp[] = [
   /ghataunuhos/i,
 ];
 export function detectAdvisoryTriggers(answerText: string, lang: AdvisoryLanguage): AdvisoryTriggers {
-  const normalized = answerText.normalize('NFKC');
+  const normalized = normalizeForMatching(answerText);
   // Keyed by the lower-cased display name so a named match (e.g.
   // "amoxicillin") and a generic-pattern match on the same word (`-cillin`)
   // collapse into one entry instead of naming the same medicine twice.
